@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TraceRecord } from "../../trace/recorder";
-import { kbTurnMarks, TRACE_MARK_LABEL } from "../trace";
+import { kbTraceRow, kbTurnMarks, TRACE_MARK_LABEL } from "../trace";
 
 const AGE = "target_audience.age_range";
 const empty: TraceRecord = { sent: null, rounds: [], choice: null, refusals: [] };
@@ -32,5 +32,36 @@ describe("kbTurnMarks", () => {
 
   it("has the exact words for each mark", () => {
     expect(TRACE_MARK_LABEL).toEqual({ unanswered: "Question left unanswered", asked_again: "Asked again", refused: "Refused", failed: "Failed" });
+  });
+});
+
+describe("kbTraceRow", () => {
+  it("takes the line columns from the trace, the sent text cut to 200 characters", () => {
+    const record: TraceRecord = {
+      ...empty,
+      rounds: [
+        { text: "", calls: [{ id: "c1", name: "answer_field", args: {} }, { id: "c2", name: "reply_choices", args: {} }], results: [], ms: 5 },
+        { text: "Saved.", calls: [], results: [], ms: 2 },
+      ],
+      choice: null,
+    };
+    const row = kbTraceRow({
+      record, clientId: "c1", messageId: "m1", createdBy: "u1", marks: ["refused"],
+      came: { text: "x".repeat(250), attachments: [], waiting: null, state: "in_review" },
+      model: "gpt", code: { settled: [], added: [], card: false }, reply: "Saved.", ms: 1234, error: null,
+    });
+    expect(row).toMatchObject({ clientId: "c1", messageId: "m1", createdBy: "u1", marks: ["refused"], durationMs: 1234, tools: ["answer_field", "reply_choices"] });
+    expect(row.sentText).toHaveLength(200);
+    expect(row.trace.rounds).toHaveLength(2);
+    expect(row.trace.came.text).toHaveLength(250);
+  });
+
+  it("names the tool a reply button ran", () => {
+    const row = kbTraceRow({
+      record: { ...empty, choice: { tool: "confirm_field", args: {}, output: "Marked Age as right." } }, clientId: "c1", messageId: null, createdBy: "u1", marks: [],
+      came: { text: "Yes, that's right", attachments: [], waiting: AGE, state: "in_review" },
+      model: null, code: { settled: [AGE], added: [], card: false }, reply: "Marked Age as right.", ms: 10, error: null,
+    });
+    expect(row.tools).toEqual(["confirm_field"]);
   });
 });

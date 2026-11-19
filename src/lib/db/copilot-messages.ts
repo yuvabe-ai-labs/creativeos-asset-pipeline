@@ -13,6 +13,8 @@ const UNIQUE_VIOLATION = "23505";
 const COLUMNS = "id, role, content, card, attachments, suggestions, created_at";
 
 export type NewCopilotMessage = {
+  /** Made by the caller when something else must name this message (a turn's trace, D509). */
+  id?: string;
   role: "user" | "assistant"; content: string;
   card?: ThreadCard | null; attachments?: Attachment[]; suggestions?: string[];
   /** The person this message is about (who approved, who saved). A person's own message is always
@@ -34,6 +36,7 @@ export async function listCopilotMessages(clientId: string, thread: CopilotThrea
 
 function toRow(clientId: string, thread: CopilotThread, userId: string | null, m: NewCopilotMessage) {
   return {
+    ...(m.id ? { id: m.id } : {}),
     client_id: clientId, thread, role: m.role, content: m.content,
     card: m.card ?? null,
     attachments: m.attachments ?? [],

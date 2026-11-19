@@ -21,6 +21,7 @@ vi.mock("@/lib/kb/start-build", () => ({ startKBBuild: vi.fn() }));
 vi.mock("@/lib/image-analysis/start", () => ({ startImageAnalysisQuietly: vi.fn() }));
 vi.mock("@/lib/kb/changes/start", () => ({ startKbProposal: vi.fn() }));
 vi.mock("@/lib/db/kb", () => ({ getActiveKBVersion: vi.fn(), patchKBFields: vi.fn() }));
+vi.mock("@/lib/db/copilot-traces", () => ({ insertTurnTrace: vi.fn() }));
 
 import { revalidatePath } from "next/cache";
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
@@ -35,6 +36,7 @@ import { startKBBuild } from "@/lib/kb/start-build";
 import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 import { startKbProposal } from "@/lib/kb/changes/start";
 import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
+import { insertTurnTrace } from "@/lib/db/copilot-traces";
 import { kbWith } from "@/lib/kb/__tests__/fixtures";
 import { KB_TURN_FAILED_AFTER_SAVE_REPLY, KB_TURN_FAILED_REPLY, KB_TURN_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
 import { BuildAlreadyRunningError } from "@/lib/kb/build-errors";
@@ -112,7 +114,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     const inserts = vi.mocked(insertCopilotMessages).mock.calls;
     expect(inserts).toHaveLength(2);
     expect(inserts[0]).toEqual(["c1", "onboarding", "u1", [{ role: "user", content: "Here you go", attachments: [doc] }]]);
-    expect(inserts[1]).toEqual(["c1", "onboarding", "u1", [{ role: "assistant", content: "Got it.", suggestions: ["Start the build"] }]]);
+    expect(inserts[1]).toEqual(["c1", "onboarding", "u1", [{ id: expect.any(String), role: "assistant", content: "Got it.", suggestions: ["Start the build"] }]]);
     expect(order(insertOpeningIfEmpty)).toBeLessThan(order(insertCopilotMessages));
     // The attached file is a new source, so the page on the right is re-read.
     expect(sent.last).toEqual({ type: "state", state: STATE, changed: true, saved: {} });
@@ -144,7 +146,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     const sent = await send({ text: "hello", attachments: [] });
     expect(sent.res.status).toBe(200);
     const inserts = vi.mocked(insertCopilotMessages).mock.calls;
-    expect(inserts[1][3]).toEqual([{ role: "assistant", content: KB_TURN_FAILED_REPLY, suggestions: [] }]);
+    expect(inserts[1][3]).toEqual([{ id: expect.any(String), role: "assistant", content: KB_TURN_FAILED_REPLY, suggestions: [] }]);
   });
 
   it("does not claim nothing changed when a tool had already saved something before the failure", async () => {
@@ -237,6 +239,46 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     expect(vi.mocked(runKbTurn).mock.calls[0][0].attachments).toEqual([doc]);
   });
 
+  describe("keeping a trace (D509)", () => {
+    const traced = () => vi.mocked(insertTurnTrace).mock.calls[0]?.[0];
+
+    it("keeps a trace of the turn after the thread has been answered, naming the stored reply", async () => {
+      await send({ text: "hello", attachments: [] });
+      await Promise.all(afterWork.map((work) => work()));
+      expect(insertTurnTrace).toHaveBeenCalledTimes(1);
+      const row = traced();
+      const reply = vi.mocked(insertCopilotMessages).mock.calls[1][3][0];
+      expect(row).toMatchObject({ clientId: "c1", createdBy: "u1", sentText: "hello", marks: [], messageId: reply.id });
+      expect(row.trace).toMatchObject({ came: { text: "hello", waiting: null, state: "pending" }, reply: "Got it.", error: null });
+      expect(order(loadThread)).toBeLessThan(order(insertTurnTrace));
+    });
+
+    it("keeps a trace of a failed turn, marked failed, with what it did so far", async () => {
+      vi.mocked(runKbTurn).mockImplementation(async ({ trace }) => {
+        trace?.round({ text: "", calls: [{ id: "c1", name: "save_website", args: {} }], results: [{ id: "c1", output: "Saved the website." }], ms: 3 });
+        throw new Error("model down");
+      });
+      await send({ text: "acme.com", attachments: [] });
+      await Promise.all(afterWork.map((work) => work()));
+      const row = traced();
+      expect(row.marks).toEqual(["failed"]);
+      expect(row.tools).toEqual(["save_website"]);
+      expect(row.trace.error).toBe("model down");
+      expect(row.trace.rounds).toHaveLength(1);
+    });
+
+    it("answers exactly as before when the trace cannot be kept", async () => {
+      vi.mocked(insertTurnTrace).mockRejectedValue(new Error("relation does not exist"));
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const sent = await send({ text: "hello", attachments: [] });
+      await Promise.all(afterWork.map((work) => work()));
+      expect(sent.events.some((e) => e.type === "error")).toBe(false);
+      expect(sent.last).toEqual({ type: "state", state: STATE, changed: false, saved: {} });
+      expect(spy).toHaveBeenCalledWith("[kb-copilot] could not keep the trace", expect.any(Error));
+      spy.mockRestore();
+    });
+  });
+
   describe("with a built KB in review", () => {
     const AGE = "target_audience.age_range";
     const TONE = "brand_profile.tone_of_voice";
@@ -266,14 +308,23 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
         await send({ text: "yes", attachments: [] });
       const stored = vi.mocked(insertCopilotMessages).mock.calls[1][3];
       expect(stored).toHaveLength(2);
-      expect(stored[0]).toEqual({ role: "assistant", content: "Good.", suggestions: [] });
+      expect(stored[0]).toEqual({ id: expect.any(String), role: "assistant", content: "Good.", suggestions: [] });
       expect(stored[1].card).toMatchObject({ kind: "question", field: TONE });
+    });
+
+    it("marks a trace whose waiting question code asks again", async () => {
+      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Confirmed that field.", suggestions: [], changed: false, saved: {}, walk: NO_WALK, card: null });
+      await send({ text: "yes", attachments: [] });
+      await Promise.all(afterWork.map((work) => work()));
+      const row = vi.mocked(insertTurnTrace).mock.calls[0][0];
+      expect(row.marks).toEqual(["unanswered", "asked_again"]);
+      expect(row.trace.came.waiting).toBe(AGE);
     });
 
     it("adds no question when the turn failed", async () => {
       vi.mocked(runKbTurn).mockRejectedValue(new Error("model down"));
         await send({ text: "yes", attachments: [] });
-      expect(vi.mocked(insertCopilotMessages).mock.calls[1][3]).toEqual([{ role: "assistant", content: KB_TURN_FAILED_REPLY, suggestions: [] }]);
+      expect(vi.mocked(insertCopilotMessages).mock.calls[1][3]).toEqual([{ id: expect.any(String), role: "assistant", content: KB_TURN_FAILED_REPLY, suggestions: [] }]);
     });
 
     it("does not treat a question as waiting once its field was reviewed by hand", async () => {
@@ -424,7 +475,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       vi.mocked(runKbTurn).mockResolvedValue({ reply: "Here is the change.", suggestions: [], changed: false, saved: {}, walk: NO_WALK, card });
       await send({ text: "we no longer say warm", attachments: [] });
       expect(vi.mocked(insertCopilotMessages).mock.calls[1][3]).toEqual([
-        { role: "assistant", content: "Here is the change.", suggestions: [] },
+        { id: expect.any(String), role: "assistant", content: "Here is the change.", suggestions: [] },
         { role: "assistant", content: "", card, suggestions: [] },
       ]);
     });

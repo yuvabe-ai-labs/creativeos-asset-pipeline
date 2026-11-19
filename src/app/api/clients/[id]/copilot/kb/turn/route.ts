@@ -7,6 +7,7 @@ import { setImportTarget, startAssetImports } from "@/lib/asset-import/start";
 import { importTargetEditValue } from "@/lib/asset-import/utils";
 import { resolveCallerContext } from "@/lib/dal";
 import { insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-messages";
+import { insertTurnTrace } from "@/lib/db/copilot-traces";
 import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
 import { openaiAgentModel } from "@/lib/journey/agent-model";
 import {
@@ -16,7 +17,9 @@ import { isBuilding, openingMessage } from "@/lib/journey/kb-copilot/context";
 import { reviewFields } from "@/lib/journey/kb-copilot/review";
 import { walkMessages, walkOf, type TurnWalk } from "@/lib/journey/kb-copilot/walk";
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
+import { kbTraceRow, kbTurnMarks } from "@/lib/journey/kb-copilot/trace";
 import { runKbTurn, type KbActions, type KbReview, type KbSaved } from "@/lib/journey/kb-copilot/turn";
+import { traceRecorder } from "@/lib/journey/trace/recorder";
 import { loadThread } from "@/lib/journey/thread/load";
 import { ONBOARDING, VIRTUAL_OPENING_ID, type Attachment, type ChangeCard, type ThreadMessage } from "@/lib/journey/thread/schema";
 import { NDJSON_HEADERS, type KbTurnEvent } from "@/lib/journey/thread/turn-events";
@@ -105,6 +108,14 @@ export async function POST(req: Request, { params }: Ctx) {
         }
       };
 
+      // What this turn's trace keeps (D509): filled in as the turn runs, stored once it is over.
+      const recorder = traceRecorder();
+      const began = Date.now();
+      const kept: {
+        replyId: string | null; reply: string; error: string | null; walk: TurnWalk | null;
+        pending: string | null; added: string[]; card: boolean; askedAgain: boolean;
+      } = { replyId: null, reply: "", error: null, walk: null, pending: null, added: [], card: false, askedAgain: false };
+
       const turn = async () => {
         try {
           // The review walk as the thread stood before this message. A question only counts as waiting
@@ -114,6 +125,7 @@ export async function POST(req: Request, { params }: Ctx) {
           const review: KbReview | null = fields
             ? { fields, pending: fields.some((f) => f.path === walk.pending && f.status === "needs_review") ? walk.pending : null }
             : null;
+          kept.pending = review?.pending ?? null;
 
           // Each action is the same server function the Brand KB form reaches. `acted` records that
           // something was really saved, so a failure afterwards is never reported as "nothing changed".
@@ -165,7 +177,7 @@ export async function POST(req: Request, { params }: Ctx) {
           let card: ChangeCard | null = null;
           try {
             const result = await runKbTurn({
-              ctx, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL),
+              ctx, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL), trace: recorder,
               kb: version ? { versionId: version.id, output: version.output as unknown as TraceableBrandKB } : null,
               on: {
                 step: (line) => emit({ type: "step", text: line }),
@@ -182,6 +194,7 @@ export async function POST(req: Request, { params }: Ctx) {
             card = result.card;
           } catch (e) {
             console.error("[kb-copilot] turn failed", e);
+            kept.error = e instanceof Error ? e.message : String(e);
             reply = { content: acted ? KB_TURN_FAILED_AFTER_SAVE_REPLY : KB_TURN_FAILED_REPLY, suggestions: [] };
             changed = acted;
           }
@@ -192,14 +205,22 @@ export async function POST(req: Request, { params }: Ctx) {
           const extra: NewCopilotMessage[] = fields && turnWalk && !isBuilding(ctx)
             ? walkMessages({ fields: fields.map((f) => (settled.includes(f.path) ? { ...f, status: "approved" as const } : f)), walk, turn: turnWalk })
             : [];
+          // The reply's id is made here so the trace can name the reply this turn produced.
+          const replyId = crypto.randomUUID();
+          kept.reply = reply.content;
+          kept.walk = turnWalk;
+          kept.added = extra.map((m) => m.content);
+          kept.card = card !== null;
+          kept.askedAgain = kept.pending !== null && extra.some((m) => m.card?.kind === "question" && m.card.field === kept.pending);
           // One insert, so the reply and the question that follows it are stored in order. When a
           // question follows, its own choices are the ones offered.
           await insertCopilotMessages(clientId, ONBOARDING, userId, [
-            { role: "assistant", content: reply.content, suggestions: extra.length > 0 ? [] : reply.suggestions },
+            { id: replyId, role: "assistant", content: reply.content, suggestions: extra.length > 0 ? [] : reply.suggestions },
             ...extra,
             // A change card is its own message, after the words that introduce it.
             ...(card ? [{ role: "assistant" as const, content: "", card, suggestions: [] }] : []),
           ]);
+          kept.replyId = replyId;
 
           // An attached file is a new source, so the page on the right has changed even when no tool ran.
           const refresh = changed || attachments.length > 0;
@@ -210,6 +231,7 @@ export async function POST(req: Request, { params }: Ctx) {
         } catch (e) {
           // The person's message is stored; the browser re-reads the thread to see what else is.
           console.error("[kb-copilot] turn could not finish", e);
+          kept.error ??= e instanceof Error ? e.message : String(e);
           emit({ type: "error", error: "The copilot could not answer." });
         } finally {
           try {
@@ -220,6 +242,32 @@ export async function POST(req: Request, { params }: Ctx) {
         }
       };
 
+      // The trace is kept once the turn is over and its answer has gone: it never adds to the wait, and
+      // a trace that cannot be kept (the table not yet migrated, a network fault) never fails the turn.
+      const keepTrace = async () => {
+        try {
+          const record = recorder.record();
+          const w = kept.walk;
+          const settled = w?.settled ?? [];
+          await insertTurnTrace(kbTraceRow({
+            record, clientId, messageId: kept.replyId, createdBy: userId,
+            marks: kbTurnMarks({
+              record, pending: kept.pending, settled, skipped: w?.skipped ?? false, stopped: w?.stopped ?? false,
+              askedAgain: kept.askedAgain, failed: kept.error !== null,
+            }),
+            came: {
+              text, attachments: attachments.map((a) => ({ kind: a.kind, name: a.name })), waiting: kept.pending,
+              state: isBuilding(ctx) ? `${ctx.kbStatus}, building` : ctx.kbStatus,
+            },
+            model: record.sent ? KB_COPILOT_MODEL : null,
+            code: { settled, added: kept.added, card: kept.card },
+            reply: kept.reply, ms: Date.now() - began, error: kept.error,
+          }));
+        } catch (e) {
+          console.error("[kb-copilot] could not keep the trace", e);
+        }
+      };
+
       const stream = new ReadableStream<Uint8Array>({
         start(c) {
           controller = c;
@@ -227,7 +275,7 @@ export async function POST(req: Request, { params }: Ctx) {
       });
       // The turn is seen through even if the browser leaves in the middle of it: a reply is never
       // lost to a closed tab.
-      const work = Promise.all([turn(), study, proposing]);
+      const work = Promise.all([turn().then(keepTrace), study, proposing]);
       after(() => work);
       return new NextResponse(stream, { headers: NDJSON_HEADERS });
     }),
