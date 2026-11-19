@@ -1,6 +1,6 @@
 # Scripting in the panel, part 1: the script's copilot stays with the script (piece 4.1)
 
-**Status:** approved by Cyril, 2026-11-20 (the recommended way: the panel on every script page now; the message box and abilities at Visualise arrive with piece 5). **Next: write its plan.**
+**Status:** approved by Cyril, 2026-11-20 (the recommended way: the panel on every script page now; the message box and abilities at Visualise arrive with piece 5). **Built 2026-11-20 as D511** (plan `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`); not yet run in a browser.
 **Part of:** the copilot journey (`2026-11-12-copilot-journey-design.md`), piece 4. Built on the same branch. Piece 4 is built in two parts (Cyril, 2026-11-20): **4.1, this spec**, and **4.2, the extra script steps** (a confirmed one-sentence message, three hooks, an approved outline, checks after the draft), which gets its own spec. A tool for the copilot to bring things in (4.3 in the map) is **not** part of piece 4: the script copilot is already given the client's market signals and brand KB, and internet search arrives with market research (piece 3).
 
 ## 1. Problem

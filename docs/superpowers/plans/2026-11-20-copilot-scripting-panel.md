@@ -409,3 +409,21 @@ git add docs
 git commit -m "docs(copilot): 4.1 built: D511, QA section 9, resume-here"
 ```
 - [ ] **Step 5: Journal entry 30** on the team design journal (https://claude.ai/artifact/7yU5A2TiWyxDLTwgaXpjHC) and republish.
+
+---
+
+## Outcome (2026-11-20)
+
+Built inline, test first, on `feat/copilot-journey` (commits `0655470`..HEAD); nothing pushed. Full suite: 5939 passed, 3 skipped, and only the two known "refuses a deprecated model" failures; tsc shows only the known error. **Not yet run in a browser** (QA section 9).
+
+**Rulings made while building:** `castStillAsked` carries the "there are avatars" check (with none, nothing can be linked); `scriptWaiting` narrows each stage explicitly (vitest had passed, tsc had not); the rail is hidden below lg, as the script's old rail was; the foot line's stage label shows only after Generate; the page's approved-version and canvas reads joined the same `Promise.all` as the thread; "Start a script" and "Go to …" sit in one row.
+
+**Whole-branch review** (one fresh reviewer): 0 Critical, 1 Important, fixed: a reopened script came back on the later-stage fold memory because the cached state still held "visualise" (`generate-workspace.test.tsx`, RED then GREEN). **Minor findings left for later:**
+1. With the panel unfolded, the storyboard is squeezed on 1024–1280px screens (its breakpoints follow the window, not its column); the unfold is remembered through In review and Approved.
+2. A remembered unfold animates open on every load at the later stages (the server draws it folded).
+3. Any pending card anywhere in the thread keeps the rail on "review the change", even after the person talked past it.
+4. The plain approved view reads the client's avatars twice.
+5. The angles card's doc comment lost the word `onPick`.
+6. A long client name in the back link is not truncated.
+7. A script with no saved thread unfolds to an empty panel.
+8. Two purple buttons on the Scripts tab (the page's "New script" and the guide's "Start a script"); purple is meant to be sparing.

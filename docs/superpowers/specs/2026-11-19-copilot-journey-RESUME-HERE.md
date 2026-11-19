@@ -1,25 +1,25 @@
-# Copilot journey: resume here (updated 2026-11-20)
+# Copilot journey: resume here (updated 2026-11-20, after piece 4.1 was built)
 
 For the next conversation that picks up the copilot journey. Read this first, then the documents it points to.
 
 ## Where things are
 
 - **Branch:** `feat/copilot-journey`, in the worktree `.claude/worktrees/copilot-journey` (links to its files need that prefix). The whole copilot is built on this one branch and merged once at the end (Cyril, 2026-11-13). **Nothing is pushed or merged without Cyril's say.**
-- **Built and committed:** piece 1 (frame, tabs, guide, gates); piece 2 (brand KB chat, review walk, streaming D502/D503, change cards D505); D504 (images studied on send); D506 (a failed background job is said once in the thread); D507 (the review walk's own buttons are carried out by code). Next ADR numbers: **D508** reserved for page-follows, **D509** for turn traces, next free **D510**. D509 recorded.
+- **Built and committed:** piece 1 (frame, tabs, guide, gates); piece 2 (brand KB chat, review walk, streaming D502/D503, change cards D505); D504 (images studied on send); D506 (a failed background job is said once in the thread); D507 (the review walk's own buttons are carried out by code). D508–D511 recorded; next free **D512**.
 - **Migrations:** 0062, 0063, 0064, 0065 (0065: turn traces). Cyril applies migrations himself; never apply one.
 - **Tests:** full suite passes except two known image-generate failures (`composite-generate` and `image-generate` route tests, "refuses a deprecated model"), plus one known type error in `src/app/api/nodes/[id]/image-generate/route.test.ts`. Not caused by this branch.
 
-## Next step: write the plan for piece 4.1, then build it
+## Next step: piece 4.2 (the extra script steps): its spec
 
-**Start here.** Cyril approved the spec for **piece 4.1, scripting in the panel, part 1** on 2026-11-20: `docs/superpowers/specs/2026-11-20-copilot-scripting-panel-design.md`. Read it, then write its plan (superpowers:writing-plans), get Cyril's read of the plan, then build it inline, test first, with one independent whole-branch review and one fix pass. One piece at a time, never in parallel (Cyril, 2026-11-20).
+**Start here.** Piece 4.1 is built (D511, plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`; QA section 9). Next is a design pass and spec for **4.2**, then its plan, then the build, as before. One piece at a time, never in parallel (Cyril, 2026-11-20). Before 4.2, Cyril may want a look at 4.1's eight deferred minors (listed in its plan's Outcome); the one most likely to matter is the storyboard being squeezed on a laptop screen while the panel is unfolded.
 
-What 4.1 is, in one line each:
+What 4.1 was, in one line each (built):
 - The Scripts tab's copilot guide offers **"Start a script"** (the same action as the page's "New script"; "Paste a script" while locked).
 - The script's copilot panel is on the script's page at **every** stage (today it is only at Generate). At Visualise, In review and Approved it shows the saved conversation and what is waiting, with no message box yet.
 - A link back to the client in the panel's header; "Waiting for you" lines per stage; one look with the client's panel.
 - Nothing about how the copilot behaves at Generate changes.
 
-A builder's check of the spec was already done; its answers are in the spec. Facts it found that the plan will need:
+Facts the 4.1 build relied on (kept for piece 5, which builds on the same panel):
 - The script page (`src/app/clients/[id]/scripts/[scriptId]/page.tsx`) renders `GenerateWorkspace` only when `stage === "generate"`. There are **three** other layouts: `TeamReviewBoard`, `ApprovedReviewBoard`, and the plain `ScriptView` (an approved script with no review). All three need the panel.
 - `loadGenerateState` / `getGenerateScript` do not filter by stage, so the server page can load the thread at any stage; `useGenerateState` takes `initialData` and does not poll. No new request is needed.
 - `JourneyPanelShell` needs three things made adjustable: its fold key (hard-wired to the client), the rail's "Waiting for you:" prefix (it does not suit "Waiting for the client's review"), and its sticky offsets (they assume the client frame, which a script page does not have).
@@ -45,7 +45,8 @@ A builder's check of the spec was already done; its answers are in the spec. Fac
 - **Image Analysis through a change card (D510)**, plus the follow-up (summary prompt 1.2.0). Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-image-analysis-card.md`. No migration.
 - None of it has been run in a browser or against the live model. QA plan sections 6.26–6.36, 7 and 8, and check 4.16.
 - Each plan's Outcome lists the minor review findings left for later.
-- **Next free ADR number: D511.**
+- **Piece 4.1, scripting in the panel, part 1 (D511).** Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`. No migration. QA section 9.
+- **Next free ADR number: D512.**
 
 ## Waiting on Cyril
 
@@ -70,7 +71,7 @@ A builder's check of the spec was already done; its answers are in the spec. Fac
 
 ## Pieces still to build
 
-4.1 then 4.2 (scripting in the panel), 5 (visualise and client review: the copilot acts there), 3 (market research agent), 6 (canvas). Each follows: design pass, spec, plan, build. Each adds its targets to the page-follows mechanism instead of its own.
+4.2 (the extra script steps), 5 (visualise and client review: the copilot acts there), 3 (market research agent), 6 (canvas). Each follows: design pass, spec, plan, build. Each adds its targets to the page-follows mechanism instead of its own.
 
 ## Open findings from the context rebuild (for after traces exist)
 
