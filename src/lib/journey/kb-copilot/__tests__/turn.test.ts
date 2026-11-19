@@ -629,3 +629,40 @@ describe("runKbTurn, reporting to a trace", () => {
     expect(recorder.record().rounds.map((r) => r.text)).toEqual(["Hello."]);
   });
 });
+
+// ── Review fixes (D509 whole-branch review) ──────────────────────────────────
+
+describe("runKbTurn, review fixes", () => {
+  const AGE = "target_audience.age_range";
+  const inReview: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "in_review", unreviewed: [AGE] };
+  const output = kbWith({});
+  const kb = { versionId: "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c11", output };
+
+  it("ends a save-only change on code's words, not on words the model wrote expecting a card", async () => {
+    const { model, seen } = scripted([
+      { text: "Here is a change card for the age range. Approve it to apply.", calls: [call("propose_change", { changes: [{ field: AGE, value: "30 to 50" }] })] },
+      say("never asked"),
+    ]);
+    const result = await turn({ ctx: inReview, kb, review: { fields: reviewFields(output), pending: null }, model });
+    expect(seen).toHaveLength(1);
+    expect(result.card).toBeNull();
+    expect(result.reply).toMatch(/^Saved .+\.$/);
+  });
+
+  it("keeps the model's words when it was asked again after the save", async () => {
+    const { model } = scripted([
+      { text: "", calls: [call("propose_change", { changes: [{ field: AGE, value: "30 to 50" }] }, "c1"), call("skip_question", {}, "c2")] },
+      say("Saved the age range; nothing was waiting to skip."),
+    ]);
+    const result = await turn({ ctx: inReview, kb, review: { fields: reviewFields(output), pending: null }, model });
+    expect(result.reply).toBe("Saved the age range; nothing was waiting to skip.");
+  });
+
+  it("records a reply button whose tool throws, with the error as its output", async () => {
+    const recorder = traceRecorder();
+    const setField = vi.fn(async () => { throw new Error("network down"); });
+    const { model } = scripted([say("never asked")]);
+    await expect(turn({ ctx: inReview, review: { fields: reviewFields(output), pending: AGE }, actions: actions({ setField }), model, text: "Yes, that's right", trace: recorder })).rejects.toThrow("network down");
+    expect(recorder.record().choice).toMatchObject({ tool: "confirm_field", output: "Error: network down" });
+  });
+});

@@ -126,6 +126,14 @@ export async function runKbTurn(input: {
   const statusOf = (path: string) => status.get(path) ?? kbFields.find((f) => f.path === path)?.status;
   const proposals: Proposal[] = [];
   let toldChange = false;
+  // How many times the model has been asked, and when a change call only saved (no card). A turn that
+  // ends on that call ends on code's words: the model wrote its own expecting a card (review fix).
+  let modelCalls = 0;
+  let savedOnlyAt = -1;
+  const counted: AgentModel = (i) => {
+    modelCalls += 1;
+    return model(i);
+  };
   /** The field a tool may write, or the sentence that refuses it. */
   const open = (path: string): ReviewField | string => {
     if (!review) return ctx.kbStatus === "ready" ? REVIEWED_LOCKED : NO_REVIEW;
@@ -211,7 +219,10 @@ export async function runKbTurn(input: {
         const withSaved = (sentence: string) => [savedLine, sentence].filter(Boolean).join(" ");
         if (added.length === 0) {
           // Every field was unreviewed and saved: a plain save, so the turn ends on it.
-          if (refusals.length === 0) return savedLine as string;
+          if (refusals.length === 0) {
+            savedOnlyAt = modelCalls;
+            return savedLine as string;
+          }
           throw new Error(withSaved(refusals.join(" ")));
         }
         // Partly refused: what was added stays on the card, and the model is told about the rest so
@@ -323,7 +334,14 @@ export async function runKbTurn(input: {
   if (choice) {
     const tool = tools[choice.tool];
     if (tool.label) input.on?.step?.(tool.label);
-    const output = await tool.run(choice.args);
+    let output: string;
+    try {
+      output = await tool.run(choice.args);
+    } catch (error) {
+      // A failed button turn is the one most worth seeing in its trace.
+      input.trace?.choice({ tool: choice.tool, args: choice.args, output: `Error: ${error instanceof Error ? error.message : String(error)}` });
+      throw error;
+    }
     input.trace?.choice({ tool: choice.tool, args: choice.args, output });
     const reply = said.length > 0 ? said.join(" ") : CHOICE_REPLY[choice.tool];
     return { reply, suggestions: fallbackSuggestions(ctx), changed, saved, walk, card: null };
@@ -335,14 +353,15 @@ export async function runKbTurn(input: {
   ];
 
   const { text } = await runAgent({
-    model, system: kbCopilotSystem(input.ctx, review, review ? null : kbFields), messages, tools,
+    model: counted, system: kbCopilotSystem(input.ctx, review, review ? null : kbFields), messages, tools,
     on: input.on && { text: input.on.text, reset: input.on.reset, step: input.on.step },
     trace: input.trace,
   });
   // A turn can end without the model's words: after a plain save it is not asked again, and
   // sometimes it just says nothing. Say what the tools said, never a bare "Done." that could follow
   // a refusal, and while sources are still being collected, what comes next.
-  const reply = text === EMPTY_AGENT_REPLY && said.length > 0 ? [said.join(" "), nextStep(ctx)].filter(Boolean).join("\n\n") : text;
+  const codeWords = text === EMPTY_AGENT_REPLY || savedOnlyAt === modelCalls;
+  const reply = codeWords && said.length > 0 ? [said.join(" "), nextStep(ctx)].filter(Boolean).join("\n\n") : text;
   const card = input.kb && proposals.length > 0
     ? buildChangeCard({ versionId: input.kb.versionId, current: input.kb.output, proposals, refused: new Set() })
     : null;

@@ -321,6 +321,19 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       expect(row.trace.came.waiting).toBe(AGE);
     });
 
+    it("traces a turn that failed after saving the waiting field as having saved it, not as unanswered", async () => {
+      vi.mocked(patchKBFields).mockResolvedValue(1);
+      vi.mocked(runKbTurn).mockImplementation(async ({ actions }: { actions: KbActions }) => {
+        await actions.setField(AGE, { status: "approved" });
+        throw new Error("model down");
+      });
+      await send({ text: "yes", attachments: [] });
+      await Promise.all(afterWork.map((work) => work()));
+      const row = vi.mocked(insertTurnTrace).mock.calls[0][0];
+      expect(row.trace.code.settled).toEqual([AGE]);
+      expect(row.marks).toEqual(["failed"]);
+    });
+
     it("adds no question when the turn failed", async () => {
       vi.mocked(runKbTurn).mockRejectedValue(new Error("model down"));
         await send({ text: "yes", attachments: [] });

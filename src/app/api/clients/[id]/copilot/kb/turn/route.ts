@@ -114,7 +114,9 @@ export async function POST(req: Request, { params }: Ctx) {
       const kept: {
         replyId: string | null; reply: string; error: string | null; walk: TurnWalk | null;
         pending: string | null; added: string[]; card: boolean; askedAgain: boolean;
-      } = { replyId: null, reply: "", error: null, walk: null, pending: null, added: [], card: false, askedAgain: false };
+        /** Fields really written, as the writes happen: a turn that fails after a save still shows it. */
+        written: string[];
+      } = { replyId: null, reply: "", error: null, walk: null, pending: null, added: [], card: false, askedAgain: false, written: [] };
 
       const turn = async () => {
         try {
@@ -152,7 +154,10 @@ export async function POST(req: Request, { params }: Ctx) {
               // One field, merged into what is stored, and only if nobody has reviewed it since this
               // turn began: the database checks that at the moment of the write.
               const written = (await patchKBFields(version.id, [{ path: path.split("."), patch }], { onlyUnreviewed: true })) > 0;
-              if (written) acted = true;
+              if (written) {
+                acted = true;
+                kept.written.push(path);
+              }
               return written;
             },
             startBuild: done(async () => {
@@ -248,7 +253,7 @@ export async function POST(req: Request, { params }: Ctx) {
         try {
           const record = recorder.record();
           const w = kept.walk;
-          const settled = w?.settled ?? [];
+          const settled = w?.settled ?? kept.written;
           await insertTurnTrace(kbTraceRow({
             record, clientId, messageId: kept.replyId, createdBy: userId,
             marks: kbTurnMarks({
