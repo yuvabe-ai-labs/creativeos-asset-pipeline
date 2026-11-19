@@ -208,6 +208,17 @@ Spec: [docs/superpowers/specs/2026-11-17-copilot-streaming-design.md](docs/super
 - **Showing early never changes what is stored.** After a turn the thread reads the same as after a reload, and the page never shows a value that was not saved.
 - **A new copilot surface is built this way from the start.** An existing one that does not yet do it moves when it is next substantially changed, not in passing.
 - Background work that runs for minutes (a build, a collection) is not part of this: it reports through the live status lines.
+# Turn traces — every copilot turn leaves a trace
+
+**Every agent turn keeps a trace of exactly what the model was sent, each tool call and what it
+returned, and what code did around it** (D509), seen in the copilot panel behind the "Turns" switch.
+Spec: [docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md](docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md).
+
+- An agent on the shared loop passes a `traceRecorder()` to `runAgent` (`trace:`), reports any
+  choice carried out by code and any refusal it says in a sentence, and its route stores the row
+  **after** the answer has gone, inside its own try/catch. Never trace by hand; never skip it.
+- A trace keeps the exact input, never a summary. A trace that cannot be kept never fails a turn.
+
 # Performance — rules we never break
 
 Learned the hard way (October 2026: one cost request per node, auth checked twice per request,

@@ -7,8 +7,8 @@
 ## Before you start
 
 - **Environment.** Staging, or a local run against the staging database with both `npm run dev` and `npx trigger dev` running. Background work (the KB build, collecting images, studying images, reading new documents) needs Trigger.dev. If it is not running, those steps never finish.
-- **Database.** Migrations 0062, 0063 and 0064 must be applied. No other migration is needed.
-- **Trigger.dev deploy (staging only).** The `kb-propose` task and the 5-minute dead-job sweep must be deployed, or documents are never read and section 6.11 onwards cannot pass.
+- **Database.** Migrations 0062, 0063, 0064 and 0065 must be applied (0065 only for section 7; without it every turn still works).
+- **Trigger.dev deploy (staging only).** The `kb-propose` task, the 5-minute dead-job sweep and the daily `copilot-trace-sweep` must be deployed, or documents are never read and section 6.11 onwards cannot pass.
 - **Clients.** You need three kinds:
   - **New client:** created for the test, no brand KB yet.
   - **Client in review:** a brand KB was built and not every field is reviewed yet.
@@ -124,9 +124,24 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.24 | Hover any field on the Brand KB screen. | No sparkle "Refine with AI" button. Editing by typing, the approve tick on an empty field, Reject and Restore still work. |
 | 6.25 | Open Source files. | The text says the copilot shows what the change would do, for you to approve; it no longer says the KB is rebuilt. |
 | 6.26 | *(approved client whose images were studied before)* Upload a few new, different-looking images on the form. | When the study finishes, a line in the thread: "Studied the images again. Changed: …" naming the Image Analysis fields that changed. No card (Image Analysis gets its own card in a later piece). |
-| 6.27 | *(client in review)* In one message, ask to change an approved field and a field nobody has reviewed yet. | The card holds the approved field. The copilot says, in its own words, that the other field was handled differently (filled directly or left for review). It never shows a sentence like "Use answer_field". |
+| 6.27 | *(client in review)* In one message, ask to change an approved field and a field nobody has reviewed yet. | The card holds the approved field. The other field is saved at once as your answer (the reply starts "Saved {field}."), and is not on the card. It never shows a sentence like "Use answer_field". |
 | 6.28 | *(approved client)* Attach two PDFs at once and send. | One card. Each field names the PDF it came from, by its real file name. |
 | 6.29 | *(approved client)* Attach a document that only adds information. | No field on the card goes to "none": new documents never clear a field. |
+
+## 7. Turn traces (D509) *(client in review unless marked)*
+
+| # | Do | Expected |
+|---|---|---|
+| 7.1 | In the panel header, turn on "Turns". Then turn it off. | On: "Chat" and "Turns" tabs appear under the header, and copilot replies get a "Trace" button. Off: the panel is exactly as before. The choice is remembered after a reload, in this browser only. |
+| 7.2 | With a question waiting, type "yes" (typed, so the model handles it, not the button). Open the Turns tab. | The newest line shows your message, the tools called and how long it took. If the model saved nothing, the line is marked "Question left unanswered" (and "Asked again" when the same question came back). If it saved, no mark. |
+| 7.3 | Open that line. | In order: what came in (your words, the waiting field, the state); what the agent was given (model name; Instructions, Conversation and Tools, each folded); each round (the words, each tool call with its arguments and what it returned); what code did (fields written, what it added after); how it ended (the reply, total time). |
+| 7.4 | Press "Yes, that's right" on a question. Open its trace. | "No model was asked: a reply button, carried out by code." The tool and its sentence are shown. No rounds. |
+| 7.5 | In Chat, press "Trace" under a copilot reply. | The same trace opens in place under that reply. "Hide trace" closes it. |
+| 7.6 | *(approved client)* Ask to change a reviewed field to the value it already has. | The line is marked "Refused"; opened, the refusal sentence is tinted red. |
+| 7.7 | Stop the model locally (an invalid OpenAI key), send a message, restore it. | The turn's line is marked "Failed", and its trace shows the error. The panel showed its usual failure reply. |
+| 7.8 | *(two people)* The second person turns on Turns. Then open a trace URL (`/api/clients/{client of another organisation}/copilot/traces/{id}`). | The second person sees the same lines. The other organisation's trace is refused. |
+| 7.9 | With Turns off, open DevTools → Network, reload, and send a message. | No request to `/copilot/traces`. With Turns on, one request on load and one about 1.5 seconds after each turn; none in between. |
+| 7.10 | Before 0065 is applied (local), send a message. | The turn answers normally. The server log shows "could not keep the trace". |
 
 ## Known limits (not bugs)
 
