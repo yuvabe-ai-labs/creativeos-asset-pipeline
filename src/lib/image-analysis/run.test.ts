@@ -288,6 +288,32 @@ describe("runImageAnalysis, proposing changes to reviewed fields", () => {
     expect(cardMessages()).toHaveLength(1);
   });
 
+  it("retires an earlier study's card before it writes, so the older reading cannot be approved meanwhile", async () => {
+    vi.mocked(listPendingChangeCards).mockResolvedValue([{ id: "m-old", card: imageCard("Bold") }]);
+    await runImageAnalysis("job-1");
+    const order = (fn: unknown) => vi.mocked(fn as () => unknown).mock.invocationCallOrder[0];
+    expect(order(claimChangeCard)).toBeLessThan(order(setKBImageAnalysis));
+  });
+
+  it("builds the card against what is stored when it writes it, not what it read earlier", async () => {
+    // By the time the card is written, the field already says what the study would propose.
+    vi.mocked(getActiveKBVersion)
+      .mockResolvedValueOnce(version("v-1", reviewed()))
+      .mockResolvedValueOnce(version("v-1", reviewed()))
+      .mockResolvedValue(version("v-1", reviewed({ aesthetic: reviewedField("Clean") })));
+    await runImageAnalysis("job-1");
+    expect(cardMessages()).toHaveLength(0);
+  });
+
+  it("writes no card when the brand KB was rebuilt while the study ran", async () => {
+    vi.mocked(getActiveKBVersion)
+      .mockResolvedValueOnce(version("v-1", reviewed()))
+      .mockResolvedValueOnce(version("v-1", reviewed()))
+      .mockResolvedValue(version("v-2", reviewed()));
+    await runImageAnalysis("job-1");
+    expect(cardMessages()).toHaveLength(0);
+  });
+
   it("does not propose a value the person already discarded for that field", async () => {
     vi.mocked(listSettledChangeCards).mockResolvedValue([{ ...imageCard("Clean"), status: "discarded", decision: { by: "Cyril", byId: null, at: "", kept: [], outOfDate: [] } }]);
     await runImageAnalysis("job-1");

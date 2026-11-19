@@ -57,7 +57,9 @@ export const OUT_OF_DATE_LINE = "Changed by hand since. Approving leaves it as i
 export function settledLine(card: ChangeCard): string | null {
   const by = card.decision?.by ?? "a teammate";
   if (card.status === "discarded") return `Discarded by ${by}.`;
-  if (card.status === "stale") return isImageStudyCard(card) ? imageStudyCopy.superseded : "The brand KB was rebuilt after this was proposed, so it no longer applies.";
+  // A newer study retires an image-study card with no decision on it; a card a person decided on
+  // after a rebuild has one, and the rebuild is the reason.
+  if (card.status === "stale") return isImageStudyCard(card) && !card.decision ? imageStudyCopy.superseded : "The brand KB was rebuilt after this was proposed, so it no longer applies.";
   if (card.status === "applied") {
     const kept = card.decision?.kept.length ?? 0;
     if (kept === 0 && (card.decision?.outOfDate.length ?? 0) > 0) return `Approved by ${by}: nothing changed. The fields were changed by hand since.`;

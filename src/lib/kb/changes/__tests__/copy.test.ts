@@ -67,5 +67,7 @@ describe("image study copy", () => {
   it("says an out-of-date image-study card was overtaken by a newer study", () => {
     expect(settledLine(imageCard({ status: "stale" }))).toBe("The images were studied again after this was proposed, so it no longer applies.");
     expect(settledLine(card({ status: "stale" }))).toBe("The brand KB was rebuilt after this was proposed, so it no longer applies.");
+    // Marked out of date by a person's decision on a rebuilt KB (the route records who): the rebuild is why.
+    expect(settledLine(imageCard({ status: "stale", decision: decision([]) }))).toBe("The brand KB was rebuilt after this was proposed, so it no longer applies.");
   });
 });

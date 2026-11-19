@@ -104,6 +104,9 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
         parts: [{ text: buildSummaryInput(stats, entries) }],
         schema: ImageSummarySchema,
       });
+      // Before anything is written: an earlier study's card still waiting is an older reading of the
+      // images, and must not be approvable once this study has moved the section on (review fix).
+      await retireEarlierCards(clientId);
       // The summary takes a while: write to whichever version is active now (a re-extract may
       // have made a new one), over the reviews it holds now.
       const active = (await getActiveKBVersion(clientId)) ?? before;
@@ -114,7 +117,7 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
       await setKBImageAnalysis(active.id, merged);
       if (reviewed && hasContent(reviewed)) for (const label of changedImageFields(reviewed, merged)) changed.add(label);
       // The last pass is the one that stands: its proposals, against the version it wrote to.
-      proposed = { versionId: active.id, current: { ...(active.output as TraceableBrandKB), image_analysis: merged }, proposals };
+      proposed = { versionId: active.id, proposals };
       result.written = true;
       result.cardSetKey = key;
       lastKey = key;
@@ -139,19 +142,30 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
 }
 
 /** What a study that wrote would change in fields the team has reviewed. */
-type Proposed = { versionId: string; current: TraceableBrandKB; proposals: { key: string; value: unknown }[] };
+type Proposed = { versionId: string; proposals: { key: string; value: unknown }[] };
 
-/** Puts what a study would change in reviewed fields on a change card in the client's copilot thread
- *  (piece 2b). A study that wrote overtakes any earlier study's card still waiting, even when it has
- *  nothing new to propose: an older reading of the images is never approved. Best effort: what the
- *  study wrote stands, and a failure here never fails the run. */
-async function proposeChanges(clientId: string, proposed: Proposed): Promise<void> {
+/** Marks every image-study card still waiting as out of date. Best effort: a failure never fails the run. */
+async function retireEarlierCards(clientId: string): Promise<void> {
   try {
-    const [pending, settled] = await Promise.all([listPendingChangeCards(clientId), listSettledChangeCards(clientId)]);
-    for (const { id, card } of pending) {
+    for (const { id, card } of await listPendingChangeCards(clientId)) {
       if (isImageStudyCard(card)) await claimChangeCard(clientId, id, { ...card, status: "stale" });
     }
-    const card = buildImageStudyCard({ ...proposed, settled });
+  } catch (e) {
+    console.error("[image-analysis] could not write the change card", { clientId, error: describeError(e) });
+  }
+}
+
+/** Puts what a study would change in reviewed fields on a change card in the client's copilot thread
+ *  (piece 2b). The card is made against what is stored at this moment, not what the study read
+ *  earlier, so its "before" is never out of date the moment it appears. Best effort: what the study
+ *  wrote stands, and a failure here never fails the run. */
+async function proposeChanges(clientId: string, proposed: Proposed): Promise<void> {
+  if (proposed.proposals.length === 0) return;
+  try {
+    const [now, settled] = await Promise.all([getActiveKBVersion(clientId), listSettledChangeCards(clientId)]);
+    // Rebuilt while the study ran: its proposals were for a brand KB no longer in use.
+    if (!now || now.id !== proposed.versionId) return;
+    const card = buildImageStudyCard({ ...proposed, current: now.output as TraceableBrandKB, settled });
     if (!card) return;
     const client = await getClientById(clientId);
     if (!client) return;
