@@ -1,7 +1,7 @@
 # Billing phase 1: agency onboarding to credit management
 
 **Date:** 2026-11-19 · **Status:** draft, the journey is to be confirmed with Cyril (prototype:
-`OneDrive/Documents/CreativeOS/Credits/shared/2026-11-19-billing-journey-prototype-v2.html`)
+`OneDrive/Documents/CreativeOS/Credits/shared/2026-11-19-billing-journey-prototype-v3.html`; the decisions in `Credits/2026-11-19-phase-1-notes.md`)
 · **Builds on:** the plan agreed with Anupama (`Credits/shared/2026-11-18-credits-full-plan.html`),
 the Razorpay architecture page, and the test top-up (D514, `2026-11-19-razorpay-test-top-up-design.md`).
 
@@ -17,10 +17,10 @@ and Yuvabe sees every agency's billing and can add credits.
 
 1. **Yuvabe adds the agency** in Admin: name, owner's email and **billing**: pays for a plan, or
    managed by Yuvabe (a monthly credit limit, as today, never charged). No plan or price is chosen
-   here. The owner is invited as today.
-2. **The owner signs up** as today and lands on **Yuvabe's plans**, the same for every paying
-   agency. They can pick one, or look around first: clients, brand kits and inviting the team all
-   work. **Any AI run needs a plan**: the owner sees "Pick a plan to start creating"; a member
+   here. The owner is invited as today: the email, and the sign-up link to copy.
+2. **The owner signs up** as today and lands in an empty workspace with a bar at the top: pick a
+   plan to start generating. It opens **Yuvabe's plans**, the same for every paying agency.
+   Clients, brand kits and inviting the team work before paying. **Any AI run needs a plan**: the owner sees "Pick a plan to start creating"; a member
    sees that the agency hasn't picked a plan. An owner of a managed agency lands in the workspace.
 3. **The owner picks a plan and pays** through Razorpay. Monthly plans renew on the day of the first
    payment. The 7-day plan is bought once per agency unless Yuvabe allows it again.
@@ -101,7 +101,7 @@ with them.
 | 2 | **Credit periods and balance** | 1 | `credit_transactions` gains `grant` rows tied to a period; `billing_periods` (agency, start, end, source); `reserve_credits` v2: managed agencies keep the monthly limit; paying agencies need an active period and a positive balance; reasons returned (no plan, paused, not enough) so the UI can say which |
 | 3 | **One-time payments** | 2 | 7-day plan and top-ups through Razorpay Orders, built on the test top-up (`billing_payments`, the webhook, signatures); grants a period (7-day) or credits into the current period (top-up) |
 | 4 | **Monthly subscriptions** | 2 | One Razorpay Plan per plan and price, created on demand when a price changes; subscribe; webhooks `subscription.activated`, `.charged`, `.pending`, `.halted`, `.cancelled` stored once by event id; renewal opens the next period; change plan at the cycle end; cancel at the cycle end; payment due pauses runs; nightly check against Razorpay |
-| 5 | **Owner screens** | 3 (4 for monthly) | Plans page (shown right after sign-up), Razorpay Checkout, billing page (plan, credits, top up, payments and invoices, change, cancel), header credits pill states, banners and blocked-run dialogs for owner and member, 80% warning |
+| 5 | **Owner screens** | 3 (4 for monthly) | Plans page (opened from the "pick a plan" bar after sign-up), Razorpay Checkout, credits left in the canvas bar with a credits popover, billing page (plan, credits, top up, payments and invoices, change, cancel), header credits pill states, banners and blocked-run dialogs for owner and member, 80% warning |
 | 6 | **Admin billing** | 2 and the admin controls above | First idea: billing list across agencies; add credits with a reason (audit-logged); allow 7-day again; send a payment link; switch paying / managed. Scope set once the admin controls are thought through |
 
 Pieces 3 and 6 can run alongside 4. The test top-up page (`/billing-test`) is removed when piece 5
