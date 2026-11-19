@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { skipToken, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { KbSaved } from "@/lib/journey/kb-copilot/turn";
 import type { ThreadState } from "@/lib/journey/thread/schema";
 import type { KbTurnEvent } from "@/lib/journey/thread/turn-events";
@@ -46,14 +46,28 @@ export function useRecordCopilotActivity(clientId: string): (event: TargetEvent)
   return useCallback((event: TargetEvent) => recordActivity(queryClient, clientId, event), [queryClient, clientId]);
 }
 
-/** The target of the question the thread waits on. Read from the thread the panel already holds
- *  (`skipToken`: this never fetches or polls), so the page adds no request. */
-export function useAskingTarget(clientId: string): string | null {
-  return useQuery({
+/** The one definition of the thread query: its key and how it is read. Every observer of the thread
+ *  is built from it, because a query keeps the options of whichever observer rendered last: one with
+ *  no real `queryFn` would make "refresh the thread now" fail without a word (review fix). */
+export function threadQueryOptions(clientId: string) {
+  return queryOptions({
     queryKey: copilotThreadKeys.thread(clientId),
-    queryFn: skipToken,
-    select: (s: ThreadState) => askingTargetOf(s, kbTarget.field),
-  }).data ?? null;
+    queryFn: () => copilotThreadService.thread(clientId),
+  });
+}
+
+const selectAskingTarget = (s: ThreadState) => askingTargetOf(s, kbTarget.field);
+
+/** The page's read-only view of the thread the panel holds: never fetches or polls by itself
+ *  (`enabled: false`), so the page adds no request. */
+export function askingTargetOptions(clientId: string) {
+  return { ...threadQueryOptions(clientId), enabled: false, select: selectAskingTarget };
+}
+
+/** The target of the question the thread waits on: null when none is, undefined while the thread
+ *  has not loaded yet (so a page can tell "nothing is asked" from "not known yet"). */
+export function useAskingTarget(clientId: string): string | null | undefined {
+  return useQuery(askingTargetOptions(clientId)).data;
 }
 
 /** The "asked" event after a turn, or null when the asked target did not change: the same question
@@ -112,8 +126,7 @@ export function withPendingMessage(state: ThreadState, body: KbTurnBody): Thread
 
 export function useCopilotThread(clientId: string) {
   return useQuery({
-    queryKey: copilotThreadKeys.thread(clientId),
-    queryFn: () => copilotThreadService.thread(clientId),
+    ...threadQueryOptions(clientId),
     enabled: Boolean(clientId),
     refetchInterval: (query) => liveRefetchInterval(query.state.data),
   });

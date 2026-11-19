@@ -83,3 +83,29 @@ describe("askedAfterTurn (D508)", () => {
     expect(askedAfterTurn(undefined, state({ messages: [question("a.b")] }))).toEqual({ type: "asked", target: "kb:a.b" });
   });
 });
+
+// ── Review fix: the page's read-only view must not break "refresh the thread now" ──
+
+import { QueryObserver } from "@tanstack/react-query";
+import { vi } from "vitest";
+import { askingTargetOptions, threadQueryOptions } from "../copilot-thread";
+import { copilotThreadService } from "@/services/copilot-thread.service";
+
+describe("the page's read-only view of the thread", () => {
+  it("still lets the thread be refreshed when it was the last to render", async () => {
+    const thread = vi.spyOn(copilotThreadService, "thread").mockResolvedValue(state({}));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const panel = new QueryObserver(client, threadQueryOptions("c1"));
+    const offPanel = panel.subscribe(() => {});
+    // The first load has finished: a refresh asked for while it is in flight would just join it.
+    await vi.waitFor(() => expect(client.getQueryState(copilotThreadKeys.thread("c1"))?.status).toBe("success"));
+    // The page renders after the panel, so its options are the ones the query holds.
+    const page = new QueryObserver(client, askingTargetOptions("c1"));
+    const offPage = page.subscribe(() => {});
+    expect(thread).toHaveBeenCalledTimes(1); // the page itself never fetches
+    await client.invalidateQueries({ queryKey: copilotThreadKeys.thread("c1") });
+    expect(thread).toHaveBeenCalledTimes(2);
+    expect(client.getQueryState(copilotThreadKeys.thread("c1"))?.status).toBe("success");
+    offPanel(); offPage(); thread.mockRestore();
+  });
+});

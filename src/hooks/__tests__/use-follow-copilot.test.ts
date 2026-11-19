@@ -31,3 +31,38 @@ describe("nextMove", () => {
     expect(nextMove({ activity: NO_TARGET_ACTIVITY, asking: B, seen: 0, opened: false, canShow: none })).toBeNull();
   });
 });
+
+// ── Review fixes ─────────────────────────────────────────────────────────────
+
+import { addLanded, hasOpened, LANDED_MS, pruneLanded } from "../use-follow-copilot";
+
+describe("landed changes (review fix: a second landing must not strand the first)", () => {
+  it("gives each change its own lifetime, and prunes each when its time is up", () => {
+    let m = addLanded(new Map(), [{ target: A, n: 1 }], 1000);
+    m = addLanded(m, [{ target: B, n: 2 }], 1100);
+    expect([...m.keys()]).toEqual([A, B]);
+    m = pruneLanded(m, 1000 + LANDED_MS);
+    expect([...m.keys()]).toEqual([B]);
+    m = pruneLanded(m, 1100 + LANDED_MS);
+    expect(m.size).toBe(0);
+  });
+
+  it("returns the same map when nothing is due", () => {
+    const m = addLanded(new Map(), [{ target: A, n: 1 }], 1000);
+    expect(pruneLanded(m, 1001)).toBe(m);
+  });
+});
+
+describe("hasOpened (review fix: a teammate's question never moves a page already open)", () => {
+  it("is open as soon as the thread has loaded, question or not", () => {
+    expect(hasOpened(false, undefined)).toBe(false);
+    expect(hasOpened(false, null)).toBe(true);
+    expect(hasOpened(false, A)).toBe(true);
+    expect(hasOpened(true, undefined)).toBe(true);
+  });
+
+  it("so a question that appears later does not move the page", () => {
+    const opened = hasOpened(false, null);
+    expect(nextMove({ activity: NO_TARGET_ACTIVITY, asking: B, seen: 0, opened, canShow: all })).toBeNull();
+  });
+});
