@@ -183,3 +183,25 @@ QA checks (Do / Expected), *(approved client whose Image Analysis has an approve
 - [ ] **Step 2: Type-check, lint, full suite.** `npx tsc --noEmit`; `npx eslint src/hooks/queries src/lib/image-analysis src/lib/kb/changes`; `npx vitest run` (only the two known image-generate failures).
 - [ ] **Step 3: Write the documents.**
 - [ ] **Step 4: Commit** `docs(copilot): Image Analysis through a change card (ADR, QA)`
+
+---
+
+## Outcome (2026-11-20)
+
+**Built** on `feat/copilot-journey`, commits `8d737f0`..`5983a0a` plus the fix pass, inline execution, test first. One independent whole-branch review (most capable model): no critical findings, two important, ten minor; verdict "with fixes". Full suite: 5,898 pass, only the two known image-generate failures. No migration.
+
+**Departures from the plan (rulings):**
+- `buildImageStudyCard` is its own builder rather than `buildChangeCard` with extra fields: `buildChangeCard` is tied to the 43 review fields.
+- The study writes its card through `getClientById` + `ensureOpening`, so a client with no thread yet still gets the card.
+- The pending-cards db test is its own file.
+
+**Fixed after the review:**
+- An earlier study's waiting card is now retired **before** the new study writes the section (each pass), not after: the older reading could be approved in between.
+- The new card is made against what is stored when it is written (a fresh read), so its "before" is never out of date as it appears; no card when the brand KB was rebuilt while the study ran.
+- An image card a person decided on after a rebuild says the rebuild is why; only a card retired by a newer study says "The images were studied again…".
+
+**Open product question (for Cyril, not decided):** the written fields are prose the model writes afresh on every study, so its wording will differ slightly each time even when the images say the same. Once those fields are reviewed, almost every study may produce a card, and a discard is remembered only for the exact words. The spec's last success step ("the same reading, no card") may not hold in practice. Options: show the model the reviewed values and ask it to keep them unless the images now say otherwise; ask the model a separate yes/no "does the reviewed value still describe the images?"; stop quoting numbers in the prose fields; remember a refusal for a field until the image set changes a lot. A live run (approve the prose fields, upload one image) will show how bad it is.
+
+**Left for later (minor):** the study's whole-section write can undo an approval made in the same instant (tiny window, existed before for hand reviews); a reviewed field with an empty value is still replaced without a card; "The new images read differently" also shows on a forced re-run with no new images; if retiring succeeds and the insert fails, the proposal is lost until the next study; an old card stays approvable when every image is removed; an unsaved hand edit of an image field beats an approved card on Save; two meanings of "same value" in `merge.ts`; `listSettledChangeCards` reads whole cards on every study with proposals; no route-level test for approving an `image_analysis.*` card.
+
+**Owed:** QA checks 6.26 and 6.30–6.35 in the browser, with a live model.
