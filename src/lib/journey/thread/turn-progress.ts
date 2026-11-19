@@ -23,6 +23,7 @@ export function applyTurnEvent(progress: TurnProgress, event: KbTurnEvent): Turn
     // A save and a page change are shown by the page beside the chat, not in the thread.
     case "saved":
     case "page":
+    case "target":
       return progress;
   }
 }

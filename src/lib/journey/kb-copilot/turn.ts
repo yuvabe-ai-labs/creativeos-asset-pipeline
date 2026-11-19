@@ -11,6 +11,7 @@ import { walkChoice, type TurnWalk } from "./walk";
 import type { ChangeCard } from "@/lib/journey/thread/schema";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { buildChangeCard, sameValue, type Proposal } from "@/lib/kb/changes/card";
+import { kbTarget } from "./targets";
 
 // One turn of the brand KB copilot: the agent's tools and the rules they enforce. The rules live
 // here, in code, because the prompt can only ask (spec §6). The actions are passed in, so this
@@ -38,6 +39,9 @@ export type KbTurnEvents = AgentEvents & {
   saved?: (saved: KbSaved) => void;
   /** Something on the page that `saved` cannot carry was just written: a field of the KB, a build. */
   page?: () => void;
+  /** What is being changed on the page, by target (D508): "writing" before the save, then "written"
+   *  (before `page`) or "unwritten" when it was refused or failed. */
+  target?: (target: string, phase: "writing" | "written" | "unwritten") => void;
 };
 
 /** The brand KB in review as this turn sees it: its fields, and the question waiting for an answer. */
@@ -143,12 +147,24 @@ export async function runKbTurn(input: {
   };
   /** False when the stored field turned out to be reviewed already: nothing was written. */
   const settle = async (field: ReviewField, patch: KBFieldPatch["patch"], reviewed: ReviewField["status"]): Promise<boolean> => {
-    const written = await actions.setField(field.path, patch);
+    const target = kbTarget.field(field.path);
+    input.on?.target?.(target, "writing");
+    let written: boolean;
+    try {
+      written = await actions.setField(field.path, patch);
+    } catch (error) {
+      input.on?.target?.(target, "unwritten");
+      throw error;
+    }
     // Reviewed either way now, so no second attempt this turn and the walk moves on from it.
     status.set(field.path, written ? reviewed : "approved");
-    if (!written) return false;
+    if (!written) {
+      input.on?.target?.(target, "unwritten");
+      return false;
+    }
     walk.settled.push(field.path);
     changed = true;
+    input.on?.target?.(target, "written");
     input.on?.page?.();
     return true;
   };
@@ -269,7 +285,15 @@ export async function runKbTurn(input: {
         const { url } = args as { url: string };
         if (ctx.hasVersion) return refuse(WEBSITE_LOCKED);
         if (isBuilding(ctx)) return refuse(WEBSITE_LOCKED_BUILDING);
-        saved.website = await actions.saveWebsite(url);
+        const site = kbTarget.form("website");
+        input.on?.target?.(site, "writing");
+        try {
+          saved.website = await actions.saveWebsite(url);
+        } catch (error) {
+          input.on?.target?.(site, "unwritten");
+          throw error;
+        }
+        input.on?.target?.(site, "written");
         ctx = { ...ctx, websiteUrl: saved.website };
         changed = true;
         input.on?.saved?.({ website: saved.website });
@@ -284,7 +308,16 @@ export async function runKbTurn(input: {
       run: async (args) => {
         const handles = args as { instagram?: string; facebook?: string };
         if (!handles.instagram && !handles.facebook) return refuse("No handle was given.");
-        const stored = await actions.saveSocials(handles);
+        const given = (["instagram", "facebook"] as const).filter((h) => handles[h]);
+        for (const h of given) input.on?.target?.(kbTarget.form(h), "writing");
+        let stored: { instagram?: string; facebook?: string };
+        try {
+          stored = await actions.saveSocials(handles);
+        } catch (error) {
+          for (const h of given) input.on?.target?.(kbTarget.form(h), "unwritten");
+          throw error;
+        }
+        for (const h of given) input.on?.target?.(kbTarget.form(h), stored[h] ? "written" : "unwritten");
         // Only what was stored just now: the turn's own `saved` may already hold the website.
         const now: KbSaved = {};
         if (stored.instagram) now.instagram = saved.instagram = stored.instagram;

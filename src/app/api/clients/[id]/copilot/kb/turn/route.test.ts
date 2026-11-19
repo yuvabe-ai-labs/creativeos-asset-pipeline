@@ -402,6 +402,21 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       expect(sent.events.slice(0, 4)).toEqual([{ type: "text", delta: "Let me" }, { type: "reset" }, { type: "page" }, { type: "text", delta: "Done." }]);
     });
 
+    it("sends what the copilot is changing, before the page change (D508)", async () => {
+      vi.mocked(runKbTurn).mockImplementation(async ({ on }: Parameters<typeof runKbTurn>[0]) => {
+        on?.target?.("kb:target_audience.age_range", "writing");
+        on?.target?.("kb:target_audience.age_range", "written");
+        on?.page?.();
+        return { reply: "Good.", suggestions: [], changed: true, saved: {}, walk: NO_WALK, card: null };
+      });
+      const sent = await send({ text: "30 to 50", attachments: [] });
+      expect(sent.events.slice(0, 3)).toEqual([
+        { type: "target", target: "kb:target_audience.age_range", phase: "writing" },
+        { type: "target", target: "kb:target_audience.age_range", phase: "written" },
+        { type: "page" },
+      ]);
+    });
+
     it("still refuses bad input as plain JSON, before anything streams", async () => {
       const sent = await send({ text: "  ", attachments: [] });
       expect(sent.res.status).toBe(400);

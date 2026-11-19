@@ -16,6 +16,9 @@ export type KbTurnEvent =
   | { type: "saved"; saved: KbSaved }
   /** Something else on the page was just written (a field of the KB, a build): re-read it. */
   | { type: "page" }
+  /** What the copilot is changing on the page, by target (D508): being written, then written, or not
+   *  written after all (refused, or the write failed). */
+  | { type: "target"; target: string; phase: "writing" | "written" | "unwritten" }
   | { type: "state"; state: ThreadState; changed: boolean; saved: KbSaved }
   | { type: "error"; error: string };
 

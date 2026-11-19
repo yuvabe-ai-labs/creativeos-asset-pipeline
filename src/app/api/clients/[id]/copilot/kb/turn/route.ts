@@ -190,6 +190,7 @@ export async function POST(req: Request, { params }: Ctx) {
                 reset: () => emit({ type: "reset" }),
                 saved: (stored) => emit({ type: "saved", saved: stored }),
                 page: () => emit({ type: "page" }),
+                target: (target, phase) => emit({ type: "target", target, phase }),
               },
             });
             reply = { content: result.reply, suggestions: result.suggestions };

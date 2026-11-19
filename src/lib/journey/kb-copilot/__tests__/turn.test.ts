@@ -666,3 +666,50 @@ describe("runKbTurn, review fixes", () => {
     expect(recorder.record().choice).toMatchObject({ tool: "confirm_field", output: "Error: network down" });
   });
 });
+
+// ── The page shows the copilot's work (D508) ────────────────────────────────
+
+describe("runKbTurn, naming what it changes", () => {
+  const AGE = "target_audience.age_range";
+  const inReview: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "in_review", unreviewed: [AGE] };
+  const review = () => ({ fields: reviewFields(kbWith({})), pending: AGE });
+
+  it("reports a review field as being written, then written, around the save", async () => {
+    const target = vi.fn();
+    const { model } = scripted([{ text: "", calls: [call("answer_field", { field: AGE, value: "30 to 50" })] }, say("Good.")]);
+    await turn({ ctx: inReview, review: review(), model, on: { target } });
+    expect(target.mock.calls).toEqual([[`kb:${AGE}`, "writing"], [`kb:${AGE}`, "written"]]);
+  });
+
+  it("reports a refused write as not written", async () => {
+    const target = vi.fn();
+    const { model } = scripted([say("never asked")]);
+    await turn({ ctx: inReview, review: review(), actions: actions({ setField: vi.fn(async () => false) }), model, text: "Yes, that's right", on: { target } });
+    expect(target.mock.calls).toEqual([[`kb:${AGE}`, "writing"], [`kb:${AGE}`, "unwritten"]]);
+  });
+
+  it("reports a write that throws as not written, and still throws", async () => {
+    const target = vi.fn();
+    const { model } = scripted([say("never asked")]);
+    await expect(turn({ ctx: inReview, review: review(), actions: actions({ setField: vi.fn(async () => { throw new Error("down"); }) }), model, text: "Yes, that's right", on: { target } })).rejects.toThrow("down");
+    expect(target.mock.calls).toEqual([[`kb:${AGE}`, "writing"], [`kb:${AGE}`, "unwritten"]]);
+  });
+
+  it("reports 'written' before asking the page to re-read", async () => {
+    const seen: string[] = [];
+    const { model } = scripted([{ text: "", calls: [call("answer_field", { field: AGE, value: "30 to 50" })] }, say("Good.")]);
+    await turn({ ctx: inReview, review: review(), model, on: { target: (_t, phase) => seen.push(phase), page: () => seen.push("page") } });
+    expect(seen).toEqual(["writing", "written", "page"]);
+  });
+
+  it("reports the website and handles it saves as form targets", async () => {
+    const target = vi.fn();
+    const site = scripted([{ text: "", calls: [call("save_website", { url: "acme.com" })] }]);
+    await turn({ model: site.model, on: { target } });
+    expect(target.mock.calls).toEqual([["kb-form:website", "writing"], ["kb-form:website", "written"]]);
+    target.mockClear();
+    const socials = scripted([{ text: "", calls: [call("save_socials", { instagram: "acme" })] }]);
+    await turn({ model: socials.model, on: { target } });
+    expect(target.mock.calls).toEqual([["kb-form:instagram", "writing"], ["kb-form:instagram", "written"]]);
+  });
+});

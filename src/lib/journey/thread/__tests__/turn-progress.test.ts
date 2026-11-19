@@ -34,3 +34,10 @@ describe("applyTurnEvent", () => {
     expect(applyTurnEvent(working, { type: "page" })).toBe(working);
   });
 });
+
+describe("applyTurnEvent, targets (D508)", () => {
+  it("leaves the progress as it is on a target event", () => {
+    const before = after({ type: "step", text: "Saving your answer…" });
+    expect(applyTurnEvent(before, { type: "target", target: "kb:a.b", phase: "writing" })).toBe(before);
+  });
+});
