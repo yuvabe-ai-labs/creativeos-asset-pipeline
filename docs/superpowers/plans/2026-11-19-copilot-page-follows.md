@@ -290,3 +290,29 @@ QA checks (Do / Expected):
 
 - [ ] **Step 1: Write the four documents.**
 - [ ] **Step 2: Commit** `docs(copilot): D508, the page shows the copilot's work`
+
+---
+
+## Outcome (2026-11-20)
+
+**Built** on `feat/copilot-journey`, commits `7492dc4`..`0c3b0eb` plus the fix pass, inline execution, test first. One independent whole-branch review (most capable model; the first reviewer stalled and a second one delivered): one critical, three important, six minor; verdict "with fixes". One fix pass. Full suite: 5,869 pass, only the two known image-generate failures.
+
+**Departures from the plan (rulings):**
+- `save_website`, `save_socials` and a throwing `setField` also report `unwritten`, so no sweep outlives a failed save even before the turn ends.
+- `askingTargetOf` uses the walk's own rule for the waiting question (`walkOf(...).pending`), which looks past page-save notes.
+- `askedAfterTurn` also moves on the first question when there was no thread before.
+- `TargetState` carries a stable `version` used as the re-mount key; keying on `landed` would re-mount again when the highlight fades.
+- The sweep loops every 1500 ms; the landing holds 1 s and fades over 500 ms.
+- `kb-field-row.tsx` is unchanged: rows are wrapped where the review step renders them. The "take" is component state through a pure, tested `fieldsWrittenSince`, in `use-kb-review-follow.ts`.
+- `KBSocialHandleFields` and `KBSourcePanel` take an optional `stateOf` (absent = unchanged); list rows moved their classes onto an inner div.
+- The AGENTS.md rule sits after "Turn traces".
+
+**Fixed after the review:**
+- **Critical:** the page read the thread with `skipToken`; because a query keeps the options of whichever observer rendered last, "refresh the thread now" failed silently and the panel stayed stale for up to 20 s. Both observers are now built from one `threadQueryOptions`; the page's is `enabled: false`.
+- Each landed change has its own lifetime (`addLanded` / `pruneLanded`), so a second landing never strands the first (visible under reduced motion).
+- A page counts as open once the thread has loaded (`hasOpened`), so a question a teammate's turn brings never moves it.
+- A target that reaches the page late (a file attached in the chat, after the page is re-read) is looked for up to 3 s, and stays "landed" for 4 s so its highlight still plays.
+
+**Left for later (minor):** the highlight's edges may be clipped on the review page (`-mx-3` inside an `overflow-x-hidden` body): check in the browser; "Copilot is asking" is not announced to screen readers and shifts the layout when it appears; formatting nits in `kb-onboarding-upload-step.tsx`; a move the page cannot show is re-checked on every activity change; the upload form's reveal accepts every target.
+
+**Owed:** QA section 8 in the browser (none of this has been run in one).
