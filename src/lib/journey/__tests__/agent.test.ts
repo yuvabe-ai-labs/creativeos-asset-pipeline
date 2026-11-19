@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { AgentAnswerError, MAX_AGENT_ROUNDS, runAgent, type AgentModel, type AgentTool } from "../agent";
+import { traceRecorder } from "../trace/recorder";
 
 type ModelInput = Parameters<AgentModel>[0];
 type ModelOutput = Awaited<ReturnType<AgentModel>>;
@@ -227,5 +228,56 @@ describe("runAgent, reporting as it goes", () => {
     const { model, seen } = writing([{ text: "Saving.", calls: [call("save_website", { url: "a.com" }, "c1"), call("reply_choices", {}, "c2")] }, { text: "Saved.", calls: [] }]);
     expect((await runAgent({ ...base, model, tools })).text).toBe("Saved.");
     expect(seen).toHaveLength(2);
+  });
+});
+
+// ── Turn traces (D509) ───────────────────────────────────────────────────────
+
+describe("runAgent, reporting to a trace", () => {
+  it("tells the trace what it sent, once, with the tools as the model sees them", async () => {
+    const recorder = traceRecorder();
+    const { model } = scripted([{ text: "", calls: [call("save_website", { url: "a.com" })] }, { text: "Saved.", calls: [] }]);
+    await runAgent({ ...base, model, tools: saveWebsite(), trace: recorder });
+    const { sent } = recorder.record();
+    expect(sent?.system).toBe("sys");
+    expect(sent?.messages).toEqual(base.messages);
+    expect(sent?.tools).toEqual([{ name: "save_website", description: "Save the website", parameters: expect.objectContaining({ type: "object" }) }]);
+  });
+
+  it("reports each round as it happens, with the final answer as a round with no calls", async () => {
+    const recorder = traceRecorder();
+    const { model } = scripted([{ text: "", calls: [call("save_website", { url: "a.com" })] }, { text: "Done it.", calls: [] }]);
+    await runAgent({ ...base, model, tools: saveWebsite(), trace: recorder });
+    const { rounds } = recorder.record();
+    expect(rounds.map((r) => [r.text, r.calls.map((c) => c.name), r.results.map((x) => x.output)])).toEqual([
+      ["", ["save_website"], ["Saved."]],
+      ["Done it.", [], []],
+    ]);
+    expect(rounds.every((r) => typeof r.ms === "number" && r.ms >= 0)).toBe(true);
+  });
+
+  it("reports a round that ends the turn before returning", async () => {
+    const recorder = traceRecorder();
+    const tools: Record<string, AgentTool> = { save_website: { ...saveWebsite().save_website, ends: true } };
+    const { model } = scripted([{ text: "", calls: [call("save_website", { url: "a.com" })] }]);
+    await runAgent({ ...base, model, tools, trace: recorder });
+    expect(recorder.record().rounds).toHaveLength(1);
+  });
+
+  it("keeps the rounds already reported when the model throws on a later call", async () => {
+    const recorder = traceRecorder();
+    let n = 0;
+    const model: AgentModel = async () => {
+      n += 1;
+      if (n === 1) return { text: "", calls: [call("save_website", { url: "a.com" })] };
+      throw new Error("model down");
+    };
+    await expect(runAgent({ ...base, model, tools: saveWebsite(), trace: recorder })).rejects.toThrow("model down");
+    expect(recorder.record().rounds.map((r) => r.calls.map((c) => c.name))).toEqual([["save_website"]]);
+  });
+
+  it("runs the same with no trace", async () => {
+    const { model } = scripted([{ text: "Hello", calls: [] }]);
+    expect(await runAgent({ ...base, model, tools: saveWebsite() })).toEqual({ text: "Hello", ran: [] });
   });
 });

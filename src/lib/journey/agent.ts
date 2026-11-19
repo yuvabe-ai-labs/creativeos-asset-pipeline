@@ -39,6 +39,29 @@ export type AgentModel = (input: {
   onText?: (delta: string) => void;
 }) => Promise<{ text: string; calls: ToolCall[]; answer?: unknown }>;
 
+/** A tool as the model is told about it: its name, description and JSON schema. The adapter sends
+ *  exactly these, and a turn's trace keeps exactly these (D509). */
+export type ToolDefinition = { name: string; description: string; parameters: Record<string, unknown> };
+
+export function toolDefinitions(tools: Record<string, AgentTool>): ToolDefinition[] {
+  return Object.entries(tools).map(([name, tool]) => ({
+    name, description: tool.description, parameters: z.toJSONSchema(tool.schema) as Record<string, unknown>,
+  }));
+}
+
+/** Where a turn reports what it did, as it does it (turn traces, D509). Reported as it happens, so a
+ *  turn that fails half-way still leaves what it did up to then. */
+export type TraceSink = {
+  /** What the model was given, exactly: reported once, before the first call. */
+  sent: (s: { system: string; messages: AgentMessage[]; tools: ToolDefinition[] }) => void;
+  /** One model answer and the tools it asked for, with what each returned. No calls on the final answer. */
+  round: (r: { text: string; calls: ToolCall[]; results: ToolResult[]; ms: number }) => void;
+  /** A choice code carried out with no model call (a reply button, D507). */
+  choice: (c: { tool: string; args: unknown; output: string }) => void;
+  /** A tool refused what the model asked, in a sentence rather than an error. */
+  refused: (sentence: string) => void;
+};
+
 /** The model's final structured answer did not fit what the caller asked for. */
 export class AgentAnswerError extends Error {}
 
@@ -67,8 +90,9 @@ export async function runAgent<T = never>(input: {
   model: AgentModel; system: string; messages: AgentMessage[]; tools: Record<string, AgentTool>;
   answer?: z.ZodType<T>;
   on?: AgentEvents;
+  trace?: TraceSink;
 }): Promise<{ text: string; ran: string[]; answer?: T }> {
-  const { model, system, messages, answer, on } = input;
+  const { model, system, messages, answer, on, trace } = input;
   const rounds: AgentRound[] = [];
   const ran: string[] = [];
 
@@ -82,7 +106,16 @@ export async function runAgent<T = never>(input: {
       }
     : undefined;
 
-  let reply = await model({ system, messages, tools: input.tools, rounds, answer, onText });
+  trace?.sent({ system, messages, tools: toolDefinitions(input.tools) });
+  // When the model call that produced the current reply started: a round's time runs from there to
+  // the end of its tools.
+  let started = Date.now();
+  const ask = (tools: Record<string, AgentTool>) => {
+    started = Date.now();
+    return model({ system, messages, tools, rounds, answer, onText });
+  };
+
+  let reply = await ask(input.tools);
   while (reply.calls.length > 0 && rounds.length < MAX_AGENT_ROUNDS) {
     // Words beside quiet tools only (reply buttons) are already the reply, so they are kept.
     // Otherwise the model wrote something and then asked for a tool that needs an answer back:
@@ -104,6 +137,7 @@ export async function runAgent<T = never>(input: {
       results.push({ id: call.id, output });
     }
     rounds.push({ calls: reply.calls, results });
+    trace?.round({ text: reply.text, calls: reply.calls, results, ms: Date.now() - started });
     // Nothing is left for the model to say after a round of tools that end the turn, so it is not
     // asked again. A failed call still goes back to it, and so does a turn that owes an answer.
     if (!answer && allRan && reply.calls.every((call) => input.tools[call.name]?.ends)) {
@@ -117,9 +151,12 @@ export async function runAgent<T = never>(input: {
     }
     // After the last round the tools are taken away, so the model has to answer.
     const tools = rounds.length < MAX_AGENT_ROUNDS ? input.tools : {};
-    reply = await model({ system, messages, tools, rounds, answer, onText });
+    reply = await ask(tools);
   }
 
+  // The final answer is a round too, so a trace shows the words the turn ended on. A reply that still
+  // asks for tools after the last round keeps its calls here, unrun, so the trace shows that too.
+  trace?.round({ text: reply.text, calls: reply.calls, results: [], ms: Date.now() - started });
   const text = reply.text.trim() || EMPTY_AGENT_REPLY;
   if (!answer) return { text, ran };
   const parsed = answer.safeParse(reply.answer);

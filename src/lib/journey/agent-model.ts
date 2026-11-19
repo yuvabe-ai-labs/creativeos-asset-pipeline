@@ -1,10 +1,9 @@
 import "server-only";
-import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { toResponseInputItems } from "openai/lib/responses/ResponseInputItems";
 import type { FunctionTool, ResponseInputItem } from "openai/resources/responses/responses";
 import { createOpenAI } from "@/lib/openai/server";
-import type { AgentModel, ToolCall } from "./agent";
+import { toolDefinitions, type AgentModel, type ToolCall } from "./agent";
 
 // The OpenAI adapter for the shared agent loop (D497): Responses API function tools. This is the
 // thin edge the loop's tests do not cover; everything that decides anything lives in agent.ts.
@@ -56,9 +55,9 @@ export function openaiAgentModel(modelId: string): AgentModel {
     }
     roundsSent = rounds.length;
 
-    const functionTools: FunctionTool[] = Object.entries(tools).map(([name, tool]) => ({
-      type: "function", name, description: tool.description,
-      parameters: z.toJSONSchema(tool.schema) as Record<string, unknown>,
+    // The same definitions a turn trace keeps (D509), so what is traced is what is sent.
+    const functionTools: FunctionTool[] = toolDefinitions(tools).map((t) => ({
+      type: "function", ...t,
       // Not strict: strict mode forbids optional arguments, and the loop validates every call anyway.
       strict: false,
     }));
