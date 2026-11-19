@@ -16,9 +16,12 @@ export type ScriptWaitingInput =
 const you = (kind: ScriptWaiting["kind"], what: string): ScriptWaiting => ({ kind, line: `Waiting for you: ${what}` });
 
 export function scriptWaiting(input: ScriptWaitingInput): ScriptWaiting | null {
-  if (input.stage === "visualise") return you("task", "finish the storyboard and send it for review");
-  if (input.stage === "in_review") return { kind: "client", line: "Waiting for the client's review" };
   if (input.stage === "approved") return input.hasCanvas ? null : you("task", "create the canvas");
+  if (input.stage !== "generate") {
+    return input.stage === "visualise"
+      ? you("task", "finish the storyboard and send it for review")
+      : { kind: "client", line: "Waiting for the client's review" };
+  }
 
   const { state, locked, busy } = input;
   if (busy) return null;
