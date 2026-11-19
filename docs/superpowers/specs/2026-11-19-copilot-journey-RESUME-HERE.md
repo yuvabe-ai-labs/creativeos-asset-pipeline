@@ -5,11 +5,17 @@ For the next conversation that picks up the copilot journey. Read this first, th
 ## Where things are
 
 - **Branch:** `feat/copilot-journey`, in the worktree `.claude/worktrees/copilot-journey` (links to its files need that prefix). The whole copilot is built on this one branch and merged once at the end (Cyril, 2026-11-13). **Nothing is pushed or merged without Cyril's say.**
-- **Built and committed:** piece 1 (frame, tabs, guide, gates); piece 2 (brand KB chat, review walk, streaming D502/D503, change cards D505); D504 (images studied on send); D506 (a failed background job is said once in the thread); D507 (the review walk's own buttons are carried out by code). Next ADR number: **D508**.
+- **Built and committed:** piece 1 (frame, tabs, guide, gates); piece 2 (brand KB chat, review walk, streaming D502/D503, change cards D505); D504 (images studied on send); D506 (a failed background job is said once in the thread); D507 (the review walk's own buttons are carried out by code). Next ADR numbers: **D508** reserved for page-follows, **D509** for turn traces, next free **D510**.
 - **Migrations:** 0062, 0063, 0064. Cyril applies migrations himself; never apply one.
 - **Tests:** full suite passes except two known image-generate failures (`composite-generate` and `image-generate` route tests, "refuses a deprecated model"), plus one known type error in `src/app/api/nodes/[id]/image-generate/route.test.ts`. Not caused by this branch.
 
-## Next step: build "the page shows the copilot's work"
+## Next step (order set by Cyril, 2026-11-19): turn traces, then page-follows
+
+1. **Done:** `69dc1d3b`, words for an unreviewed field are saved even when the model reaches for a change card (QA 4.16).
+2. **Turn traces.** Spec approved with **A** (a trace keeps exactly what the model was sent): `docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md`. Plan: `docs/superpowers/plans/2026-11-19-copilot-turn-traces.md` (7 tasks, migration 0065, ADR **D509**), **awaiting Cyril's read**.
+3. **Page-follows** (below), plan already read-ready; keeps ADR **D508**.
+
+## Then: build "the page shows the copilot's work"
 
 - **Spec (approved):** `docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md`. A general principle: whatever the copilot changes on the page, the page shows it happening (go there, "Copilot is asking", working shimmer, landed highlight). First applied to the brand KB: review fields, the pre-build form's website and handles, the source list.
 - **Plan (reworked to the general version, awaiting Cyril's read):** `docs/superpowers/plans/2026-11-19-copilot-page-follows.md`. 8 tasks. Execution: inline (native), test first, then one independent whole-branch review on the most capable model, then one fix pass. Cyril confirms the plan before building.
@@ -17,7 +23,7 @@ For the next conversation that picks up the copilot journey. Read this first, th
 
 ## Waiting on Cyril
 
-1. **Turn traces spec: A or B.** Draft at `docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md`. Decided: everyone can see traces, a Turns view in the copilot panel behind a developer switch, kept 30 days, built inside CreativeOS (LangGraph and LangSmith were considered and set aside). Open: does a trace keep exactly what the model was sent (A, recommended) or a summary (B)? The context-rebuild page below is a hand-made example of A.
+1. **Read the turn traces plan** (see Next step).
 2. **Two open part-2 questions:** may the copilot fill any unreviewed field the person talks about, not only the one it asked? Should every "Save changes" write a line in the thread? (The third, "a chat answer against an unsaved edit", is settled by the page-follows spec §3.2.)
 3. **Piece 4:** do internet research findings stay with that script or also go to market research? Cyril owes a prompt for the extra script steps.
 4. **Piece 6:** the canvas copilot's scope. Also unconfirmed readings: chat images go to brand assets; the canvas panel carries over the old copilot's actions.
@@ -41,7 +47,7 @@ The model was told everything it needed on the turn where it said "Confirmed tha
 ## Records to keep updated
 
 - **ADR log:** `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7, append in place (the file is CRLF).
-- **Team design journal:** https://claude.ai/artifact/7yU5A2TiWyxDLTwgaXpjHC (21 entries). Append an entry on every copilot decision and republish.
+- **Team design journal:** https://claude.ai/artifact/7yU5A2TiWyxDLTwgaXpjHC (24 entries). Append an entry on every copilot decision and republish.
 - **QA plan:** add checks as each piece is built.
 
 ## How Cyril likes to work
