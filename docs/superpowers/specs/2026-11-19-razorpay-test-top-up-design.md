@@ -103,7 +103,7 @@ No Razorpay SDK: `fetch` against the REST API, as email does with Resend.
 
 ## Errors
 
-- Order creation fails: the route answers 502 with plain words; nothing is saved.
+- Order creation fails: the route answers 500 with plain words ("Could not start the payment."); nothing is saved.
 - Checkout closed or the payment fails: the page says so; the `created` row stays and is
   harmless.
 - Webhook for an order we don't have: 200, ignored (logged).
