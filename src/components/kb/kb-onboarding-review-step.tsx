@@ -45,6 +45,8 @@ import { useImageAnalysisStatus } from "@/hooks/queries/image-analysis";
 import { mergeImageAnalysis } from "@/lib/image-analysis/merge";
 import { KBImageAnalysisStatus } from "@/components/kb/kb-image-analysis-status";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
+import { CopilotTarget } from "@/components/journey/copilot-target";
+import { useKbReviewFollow } from "@/hooks/use-kb-review-follow";
 import { KBSourcePanel } from "@/components/kb/kb-source-panel";
 import { computeReadyStatus } from "@/lib/kb/fill-rate";
 import type { TraceableBrandKB, KBField } from "@/lib/kb/schema";
@@ -126,15 +128,6 @@ export function KBOnboardingReviewStep({
   // Save sends only the fields the person changed (never the whole KB), and tells the copilot.
   const saveFields = usePatchKbFields(clientId);
   const saving = saveFields.isPending;
-  // The stored KB changed under the screen: take it into both copies, keeping what the person has
-  // changed and not saved yet. Adjusting state during render, on a change of the prop.
-  const [seenRevision, setSeenRevision] = useState(kbRevision);
-  if (seenRevision !== kbRevision) {
-    setSeenRevision(kbRevision);
-    const next = adoptServerKb(kb, savedKB, initialKB);
-    setKB(next.draft);
-    setSavedKB(next.saved);
-  }
   // The copilot's "what is left" links open a tab by name (?section=compliance).
   const sectionParam = useSearchParams().get("section");
   const linkedModule = MODULES.find((m) => m.key === sectionParam)?.key ?? null;
@@ -143,6 +136,18 @@ export function KBOnboardingReviewStep({
   if (seenLink !== linkedModule) {
     setSeenLink(linkedModule);
     if (linkedModule) setSelectedModule(linkedModule);
+  }
+  // The page follows the copilot (D508): to the field it asks about or writes, on its own tab.
+  const follow = useKbReviewFollow(clientId, setSelectedModule);
+  // The stored KB changed under the screen: take it into both copies, keeping what the person has
+  // changed and not saved yet. Adjusting state during render, on a change of the prop. A field the
+  // copilot just wrote replaces an unsaved edit of it, so Save never writes the old edit back (§3.2).
+  const [seenRevision, setSeenRevision] = useState(kbRevision);
+  if (seenRevision !== kbRevision) {
+    setSeenRevision(kbRevision);
+    const next = adoptServerKb(kb, savedKB, initialKB, follow.takeWritten());
+    setKB(next.draft);
+    setSavedKB(next.saved);
   }
   // Brand assets (D302) live on their own page; the header links there with a live count.
   const { data: importStatus } = useAssetImports(clientId);
@@ -693,17 +698,21 @@ export function KBOnboardingReviewStep({
             </div>
           ) : (
             <div className="grid gap-10">
-              {Object.entries(currentFields).map(([fieldKey, field]) => (
-                <KBFieldRow
-                  key={fieldKey}
-                  fieldKey={fieldKey}
-                  label={FIELD_LABELS[fieldKey] ?? fieldKey}
-                  field={field}
-                  onEdit={(val) => handleEdit(selectedModule, fieldKey, val)}
-                  onApprove={() => handleApprove(selectedModule, fieldKey)}
-                  onReject={() => handleReject(selectedModule, fieldKey)}
-                />
-              ))}
+              {Object.entries(currentFields).map(([fieldKey, field]) => {
+                const target = follow.fieldTarget(selectedModule, fieldKey);
+                return (
+                  <CopilotTarget key={fieldKey} id={target} state={follow.stateOf(target)} className="-mx-3 px-3 py-2">
+                    <KBFieldRow
+                      fieldKey={fieldKey}
+                      label={FIELD_LABELS[fieldKey] ?? fieldKey}
+                      field={field}
+                      onEdit={(val) => handleEdit(selectedModule, fieldKey, val)}
+                      onApprove={() => handleApprove(selectedModule, fieldKey)}
+                      onReject={() => handleReject(selectedModule, fieldKey)}
+                    />
+                  </CopilotTarget>
+                );
+              })}
             </div>
           )}
         </motion.div>

@@ -18,3 +18,17 @@ const FIELD = "kb:";
 export function kbFieldPath(target: string): string | null {
   return target.startsWith(FIELD) ? target.slice(FIELD.length) : null;
 }
+
+/** The review paths the copilot wrote after change count `since`, and the newest count: the fields
+ *  whose stored value replaces an unsaved edit when the page next takes in the stored KB (spec §3.2). */
+export function fieldsWrittenSince(written: { target: string; n: number }[], since: number): { paths: Set<string>; latest: number } {
+  const paths = new Set<string>();
+  let latest = since;
+  for (const w of written) {
+    if (w.n <= since) continue;
+    latest = Math.max(latest, w.n);
+    const path = kbFieldPath(w.target);
+    if (path) paths.add(path);
+  }
+  return { paths, latest };
+}
