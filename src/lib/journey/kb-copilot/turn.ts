@@ -63,6 +63,13 @@ const NO_QUESTION = "No question is waiting.";
 const fieldArg = z.enum(REVIEW_FIELD_PATHS as [string, ...string[]]);
 
 
+/** A stored message's words for the model. A status line stored on its own (a failed job, D506) has
+ *  no words, so the model reads its lines instead. */
+function storedWords(m: ThreadMessage): string {
+  if (m.content || m.card?.kind !== "status") return m.content;
+  return m.card.lines.map((l) => l.text).join("\n");
+}
+
 function userContent(text: string, attachments: Attachment[]): string {
   if (attachments.length === 0) return text;
   const list = attachments.map((a) => `${a.name} (${a.kind})`).join(", ");
@@ -275,7 +282,7 @@ export async function runKbTurn(input: {
   };
 
   const messages: AgentMessage[] = [
-    ...input.history.slice(-KB_CONVERSATION_WINDOW).map((m) => ({ role: m.role, content: userContent(m.content, m.attachments) })),
+    ...input.history.slice(-KB_CONVERSATION_WINDOW).map((m) => ({ role: m.role, content: userContent(storedWords(m), m.attachments) })),
     { role: "user", content: userContent(input.text, input.attachments) },
   ];
 

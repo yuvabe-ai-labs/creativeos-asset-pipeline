@@ -19,7 +19,7 @@ function scripted(responses: ModelOutput[]) {
 
 const empty: KbContext = {
   clientName: "Acme", clientSlug: "acme", unreviewed: null, kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
-  documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
+  documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importedBefore: [],
 };
 const actions = (over: Partial<KbActions> = {}): KbActions => ({
   saveWebsite: vi.fn(async (url: string) => url), saveSocials: vi.fn(async (handles: { instagram?: string; facebook?: string }) => handles), startBuild: vi.fn(async () => {}), setField: vi.fn(async () => true), ...over,
@@ -182,6 +182,16 @@ describe("runKbTurn", () => {
     await turn({ model, history });
     expect(seen[0].messages).toHaveLength(KB_CONVERSATION_WINDOW + 1);
     expect(seen[0].messages[0].content).toBe("message 5");
+  });
+
+  it("shows the model a stored status line that has no words, as its lines (D506)", async () => {
+    const history: ThreadMessage[] = [{
+      id: "m1", role: "assistant", content: "", attachments: [], suggestions: [], createdAt: "",
+      card: { kind: "status", lines: [{ text: "Could not collect images and video from Instagram. You can try again from Brand assets.", state: "failed" }] },
+    }];
+    const { model, seen } = scripted([say("ok")]);
+    await turn({ model, history });
+    expect(seen[0].messages[0]).toEqual({ role: "assistant", content: "Could not collect images and video from Instagram. You can try again from Brand assets." });
   });
 });
 

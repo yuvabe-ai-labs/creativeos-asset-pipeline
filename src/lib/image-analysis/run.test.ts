@@ -20,6 +20,7 @@ vi.mock("@/lib/db/image-cards", () => ({
 vi.mock("./read-image", () => ({ readImageCard: vi.fn() }));
 vi.mock("./gemini", () => ({ generateStructured: vi.fn() }));
 vi.mock("@/lib/db/copilot-messages", () => ({ hasCopilotMessages: vi.fn(), insertCopilotMessages: vi.fn() }));
+vi.mock("@/lib/journey/kb-copilot/job-failed", () => ({ sayJobFailed: vi.fn() }));
 
 import { failJob, getJob, listRecentJobs, succeedJob } from "@/lib/jobs/db";
 import { getActiveKBVersion } from "@/lib/db/kb";
@@ -27,6 +28,7 @@ import { listCardImageIds, listImageCards, listImagesNeedingCards, setKBImageAna
 import { defaultEmptyImageAnalysis } from "@/lib/kb/schema";
 import { hasCopilotMessages, insertCopilotMessages } from "@/lib/db/copilot-messages";
 import { readImageCard } from "./read-image";
+import { sayJobFailed } from "@/lib/journey/kb-copilot/job-failed";
 import { generateStructured } from "./gemini";
 import { cardSetKey, runImageAnalysis } from "./run";
 import type { ImageCard } from "./card-schema";
@@ -162,6 +164,7 @@ describe("runImageAnalysis", () => {
     vi.mocked(generateStructured).mockRejectedValue(new Error("HTTP 503"));
     await runImageAnalysis("job-1");
     expect(failJob).toHaveBeenCalledWith("job-1", "The image analysis didn't finish. Try again in a few minutes.");
+    expect(sayJobFailed).toHaveBeenCalledWith(expect.objectContaining({ client_id: "client-1", kind: "image-analysis" }));
     log.mockRestore();
   });
 

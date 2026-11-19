@@ -5,7 +5,7 @@ import {
 
 const empty: KbContext = {
   clientName: "Acme", clientSlug: "acme", unreviewed: null, kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
-  documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
+  documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importedBefore: [],
 };
 const ctx = (over: Partial<KbContext>): KbContext => ({ ...empty, ...over });
 const running = { status: "researching", phaseMessage: "Reading the website…" };
@@ -119,24 +119,7 @@ describe("liveStatus", () => {
   });
 });
 
-describe("liveStatus, when a step failed", () => {
-  it("says a collection failed and what the person can do", () => {
-    expect(liveStatus(ctx({ importFailed: ["instagram"] }))).toEqual([
-      { text: "Could not collect images and video from Instagram. You can try again from Brand assets.", state: "failed" },
-    ]);
-  });
-  it("says the image study failed and what the person can do", () => {
-    expect(liveStatus(ctx({ studyFailed: true }))).toEqual([
-      { text: "Could not study the images. You can run it again from the Image Analysis tab.", state: "failed" },
-    ]);
-  });
-  it("puts what is running before what failed", () => {
-    expect(liveStatus(ctx({ importing: ["website"], importFailed: ["facebook"] })).map((l) => l.state)).toEqual(["running", "failed"]);
-  });
-  it("stops repeating an old failure once the KB is approved", () => {
-    expect(liveStatus(ctx({ kbStatus: "ready", hasVersion: true, importFailed: ["instagram"], studyFailed: true }))).toEqual([]);
-  });
-
+describe("liveStatus, while documents are read", () => {
   it("shows what the copilot is reading while a proposal runs", () => {
     expect(liveStatus({ ...empty, kbStatus: "ready", hasVersion: true, proposing: "Reading guide.pdf…" })).toEqual([{ text: "Reading guide.pdf…", state: "running" }]);
   });

@@ -28,10 +28,6 @@ export type KbContext = {
   /** Collections of images and video running right now. */
   importing: ImportSource[];
   studyingImages: boolean;
-  /** Sources whose latest collection failed. */
-  importFailed: ImportSource[];
-  /** The latest study of the images failed. */
-  studyFailed: boolean;
   /** The line of a proposal reading documents against the KB right now (D505), or null. Optional:
    *  only the stored read sets it. */
   proposing?: string | null;
@@ -104,27 +100,18 @@ export function fallbackSuggestions(ctx: KbContext): string[] {
   return reviewing && (ctx.unreviewed?.length ?? 0) > 0 ? [ASK_OPEN_CHOICE] : [];
 }
 
-const IMPORT_LABEL: Record<ImportSource, string> = { website: "the website", instagram: "Instagram", facebook: "Facebook" };
+/** How a source is named in what the copilot says. */
+export const IMPORT_LABEL: Record<ImportSource, string> = { website: "the website", instagram: "Instagram", facebook: "Facebook" };
 
-/** What is running right now, then what failed, read from the real jobs. Empty when neither. A
- *  failed step says so and says what the person can do (spec §2.2); it never just disappears.
- *  Failures stop being repeated once the KB is approved: by then they are old news. */
+/** What is running right now, read from the real jobs; empty when nothing is. A step that failed
+ *  is not here: it was said once in the thread when it failed (D506, `job-failed.ts`), so it stays
+ *  where it happened instead of following every new message. */
 export function liveStatus(ctx: KbContext): StatusLine[] {
   const running = (text: string): StatusLine => ({ text, state: "running" });
-  const failed = (text: string): StatusLine => ({ text, state: "failed" });
-  const showFailures = ctx.kbStatus !== "ready";
   return [
     ...(isBuilding(ctx) ? [running(ctx.job?.phaseMessage ?? "Starting the build…")] : []),
     ...ctx.importing.map((source) => running(`Collecting images and video from ${IMPORT_LABEL[source]}…`)),
     ...(ctx.studyingImages ? [running("Studying the images…")] : []),
     ...(ctx.proposing ? [running(ctx.proposing)] : []),
-    ...(showFailures
-      ? ctx.importFailed
-          .filter((source) => !ctx.importing.includes(source))
-          .map((source) => failed(`Could not collect images and video from ${IMPORT_LABEL[source]}. You can try again from Brand assets.`))
-      : []),
-    ...(showFailures && ctx.studyFailed && !ctx.studyingImages
-      ? [failed("Could not study the images. You can run it again from the Image Analysis tab.")]
-      : []),
   ];
 }

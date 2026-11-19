@@ -11,6 +11,7 @@ import { listBrandImages, listKBDocuments, listUnreviewedFields } from "@/lib/db
 import { getLatestKBJob } from "@/lib/db/kb-jobs";
 import { failStaleJobs, listRecentJobs } from "@/lib/jobs/db";
 import { KB_STALE_AFTER_MS, loadKbContext } from "../load";
+import { liveStatus } from "../context";
 
 const NOW = Date.parse("2026-11-16T12:00:00Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
@@ -57,7 +58,7 @@ describe("loadKbContext", () => {
     expect(failStaleJobs).not.toHaveBeenCalled();
   });
 
-  it("takes each source's latest collection: running, failed, and whether it ever ran", async () => {
+  it("takes each source's latest collection: running, and whether it ever ran", async () => {
     jobsBy([
       job("asset-import", "running", { input: { source: "website" } }),
       job("asset-import", "failed", { input: { source: "instagram" } }),
@@ -67,7 +68,9 @@ describe("loadKbContext", () => {
     ], []);
     const { ctx } = await loadKbContext(client, NOW);
     expect(ctx.importing).toEqual(["website"]);
-    expect(ctx.importFailed).toEqual(["instagram"]);
+    // A failure was said once in the thread when it happened (D506): the bottom of the panel shows
+    // only what is running, never the failed Instagram collection again.
+    expect(liveStatus(ctx)).toEqual([{ text: "Collecting images and video from the website…", state: "running" }]);
     expect(ctx.importedBefore.sort()).toEqual(["instagram", "website"]);
   });
 
@@ -83,7 +86,7 @@ describe("loadKbContext", () => {
     expect(ctx.studyingImages).toBe(false);
   });
 
-  it("reports a running build and a running or failed image study", async () => {
+  it("reports a running build and a running image study, and nothing for a failed one", async () => {
     vi.mocked(getLatestKBJob).mockResolvedValue({ status: "extracting", phase_message: "Reading the documents…", updated_at: ago(5000) } as never);
     jobsBy([], [job("image-analysis", "running")]);
     let { ctx } = await loadKbContext(client, NOW);
@@ -91,7 +94,7 @@ describe("loadKbContext", () => {
     expect(ctx.studyingImages).toBe(true);
     jobsBy([], [job("image-analysis", "failed")]);
     ({ ctx } = await loadKbContext(client, NOW));
-    expect(ctx.studyFailed).toBe(true);
+    expect(liveStatus(ctx)).toEqual([{ text: "Reading the documents…", state: "running" }]);
   });
 
   it("counts the person's documents, not the website research, and knows every source by its stored name", async () => {

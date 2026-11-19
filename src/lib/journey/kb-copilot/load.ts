@@ -70,10 +70,8 @@ export async function loadKbContext(client: ClientRow, now: number = Date.now())
     imageCount: images.length,
     job: job && !deadBuild ? { status: job.status, phaseMessage: job.phase_message } : null,
     importing: latest.filter(([, j]) => live(j)).map(([source]) => source),
-    importFailed: latest.filter(([, j]) => j.status === "failed").map(([source]) => source),
     importedBefore: latest.map(([source]) => source),
     studyingImages: study !== undefined && live(study),
-    studyFailed: study?.status === "failed",
     proposing: proposeJobs[0] && live(proposeJobs[0]) ? (proposeJobs[0].phase_message ?? "Reading the documents…") : null,
   };
 

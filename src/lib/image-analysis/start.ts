@@ -5,6 +5,7 @@ import { getClientById } from "@/lib/db/clients";
 import { countImageCoverage } from "@/lib/db/image-cards";
 import { failJob, failStaleJobs, insertJob, listRecentJobs, setJobRunId } from "@/lib/jobs/db";
 import { JobLockedError } from "@/lib/jobs/types";
+import { sayJobFailed } from "@/lib/journey/kb-copilot/job-failed";
 import { IMAGE_CARD_VERSION } from "./constants";
 import { imageAnalysisCopy } from "./messages";
 import type { ImageAnalysisInput, ImageAnalysisResult, ImageAnalysisStatus } from "./types";
@@ -51,6 +52,7 @@ export async function startImageAnalysis(
   } catch (e) {
     console.error("[image-analysis] could not queue", { jobId, error: describeError(e) });
     await failJob(jobId, imageAnalysisCopy.couldNotStart); // releases the lock
+    await sayJobFailed({ client_id: clientId, kind: "image-analysis", input });
   }
 }
 

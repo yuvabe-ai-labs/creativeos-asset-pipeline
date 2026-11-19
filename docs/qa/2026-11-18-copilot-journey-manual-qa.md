@@ -81,8 +81,11 @@
 
 | # | Do | Expected |
 |---|---|---|
-| 5.1 | Stop `npx trigger dev` (local only), attach an image and send. | "Studying the images…" shows. Within about 5 minutes of restarting Trigger.dev it is cleared and the line says the study could not finish, with what to do. It never stays for good. |
+| 5.1 | Stop `npx trigger dev` (local only), attach an image and send. | "Studying the images…" shows. Within about 5 minutes of restarting Trigger.dev it is cleared, and one red line appears in the thread: "Could not study the images. You can run it again from the Image Analysis tab." It never stays for good. |
 | 5.2 | Use a website that cannot be read. | The build says so in a failure line with what to do, never "nothing found". |
+| 5.3 | Make a collection fail (for example a private Instagram account), then send two more messages. | One red line "Could not collect images and video from Instagram. You can try again from Brand assets." appears in the thread where it happened. It does **not** follow you to the bottom: after your next messages it stays above them, and it never sits between a question and its reply buttons. |
+| 5.4 | Reload the page after 5.3, and open the client in another browser. | The red line is still in the same place in the history, once. Nothing about it shows at the bottom of the panel. |
+| 5.5 | After 5.3, ask the copilot "why are there no Instagram images?" | It knows the collection failed and says you can try again from Brand assets. |
 
 ## 6. Change cards on the brand KB
 
@@ -106,7 +109,7 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.14 | *(approved client)* In Source files, add a document and press "Save & re-analyze". | The dialog says nothing is rebuilt and no review is lost. After saving, "Saved. The copilot is reading the changes." The page does not go back to "in review"; no review is lost. A card follows in the panel. |
 | 6.15 | *(approved client)* In Source files, remove a document and press "Save & re-analyze". | A card listing the fields nothing else supports any more ("No remaining source supports it"), or a line saying everything is still supported. Nothing is wiped. |
 | 6.16 | *(new client)* Attach a document before any build. | No card: it is just a source for the build. |
-| 6.17 | Use a document that cannot be read (for example a corrupted PDF). | A line "Could not read {file}. Try again from Source files." No card, nothing changed. |
+| 6.17 | Use a document that cannot be read (for example a corrupted PDF). | A red line (a cross, not a tick) "Could not read {file}. Try again from Source files." No card, nothing changed. |
 | 6.18 | Fold the panel while a card is pending. | The rail reads "Approve the change" (or "Approve 2 changes"). It clears once the card is settled. |
 | 6.19 | *(client in review)* With a question waiting, ask for a change to an approved field. | The card appears; once you answer or the copilot asks again, the rail follows the latest thing it is waiting on. |
 | 6.20 | Leave a card pending; in another window change one of its fields on the right and save. Wait 20 seconds in the first window. | Without reloading, that field on the card is marked as changed by hand since and its Keep box is off and disabled. |
@@ -125,6 +128,7 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 - A pending change card hides the "Approve the brand KB" card until it is settled, since it may change fields the approval covers.
 - A pending card older than the newest 200 messages in the thread drops out of view.
 - Pressing Save in Source files when only images changed shows no message; the images are studied as usual.
+- A collection or image study that failed before 2026-11-19 is not written into the thread; it simply stops showing at the bottom of the panel.
 
 - Locally, a background job started from your machine that dies can take up to 45 minutes to clear from the panel if the staging sweep is the only one running. On staging it clears within about 5 minutes.
 - A teammate looking at the same client does not see the reply appear word by word; they see it when their panel next checks, within 20 seconds.

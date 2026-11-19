@@ -89,7 +89,8 @@ describe("runKbProposal", () => {
     vi.mocked(getJob).mockResolvedValue(job({ added: [{ id: GUIDE.id, name: GUIDE.filename }], removed: [] }) as never);
     await runKbProposal("j1", { model: vi.fn(async () => { throw new Error("model down"); }) });
     expect(failJob).toHaveBeenCalledWith("j1", "Could not read guide.pdf.");
-    expect(inserted()).toEqual([{ role: "assistant", content: "Could not read guide.pdf. Try again from Source files.", card: { kind: "note" }, suggestions: [] }]);
+    // A failure reads as one: the red line, never the green tick of a note.
+    expect(inserted()).toEqual([{ role: "assistant", content: "", card: { kind: "status", lines: [{ text: "Could not read guide.pdf. Try again from Source files.", state: "failed" }] }, suggestions: [] }]);
     expect(succeedJob).not.toHaveBeenCalled();
   });
 
@@ -145,7 +146,7 @@ describe("runKbProposal", () => {
       await runKbProposal("j1", { model });
       expect(model).not.toHaveBeenCalled();
       expect(failJob).toHaveBeenCalledWith("j1", "Could not read guide.pdf.");
-      expect(inserted()[0]).toMatchObject({ content: "Could not read guide.pdf. Try again from Source files." });
+      expect(inserted()[0]).toMatchObject({ card: { kind: "status", lines: [{ text: "Could not read guide.pdf. Try again from Source files.", state: "failed" }] } });
     });
 
     it("gives the model call its own limit, inside the task's, and no retries", async () => {

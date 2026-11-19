@@ -12,6 +12,8 @@ export const reconcileBackgroundJobsTask = schedules.task({
   machine: "micro",
   run: async () => {
     const { reconcileDeadJobs } = await import("@/lib/jobs/reconcile");
+    // A job that died is said once in the client's copilot thread (D506).
+    const { sayJobFailed } = await import("@/lib/journey/kb-copilot/job-failed");
     const { checked, failed } = await reconcileDeadJobs(async (runId) => {
       try {
         return (await runs.retrieve(runId)).status;
@@ -19,7 +21,7 @@ export const reconcileBackgroundJobsTask = schedules.task({
         if ((e as { status?: number }).status === 404) return null;
         throw e;
       }
-    });
+    }, new Date(), sayJobFailed);
     if (failed.length > 0) logger.warn("Marked jobs whose run had ended as failed", { checked, failed });
     else logger.info("No dead jobs", { checked });
   },

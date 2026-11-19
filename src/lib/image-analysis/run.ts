@@ -7,6 +7,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { failJob, getJob, listRecentJobs, setJobPhase, startJob, succeedJob } from "@/lib/jobs/db";
 import { getActiveKBVersion } from "@/lib/db/kb";
+import { sayJobFailed } from "@/lib/journey/kb-copilot/job-failed";
 import { listCardImageIds, listImageCards, listImagesNeedingCards, setKBImageAnalysis, upsertImageCard } from "@/lib/db/image-cards";
 import { forEachLimited } from "@/lib/for-each-limited";
 import { imageAnalysisSummaryPrompt } from "@/prompts/image-analysis-summary";
@@ -120,6 +121,8 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
   } catch (e) {
     console.error("[image-analysis] failed", { jobId, error: describeError(e) });
     await failJob(jobId, imageAnalysisCopy.failed);
+    // Said once in the client's copilot thread (D506).
+    await sayJobFailed({ client_id: clientId, kind: "image-analysis", input: job.input });
     return null;
   }
 }

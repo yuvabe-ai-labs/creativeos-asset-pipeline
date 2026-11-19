@@ -23,16 +23,20 @@ const LOOKUP_CONCURRENCY = 5;
 /** A run's status, or null when Trigger.dev has no such run. Throws when it cannot tell. */
 export type RunStatusLookup = (runId: string) => Promise<string | null>;
 
-type LiveJob = { id: string; kind: JobKind; trigger_run_id: string; created_at: string };
+type LiveJob = { id: string; client_id: string | null; kind: JobKind; input: unknown; trigger_run_id: string; created_at: string };
+
+/** Told about each job the sweep failed, so its feature can say so (D506). */
+export type OnJobFailed = (job: Pick<LiveJob, "client_id" | "kind" | "input">) => Promise<void>;
 
 export async function reconcileDeadJobs(
   lookup: RunStatusLookup,
   now: Date = new Date(),
+  onFailed?: OnJobFailed,
 ): Promise<{ checked: number; failed: string[] }> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("background_jobs")
-    .select("id, kind, trigger_run_id, created_at")
+    .select("id, client_id, kind, input, trigger_run_id, created_at")
     .in("kind", RECONCILED_JOB_KINDS)
     .in("status", ["queued", "running"])
     .not("trigger_run_id", "is", null)
@@ -65,7 +69,14 @@ export async function reconcileDeadJobs(
       console.error("[jobs/reconcile] could not mark the job failed", { jobId: job.id, error: updateError.message });
       return;
     }
-    if (changed && changed.length > 0) failed.push(job.id);
+    if (!changed || changed.length === 0) return;
+    failed.push(job.id);
+    try {
+      await onFailed?.({ client_id: job.client_id, kind: job.kind, input: job.input });
+    } catch (e) {
+      // The job is failed either way; one line that could not be said never stops the sweep.
+      console.error("[jobs/reconcile] could not report the failed job", { jobId: job.id, error: String(e) });
+    }
   });
   return { checked: jobs.length, failed };
 }

@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-type Row = { id: string; kind: string; trigger_run_id: string; created_at: string };
+type Row = { id: string; client_id: string | null; kind: string; input: unknown; trigger_run_id: string; created_at: string };
 
 const db = vi.hoisted(() => ({
-  live: [] as { id: string; kind: string; trigger_run_id: string; created_at: string }[],
+  live: [] as Row[],
   /** Jobs still live when their update runs; a job finished in between is not in it. */
   stillLive: new Set<string>(),
   updated: [] as { id: string; row: Record<string, unknown> }[],
@@ -43,7 +43,9 @@ import { reconcileDeadJobs } from "./reconcile";
 const NOW = new Date("2026-11-06T10:00:00Z");
 const job = (id: string, minutesOld: number): Row => ({
   id,
+  client_id: "client-1",
   kind: "asset-import",
+  input: { source: "instagram" },
   trigger_run_id: `run-${id}`,
   created_at: new Date(NOW.getTime() - minutesOld * 60_000).toISOString(),
 });
@@ -95,6 +97,22 @@ describe("reconcileDeadJobs", () => {
     db.stillLive = new Set(["died"]);
     const result = await reconcileDeadJobs(async () => "SYSTEM_FAILURE", NOW);
     expect(result.failed).toEqual(["died"]);
+  });
+
+  it("hands each job it failed, and only those, to be said in the thread (D506)", async () => {
+    db.live = [job("crashed", 20), job("running", 20), job("just-finished", 20)];
+    db.stillLive = new Set(["crashed", "running"]);
+    const status: Record<string, string> = { "run-crashed": "CRASHED", "run-running": "EXECUTING", "run-just-finished": "COMPLETED" };
+    const said: unknown[] = [];
+    await reconcileDeadJobs(async (runId) => status[runId], NOW, async (j) => { said.push(j); });
+    expect(said).toEqual([{ client_id: "client-1", kind: "asset-import", input: { source: "instagram" } }]);
+  });
+
+  it("keeps sweeping when saying one failure goes wrong", async () => {
+    db.live = [job("a", 20), job("b", 20)];
+    db.stillLive = new Set(["a", "b"]);
+    const result = await reconcileDeadJobs(async () => "CRASHED", NOW, async () => { throw new Error("db down"); });
+    expect(result.failed.sort()).toEqual(["a", "b"]);
   });
 
   it("leaves a young job alone while its run is still waiting to start", async () => {

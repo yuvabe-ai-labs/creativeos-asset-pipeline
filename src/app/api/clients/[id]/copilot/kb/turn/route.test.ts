@@ -47,7 +47,7 @@ const post = (body: unknown) =>
   new NextRequest("http://localhost/api/clients/c1/copilot/kb/turn", { method: "POST", body: JSON.stringify(body) });
 const ctx: KbContext = {
   clientName: "Acme", clientSlug: "acme", unreviewed: null, kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
-  documentCount: 1, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
+  documentCount: 1, imageCount: 0, job: null, importing: [], studyingImages: false, importedBefore: [],
 };
 const STATE = { messages: [], live: [], suggestions: [], waiting: null };
 const NO_WALK = { settled: [], skipped: false, more: false, stopped: false };

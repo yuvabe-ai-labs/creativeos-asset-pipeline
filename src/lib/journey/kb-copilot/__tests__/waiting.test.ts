@@ -5,7 +5,7 @@ import { kbWaiting } from "../waiting";
 
 const empty: KbContext = {
   clientName: "Acme", clientSlug: "acme", unreviewed: null, kbStatus: "pending", hasVersion: false, websiteUrl: null, instagram: null, facebook: null,
-  documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importFailed: [], studyFailed: false, importedBefore: [],
+  documentCount: 0, imageCount: 0, job: null, importing: [], studyingImages: false, importedBefore: [],
 };
 const ctx = (over: Partial<KbContext>): KbContext => ({ ...empty, ...over });
 const inReview = (unreviewed: string[] | null) => ctx({ kbStatus: "in_review", hasVersion: true, unreviewed });

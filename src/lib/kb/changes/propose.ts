@@ -10,6 +10,7 @@ import { getActiveKBVersion, listKBDocuments } from "@/lib/db/kb";
 import { describeError } from "@/lib/describe-error";
 import { failJob, getJob, startJob, succeedJob } from "@/lib/jobs/db";
 import { coerceValue, isEmpty, reviewFields } from "@/lib/journey/kb-copilot/review";
+import { sayJobFailed } from "@/lib/journey/kb-copilot/job-failed";
 import { ensureOpening } from "@/lib/journey/thread/opening";
 import { ONBOARDING } from "@/lib/journey/thread/schema";
 import { documentInput } from "@/lib/kb/document-input";
@@ -125,10 +126,7 @@ export async function runKbProposal(jobId: string, deps: { model?: ProposeModel 
     } catch (failError) {
       console.error("[kb-propose] could not mark the job failed", { jobId, error: describeError(failError) });
     }
-    try {
-      await say(proposalCopy.couldNotReadLine(what), { kind: "note" });
-    } catch (sayError) {
-      console.error("[kb-propose] could not say it failed", { jobId, error: describeError(sayError) });
-    }
+    // The red failed line every job failure gets (D506); it never throws.
+    await sayJobFailed({ client_id: clientId, kind: "kb-propose", input });
   }
 }
