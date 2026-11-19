@@ -51,7 +51,9 @@ export function GenerateWorkspace({ client, initialState, initialReview, locked 
       <CopilotChat
         client={client}
         scriptId={scriptId}
-        stage={state.script.stage}
+        // Literal: this workspace only renders at Generate, while the cached state can still hold the
+        // stage from before a reopen (Mark final refetches it).
+        stage="generate"
         messages={state.messages}
         avatars={state.avatars}
         waiting={waiting}
