@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Check } from "lucide-react";
 import { CopilotText } from "@/components/copilot/copilot-text";
 import { PersonText } from "@/components/copilot/person-text";
@@ -9,10 +10,12 @@ import { ThreadChangeCard, type ChangeDecision } from "./thread-change-card";
 
 /** One message of a copilot thread, the same in every stage: the words, what was attached, and
  *  the card. A later part adds the change card here. */
-export function ThreadMessageItem({ message, change }: {
+export function ThreadMessageItem({ message, change, footer }: {
   message: ThreadMessage;
   /** How a change card in this thread is settled; a stage with no change cards leaves it out. */
   change?: { busy: boolean; onDecide: (messageId: string, decision: ChangeDecision) => void };
+  /** Under the message: the trace of the turn that wrote it, with the developer switch on (D509). */
+  footer?: ReactNode;
 }) {
   const mine = message.role === "user";
   // Something that happened, not something said: who approved, or a save on the page. One quiet
@@ -39,6 +42,7 @@ export function ThreadMessageItem({ message, change }: {
           {message.attachments.map((a) => <ThreadAttachmentChip key={a.id} name={a.name} url={a.url} />)}
         </div>
       )}
+      {footer}
     </li>
   );
 }

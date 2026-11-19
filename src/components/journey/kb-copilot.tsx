@@ -10,6 +10,9 @@ import { CopilotText } from "@/components/copilot/copilot-text";
 import { REPLY_CHIP_CLASS } from "@/components/copilot/reply-chip";
 import { useCopilotThread, useDecideChange, useRefreshCopilotThread, useSendKbTurn } from "@/hooks/queries/copilot-thread";
 import { useApproveKb } from "@/hooks/queries/kb";
+import { useTurnLines } from "@/hooks/queries/copilot-traces";
+import { useCopilotDeveloper } from "@/hooks/use-copilot-developer";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { APPROVE_KB_ACTION } from "@/lib/journey/kb-copilot/waiting";
 import { useThreadAttachments, type PendingAttachment } from "@/hooks/use-thread-attachments";
 import { KB_TURN_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
@@ -20,6 +23,9 @@ import { ThreadComposer } from "./thread-composer";
 import { ThreadMessageItem } from "./thread-message";
 import { ThreadStatusLines } from "./thread-status-lines";
 import { ThreadWaiting } from "./thread-waiting";
+import { DeveloperSwitch } from "./traces/developer-switch";
+import { ReplyTrace } from "./traces/reply-trace";
+import { TurnList } from "./traces/turn-list";
 
 /** What the line says while the copilot is thinking, before or between the steps it names. */
 const WORKING = "Working on it…";
@@ -69,6 +75,20 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
   const state = thread.data;
   const busy = turn.isPending;
 
+  // The developer switch (turn traces, D509). Off, nothing below is read or shown. On, one read of
+  // the lines, and each reply finds its own by id in a map built once per list.
+  const [developer, setDeveloper] = useCopilotDeveloper();
+  const [view, setView] = useState<"chat" | "turns">("chat");
+  const turnLines = useTurnLines(clientId, developer);
+  const lineByMessage = useMemo(
+    () => new Map((turnLines.data ?? []).flatMap((l) => (l.messageId ? [[l.messageId, l] as const] : []))),
+    [turnLines.data],
+  );
+  const traceOf = (messageId: string) => {
+    const line = developer ? lineByMessage.get(messageId) : undefined;
+    return line ? <ReplyTrace clientId={clientId} line={line} /> : undefined;
+  };
+
   /** `draft` is what to put back in the box if the message cannot be sent. */
   const send = (message: string, files: Attachment[], draft?: { text: string; chips: PendingAttachment[] }) => {
     turn.mutate({ text: message, attachments: files }, {
@@ -104,7 +124,16 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
   const waiting = busy ? null : (state?.waiting?.label ?? null);
 
   return (
-    <JourneyPanelShell slug={slug} waiting={waiting} busy={busy}>
+    <JourneyPanelShell slug={slug} waiting={waiting} busy={busy} actions={<DeveloperSwitch checked={developer} onChange={setDeveloper} />}>
+      {developer && (
+        <Tabs value={view} onValueChange={(v) => setView(v as "chat" | "turns")} className="border-b border-border px-4 py-2">
+          <TabsList>
+            <TabsTrigger value="chat">Chat</TabsTrigger>
+            <TabsTrigger value="turns">Turns</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
+      {developer && view === "turns" ? <TurnList clientId={clientId} /> : (
       <ScrollArea className="min-h-0 flex-1">
         {thread.isPending && (
           <div className="flex flex-col gap-2 p-4" aria-label="Loading the copilot">
@@ -122,7 +151,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
         {state && (
           <>
             <ol className="flex flex-col gap-4 p-4" aria-live="polite">
-              {state.messages.map((m) => <ThreadMessageItem key={m.id} message={m} change={change} />)}
+              {state.messages.map((m) => <ThreadMessageItem key={m.id} message={m} change={change} footer={traceOf(m.id)} />)}
               {/* While a turn runs (D502): the reply as it is being written, in the place the stored
                   message will take, or else a line naming what the copilot is doing. The words are
                   not read out piece by piece; the stored message is announced once it lands. */}
@@ -147,6 +176,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
         )}
         <div ref={end} />
       </ScrollArea>
+      )}
       <ThreadComposer
         busy={busy || !state}
         placeholder="Answer the copilot, or attach brand documents and images…"

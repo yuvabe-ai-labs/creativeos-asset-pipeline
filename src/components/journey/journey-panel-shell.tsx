@@ -13,7 +13,7 @@ import { JourneyRail } from "./journey-rail";
  *  inside is the stage's own (a guide, or a chat). The shell matches the script copilot
  *  (copilot-chat.tsx) so the two read as one panel; from lg up it folds to a rail, remembered per
  *  client in this browser. Shown from lg only: on a narrow screen the page keeps its full width. */
-export function JourneyPanelShell({ slug, waiting, busy = false, children }: {
+export function JourneyPanelShell({ slug, waiting, busy = false, children, actions }: {
   slug: string;
   /** Shown on the folded rail; null shows the word "Copilot". */
   waiting: string | null;
@@ -21,6 +21,8 @@ export function JourneyPanelShell({ slug, waiting, busy = false, children }: {
   busy?: boolean;
   /** The body under the header. */
   children: ReactNode;
+  /** Controls in the header, before the fold (the developer switch, D509). */
+  actions?: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useCopilotCollapsed(journeyFoldKey(slug));
 
@@ -40,6 +42,8 @@ export function JourneyPanelShell({ slug, waiting, busy = false, children }: {
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Sparkles className="size-4 text-primary" strokeWidth={1.5} aria-hidden />
           <h2 className="font-display text-base font-medium">Copilot</h2>
+          <div className="ml-auto flex items-center gap-2">
+          {actions}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger
@@ -50,7 +54,7 @@ export function JourneyPanelShell({ slug, waiting, busy = false, children }: {
                     aria-label="Hide copilot"
                     disabled={busy}
                     onClick={() => setCollapsed(true)}
-                    className="ml-auto text-muted-foreground"
+                    className="text-muted-foreground"
                   />
                 }
               >
@@ -59,6 +63,7 @@ export function JourneyPanelShell({ slug, waiting, busy = false, children }: {
               <TooltipContent side="bottom">Hide copilot</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          </div>
         </header>
         {children}
       </div>
