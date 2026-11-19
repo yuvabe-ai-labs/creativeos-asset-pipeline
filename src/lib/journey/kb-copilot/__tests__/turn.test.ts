@@ -472,4 +472,42 @@ describe("runKbTurn, changing reviewed fields", () => {
     expect(seen[0].system).toContain("propose_change");
     expect(seen[0].system).not.toContain("comes in a later step");
   });
+
+describe("runKbTurn, a change that is only partly allowed (review fix)", () => {
+  const V1 = "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c11";
+  const TONE = "brand_profile.tone_of_voice";
+  const AGE = "target_audience.age_range";
+  const output = kbWith({ [TONE]: { value: "Warm", status: "approved" } });
+  const inReview: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "in_review", unreviewed: [AGE] };
+
+  it("keeps the allowed field on the card and tells the model about the refused one, so it can say so", async () => {
+    const { model, seen } = scripted([
+      { text: "", calls: [call("propose_change", { changes: [{ field: TONE, value: "Plain" }, { field: AGE, value: "30 to 50" }] })] },
+      say("I added the tone change. The age range is not reviewed yet, so I filled it directly."),
+    ]);
+    const result = await turn({ ctx: inReview, kb: { versionId: V1, output }, review: { fields: reviewFields(output), pending: null }, model });
+    expect(seen).toHaveLength(2);
+    expect(outputs(seen)[0]).toMatch(/^Error: Added .*Tone of Voice.* to the change. Not added: .*Use answer_field./);
+    expect(result.card?.fields.map((f) => f.path)).toEqual([TONE]);
+  });
+
+  it("tells the model when a later call adds nothing, instead of saying it was added", async () => {
+    const { model, seen } = scripted([
+      { text: "", calls: [
+        call("propose_change", { changes: [{ field: TONE, value: "Plain" }] }, "c1"),
+        call("propose_change", { changes: [{ field: TONE, value: "Warm" }] }, "c2"),
+      ] },
+      say("ok"),
+    ]);
+    await turn({ ctx: { ...inReview, kbStatus: "ready", unreviewed: [] }, kb: { versionId: V1, output }, model });
+    expect(outputs(seen)[1]).toBe("Error: That is already the value.");
+  });
+
+  it("no longer says reading new sources comes later, while a KB is in review", async () => {
+    const { model, seen } = scripted([say("ok")]);
+    await turn({ ctx: inReview, kb: { versionId: V1, output }, review: { fields: reviewFields(output), pending: null }, model });
+    expect(seen[0].system).not.toContain("comes in a later step");
+    expect(seen[0].system).toContain("read it against the brand KB");
+  });
+});
 });

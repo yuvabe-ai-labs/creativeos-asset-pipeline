@@ -159,6 +159,8 @@ export async function runKbTurn(input: {
         // words (a turn that "ends" never asks it again, and these sentences are written for it).
         if (!input.kb) throw new Error(NO_KB);
         const refusals: string[] = [];
+        // What this call added, so a call that is only partly allowed says which part.
+        const added: string[] = [];
         for (const { field: path, value } of (args as { changes: { field: string; value: string | string[] }[] }).changes) {
           const field = kbFields.find((f) => f.path === path);
           if (!field) { refusals.push(NOT_IN_KB); continue; }
@@ -167,8 +169,12 @@ export async function runKbTurn(input: {
           if (isEmpty(next) && isEmpty(field.value)) { refusals.push(ALREADY_THE_VALUE); continue; }
           if (sameValue(field.value, next)) { refusals.push(ALREADY_THE_VALUE); continue; }
           proposals.push({ path, value: isEmpty(next) ? null : next, from: FROM_CHAT, docId: null });
+          added.push(field.label);
         }
-        if (proposals.length === 0) throw new Error(refusals.join(" "));
+        if (added.length === 0) throw new Error(refusals.join(" "));
+        // Partly refused: what was added stays on the card, and the model is told about the rest so
+        // it can say so. Ending the turn here would drop the refusal without a word.
+        if (refusals.length > 0) throw new Error(`Added ${added.join(", ")} to the change. Not added: ${refusals.join(" ")}`);
         if (toldChange) return "Added to the change.";
         toldChange = true;
         return tell(CHANGE_READY);

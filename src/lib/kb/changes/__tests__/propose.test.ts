@@ -6,6 +6,8 @@ vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/kb", () => ({ getActiveKBVersion: vi.fn(), listKBDocuments: vi.fn() }));
 vi.mock("@/lib/db/copilot-messages", () => ({ insertCopilotMessages: vi.fn(), listSettledChangeCards: vi.fn() }));
 vi.mock("@/lib/journey/thread/opening", () => ({ ensureOpening: vi.fn() }));
+const parse = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/openai/server", () => ({ createOpenAI: () => ({ responses: { parse } }) }));
 vi.mock("@/lib/kb/document-input", () => ({ documentInput: vi.fn(async (docs: { filename: string }[]) => docs.map((d) => ({ type: "input_text", text: d.filename }))) }));
 
 import { failJob, getJob, startJob, succeedJob } from "@/lib/jobs/db";
@@ -114,5 +116,43 @@ describe("runKbProposal", () => {
     const { system } = vi.mocked(model).mock.calls[0][0];
     expect(system).toContain(`${TONE} | `);
     expect(system).toContain("guide.pdf");
+  });
+
+  describe("review fixes", () => {
+    it("drops a change whose source the model named as a document that is not there", async () => {
+      vi.mocked(getJob).mockResolvedValue(job({ added: [{ id: GUIDE.id, name: GUIDE.filename }], removed: [] }) as never);
+      await runKbProposal("j1", { model: answering([{ path: WORDS, value: ["cheap", "x"], document: "made-up.pdf" }]) });
+      expect(inserted()[0]).toMatchObject({ content: "Read guide.pdf. Nothing in it changes the brand KB.", card: { kind: "note" } });
+    });
+
+    it("never clears a field when documents were only added", async () => {
+      vi.mocked(getJob).mockResolvedValue(job({ added: [{ id: GUIDE.id, name: GUIDE.filename }], removed: [] }) as never);
+      await runKbProposal("j1", { model: answering([{ path: TONE, value: null, document: "" }]) });
+      expect(inserted()[0]).toMatchObject({ card: { kind: "note" } });
+    });
+
+    it("names the remaining documents for the model after a removal", async () => {
+      vi.mocked(getJob).mockResolvedValue(job({ added: [], removed: ["old.pdf"] }) as never);
+      const model = answering([]);
+      await runKbProposal("j1", { model });
+      expect(vi.mocked(model).mock.calls[0][0].system).toContain("guide.pdf, notes.md");
+    });
+
+    it("fails, and says so, when nothing in the documents could be read", async () => {
+      vi.mocked(getJob).mockResolvedValue(job({ added: [{ id: GUIDE.id, name: GUIDE.filename }], removed: [] }) as never);
+      vi.mocked(documentInput).mockResolvedValue([]);
+      const model = answering([]);
+      await runKbProposal("j1", { model });
+      expect(model).not.toHaveBeenCalled();
+      expect(failJob).toHaveBeenCalledWith("j1", "Could not read guide.pdf.");
+      expect(inserted()[0]).toMatchObject({ content: "Could not read guide.pdf. Try again from Source files." });
+    });
+
+    it("gives the model call its own limit, inside the task's, and no retries", async () => {
+      vi.mocked(getJob).mockResolvedValue(job({ added: [{ id: GUIDE.id, name: GUIDE.filename }], removed: [] }) as never);
+      parse.mockResolvedValue({ output_parsed: { changes: [] } });
+      await runKbProposal("j1");
+      expect(parse.mock.calls[0][1]).toEqual({ timeout: 480_000, maxRetries: 0 });
+    });
   });
 });

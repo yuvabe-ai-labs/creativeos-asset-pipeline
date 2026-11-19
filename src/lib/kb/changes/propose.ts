@@ -28,15 +28,20 @@ const answerSchema = z.object({
   })),
 });
 
+/** How long the model may take to read the documents. */
+const PROPOSE_TIMEOUT_MS = 480_000;
+
 /** The model's part, injected so the run is tested without it. */
 export type ProposeModel = (args: { system: string; content: unknown[] }) => Promise<z.infer<typeof answerSchema>>;
 
 const openaiProposeModel: ProposeModel = async ({ system, content }) => {
+  // Its own limit, well inside the task's 10 minutes, and no retries: a run that times out still
+  // reaches the catch below and says so in the thread, and a retry would bill twice.
   const response = await createOpenAI().responses.parse({
     model: kbProposePrompt.model,
     input: [{ role: "system", content: system }, { role: "user", content: content as never }],
     text: { format: zodTextFormat(answerSchema, "changes") },
-  });
+  }, { timeout: PROPOSE_TIMEOUT_MS, maxRetries: 0 });
   const parsed = response.output_parsed;
   if (!parsed) throw new Error("The model returned no changes list.");
   return parsed;
@@ -74,8 +79,13 @@ export async function runKbProposal(jobId: string, deps: { model?: ProposeModel 
     }
     const fields = reviewFields(kb);
     const [content, settled] = await Promise.all([documentInput(material), listSettledChangeCards(clientId)]);
+    // Nothing readable (an unsupported or unfetchable file) is a failure, never "nothing changes".
+    if (content.length === 0) throw new Error("No readable content in the documents.");
     const { changes } = await (deps.model ?? openaiProposeModel)({
-      system: kbProposeSystem({ fields: fields.map((f) => ({ path: f.path, title: f.title, value: f.value })), added: added.map((d) => d.filename), removed: input.removed }),
+      system: kbProposeSystem({
+        fields: fields.map((f) => ({ path: f.path, title: f.title, value: f.value })),
+        added: added.map((d) => d.filename), removed: input.removed, remaining: material.map((d) => d.filename),
+      }),
       content,
     });
 
@@ -85,6 +95,11 @@ export async function runKbProposal(jobId: string, deps: { model?: ProposeModel 
       if (!field) return [];
       const value = change.value === null ? null : coerceValue(field.kind, change.value);
       const unsupported = value === null || isEmpty(value);
+      // Only a removal can leave a field unsupported; new documents never clear one.
+      if (unsupported && input.removed.length === 0) return [];
+      // A value must come from a document that is there, so the card names a real source and a
+      // refusal of it is remembered against that document.
+      if (!unsupported && !docIdByName.has(change.document)) return [];
       return [{
         path: change.path,
         value: unsupported ? null : value,

@@ -12,6 +12,8 @@ export async function documentInput(docs: Pick<ClientKBDocumentRow, "filename" |
   const content: unknown[] = [];
   for (const doc of docs) {
     if (FILE_EXTENSIONS.has(doc.file_ext)) {
+      // Named first: the model can only say which document a value came from if it is told.
+      content.push({ type: "input_text", text: `Document: ${doc.filename}` });
       content.push({ type: "input_file", file_url: doc.storage_url });
     } else if (TEXT_EXTENSIONS.has(doc.file_ext)) {
       const res = await fetch(doc.storage_url);

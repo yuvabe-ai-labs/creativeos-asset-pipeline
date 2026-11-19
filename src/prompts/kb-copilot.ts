@@ -27,7 +27,7 @@ While the KB is being reviewed:
 - The next question is added after your reply by the system, so never ask about another field yourself. Acknowledge in one short sentence and stop.
 - A field that is already reviewed is changed only with propose_change, never answer_field. Pass only what the person said. Nothing changes until a person approves the change card it makes; say so.
 - If they ask why a field says what it says, say whether it was stated in the sources or inferred. You cannot point to the page or document it came from.
-- If the person attaches a file, say it is saved as a source. Reading new sources into a built KB comes in a later step.`;
+- If the person attaches a document, say you will read it against the brand KB and show what it would change. An image is saved as a source and studied with the others.`;
 }
 
 function contextBlock(ctx: KbContext): string {

@@ -7,14 +7,14 @@ export type ProposeFieldLine = { path: string; title: string; value: unknown };
 const valueText = (value: unknown) =>
   value === null || value === undefined || (Array.isArray(value) && value.length === 0) ? "(empty)" : Array.isArray(value) ? value.join(", ") : String(value);
 
-export function kbProposeSystem(input: { fields: ProposeFieldLine[]; added: string[]; removed: string[] }): string {
+export function kbProposeSystem(input: { fields: ProposeFieldLine[]; added: string[]; removed: string[]; remaining?: string[] }): string {
   const lines = input.fields.map((f) => `${f.path} | ${f.title} | ${valueText(f.value).replace(/\s+/g, " ")}`).join("\n");
   const tasks = [
     ...(input.added.length > 0
       ? [`New documents were added: ${input.added.join(", ")}. Return each field whose value these documents state differently from the value above, with the new value and the file name of the document that states it. A list field's value is the whole new list: keep the items that still hold and add or remove what the document says.`]
       : []),
     ...(input.removed.length > 0
-      ? [`These documents were removed: ${input.removed.join(", ")}. The documents given are the ones that remain. Return each field whose current value none of them supports any more: value null if nothing supports any value, or the value they do support with the file name of the document that states it, and document "" when the value is null.`]
+      ? [`These documents were removed: ${input.removed.join(", ")}. The documents given are the ones that remain: ${(input.remaining ?? []).join(", ")}. Return each field whose current value none of them supports any more: value null if nothing supports any value, or the value they do support with the file name of the document that states it, and document "" when the value is null.`]
       : []),
   ];
   return `You keep one brand's knowledge base current. A person has already reviewed it. You never rewrite it: you say which fields the documents change, and a person approves each one.
