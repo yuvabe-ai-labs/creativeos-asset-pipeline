@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { frameFor, JOURNEY_TABS } from "../frame";
+import { frameFor, JOURNEY_TABS, scriptFoldKey } from "../frame";
+
+describe("scriptFoldKey", () => {
+  it("keeps Generate's memory as it was, and one for every later stage", () => {
+    expect(scriptFoldKey("s1", "generate")).toBe("s1");
+    expect(scriptFoldKey("s1", "visualise")).toBe("s1.after-generate");
+    expect(scriptFoldKey("s1", "in_review")).toBe("s1.after-generate");
+    expect(scriptFoldKey("s1", "approved")).toBe("s1.after-generate");
+  });
+});
 
 const f = (path: string) => frameFor(path, "chupps");
 

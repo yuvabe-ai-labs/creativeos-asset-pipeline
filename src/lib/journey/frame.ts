@@ -1,3 +1,5 @@
+import type { ScriptStage } from "@/lib/scripts/constants";
+
 // Which parts of the client frame a route gets: the stage tabs, the active tab, and the guide
 // panel. Pure, so the frame component only reads the pathname and asks here.
 
@@ -45,3 +47,8 @@ export function frameFor(pathname: string, slug: string): Frame {
 /** Where the guide's folded state is remembered (use-copilot-collapsed), one per client. The frame
  *  and the panel both read it, so the column and the panel fold together. */
 export const journeyFoldKey = (slug: string) => `journey.${slug}`;
+
+/** A script's panel has two fold memories (scripting-panel spec §3.2): Generate's, which keeps the
+ *  key it always had so a panel folded before stays folded, and one shared by every later stage. */
+export const scriptFoldKey = (scriptId: string, stage: ScriptStage) =>
+  stage === "generate" ? scriptId : `${scriptId}.after-generate`;

@@ -2,13 +2,14 @@
 
 import { readStoredFlag, useStoredFlag, writeStoredFlag } from "./use-stored-flag";
 
-// Whether a copilot panel is folded to a rail so the page gets the full width. Remembered per script
-// (or per client, for the journey panel) in this browser only; one never folded starts open.
+// Whether a copilot panel is folded to a rail so the page gets the full width, remembered in this
+// browser only. One memory per key: per client for the journey panel (journeyFoldKey), and two per
+// script (scriptFoldKey). A panel never folded starts as `fallback` says (open unless told).
 
-const key = (scriptId: string) => `creativeos.scriptCopilot.collapsed.${scriptId}`;
+const storageKey = (key: string) => `creativeos.scriptCopilot.collapsed.${key}`;
 
-export const readCopilotCollapsed = (scriptId: string): boolean => readStoredFlag(key(scriptId), false);
+export const readCopilotCollapsed = (key: string, fallback = false): boolean => readStoredFlag(storageKey(key), fallback);
 
-export const writeCopilotCollapsed = (scriptId: string, collapsed: boolean): void => writeStoredFlag(key(scriptId), collapsed);
+export const writeCopilotCollapsed = (key: string, collapsed: boolean): void => writeStoredFlag(storageKey(key), collapsed);
 
-export const useCopilotCollapsed = (scriptId: string) => useStoredFlag(key(scriptId), false);
+export const useCopilotCollapsed = (key: string, fallback = false) => useStoredFlag(storageKey(key), fallback);
