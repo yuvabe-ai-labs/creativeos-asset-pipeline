@@ -8975,3 +8975,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Opening the newest version straight from the chip when there is only one node, as before. A request per node or per version.
 
 **Originated →** `2026-11-12-client-review-versions.md`.
+
+### D514 — Razorpay is proven with a hidden test top-up before the billing build *(recorded 2026-11-19; originated → `2026-11-19-razorpay-test-top-up-design.md`)*
+
+**Decision:** A `/billing-test` page (only where `RAZORPAY_TEST_PAGE=1`: a developer's machine and the dev deployment) sells one ₹100 pack of 1,000 credits through Razorpay Orders and Checkout. Only the signed `order.paid` webhook adds credits, through `record_razorpay_payment`, which marks the order paid and writes a negative `adjustment` row once. No SDK; settings `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` carry no test or live in their names.
+**Why:** It proves checkout, signatures, webhook delivery and idempotent crediting end to end without designing plans, subscriptions or the billing page; a negative adjustment needs no change to `reserve_credits` and ends with the month like the planned top-ups.
+**Rejected:** A button in the credits popover (real UI to design; fake-money credits for every owner on staging); a new `grant` ledger type now (belongs to the billing build, rewrites `reserve_credits`); a payment link (skips Checkout).

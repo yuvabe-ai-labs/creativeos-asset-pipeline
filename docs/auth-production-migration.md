@@ -1345,3 +1345,32 @@ drop function if exists node_client_id(uuid);
 drop function if exists auth_client_ids();
 notify pgrst, 'reload schema';
 ```
+
+## Migration 0066 — billing_payments (D514, 2026-11-19)
+
+Apply after 0065, in any order with the code: nothing reads the table until the test page is on.
+
+- Adds the `billing_payments` table (one row per Razorpay order; owners of the agency can read their
+  own rows, only the server writes) and the `record_razorpay_payment` function, which the Razorpay
+  webhook calls to mark an order paid and add its credits once.
+- Safe to apply: a new table and a new function only. No existing table, column or row changes.
+- It can go to production even though the test page stays off there (`RAZORPAY_TEST_PAGE` is set
+  only on a developer's machine and the dev deployment): with no orders, the table stays empty.
+
+**Verify after running:**
+
+```sql
+-- expect one row: billing_payments, RLS on
+select relname, relrowsecurity from pg_class where relname = 'billing_payments';
+
+-- expect one row, security definer
+select proname, prosecdef from pg_proc where proname = 'record_razorpay_payment';
+```
+
+**Rollback:**
+
+```sql
+drop function if exists record_razorpay_payment(text, text);
+drop table if exists billing_payments;
+notify pgrst, 'reload schema';
+```
