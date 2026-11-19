@@ -9,9 +9,11 @@ For the next conversation that picks up the copilot journey. Read this first, th
 - **Migrations:** 0062, 0063, 0064, 0065 (0065: turn traces). Cyril applies migrations himself; never apply one.
 - **Tests:** full suite passes except two known image-generate failures (`composite-generate` and `image-generate` route tests, "refuses a deprecated model"), plus one known type error in `src/app/api/nodes/[id]/image-generate/route.test.ts`. Not caused by this branch.
 
-## Next step: piece 4.2 (the extra script steps): its spec
+## Next step: piece 5 (the copilot acts at Visualise and client review): design pass
 
-**Start here.** Piece 4.1 is built (D511, plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`; QA section 9). Next is a design pass and spec for **4.2**, then its plan, then the build, as before. One piece at a time, never in parallel (Cyril, 2026-11-20). Before 4.2, Cyril may want a look at 4.1's eight deferred minors (listed in its plan's Outcome); the one most likely to matter is the storyboard being squeezed on a laptop screen while the panel is unfolded.
+**Cyril parked piece 4.2 (the extra script steps) for the end of the journey (2026-11-20).** Next is piece 5, from `2026-11-19-copilot-piece-5-visualise-RESUME-HERE.md`. Then 3, 6, and 4.2 last.
+
+**Piece 4.1 is built** (D511, plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`; QA section 9). Next is a design pass and spec for **4.2**, then its plan, then the build, as before. One piece at a time, never in parallel (Cyril, 2026-11-20). Before 4.2, Cyril may want a look at 4.1's eight deferred minors (listed in its plan's Outcome); the one most likely to matter is the storyboard being squeezed on a laptop screen while the panel is unfolded.
 
 What 4.1 was, in one line each (built):
 - The Scripts tab's copilot guide offers **"Start a script"** (the same action as the page's "New script"; "Paste a script" while locked).
@@ -71,7 +73,7 @@ Facts the 4.1 build relied on (kept for piece 5, which builds on the same panel)
 
 ## Pieces still to build
 
-4.2 (the extra script steps), 5 (visualise and client review: the copilot acts there), 3 (market research agent), 6 (canvas). Each follows: design pass, spec, plan, build. Each adds its targets to the page-follows mechanism instead of its own.
+5 (visualise and client review), 3, 6, then 4.2 (the extra script steps, parked to the end by Cyril 2026-11-20) (visualise and client review: the copilot acts there), 3 (market research agent), 6 (canvas). Each follows: design pass, spec, plan, build. Each adds its targets to the page-follows mechanism instead of its own.
 
 ## Open findings from the context rebuild (for after traces exist)
 
