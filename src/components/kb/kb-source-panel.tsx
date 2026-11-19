@@ -9,6 +9,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { ClientKBDocumentRow, ClientBrandImageRow } from "@/lib/db/types";
 import type { StagedChanges } from "@/lib/kb/types";
 import { formatBytes } from "@/lib/kb/utils";
+import { CopilotTarget } from "@/components/journey/copilot-target";
+import type { TargetState } from "@/hooks/use-follow-copilot";
+import { kbTarget } from "@/lib/journey/kb-copilot/targets";
+
+/** A source nobody is working on. */
+const STILL: TargetState = { asking: false, writing: false, landed: null, version: 0 };
 
 type Props = {
   clientId: string;
@@ -22,6 +28,9 @@ type Props = {
   onUndoDocRemoval: (id: string) => void;
   onMarkImageForRemoval: (id: string) => void;
   onUndoImageRemoval: (id: string) => void;
+  /** From the page: a source the copilot just saved lands here when the drawer is open (D508). The
+   *  drawer is never opened for the copilot. */
+  stateOf?: (target: string) => TargetState;
   onDocFiles: (files: File[]) => void;
   onImgFiles: (files: File[]) => void;
   onCancelChanges: () => void;
@@ -44,6 +53,7 @@ export function KBSourcePanel({
   onUndoDocRemoval,
   onMarkImageForRemoval,
   onUndoImageRemoval,
+  stateOf,
   onDocFiles,
   onImgFiles,
   onCancelChanges,
@@ -146,8 +156,9 @@ export function KBSourcePanel({
                 const isPending = pendingDocRemovals.has(doc.id);
                 const isNew = newlyAddedDocIds.has(doc.id);
                 return (
-                  <li
-                    key={doc.id}
+                  <li key={doc.id}>
+                  <CopilotTarget id={kbTarget.source(doc.id)} state={stateOf?.(kbTarget.source(doc.id)) ?? STILL} className="rounded-md">
+                  <div
                     className={cn(
                       "group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm",
                       isPending
@@ -192,6 +203,8 @@ export function KBSourcePanel({
                     >
                       {isPending ? <Undo2Icon className="size-3.5" /> : <XIcon className="size-3.5" />}
                     </Button>
+                  </div>
+                  </CopilotTarget>
                   </li>
                 );
               })}
@@ -230,8 +243,8 @@ export function KBSourcePanel({
                 const isPending = pendingImageRemovals.has(img.id);
                 const isNew = newlyAddedImageIds.has(img.id);
                 return (
+                  <CopilotTarget key={img.id} id={kbTarget.source(img.id)} state={stateOf?.(kbTarget.source(img.id)) ?? STILL} className="shrink-0 rounded-md">
                   <div
-                    key={img.id}
                     className={cn(
                       "group relative size-20 shrink-0 overflow-hidden rounded-md border border-border",
                       isPending && "opacity-40",
@@ -265,6 +278,7 @@ export function KBSourcePanel({
                       {isPending ? <Undo2Icon className="size-3" /> : <XIcon className="size-3" />}
                     </Button>
                   </div>
+                  </CopilotTarget>
                 );
               })}
             </div>

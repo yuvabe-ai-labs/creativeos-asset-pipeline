@@ -34,6 +34,12 @@ import { useAssetImports, useStartAssetImport } from "@/hooks/queries/asset-impo
 import { useKbCopilotSaved, useRefreshCopilotThread } from "@/hooks/queries/copilot-thread";
 import { useServerState } from "@/hooks/use-server-state";
 import { KBSocialHandleFields } from "./kb-social-handle-fields";
+import { CopilotTarget } from "@/components/journey/copilot-target";
+import { useFollowCopilot } from "@/hooks/use-follow-copilot";
+import { kbTarget } from "@/lib/journey/kb-copilot/targets";
+
+/** The form is one page with nothing to switch to: every target it tags can be shown. */
+const ON_THIS_PAGE = () => true;
 import { AssetImportStatusList } from "./asset-import-status-list";
 
 const NON_TERMINAL = KB_JOB_NON_TERMINAL;
@@ -112,6 +118,8 @@ export function KBOnboardingUploadStep({
   // A website or handle the copilot has just saved is shown at once, before the page is re-read.
   // Only the fields it saved are touched, and each save is taken once.
   const copilotSaved = useKbCopilotSaved(clientId);
+  // The form shows the copilot's saves and attached files land (D508).
+  const { stateOf } = useFollowCopilot(clientId, ON_THIS_PAGE);
   const [shownSave, setShownSave] = useState(copilotSaved?.n ?? 0);
   if (copilotSaved && copilotSaved.n !== shownSave) {
     setShownSave(copilotSaved.n);
@@ -238,14 +246,15 @@ export function KBOnboardingUploadStep({
             Brand website
           </Label>
         </div>
+        <CopilotTarget id={kbTarget.form("website")} state={stateOf(kbTarget.form("website"))} className="-mx-2 mt-1 px-2 py-1">
         <Input
           id="website-url"
-          className="mt-2"
           placeholder="https://yourbrand.com"
           value={websiteUrl}
           onChange={(e) => setWebsiteUrl(e.target.value)}
           disabled={isRunning}
         />
+        </CopilotTarget>
         <p className="mt-2 text-xs text-muted-foreground">
           We&apos;ll research the site and add it as a knowledge source.
         </p>
@@ -256,6 +265,7 @@ export function KBOnboardingUploadStep({
             onInstagramChange={setInstagram}
             onFacebookChange={setFacebook}
             disabled={isRunning}
+            stateOf={stateOf}
           />
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
@@ -303,10 +313,9 @@ export function KBOnboardingUploadStep({
             ) : (
               <ul className="space-y-1">
                 {documents.map((doc) => (
-                  <li
-                    key={doc.id}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50 group"
-                  >
+                  <li key={doc.id}>
+                    <CopilotTarget id={kbTarget.source(doc.id)} state={stateOf(kbTarget.source(doc.id))} className="rounded-md">
+                    <div className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50">
                     <FileTextIcon className="size-3.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{doc.filename}</span>
                     {doc.size_bytes && (
@@ -325,6 +334,8 @@ export function KBOnboardingUploadStep({
                         <XIcon className="size-3.5" />
                       </Button>
                     )}
+                                      </div>
+                    </CopilotTarget>
                   </li>
                 ))}
               </ul>
@@ -365,10 +376,9 @@ export function KBOnboardingUploadStep({
             ) : (
               <ul className="space-y-1">
                 {images.map((img) => (
-                  <li
-                    key={img.id}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50 group"
-                  >
+                  <li key={img.id}>
+                    <CopilotTarget id={kbTarget.source(img.id)} state={stateOf(kbTarget.source(img.id))} className="rounded-md">
+                    <div className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50">
                     <ImageIcon className="size-3.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{img.filename}</span>
                     {img.size_bytes && (
@@ -387,6 +397,8 @@ export function KBOnboardingUploadStep({
                         <XIcon className="size-3.5" />
                       </Button>
                     )}
+                                      </div>
+                    </CopilotTarget>
                   </li>
                 ))}
               </ul>

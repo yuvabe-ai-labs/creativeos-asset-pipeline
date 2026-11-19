@@ -564,6 +564,7 @@ export function KBOnboardingReviewStep({
             onUndoDocRemoval={undoDocRemoval}
             onMarkImageForRemoval={markImageForRemoval}
             onUndoImageRemoval={undoImageRemoval}
+            stateOf={follow.stateOf}
             onDocFiles={handleDocFiles}
             onImgFiles={handleImgFiles}
             onCancelChanges={handleCancelChanges}
