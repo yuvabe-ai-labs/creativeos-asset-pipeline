@@ -45,7 +45,7 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
     return (
       <main className="mx-auto flex w-full max-w-[96rem] flex-1 flex-col px-6 py-8">
         <ScriptBreadcrumb client={client} title={title} />
-        <GenerateWorkspace clientId={client.id} initialState={state} initialReview={review} locked={scriptsLocked(client)} />
+        <GenerateWorkspace client={{ id: client.id, name: client.name, slug: client.slug }} initialState={state} initialReview={review} locked={scriptsLocked(client)} />
       </main>
     );
   }
