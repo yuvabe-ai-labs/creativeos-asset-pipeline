@@ -1,6 +1,6 @@
 # Copilot turn traces: see what the agent did on every turn
 
-**Status:** DRAFT, 2026-11-19. Open: §3.1 how much of the model input a trace keeps (A: exactly what was sent, recommended; B: a summary). See the RESUME-HERE doc.
+**Status:** Approved, 2026-11-19. Cyril chose A: a trace keeps exactly what the model was sent (§3.1).
 **Part of:** the copilot journey (`2026-11-12-copilot-journey-design.md`). Built on the same branch.
 
 ## 1. Problem
@@ -20,7 +20,7 @@ Everyone on the team who builds, tests or supports the copilot (Cyril decided 20
 Each time the brand KB copilot runs a turn through the agent (a typed message, or a reply button pressed), a trace of that turn is kept. A trace shows, in order:
 
 - **What came in:** the person's message and attachments, which question was waiting, and the client's state as the agent saw it (built or not, in review or approved, what was running).
-- **What the agent was given:** which prompt and which model, by name and version. Not the whole prompt text each time.
+- **What the agent was given, exactly as it was sent** (Cyril, 2026-11-19: A, not a summary): the model's name, the instructions, the conversation, and the tools it was offered with their descriptions. A summary is written before anyone knows which detail will matter; both bugs so far turned on such a detail (where the waiting question sat in the instructions; the exact sentence a tool sent back). It is shown folded, since it is long.
 - **Each round with the model:** the words it wrote; each tool it called, with the arguments; what each tool answered, refusals included; how long the round took.
 - **What code did around the model:** which fields were written; what code added after the reply (the next question, a question asked again, a change card, the "that is everything" line).
 - **How it ended:** the reply that was stored, how long the whole turn took, and the error if it failed.
@@ -79,3 +79,5 @@ How a trace is stored and read, how the agent loop reports its rounds, how old t
 ## 7. Success
 
 Cyril repeats the §1 steps on a client in review, turns the switch on, and sees from the Turns list, without opening anything, that the turn called no tool. Opening it shows the waiting field, the model's words, the empty list of tool calls, and code asking the question again.
+
+A second case of the same kind (2026-11-19): Cyril typed "edit the mission statement to …" for a field not reviewed yet. The copilot reached for a change card, was refused, and told Cyril it "can only save your wording as a new answer" without saving. Fixed in code the same day, but it is the shape of bug traces are for: the Turns list line is marked **Refused**, and opened, it shows the change-card call, the refusal sentence, and no save.
