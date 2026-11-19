@@ -65,3 +65,9 @@ export function kbTraceRow(i: Omit<TurnTrace, keyof TraceRecord> & {
     trace: { ...record, ...rest },
   };
 }
+
+/** One line of the Turns list: what the list shows, without the trace itself. */
+export type TurnLine = {
+  id: string; messageId: string | null; createdAt: string;
+  sentText: string; tools: string[]; marks: TraceMark[]; durationMs: number;
+};

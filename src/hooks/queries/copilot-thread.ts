@@ -8,6 +8,7 @@ import type { ThreadState } from "@/lib/journey/thread/schema";
 import type { KbTurnEvent } from "@/lib/journey/thread/turn-events";
 import { applyTurnEvent, NO_PROGRESS, type TurnProgress } from "@/lib/journey/thread/turn-progress";
 import { copilotThreadService, type KbTurnBody } from "@/services/copilot-thread.service";
+import { refreshTurnLinesSoon } from "./copilot-traces";
 
 // The copilot's saved onboarding thread through TanStack Query. One key for the thread, whichever
 // stage page shows it (journey map §2); a turn is sent by the stage's own hook.
@@ -145,7 +146,11 @@ export function useSendKbTurn(clientId: string) {
       if (changed) router.refresh();
     },
     // Whatever was being shown for the turn in flight goes: the thread now holds the real messages.
-    onSettled: () => setProgress(NO_PROGRESS),
+    onSettled: () => {
+      setProgress(NO_PROGRESS);
+      // The turn's trace (D509), for the Turns list when it is on screen.
+      refreshTurnLinesSoon(queryClient, clientId);
+    },
   });
   return { ...mutation, progress };
 }
