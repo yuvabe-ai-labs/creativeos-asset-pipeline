@@ -50,10 +50,9 @@ export function TestTopUp() {
             },
           },
         },
-        () => {
-          setCheckoutOpen(false);
-          setStatus({ tone: "error", text: "The payment didn't go through. No credits were added." });
-        },
+        // The window stays open after a failed attempt so it can be retried there; Pay stays
+        // disabled until the window closes (ondismiss).
+        () => setStatus({ tone: "error", text: "The payment didn't go through. No credits were added." }),
       );
     } catch (e) {
       setCheckoutOpen(false);
