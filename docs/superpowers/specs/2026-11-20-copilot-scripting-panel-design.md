@@ -18,6 +18,7 @@ The journey is meant to be one copilot panel the whole way, from the brand KB to
 - The script copilot keeps its steps in an order decided by code; its engine is not rebuilt. (2026-11-15)
 - A script's steps stay Write, Visualise, Client review, Canvas. Inside a script there are no client tabs. (2026-11-15, 2026-11-16)
 - Pasting an existing script skips the gates. (2026-11-12)
+- **The copilot can do everything the person can do on the page it sits beside** (2026-11-20). At Visualise that means changing the script and its shots, casting, locations, products and picking takes, and reopening the script. Two things stay a person's click, by the journey's standing rule: drawing panels (it costs money) and sending the board to the client. For those the copilot puts the button in the thread and the person presses it. The copilot's changes to script text and shots come as before-and-after cards the person accepts, as at Generate. **This spec only puts the panel there; piece 5 gives the copilot those abilities** (see §3.2).
 
 ## 3. What changes
 
@@ -35,7 +36,7 @@ On the client's Scripts tab, the panel's guide gains the action itself.
 The script's copilot panel is shown on the script's page at **every** stage, not only at Generate.
 
 - **At Generate:** as today. The conversation, the cards, the message box, the suggestions.
-- **At Visualise, In review and Approved:** the same panel, showing the same saved thread, so the person can read how the script came to be. This covers all three pages a script has after Generate: the storyboard with the team's review, the approved version with its review, and the plain read-only script (an approved script with no review). *(My call)* It has **no message box** at these stages: the script copilot cannot change a script that is marked final, and a box nothing answers misleads. Under the thread it says what stage the script is at and what is waiting (§3.4). Piece 5 adds what the copilot says and does at these stages.
+- **At Visualise, In review and Approved:** the same panel, showing the same saved thread, so the person can read how the script came to be. This covers all three pages a script has after Generate: the storyboard with the team's review, the approved version with its review, and the plain read-only script (an approved script with no review). It gets its **message box at these stages in piece 5**, together with the abilities behind it (the principle in §2): a box nothing answers misleads, and until piece 5 the script copilot can only act at Generate. The whole copilot is merged once, so nobody is ever shown the in-between. Under the thread it says what stage the script is at and what is waiting (§3.4).
 - **A script that was pasted** has a thread too (the import), and is shown the same way.
 - **A script reopened** from Visualise goes back to Generate and gets its message box back, as today.
 - **Cards in the thread are read-only after Generate** *(my call)*. The angle, confirmation, proposal and import cards keep showing what they showed, with no working buttons: their actions only apply while the script is at Generate. A proposal or import still waiting when the script was marked final is shown as it was, without buttons; it becomes live again if the script is reopened.
@@ -59,7 +60,7 @@ The panel and its folded rail say what the person is waited on, worked out fresh
 | at Generate, written, nothing open | Waiting for you: mark the script final |
 | while the copilot is answering | nothing (the rail reads "Copilot") |
 | at Visualise | Waiting for you: finish the storyboard and send it for review |
-| in review | Waiting for the client's review |
+| in review | Waiting for the client's review *(my call: one line for the whole stage here; what the copilot says once the client has commented is decided in piece 5)* |
 | approved, no canvas yet | Waiting for you: create the canvas |
 | approved, with a canvas | nothing waiting |
 
@@ -75,7 +76,7 @@ The script's panel and the client's panel are one panel: the same card, header, 
 
 **Non-goals (this piece)**
 - The extra script steps (4.2).
-- Anything the copilot says or does at Visualise and Client review beyond the "waiting" line (piece 5).
+- Anything the copilot says or does at Visualise and Client review beyond the "waiting" line, including its message box there (piece 5, by the principle in §2).
 - Tools, internet search, turn traces for script turns (they come with the shared loop, with piece 3).
 - Merging the script's before-and-after card with the brand KB change card.
 - A chat on the Scripts tab, or showing the client's thread inside a script.
@@ -85,7 +86,7 @@ The script's panel and the client's panel are one panel: the same card, header, 
 **Anti-goals: it fails if…**
 - Any script copilot behaviour at Generate changes: its steps, wording, cards, drafting, or saved messages.
 - A script's saved thread is moved, copied or rewritten.
-- A message box is shown where nothing answers.
+- A message box is shown where nothing answers yet.
 - The Visualise, review or approved pages lose width they need for the storyboard or the comments (the panel folds, and starts folded when the page needs the room *(my call: it starts folded at Visualise, In review and Approved, open at Generate)*).
 - A script page makes a second request for the thread on load, or polls for it where it did not before.
 

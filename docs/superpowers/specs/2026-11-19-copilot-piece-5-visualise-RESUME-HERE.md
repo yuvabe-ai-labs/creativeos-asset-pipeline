@@ -15,6 +15,11 @@ That is all that is written. What "guidance" means on this screen, turn by turn,
 
 ## Decided by Cyril (do not reopen)
 
+- **The copilot can do everything the person can do on the page it sits beside** (2026-11-20: "the idea is that the copilot does everything that the user can do today"). At Visualise: change the script and its shots, cast avatars, set locations and products, pick between takes, reopen the script. It keeps its message box at Visualise, client review and approved.
+- **Two things stay a person's click** (2026-11-20, the recommended path): drawing panels (paid) and sending the board for client review. The copilot prepares them and puts the button in the thread ("Draw 6 panels", "Send for client review"); the person presses it.
+- **The copilot's changes to script text and shots come as before-and-after cards** the person accepts, as while writing.
+- Piece 4.1 (`2026-11-20-copilot-scripting-panel-design.md`) only puts the panel on these pages, read-only. **This piece adds the message box and the abilities.**
+
 - A script's steps stay Write, Visualise, Client review, Canvas. No internal review. (2026-11-15)
 - Nothing is approved, sent to a client or generated without a person's click (parent spec §9). The copilot never sends the board to the client.
 - An image attached in the chat is saved to the client's brand assets, so later scripts can use it (parent spec §8 item 1). The memory notes this as Claude's reading of a "yes": confirm it once before building on it.
@@ -23,11 +28,11 @@ That is all that is written. What "guidance" means on this screen, turn by turn,
 
 ## Open, for Cyril (ask one at a time: how it works today, the options, a recommendation)
 
-1. **What the copilot actually does here.** The parent spec says it "casts the lead, sets the location, checks the products and draws the storyboard panels". Today a person does each of those on the visualise screen. Which of them does the copilot do itself, which does it only point to, and which need the person's click (drawing panels costs money)?
+1. **Settled 2026-11-20** (see Decided): the copilot does everything that only changes the team's own work; drawing and sending are prepared as a button the person presses. Still open under it: whether casting, locations and products change at once when asked, or also come as a card to accept.
 2. **What starts it.** Does the copilot speak when the script is marked final and Visualise opens, or only when asked?
 3. **Readiness.** The screen already shows what is outstanding (cast, panels). Is the copilot's "what is left" the same list said in the thread, with the same "Waiting for you" on the rail as the brand KB?
 4. **The gate before the client.** What the gate card says and checks before "send for client review", and whether it replaces or sits beside the existing review action.
-5. **Client comments.** When the client comments or asks for changes, does the copilot say so in the thread, and does it propose changes (a change card) or only point to them?
+5. **Client comments** (also: what the panel says while a script is in review once the client has commented; 4.1 says "Waiting for the client's review" for the whole stage). When the client comments or asks for changes, does the copilot say so in the thread, and does it propose changes (a change card) or only point to them?
 6. **Attached images in a script.** A product image attached in the chat: where it goes (brand assets, per the earlier answer) and what the copilot does with it (offer it for a product slot?).
 7. **Two open items from earlier work** (memory, Visualise storyboard sheet, D465/D466): a "client on-screen-text call", and a "dead shot-only panel view". Ask Cyril whether either belongs in this piece.
 
