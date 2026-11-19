@@ -19,9 +19,11 @@ export type ChatActions = {
   link: (castId: string, avatarId: string) => void;
 };
 
-export function CopilotChatMessage({ message, actions, avatars }: { message: ScriptMessage; actions: ChatActions; avatars: CopilotAvatar[] }) {
+/** `actions: null` after Generate: the cards are shown without their buttons, which only apply there. */
+export function CopilotChatMessage({ message, actions, avatars }: { message: ScriptMessage; actions: ChatActions | null; avatars: CopilotAvatar[] }) {
   const mine = message.role === "user";
   const { card } = message;
+  const busy = actions?.busy ?? false;
   // Research that no angle drew on says nothing worth a card; a message that is only that card goes.
   const research = card?.kind === "research" && researchRows(card).length > 0 ? card : null;
   if (!message.content && card?.kind === "research" && !research) return null;
@@ -33,10 +35,10 @@ export function CopilotChatMessage({ message, actions, avatars }: { message: Scr
         <CopilotText content={message.content} />
       ))}
       {research && <CopilotResearchCard card={research} />}
-      {card?.kind === "angles" && <CopilotAnglesCard angles={card.angles} disabled={actions.busy} onPick={(id) => actions.send(`Go with ${id}.`)} />}
-      {card?.kind === "confirmation" && <CopilotConfirmationCard card={card.card} avatars={avatars} disabled={actions.busy} onWrite={() => actions.send("Write it.")} />}
-      {card?.kind === "proposal" && <CopilotProposalCard card={card} disabled={actions.busy} onResolve={(d) => actions.resolve(message.id, d)} />}
-      {card?.kind === "import" && <CopilotImportCard card={card} disabled={actions.busy} onResolve={(d) => actions.resolve(message.id, d)} />}
+      {card?.kind === "angles" && <CopilotAnglesCard angles={card.angles} disabled={busy} onPick={actions ? (id) => actions.send(`Go with ${id}.`) : undefined} />}
+      {card?.kind === "confirmation" && <CopilotConfirmationCard card={card.card} avatars={avatars} disabled={busy} onWrite={actions ? () => actions.send("Write it.") : undefined} />}
+      {card?.kind === "proposal" && <CopilotProposalCard card={card} disabled={busy} onResolve={actions ? (d) => actions.resolve(message.id, d) : undefined} />}
+      {card?.kind === "import" && <CopilotImportCard card={card} disabled={busy} onResolve={actions ? (d) => actions.resolve(message.id, d) : undefined} />}
     </li>
   );
 }

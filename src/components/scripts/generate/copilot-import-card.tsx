@@ -11,7 +11,8 @@ const STATUS: Record<Exclude<ImportCard["status"], "pending">, string> = {
 export function CopilotImportCard({ card, disabled, onResolve }: {
   card: ImportCard;
   disabled: boolean;
-  onResolve: (decision: "accept" | "reject") => void;
+  /** Absent after Generate: a pending card is shown as it was, with no choices. */
+  onResolve?: (decision: "accept" | "reject") => void;
 }) {
   return (
     <div className="flex w-full flex-col gap-3 rounded-xl border border-border bg-background p-3 text-sm">
@@ -20,12 +21,12 @@ export function CopilotImportCard({ card, disabled, onResolve }: {
         <span className="font-medium">{card.doc.header.title}</span>
         <span className="text-muted-foreground">{`${card.summary}, replacing ${card.replacing}`}</span>
       </div>
-      {card.status === "pending" ? (
+      {card.status === "pending" ? (onResolve && (
         <div className="flex gap-2">
           <Button size="sm" disabled={disabled} onClick={() => onResolve("accept")}>Replace the draft</Button>
           <Button size="sm" variant="outline" disabled={disabled} onClick={() => onResolve("reject")}>Keep the current one</Button>
         </div>
-      ) : (
+      )) : (
         <Badge variant="outline" className="self-start">{STATUS[card.status]}</Badge>
       )}
     </div>

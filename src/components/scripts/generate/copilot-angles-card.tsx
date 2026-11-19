@@ -2,8 +2,9 @@ import { Button } from "@/components/ui/button";
 import type { Angle } from "@/lib/scripts/copilot/schema";
 
 /** Spec 2 §5 piece 4 — three proposed angles, each with what it commits to (interaction model §3.3).
- *  Picking one sends the pick as the person's message; blending or writing one is typed. */
-export function CopilotAnglesCard({ angles, disabled, onPick }: { angles: Angle[]; disabled: boolean; onPick: (id: string) => void }) {
+ *  Picking one sends the pick as the person's message; blending or writing one is typed. Without
+ *   (after Generate) the angles are only shown. */
+export function CopilotAnglesCard({ angles, disabled, onPick }: { angles: Angle[]; disabled: boolean; onPick?: (id: string) => void }) {
   return (
     <ol className="flex w-full flex-col gap-2">
       {angles.map((a) => (
@@ -25,9 +26,11 @@ export function CopilotAnglesCard({ angles, disabled, onPick }: { angles: Angle[
                 </div>
               ))}
           </dl>
-          <Button variant="outline" size="xs" className="self-start" disabled={disabled} onClick={() => onPick(a.id)}>
-            Go with {a.id}
-          </Button>
+          {onPick && (
+            <Button variant="outline" size="xs" className="self-start" disabled={disabled} onClick={() => onPick(a.id)}>
+              Go with {a.id}
+            </Button>
+          )}
         </li>
       ))}
     </ol>

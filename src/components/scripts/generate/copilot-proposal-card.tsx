@@ -27,7 +27,8 @@ function ShotLines({ shots }: { shots: Shot[] }) {
 export function CopilotProposalCard({ card, disabled, onResolve }: {
   card: ProposalCard;
   disabled: boolean;
-  onResolve: (decision: "accept" | "reject") => void;
+  /** Absent after Generate: a pending card is shown as it was, with no choices. */
+  onResolve?: (decision: "accept" | "reject") => void;
 }) {
   return (
     <div className="flex w-full flex-col gap-3 rounded-xl border border-border bg-background p-3 text-sm">
@@ -35,12 +36,12 @@ export function CopilotProposalCard({ card, disabled, onResolve }: {
         <div className="flex flex-col gap-1"><span className="text-eyebrow">Before</span><ShotLines shots={card.before} /></div>
         <div className="flex flex-col gap-1"><span className="text-eyebrow">After</span><ShotLines shots={card.after} /></div>
       </div>
-      {card.status === "pending" ? (
+      {card.status === "pending" ? (onResolve && (
         <div className="flex gap-2">
           <Button size="sm" disabled={disabled} onClick={() => onResolve("accept")}>Accept</Button>
           <Button size="sm" variant="outline" disabled={disabled} onClick={() => onResolve("reject")}>Reject</Button>
         </div>
-      ) : (
+      )) : (
         <Badge variant="outline" className="self-start">{STATUS[card.status]}</Badge>
       )}
     </div>
