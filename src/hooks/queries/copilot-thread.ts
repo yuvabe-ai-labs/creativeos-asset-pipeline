@@ -2,11 +2,13 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { KbSaved } from "@/lib/journey/kb-copilot/turn";
 import type { ThreadState } from "@/lib/journey/thread/schema";
 import type { KbTurnEvent } from "@/lib/journey/thread/turn-events";
 import { applyTurnEvent, NO_PROGRESS, type TurnProgress } from "@/lib/journey/thread/turn-progress";
+import { applyTargetEvent, askingTargetOf, NO_TARGET_ACTIVITY, type TargetActivity, type TargetEvent } from "@/lib/journey/thread/target-activity";
+import { kbTarget } from "@/lib/journey/kb-copilot/targets";
 import { copilotThreadService, type KbTurnBody } from "@/services/copilot-thread.service";
 import { refreshTurnLinesSoon } from "./copilot-traces";
 
@@ -17,7 +19,50 @@ export const copilotThreadKeys = {
   all: (clientId: string) => ["copilot-thread", clientId] as const,
   thread: (clientId: string) => [...copilotThreadKeys.all(clientId), "thread"] as const,
   saved: (clientId: string) => [...copilotThreadKeys.all(clientId), "saved"] as const,
+  /** What the copilot is doing to the page right now (D508). Kept here by the panel; never fetched. */
+  activity: (clientId: string) => [...copilotThreadKeys.all(clientId), "activity"] as const,
 };
+
+// ── The page shows the copilot's work (D508) ────────────────────────────────
+
+/** Folds one event into the activity the page beside the panel follows. */
+export function recordActivity(queryClient: QueryClient, clientId: string, event: TargetEvent): void {
+  queryClient.setQueryData<TargetActivity>(copilotThreadKeys.activity(clientId), (a: TargetActivity | undefined) => applyTargetEvent(a ?? NO_TARGET_ACTIVITY, event));
+}
+
+/** What the copilot is doing to the page right now. Nothing is fetched: the panel puts it here. */
+export function useCopilotActivity(clientId: string): TargetActivity {
+  return useQuery<TargetActivity>({
+    queryKey: copilotThreadKeys.activity(clientId),
+    queryFn: () => NO_TARGET_ACTIVITY,
+    enabled: false,
+    initialData: NO_TARGET_ACTIVITY,
+    staleTime: Infinity,
+  }).data;
+}
+
+export function useRecordCopilotActivity(clientId: string): (event: TargetEvent) => void {
+  const queryClient = useQueryClient();
+  return useCallback((event: TargetEvent) => recordActivity(queryClient, clientId, event), [queryClient, clientId]);
+}
+
+/** The target of the question the thread waits on. Read from the thread the panel already holds
+ *  (`skipToken`: this never fetches or polls), so the page adds no request. */
+export function useAskingTarget(clientId: string): string | null {
+  return useQuery({
+    queryKey: copilotThreadKeys.thread(clientId),
+    queryFn: skipToken,
+    select: (s: ThreadState) => askingTargetOf(s, kbTarget.field),
+  }).data ?? null;
+}
+
+/** The "asked" event after a turn, or null when the asked target did not change: the same question
+ *  asked again after the person talked about something else does not move the page (spec §3.3). */
+export function askedAfterTurn(before: ThreadState | undefined, after: ThreadState): TargetEvent | null {
+  const now = askingTargetOf(after, kbTarget.field);
+  if (!now || now === askingTargetOf(before, kbTarget.field)) return null;
+  return { type: "asked", target: now };
+}
 
 /** The website or handles the copilot last saved, for the form beside it. `n` counts the saves, so
  *  the form can tell a new one from one it has already shown. */
@@ -100,9 +145,14 @@ export function useDecideChange(clientId: string) {
   return useMutation({
     mutationFn: ({ messageId, body }: { messageId: string; body: { decision: "approve"; keep: string[] } | { decision: "discard" } }) =>
       copilotThreadService.decideChange(clientId, messageId, body),
-    onSuccess: async ({ state }) => {
+    onSuccess: async ({ state }, { messageId, body }) => {
       await finishTurn(queryClient, key, state);
       router.refresh();
+      // A person's own approval lands the changed fields where they are, without moving the page.
+      if (body.decision !== "approve") return;
+      const card = state.messages.find((m) => m.id === messageId)?.card;
+      if (card?.kind !== "change") return;
+      for (const path of card.decision?.kept ?? []) recordActivity(queryClient, clientId, { type: "written", target: kbTarget.field(path), move: false });
     },
     // Settled by someone else meanwhile, or the write failed: show what is really stored.
     onError: () => void queryClient.invalidateQueries({ queryKey: key }),
@@ -124,6 +174,8 @@ export function useSendKbTurn(clientId: string) {
       queryClient.setQueryData<KbSavedEvent | null>(copilotThreadKeys.saved(clientId), (previous: KbSavedEvent | null | undefined) => nextSavedEvent(previous, event.saved));
     }
     if (event.type === "page") router.refresh();
+    // The page beside the panel follows what this browser's turn changes (D508).
+    if (event.type === "target") recordActivity(queryClient, clientId, { type: event.phase, target: event.target, move: true });
   };
   const mutation = useMutation({
     mutationFn: (body: KbTurnBody) => copilotThreadService.kbTurn(clientId, body, onEvent),
@@ -139,8 +191,11 @@ export function useSendKbTurn(clientId: string) {
       // The server may have stored the message before it failed: read what it really holds.
       void queryClient.invalidateQueries({ queryKey: key });
     },
-    onSuccess: async ({ state, changed }) => {
+    onSuccess: async ({ state, changed }, _body, context) => {
       await finishTurn(queryClient, key, state);
+      // A new question about a different field: the page goes there.
+      const asked = askedAfterTurn(context?.previous, state);
+      if (asked) recordActivity(queryClient, clientId, asked);
       // Saves already reached the form as they happened. This last re-read brings everything else
       // on the page up to date.
       if (changed) router.refresh();
@@ -148,6 +203,8 @@ export function useSendKbTurn(clientId: string) {
     // Whatever was being shown for the turn in flight goes: the thread now holds the real messages.
     onSettled: () => {
       setProgress(NO_PROGRESS);
+      // However the turn ended, nothing is being written any more: no shimmer outlives it.
+      recordActivity(queryClient, clientId, { type: "endTurn" });
       // The turn's trace (D509), for the Turns list when it is on screen.
       refreshTurnLinesSoon(queryClient, clientId);
     },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { copilotThreadKeys, finishTurn, liveRefetchInterval, nextSavedEvent, THREAD_IDLE_POLL_MS, THREAD_LIVE_POLL_MS, withPendingMessage } from "../copilot-thread";
+import { askedAfterTurn, copilotThreadKeys, finishTurn, liveRefetchInterval, nextSavedEvent, THREAD_IDLE_POLL_MS, THREAD_LIVE_POLL_MS, withPendingMessage } from "../copilot-thread";
 import type { ThreadState } from "@/lib/journey/thread/schema";
 
 const state = (over: Partial<ThreadState>): ThreadState => ({ messages: [], live: [], suggestions: ["Start the build"], waiting: null, ...over });
@@ -59,3 +59,27 @@ describe("finishTurn", () => {
   });
 });
 
+describe("askedAfterTurn (D508)", () => {
+  const question = (field: string, id = field) => ({ id, role: "assistant" as const, content: "?", card: { kind: "question" as const, field, label: field }, attachments: [], suggestions: [], createdAt: "" });
+  const said = (content: string) => ({ id: content, role: "user" as const, content, card: null, attachments: [], suggestions: [], createdAt: "" });
+
+  it("moves when the waiting target changed", () => {
+    const before = state({ messages: [question("a.b")] });
+    const after = state({ messages: [question("a.b"), said("30"), question("c.d")] });
+    expect(askedAfterTurn(before, after)).toEqual({ type: "asked", target: "kb:c.d" });
+  });
+
+  it("does nothing when the same question is asked again", () => {
+    const before = state({ messages: [question("a.b")] });
+    const after = state({ messages: [question("a.b"), said("what is tone?"), question("a.b", "q2")] });
+    expect(askedAfterTurn(before, after)).toBeNull();
+  });
+
+  it("does nothing when no question waits after", () => {
+    expect(askedAfterTurn(state({ messages: [question("a.b")] }), state({ messages: [question("a.b"), said("stop")] }))).toBeNull();
+  });
+
+  it("moves to the first question when there was no thread before", () => {
+    expect(askedAfterTurn(undefined, state({ messages: [question("a.b")] }))).toEqual({ type: "asked", target: "kb:a.b" });
+  });
+});

@@ -8,7 +8,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopilotText } from "@/components/copilot/copilot-text";
 import { REPLY_CHIP_CLASS } from "@/components/copilot/reply-chip";
-import { useCopilotThread, useDecideChange, useRefreshCopilotThread, useSendKbTurn } from "@/hooks/queries/copilot-thread";
+import { useCopilotThread, useDecideChange, useRecordCopilotActivity, useRefreshCopilotThread, useSendKbTurn } from "@/hooks/queries/copilot-thread";
+import { kbTarget } from "@/lib/journey/kb-copilot/targets";
 import { useApproveKb } from "@/hooks/queries/kb";
 import { useTurnLines } from "@/hooks/queries/copilot-traces";
 import { useCopilotDeveloper } from "@/hooks/use-copilot-developer";
@@ -38,6 +39,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
   const thread = useCopilotThread(clientId);
   const refreshThread = useRefreshCopilotThread(clientId);
   const turn = useSendKbTurn(clientId);
+  const recordActivity = useRecordCopilotActivity(clientId);
   const [text, setText] = useState("");
   // Approving is the person's own action (spec §6): the gate card's button, never the copilot.
   const approve = useApproveKb(clientId);
@@ -63,8 +65,10 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
     upload: useCallback(async (file: File) => {
       const attachment = await uploadSourceFile(clientId, file);
       sourcesChanged();
+      // The file lands in the form's source list (D508).
+      recordActivity({ type: "written", target: kbTarget.source(attachment.id), move: true });
       return attachment;
-    }, [clientId, sourcesChanged]),
+    }, [clientId, sourcesChanged, recordActivity]),
     discard: useCallback(async (attachment: Attachment) => {
       // Never sent, so never studied: removing it starts no study either.
       await deleteSource(clientId, attachment, { studyLater: true });
