@@ -219,6 +219,19 @@ Spec: [docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md](docs/sup
   **after** the answer has gone, inside its own try/catch. Never trace by hand; never skip it.
 - A trace keeps the exact input, never a summary. A trace that cannot be kept never fails a turn.
 
+# The page shows the copilot's work
+
+**Whatever the copilot changes on a page, the page shows it happening** (D508): it goes there, marks
+what is asked about ("Copilot is asking"), shimmers what is being changed, and shows the change land.
+Spec: [docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md](docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md).
+
+- A page names what the copilot can work on as **targets**: wrap each in `CopilotTarget` and call
+  `useFollowCopilot(clientId, reveal)` once per page. The agent reports each change by target id
+  (`on.target`). Never build a separate follow mechanism per page.
+- The page moves only for this browser's own turns; the "asking" mark is for everyone.
+- The copilot's change wins over an unsaved edit of the same thing; every other unsaved edit is kept.
+- No new request and no new polling: the page reads what the panel already holds.
+
 # Performance — rules we never break
 
 Learned the hard way (October 2026: one cost request per node, auth checked twice per request,

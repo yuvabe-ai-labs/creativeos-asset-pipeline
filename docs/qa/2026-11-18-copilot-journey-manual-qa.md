@@ -143,6 +143,22 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 7.9 | With Turns off, open DevTools → Network, reload, and send a message. | No request to `/copilot/traces`. With Turns on, one request on load and one about 1.5 seconds after each turn; none in between. |
 | 7.10 | Before 0065 is applied (local), send a message. | The turn answers normally. The server log shows "could not keep the trace". |
 
+## 8. The page shows the copilot's work (D508)
+
+| # | Do | Expected |
+|---|---|---|
+| 8.1 | *(client in review)* Answer five review questions with the buttons, without touching the page. | Each time the page is already on the field's tab with the field in view, marked "Copilot is asking". Each answer sweeps, then lands with a short highlight; the mark moves to the next field. |
+| 8.2 | *(client in review)* Go to another tab on the right. Type an answer for the waiting field. | The page switches to that field's tab, the field sweeps, and the answer lands. |
+| 8.3 | *(client in review)* Edit the waiting field on the page and do not save. Edit a second field too. Answer the waiting field in the chat. | The waiting field shows the chat answer. Pressing Save does not bring your edit of it back. Your unsaved edit of the second field is still there. |
+| 8.4 | *(client in review)* With a question waiting, go to another tab and ask "what is our tone of voice?" | The page does not move. The mark stays on the waiting field. |
+| 8.5 | *(two people)* B watches the Brand KB page while A answers questions. | B's page never moves by itself. B sees the "Copilot is asking" mark move (within about 20 seconds). |
+| 8.6 | *(client in review)* Reload with a question waiting. Then open Brand KB from the client's Canvases tab. | Both times the page lands on the waiting field, marked. |
+| 8.7 | *(new client)* Send the website in the chat, then "instagram is @acme". | Each form field comes into view, sweeps, and the value lands with a highlight. |
+| 8.8 | *(new client)* Attach a PDF in the chat. | It appears in the form's document list with the highlight. |
+| 8.9 | Turn on "reduce motion" in the operating system and repeat 8.1. | No sweep and no animated scroll. The tint, the "Copilot is asking" label and the highlight still show. |
+| 8.10 | *(approved client)* Approve a change card. | The page does not move. Changed fields that are on screen highlight briefly. |
+| 8.11 | *(client in review)* Stop the model (an invalid key) and type an answer. | No sweep is left running after the failure reply. |
+
 ## Known limits (not bugs)
 
 - A pending change card hides the "Approve the brand KB" card until it is settled, since it may change fields the approval covers.
