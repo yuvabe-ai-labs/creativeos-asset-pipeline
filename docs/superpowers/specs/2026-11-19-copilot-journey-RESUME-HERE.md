@@ -16,9 +16,9 @@ For the next conversation that picks up the copilot journey. Read this first, th
 - **Turn traces (D509)**, reviewed and fixed. Plan with Outcome: `docs/superpowers/plans/2026-11-19-copilot-turn-traces.md`. A "Turns" switch in the panel shows each turn. Needs migration **0065** and the `copilot-trace-sweep` Trigger task.
 - **The page shows the copilot's work (D508)**, reviewed and fixed (`8bb6eadb`). Plan with Outcome: `docs/superpowers/plans/2026-11-19-copilot-page-follows.md`. Spec: `2026-11-19-copilot-page-follows-design.md`. Not yet run in a browser (QA section 8).
 
-**Now: piece 2b (Image Analysis through a change card).** Cyril chose approach A on 2026-11-20: reuse the existing change card. Reviewed written fields a study would change go on a card; unreviewed and counted fields update directly; hand-edited fields are left alone and not proposed. Spec: `2026-11-20-copilot-image-analysis-card-design.md` (check its Status line), then plan, then build.
+- **Piece 2b, Image Analysis through a change card (D510)**, built 2026-11-20, reviewed and fixed. Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-image-analysis-card.md`. **One open product question for Cyril** (in that Outcome): the model rewords the prose fields on every study, so a card may appear after nearly every upload.
 
-**Then: piece 4 (scripting)**, from `2026-11-19-copilot-piece-4-scripting-RESUME-HERE.md`; then piece 5 (visualise), from `2026-11-19-copilot-piece-5-visualise-RESUME-HERE.md`. Piece 3 (market research) and piece 6 (canvas) after.
+**Now: piece 4 (scripting)**, design pass first, from `2026-11-19-copilot-piece-4-scripting-RESUME-HERE.md`; then piece 5 (visualise), from `2026-11-19-copilot-piece-5-visualise-RESUME-HERE.md`. Piece 3 (market research) and piece 6 (canvas) after. Next free ADR: D511.
 
 ## Waiting on Cyril
 
