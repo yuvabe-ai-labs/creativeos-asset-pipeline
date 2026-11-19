@@ -73,7 +73,7 @@ Facts the 4.1 build relied on (kept for piece 5, which builds on the same panel)
 
 ## Pieces still to build
 
-5 (visualise and client review), 3, 6, then 4.2 (the extra script steps, parked to the end by Cyril 2026-11-20) (visualise and client review: the copilot acts there), 3 (market research agent), 6 (canvas). Each follows: design pass, spec, plan, build. Each adds its targets to the page-follows mechanism instead of its own.
+5 (visualise and client review: the copilot acts there), 3 (market research agent), 6 (canvas), then 4.2 (the extra script steps, parked to the end by Cyril 2026-11-20). Each follows: design pass, spec, plan, build. Each adds its targets to the page-follows mechanism instead of its own.
 
 ## Open findings from the context rebuild (for after traces exist)
 
