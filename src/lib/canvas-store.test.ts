@@ -14,16 +14,20 @@ vi.mock("sonner", () => ({
 // D454, D456 — the server makes the storyboard and plate Composites; here it echoes what it was asked for.
 type Placed = { nodeId: string; position: { x: number; y: number } };
 vi.mock("@/services/script-composites.service", () => ({
-  createScriptComposites: vi.fn(async (_canvasId: string, body: { panels: (Placed & { label: string })[]; plates: (Placed & { locationId: string })[] }) => [
-    ...body.panels.map((p) => ({
-      id: p.nodeId, position: p.position, output: `https://x/${p.label}.png`,
-      data: { title: `${p.label} · HOOK — storyboard`, storyboardPanel: p.label, storyboardSketchUrl: `https://x/${p.label}.png` },
-    })),
-    ...body.plates.map((p) => ({
-      id: p.nodeId, position: p.position, output: `https://x/${p.locationId}.png`,
-      data: { title: p.locationId, scriptId: "script-1", scriptAsset: { kind: "location", id: p.locationId, name: p.locationId, angle: 0 } },
-    })),
-  ]),
+  createScriptComposites: vi.fn(async (_canvasId: string, body: { panels: (Placed & { label: string })[]; plates: (Placed & { locationId: string })[] }) => ({
+    nodes: [
+      ...body.panels.map((p) => ({
+        id: p.nodeId, position: p.position, output: `https://x/${p.label}.png`,
+        data: { title: `${p.label} · HOOK — storyboard`, storyboardPanel: p.label, storyboardSketchUrl: `https://x/${p.label}.png` },
+      })),
+      ...body.plates.map((p) => ({
+        id: p.nodeId, position: p.position, output: `https://x/${p.locationId}.png`,
+        data: { title: p.locationId, scriptId: "script-1", scriptAsset: { kind: "location", id: p.locationId, name: p.locationId, angle: 0 } },
+      })),
+    ],
+    // D503 — the latest script says Maya is on screen in S1.
+    onScreen: { S1: [{ avatarId: "av-maya", name: "Maya" }] },
+  })),
 }));
 import { createScriptComposites } from "@/services/script-composites.service";
 const settle = () => new Promise((r) => setTimeout(r, 0));
@@ -393,7 +397,38 @@ describe("fanOutShots with an approved storyboard (D382, D454)", () => {
     { label: "S1", description: "a", duration_seconds: 3 },
     { label: "S2", description: "b", duration_seconds: 4 },
   ];
-  const panelNodes = (s: ReturnType<typeof createCanvasStore>) => s.getState().nodes.filter((n) => n.type === "composite");
+  const panelNodes = (s: ReturnType<typeof createCanvasStore>) =>
+    s.getState().nodes.filter((n) => n.type === "composite" && (n.data as { storyboardPanel?: string }).storyboardPanel);
+  const stillNodes = (s: ReturnType<typeof createCanvasStore>) =>
+    s.getState().nodes.filter((n) => n.type === "composite" && /— still$/.test((n.data as { title?: string }).title ?? ""));
+
+  // D503 — a shot still per panel, wired from the panel and the shot's on-screen avatar, never onward.
+  it("adds a still beside each panel, wired from it and from who is on screen, and to nothing", async () => {
+    const maya: AppNode = { id: "maya-node", type: "avatar", position: { x: -400, y: 0 }, data: { avatarId: "av-maya" } } as AppNode;
+    const store = createCanvasStore([scriptNode(rows), maya], []);
+    store.getState().fanOutShots("sb", "canvas-1");
+    await settle();
+    const stills = stillNodes(store);
+    expect(stills.map((n) => (n.data as { title: string }).title)).toEqual(["S1 · HOOK — still", "S2 · HOOK — still"]);
+    const [p1, p2] = panelNodes(store);
+    const into = (id: string) => store.getState().edges.filter((e) => e.target === id).map((e) => e.source);
+    expect(into(stills[0].id)).toEqual([p1.id, "maya-node"]);
+    expect(into(stills[1].id)).toEqual([p2.id]);
+    expect(store.getState().edges.some((e) => stills.some((s) => s.id === e.source))).toBe(false);
+    expect((stills[0].data as { instruction: string }).instruction).toBe(
+      `Using the storyboard @[Composite: S1 · HOOK — storyboard](${p1.id}), create the real scene using @[Avatar: Maya](maya-node).`,
+    );
+    // Not generated: no model run, no picture.
+    expect((stills[0].data as { parsed?: unknown }).parsed).toBeUndefined();
+  });
+
+  it("leaves out an on-screen person whose avatar node is not on the canvas", async () => {
+    const store = createCanvasStore([scriptNode(rows)], []);
+    store.getState().fanOutShots("sb", "canvas-1");
+    await settle();
+    const [s1] = stillNodes(store);
+    expect(store.getState().edges.filter((e) => e.target === s1.id)).toHaveLength(1);
+  });
 
   it("asks the server for a Composite per panel, showing the panel, for this canvas and script", async () => {
     const store = createCanvasStore([scriptNode(rows)], []);
@@ -428,10 +463,14 @@ describe("fanOutShots with an approved storyboard (D382, D454)", () => {
     const dims = (id: string, width: number, height: number) =>
       ({ type: "dimensions" as const, id, dimensions: { width, height }, setAttributes: true });
 
-    // The panel's image loads and its card is taller than the estimate.
-    store.getState().onNodesChange([dims(s1.id, 224, 295), dims(p1.id, 202, 520)]);
+    const still = stillNodes(store).find((n) => store.getState().edges.some((e) => e.source === p1.id && e.target === n.id))!;
+
+    // The panel's image loads and its card is taller than the estimate; its still beside it.
+    store.getState().onNodesChange([dims(s1.id, 224, 295), dims(p1.id, 202, 520), dims(still.id, 202, 480)]);
     const after = (id: string) => store.getState().nodes.find((n) => n.id === id)!.position;
     expect(after(p1.id).y).toBe(295 + PANEL_GAP);
+    // D503 — the still sits on the panel's line, just right of it.
+    expect(after(still.id)).toEqual({ x: after(p1.id).x + 202 + PANEL_GAP, y: 295 + PANEL_GAP });
     expect(after(s2.id).y).toBe(295 + PANEL_GAP + 520 + ROW_GAP);
 
     // Once the person drags one of them, the layout is theirs.
@@ -1346,7 +1385,7 @@ describe("fanOutShots with script products and locations (D450)", () => {
   });
 
   it("takes a plate off the canvas when the server cannot record it", async () => {
-    vi.mocked(createScriptComposites).mockResolvedValueOnce([]);
+    vi.mocked(createScriptComposites).mockResolvedValueOnce({ nodes: [], onScreen: {} });
     const store = createCanvasStore([scriptNode()], []);
     store.getState().fanOutShots("sa", "canvas-1");
     const plate = store.getState().nodes.find((n) => n.type === "composite")!;

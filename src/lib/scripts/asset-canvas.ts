@@ -43,7 +43,32 @@ export function scriptCanvasAssets(scriptId: string, doc: ScriptDoc): ScriptCanv
   return { scriptId, products: doc.products, locations: withoutLocationVersions(doc).locations, picks };
 }
 
-const nameKey = (label: string) => label.trim().toUpperCase();
+/** A shot's row name as `picks` keys it ("s3 " → "S3"). */
+export const nameKey = (label: string) => label.trim().toUpperCase();
+
+/** How the canvas's script asset nodes are keyed: `product:<id>` or `location:<id>`. */
+export const scriptAssetKey = (kind: "product" | "location", id: string) => `${kind}:${id}`;
+
+/** This script's Product, Location and plate-Composite nodes on the canvas, by scriptAssetKey. */
+export function scriptAssetNodeIds(
+  existing: ReadonlyArray<{ id: string; type?: string; data: unknown }>,
+  scriptId: string,
+): Map<string, string> {
+  const onCanvas = new Map<string, string>();
+  for (const n of existing) {
+    const data = n.data as Record<string, unknown>;
+    if (!isScriptAssetNode({ type: n.type ?? "", data }) || data.scriptId !== scriptId) continue;
+    if (n.type === "composite") {
+      const tag = scriptAssetTagOf(data);
+      if (tag) onCanvas.set(scriptAssetKey("location", tag.id), n.id);
+      continue;
+    }
+    const d = data as Partial<ProductNodeData & LocationNodeData>;
+    const id = n.type === "product" ? d.productId : d.locationId;
+    if (id) onCanvas.set(scriptAssetKey(n.type as "product" | "location", id), n.id);
+  }
+  return onCanvas;
+}
 
 type Seeded = { id: string; data: unknown };
 type AssetNode =
@@ -72,20 +97,8 @@ export function scriptAssetCanvasNodes(args: {
   const { created, shots, assets, existing, origin, newId } = args;
   if (!assets) return { nodes: [], plates: [], edges: [] };
 
-  const keyOf = (kind: "product" | "location", id: string) => `${kind}:${id}`;
-  const onCanvas = new Map<string, string>();
-  for (const n of existing) {
-    const data = n.data as Record<string, unknown>;
-    if (!isScriptAssetNode({ type: n.type ?? "", data }) || data.scriptId !== assets.scriptId) continue;
-    if (n.type === "composite") {
-      const tag = scriptAssetTagOf(data);
-      if (tag) onCanvas.set(keyOf("location", tag.id), n.id);
-      continue;
-    }
-    const d = data as Partial<ProductNodeData & LocationNodeData>;
-    const id = n.type === "product" ? d.productId : d.locationId;
-    if (id) onCanvas.set(keyOf(n.type as "product" | "location", id), n.id);
-  }
+  const keyOf = scriptAssetKey;
+  const onCanvas = scriptAssetNodeIds(existing, assets.scriptId);
 
   const nodes: AssetNode[] = [];
   const plates: ScriptPlateRequest[] = [];

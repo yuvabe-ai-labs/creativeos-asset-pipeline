@@ -21,6 +21,31 @@ describe("placeNextTo", () => {
   });
 });
 
+// D503 — Fan out's shot still sits right of the panel, under the row; the next step must clear it.
+describe("placeNextTo with real card sizes", () => {
+  const sized = (n: AppNode, width: number, height: number): AppNode => ({ ...n, measured: { width, height } }) as AppNode;
+
+  it("moves a tall next card down past a card it would cover, by its measured size", () => {
+    const src = sized(node("s", "shot", 0, 0), 224, 280);
+    // A still 307 × 640, just under-right of the shot: the old 300 × 150 corner check missed it.
+    const still = sized(node("st", "composite", 290, 304), 307, 640);
+    const { x, y } = placeNextTo(src, [src, still], "image-gen");
+    expect(x).toBe(360);
+    expect(y).toBeGreaterThanOrEqual(304 + 640 + 24);
+  });
+
+  it("keeps a short card on the row when it fits above the still", () => {
+    const src = sized(node("s", "shot", 0, 0), 224, 280);
+    const still = sized(node("st", "composite", 290, 304), 307, 640);
+    expect(placeNextTo(src, [src, still], "prompt")).toEqual({ x: 360, y: 0 });
+  });
+
+  it("starts past a wide source's own right edge", () => {
+    const src = sized(node("g", "image-gen", 0, 0), 480, 590);
+    expect(placeNextTo(src, [src], "video-prompt")).toEqual({ x: 528, y: 0 });
+  });
+});
+
 describe("imageGenGate", () => {
   it("is disabled with a nudge when there is no image yet", () => {
     expect(imageGenGate(node("g", "image-gen"))).toEqual({ enabled: false, nudge: "Generate an image first" });

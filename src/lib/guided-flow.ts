@@ -7,20 +7,43 @@ import { findAncestorOfType } from "@/lib/canvas/graph";
 
 const NEXT_DX = 360;   // horizontal gap to the next node (matches fanOutShots)
 const ROW_DY = 170;    // vertical nudge when a spot is taken
-const BOX_W = 300;     // approximate node footprint for overlap checks
-const BOX_H = 150;
+const BOX = { width: 300, height: 150 }; // a card not yet measured, of a type not listed below
+const CLEARANCE = 24;  // empty canvas kept between the new card and any other
+const MAX_NUDGES = 40; // never search further down than this
+
+/** D503 — the card the chain is about to add, before it renders: the prompt nodes are `w-44`
+ *  cards; Image gen and Video gen with 9:16 output are about 480 × 590. */
+const NEXT_CARD: Record<string, { width: number; height: number }> = {
+  prompt: { width: 176, height: 220 },
+  "video-prompt": { width: 176, height: 220 },
+  "multishot-prompt": { width: 176, height: 220 },
+  "image-gen": { width: 480, height: 600 },
+  "video-gen": { width: 480, height: 600 },
+};
 
 export type GuidedGate = { enabled: boolean; nudge?: string };
 
-/** Drop the next node to the right of `source`, nudging down until the spot is clear. */
-export function placeNextTo(source: AppNode, nodes: AppNode[]): { x: number; y: number } {
-  const x = source.position.x + NEXT_DX;
+/**
+ * Drop the next node to the right of `source`, nudging down until the spot is clear. D503 — clear
+ * of every card's real rectangle (its measured size; an estimate until it renders), so a tall card
+ * below the row, such as Fan out's shot still, is never covered by the next step.
+ */
+export function placeNextTo(source: AppNode, nodes: AppNode[], nextType?: string): { x: number; y: number } {
+  // Past the source's own right edge: a 480-wide Image gen would otherwise sit under its next step.
+  const x = source.position.x + Math.max(NEXT_DX, (source.measured?.width ?? 0) + 2 * CLEARANCE);
+  const size = (nextType && NEXT_CARD[nextType]) || BOX;
+  const occupied = (y: number) =>
+    nodes.some((n) => {
+      if (n.id === source.id) return false;
+      const w = n.measured?.width ?? BOX.width;
+      const h = n.measured?.height ?? BOX.height;
+      return (
+        x < n.position.x + w + CLEARANCE && n.position.x < x + size.width + CLEARANCE &&
+        y < n.position.y + h + CLEARANCE && n.position.y < y + size.height + CLEARANCE
+      );
+    });
   let y = source.position.y;
-  const occupied = (py: number) =>
-    nodes.some(
-      (n) => Math.abs(n.position.x - x) < BOX_W && Math.abs(n.position.y - py) < BOX_H,
-    );
-  while (occupied(y)) y += ROW_DY;
+  for (let i = 0; i < MAX_NUDGES && occupied(y); i++) y += ROW_DY;
   return { x, y };
 }
 
@@ -92,7 +115,7 @@ export function planGuidedNext(source: AppNode, nodes: AppNode[], edges: Edge[])
   return {
     nextType: step.nextType,
     existingId: null,
-    position: placeNextTo(source, nodes),
+    position: placeNextTo(source, nodes, step.nextType),
     parentIds,
     gate,
   };

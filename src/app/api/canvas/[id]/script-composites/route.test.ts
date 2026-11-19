@@ -39,7 +39,16 @@ beforeEach(() => {
     id: "sn", type: "script", position: { x: 0, y: 0 },
     data: { storyboard: { scriptId: "sc1", panels: [{ label: "S1", beat: "Hook", shotId: "s01", url: "https://cdn/s1.png", takeId: "t1" }] } },
   });
-  vi.mocked(getScript).mockResolvedValue({ id: "sc1" } as never);
+  vi.mocked(getScript).mockResolvedValue({
+    id: "sc1",
+    doc: {
+      cast: [
+        { id: "maya", name: "Maya", description: "", avatarId: "av-maya", isLead: true },
+        { id: "dev", name: "Dev", description: "", avatarId: null, isLead: false },
+      ],
+      shots: [{ onScreen: ["maya", "dev"] }, { onScreen: [] }],
+    },
+  } as never);
   vi.mocked(listPanelRecipes).mockResolvedValue([recipe]);
 });
 
@@ -66,6 +75,12 @@ describe("POST /api/canvas/[id]/script-composites (D454)", () => {
       }),
     });
     expect((await res.json()).nodes).toEqual([{ id: NODE_ID, position: { x: 10, y: 20 }, data: entries[0].node.data, output: recipe.url }]);
+  });
+
+  // D503 — who is on screen in each shot, from the script as it is now: only people with an avatar.
+  it("says who is on screen in each shot, for the shot stills", async () => {
+    const res = await post(body);
+    expect((await res.json()).onScreen).toEqual({ S1: [{ avatarId: "av-maya", name: "Maya" }] });
   });
 
   // D460 — an id the browser sent that belongs to another canvas is refused, never overwritten.

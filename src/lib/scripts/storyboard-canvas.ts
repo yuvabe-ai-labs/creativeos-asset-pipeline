@@ -45,14 +45,15 @@ export const ASSET_GAP = 40;
  *  column whose right edge sits `right`, stacked down from `top`. */
 export type FanOutLayout = {
   top: number;
-  rows: { shotId: string; panelIds: string[] }[];
+  /** D503 — `stillIds`: the shot stills, in their panels' order, to the right of the panels. */
+  rows: { shotId: string; panelIds: string[]; stillIds?: string[] }[];
   column?: { right: number; top: number; ids: string[] };
 };
 type Placed = { position: { x: number; y: number }; measured?: { width?: number; height?: number }; type?: string };
 
 /** Every node a Fan out layout places: its shots, panels and asset column. */
 export function fanOutLayoutIds(layout: FanOutLayout): Set<string> {
-  return new Set([...layout.rows.flatMap((r) => [r.shotId, ...r.panelIds]), ...(layout.column?.ids ?? [])]);
+  return new Set([...layout.rows.flatMap((r) => [r.shotId, ...r.panelIds, ...(r.stillIds ?? [])]), ...(layout.column?.ids ?? [])]);
 }
 
 /**
@@ -76,18 +77,21 @@ export function settleFanOutRows(nodes: ReadonlyMap<string, Placed>, layout: Fan
     const shotHeight = shot.measured?.height ?? estimate.height;
     move(row.shotId, shot, shot.position.x, top);
 
-    const panels = row.panelIds.flatMap((id) => {
+    const cards = (ids: string[]) => ids.flatMap((id) => {
       const node = nodes.get(id);
       return node ? [{ id, node, width: node.measured?.width ?? PANEL_CARD.width, height: node.measured?.height ?? PANEL_CARD.height }] : [];
     });
+    const panels = cards(row.panelIds);
     const groupWidth = panels.reduce((sum, p) => sum + p.width, 0) + Math.max(0, panels.length - 1) * PANEL_GAP;
     let x = shot.position.x + (shotWidth - groupWidth) / 2;
     const panelTop = top + shotHeight + PANEL_GAP;
-    for (const p of panels) {
+    // D503 — the stills continue the panels' line, so the panels stay centred under the shot.
+    const placed = [...panels, ...cards(row.stillIds ?? [])];
+    for (const p of placed) {
       move(p.id, p.node, x, panelTop);
       x += p.width + PANEL_GAP;
     }
-    const tallestPanel = Math.max(0, ...panels.map((p) => p.height));
+    const tallestPanel = Math.max(0, ...placed.map((p) => p.height));
     const rowHeight = Math.max(shotHeight + (panels.length ? PANEL_GAP + tallestPanel : 0), CHAIN_ROW_MIN);
     top += rowHeight + ROW_GAP;
   }

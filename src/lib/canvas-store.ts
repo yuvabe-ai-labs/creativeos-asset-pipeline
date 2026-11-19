@@ -52,6 +52,7 @@ import {
 import type { ScriptStoryboard } from "@/lib/scripts/storyboard";
 import { scriptAssetCanvasNodes, type ScriptCanvasAssets } from "@/lib/scripts/asset-canvas";
 import { createScriptComposites } from "@/services/script-composites.service";
+import { shotStillNodes, type ShotOnScreen } from "@/lib/scripts/shot-still-canvas";
 import { pendingPlateData, pendingStoryboardData } from "@/lib/scripts/script-composites";
 import type { GenerationFeedRow } from "@/lib/generations/canvas-feed";
 import {
@@ -771,6 +772,39 @@ export function createCanvasStore(
         edges: [...get().edges, ...createdEdges, ...panels.edges, ...assetNodes.edges],
         fanOutLayout,
       });
+      // D503 — a shot still beside each panel the server made, wired from that panel and from the
+      // shot's on-screen avatars (the latest script's, which the same answer carries), location and
+      // products. Connected to nothing downstream; the operator generates it.
+      const addShotStills = (onScreen: ShotOnScreen) => {
+        const label = new Map(panels.requests.map((r) => [r.nodeId, r.label]));
+        const rowPanels = created.map((n) =>
+          panels.edges.filter((e) => e.target === n.id).map((e) => ({ nodeId: e.source, label: label.get(e.source) ?? "" })),
+        );
+        const stills = shotStillNodes({
+          rows: rowPanels.map((p) => ({ panels: p })),
+          nodes: get().nodes,
+          assets: data.assets,
+          onScreen,
+          newId: () => crypto.randomUUID(),
+        });
+        if (stills.nodes.length === 0) return;
+        // While the rows are still settling, the stills settle with them; a person who has already
+        // moved a row keeps it, and the stills stay where they were placed.
+        const current = get().fanOutLayout;
+        const layout = current && current === fanOutLayout
+          ? { ...current, rows: current.rows.map((r, i) => ({ ...r, stillIds: stills.rows[i]?.stillIds ?? [] })) }
+          : current;
+        set({
+          nodes: [...get().nodes, ...(stills.nodes as AppNode[])],
+          edges: [...get().edges, ...stills.edges],
+          fanOutLayout: layout,
+        });
+        if (layout && layout !== current) {
+          setTimeout(() => {
+            if (get().fanOutLayout === layout) set({ fanOutLayout: null });
+          }, FAN_OUT_SETTLE_MS);
+        }
+      };
       if (pendingComposites.length > 0) {
         const pendingIds = pendingComposites.map((n) => n.id);
         // A picture the server could not record (its take or generation is gone) leaves the canvas.
@@ -778,7 +812,7 @@ export function createCanvasStore(
           if (ids.length > 0) get().onNodesChange(ids.map((id) => ({ type: "remove", id })));
         };
         createScriptComposites(canvasId, { scriptNodeId, panels: panels.requests, plates: assetNodes.plates })
-          .then((made) => {
+          .then(({ nodes: made, onScreen }) => {
             const byId = new Map(made.map((m) => [m.id, m]));
             set({
               nodes: get().nodes.map((n) => {
@@ -787,6 +821,7 @@ export function createCanvasStore(
               }),
             });
             drop(pendingIds.filter((id) => !byId.has(id)));
+            addShotStills(onScreen);
           })
           .catch((e: unknown) => {
             drop(pendingIds);

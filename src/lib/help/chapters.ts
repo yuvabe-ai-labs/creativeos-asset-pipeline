@@ -48,6 +48,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
           "One reel is many shots.",
           "Fanning out gives each shot in the parsed script its own Shot node.",
           "Each one can then be worked on independently.",
+          "With a storyboard, each panel also gets a still Composite beside it, already connected to that shot's people, place and products. Check its instruction and press Generate.",
         ],
         clip: `${CLIPS}/create-a-reel/02-fan-out-shots.mp4`,
       },

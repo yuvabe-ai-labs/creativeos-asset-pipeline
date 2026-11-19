@@ -8,6 +8,7 @@ import { uploadScriptHouseStyle } from "@/lib/storage";
 import { HOUSE_STYLE_REF } from "@/lib/scripts/visualise/house-style";
 import { panelForRow, type ScriptStoryboard } from "@/lib/scripts/storyboard";
 import type { ScriptCanvasAssets } from "@/lib/scripts/asset-canvas";
+import { shotOnScreen } from "@/lib/scripts/shot-still-canvas";
 import {
   plateCompositeData,
   plateVersionInputs,
@@ -107,6 +108,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       return apiOk({
         nodes: made.map(({ node, version }) => ({ id: node.id, position: node.position, data: node.data, output: version.output })),
+        // D503 — who is on screen in each shot, from the script as it is now (it may be newer than
+        // the Script node's frozen copy): what Fan out wires each shot still from.
+        onScreen: panelRequests.length > 0 ? shotOnScreen(script.doc) : {},
       }, 201);
     }),
   );
