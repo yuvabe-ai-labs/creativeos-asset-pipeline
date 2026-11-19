@@ -10,8 +10,15 @@ export async function POST(req: Request) {
   if (!isBillingTestEnabled()) return apiError("Not found.", 404);
   return withAccess(req, { need: "view_credits" }, async () => {
     const body = (await req.json().catch(() => null)) as ConfirmBody | null;
-    if (!body?.orderId || !body.paymentId || !body.signature) return apiError("Missing payment details.", 400);
-    if (!verifyCheckoutSignature(body.orderId, body.paymentId, body.signature)) {
+    const { orderId, paymentId, signature } = body ?? {};
+    if (
+      typeof orderId !== "string" || !orderId ||
+      typeof paymentId !== "string" || !paymentId ||
+      typeof signature !== "string" || !signature
+    ) {
+      return apiError("Missing payment details.", 400);
+    }
+    if (!verifyCheckoutSignature(orderId, paymentId, signature)) {
       return apiError("The payment couldn't be confirmed.", 400);
     }
     return apiOk({ received: true });

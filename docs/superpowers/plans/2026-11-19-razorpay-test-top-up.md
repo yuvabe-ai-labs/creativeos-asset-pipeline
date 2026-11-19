@@ -994,5 +994,6 @@ git commit -m "feat(billing): hidden test page to buy credits with Razorpay Chec
   1. Apply migration 0066 to the dev database.
   2. Run this worktree's dev server on a free port (e.g. `npx next dev -p 3003`) and point the tunnel at it (`ngrok http 3003`).
   3. Razorpay Dashboard → Test mode → Webhooks → add `<tunnel>/api/webhooks/razorpay`, secret = `RAZORPAY_WEBHOOK_SECRET` from `.env`, event `order.paid` (OTP `754081` if asked).
+  3b. In the Razorpay Dashboard (test mode), set payment capture to automatic: `order.paid` fires only when a payment is captured.
   4. Sign in as the owner of an agency **with** a monthly limit, open `/billing-test`, pay with UPI `success@razorpay`: the popover's credits move by 1,000. Pay again with `failure@razorpay`: nothing moves.
   5. Without the tunnel: start a payment, close the window, then `node --env-file=.env scripts/razorpay-replay.mjs <order_id> http://localhost:3003` twice: `{"added":true}` then `{"added":false}`.

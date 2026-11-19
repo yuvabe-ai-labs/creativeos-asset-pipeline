@@ -1374,3 +1374,10 @@ drop function if exists record_razorpay_payment(text, text);
 drop table if exists billing_payments;
 notify pgrst, 'reload schema';
 ```
+
+Dropping the table and function leaves any `adjustment` rows already written in `credit_transactions`, so the credits stay granted. To remove them too, run this for the affected org(s):
+
+```sql
+delete from credit_transactions
+where type = 'adjustment' and generation_id is null and org_id = '<org id>';
+```

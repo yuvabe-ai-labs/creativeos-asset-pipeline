@@ -37,7 +37,14 @@ code never asks which mode it is in.
 `monthly_credit_limit`. A paid pack writes one `adjustment` row of **minus** the pack's credits,
 so this month's total drops and that many more credits can be used. Like the planned top-ups,
 it counts only until the month ends. No change to `reserve_credits`. `generation_id` is
-nullable since 0028, and nothing else reads `adjustment` rows.
+nullable since 0028.
+
+The negative row is also summed elsewhere. `org_credit_usage` (migration 0019) adds it into this
+month's used total, which feeds the profile popover, `/api/me` and Admin's "credits used this
+month". `org_daily/monthly/yearly_credit_history` (0023/0025) add it into the admin usage trend
+chart, which shows a negative day. The by-type and by-model breakdowns join `generations` and
+leave it out, so their totals differ from the trend for that month. That is acceptable for test
+data; the billing build's `grant` type separates it.
 
 An agency with no limit (`monthly_credit_limit` null) sees no change: test with a capped one.
 

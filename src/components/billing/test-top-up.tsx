@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirmTestPayment, useCreateTestOrder } from "@/hooks/queries/billing";
+import { TEST_PACK } from "@/lib/billing/constants";
 import { CHECKOUT_LOAD_FAILED, loadCheckout, openCheckout } from "@/lib/billing/load-checkout";
 import { ApiError } from "@/services/read-json";
 
@@ -70,12 +71,12 @@ export function TestTopUp() {
       </div>
       <div className="space-y-4 rounded-xl border bg-card p-6 shadow-card">
         <div className="flex items-baseline justify-between">
-          <span className="font-medium">1,000 credits</span>
-          <span className="font-medium">₹100</span>
+          <span className="font-medium">{TEST_PACK.credits.toLocaleString("en-IN")} credits</span>
+          <span className="font-medium">₹{TEST_PACK.amountPaise / 100}</span>
         </div>
         <Button className="w-full" onClick={pay} disabled={busy}>
           <CreditCard strokeWidth={1.5} />
-          {createOrder.isPending ? "Starting…" : "Pay ₹100"}
+          {createOrder.isPending ? "Starting…" : `Pay ₹${TEST_PACK.amountPaise / 100}`}
         </Button>
         {status && <p className={`text-sm ${TONE_CLASS[status.tone]}`}>{status.text}</p>}
       </div>

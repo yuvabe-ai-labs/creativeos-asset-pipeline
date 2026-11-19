@@ -42,4 +42,9 @@ describe("POST /api/billing/test-confirm", () => {
     expect((await POST(req(good))).status).toBe(400);
     expect((await POST(req({ orderId: "order_1" }))).status).toBe(400);
   });
+
+  it("answers 400 without verifying when a field is not a string", async () => {
+    expect((await POST(req({ ...good, signature: 12345 }))).status).toBe(400);
+    expect(m.verify).not.toHaveBeenCalled();
+  });
 });

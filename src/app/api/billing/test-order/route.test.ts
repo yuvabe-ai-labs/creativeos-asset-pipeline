@@ -49,7 +49,7 @@ describe("POST /api/billing/test-order", () => {
   });
 
   it("answers plain words and saves nothing when the order fails", async () => {
-    m.createOrder.mockRejectedValue(new Error("Could not start the payment."));
+    m.createOrder.mockRejectedValue(new Error("razorpay 401 secret detail"));
     const res = await POST(req());
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "Could not start the payment." });
