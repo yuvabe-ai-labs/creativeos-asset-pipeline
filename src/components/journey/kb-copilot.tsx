@@ -19,6 +19,7 @@ import { useThreadAttachments, type PendingAttachment } from "@/hooks/use-thread
 import { KB_TURN_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
 import type { Attachment } from "@/lib/journey/thread/schema";
 import { checkSourceFile, deleteSource, SOURCE_ACCEPT, uploadSourceFile } from "@/lib/kb/upload-source";
+import { journeyFoldKey } from "@/lib/journey/frame";
 import { JourneyPanelShell } from "./journey-panel-shell";
 import { ThreadComposer } from "./thread-composer";
 import { ThreadMessageItem } from "./thread-message";
@@ -128,7 +129,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
   const waiting = busy ? null : (state?.waiting?.label ?? null);
 
   return (
-    <JourneyPanelShell slug={slug} waiting={waiting} busy={busy} actions={<DeveloperSwitch checked={developer} onChange={setDeveloper} />}>
+    <JourneyPanelShell foldKey={journeyFoldKey(slug)} waitingLine={waiting && `Waiting for you: ${waiting}`} busy={busy} actions={<DeveloperSwitch checked={developer} onChange={setDeveloper} />}>
       {developer && (
         <Tabs value={view} onValueChange={(v) => setView(v as "chat" | "turns")} className="border-b border-border px-4 py-2">
           <TabsList>

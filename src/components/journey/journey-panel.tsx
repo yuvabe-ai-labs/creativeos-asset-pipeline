@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { journeyFoldKey } from "@/lib/journey/frame";
 import type { Guide } from "@/lib/journey/guide";
 import { JourneyPanelShell } from "./journey-panel-shell";
 
@@ -10,7 +11,7 @@ import { JourneyPanelShell } from "./journey-panel-shell";
  *  done, what is waiting for the person, and the next approval. */
 export function JourneyPanel({ slug, guide }: { slug: string; guide: Guide }) {
   return (
-    <JourneyPanelShell slug={slug} waiting={guide.waiting}>
+    <JourneyPanelShell foldKey={journeyFoldKey(slug)} waitingLine={guide.waiting && `Waiting for you: ${guide.waiting}`}>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4" aria-live="polite">
         {guide.done.length > 0 && (
           <ul className="flex flex-col gap-2">
