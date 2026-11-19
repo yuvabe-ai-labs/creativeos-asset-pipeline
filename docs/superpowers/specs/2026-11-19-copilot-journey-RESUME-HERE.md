@@ -5,15 +5,15 @@ For the next conversation that picks up the copilot journey. Read this first, th
 ## Where things are
 
 - **Branch:** `feat/copilot-journey`, in the worktree `.claude/worktrees/copilot-journey` (links to its files need that prefix). The whole copilot is built on this one branch and merged once at the end (Cyril, 2026-11-13). **Nothing is pushed or merged without Cyril's say.**
-- **Built and committed:** piece 1 (frame, tabs, guide, gates); piece 2 (brand KB chat, review walk, streaming D502/D503, change cards D505); D504 (images studied on send); D506 (a failed background job is said once in the thread); D507 (the review walk's own buttons are carried out by code). Next ADR numbers: **D508** reserved for page-follows, **D509** for turn traces, next free **D510**.
-- **Migrations:** 0062, 0063, 0064. Cyril applies migrations himself; never apply one.
+- **Built and committed:** piece 1 (frame, tabs, guide, gates); piece 2 (brand KB chat, review walk, streaming D502/D503, change cards D505); D504 (images studied on send); D506 (a failed background job is said once in the thread); D507 (the review walk's own buttons are carried out by code). Next ADR numbers: **D508** reserved for page-follows, **D509** for turn traces, next free **D510**. D509 recorded.
+- **Migrations:** 0062, 0063, 0064, 0065 (0065: turn traces). Cyril applies migrations himself; never apply one.
 - **Tests:** full suite passes except two known image-generate failures (`composite-generate` and `image-generate` route tests, "refuses a deprecated model"), plus one known type error in `src/app/api/nodes/[id]/image-generate/route.test.ts`. Not caused by this branch.
 
 ## Next step (order set by Cyril, 2026-11-19): turn traces, then page-follows
 
 1. **Done:** `69dc1d3b`, words for an unreviewed field are saved even when the model reaches for a change card (QA 4.16).
-2. **Turn traces.** Spec approved with **A** (a trace keeps exactly what the model was sent): `docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md`. Plan: `docs/superpowers/plans/2026-11-19-copilot-turn-traces.md` (7 tasks, migration 0065, ADR **D509**), **awaiting Cyril's read**.
-3. **Page-follows** (below), plan already read-ready; keeps ADR **D508**.
+2. **Done: turn traces (D509)**, commits `15b2339`..`50d362e4`, reviewed once and fixed. Plan with its Outcome: `docs/superpowers/plans/2026-11-19-copilot-turn-traces.md`. A "Turns" switch in the copilot panel shows every turn's trace. Needs migration **0065** applied and the `copilot-trace-sweep` Trigger task deployed; until 0065 is applied, turns work and just log "could not keep the trace".
+3. **Next: page-follows** (below). Its plan still needs Cyril's read; keeps ADR **D508**.
 
 ## Then: build "the page shows the copilot's work"
 
@@ -23,12 +23,15 @@ For the next conversation that picks up the copilot journey. Read this first, th
 
 ## Waiting on Cyril
 
-1. **Read the turn traces plan** (see Next step).
+1. **Read the page-follows plan** (see below), then build it.
 2. **Two open part-2 questions:** may the copilot fill any unreviewed field the person talks about, not only the one it asked? Should every "Save changes" write a line in the thread? (The third, "a chat answer against an unsaved edit", is settled by the page-follows spec §3.2.)
 3. **Piece 4:** do internet research findings stay with that script or also go to market research? Cyril owes a prompt for the extra script steps.
 4. **Piece 6:** the canvas copilot's scope. Also unconfirmed readings: chat images go to brand assets; the canvas panel carries over the old copilot's actions.
 
 ## Owed before the one merge
+
+- **Migration numbers collide:** origin/staging has `0062_client_review_versions.sql`; this branch's 0062–0065 must be renumbered when origin/staging is brought in.
+- Deploy `copilot-trace-sweep` (daily) with the other Trigger.dev tasks.
 
 - Trigger.dev deploy to staging (the `kb-propose` task; the 5-minute dead-job sweep, which now also writes failure lines).
 - Browser and live-model testing. QA checklist: https://claude.ai/artifact/UToPeePMU1WYob2yoUJQWm (private; 74 checks; repo copy `docs/qa/2026-11-18-copilot-journey-manual-qa.md`). Regenerate it from the markdown with the scratchpad generator, or rebuild one, after the QA file changes.

@@ -302,3 +302,26 @@ QA checks (Do / Expected):
 
 - [ ] **Step 1: Write the four documents.**
 - [ ] **Step 2: Commit** `docs(copilot): D509, turn traces`
+
+---
+
+## Outcome (2026-11-19)
+
+**Built** on `feat/copilot-journey`, commits `15b2339`..`50d362e4`, inline execution, test first. One independent whole-branch review (most capable model): no critical findings, one important, ten minor; verdict "with fixes". One fix pass.
+
+**Departures from the plan (rulings):**
+- The stored reply carries an id made by the route, so a trace names the reply it produced; six route tests now expect `id: expect.any(String)`.
+- An extra index on `copilot_turn_traces(message_id)` (AGENTS rule 9: index foreign keys).
+- The Turns list is refreshed 1.5 s after a turn settles (`refreshTurnLinesSoon`), because the trace is kept only after the answer has gone.
+- Trace text uses the body face, not monospace: the design system allows two families only.
+- The composer stays under the Turns tab; extra small files (`use-copilot-developer.ts`, `traces/trace-parts.tsx`, `traces/developer-switch.tsx`).
+- QA 6.27 rewritten for the `propose_change` fix (`69dc1d3b`).
+
+**Fixed after the review:**
+- A `propose_change` call that only saved unreviewed fields now ends on "Saved {field}.", not on words the model wrote expecting a card.
+- A turn that fails after a save is traced with that field written (the route records writes as they happen), not "Question left unanswered".
+- A reply-button turn whose tool throws keeps its choice, with the error as the output.
+
+**Left for later (minor):** the trace still shows the reply when the reply insert itself failed; a partly refused `propose_change` reports its save under "Error:"; the trace does not mark the last round's withdrawn tools; Turns → Chat returns to the top of the thread; Tabs have no panels; `text-[0.7rem]` badge size; "30 days" hard-coded in the list; the 1.5 s refresh is best-effort; ~15–40 KB per trace (store instructions by hash if volume grows).
+
+**Owed:** apply migration 0065 (Cyril); deploy `copilot-trace-sweep` with the other Trigger.dev tasks; run QA section 7, check 7.10 first. **Before merge:** this branch's migrations 0062–0065 collide with origin/staging's `0062_client_review_versions.sql`; renumber when origin/staging is brought in.
