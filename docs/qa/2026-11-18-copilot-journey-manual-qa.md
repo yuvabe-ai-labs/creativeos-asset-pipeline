@@ -123,10 +123,16 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.23 | Check the card at phone width and in dark mode. | Long values wrap inside the card; nothing runs off the side. Text stays readable. |
 | 6.24 | Hover any field on the Brand KB screen. | No sparkle "Refine with AI" button. Editing by typing, the approve tick on an empty field, Reject and Restore still work. |
 | 6.25 | Open Source files. | The text says the copilot shows what the change would do, for you to approve; it no longer says the KB is rebuilt. |
-| 6.26 | *(approved client whose images were studied before)* Upload a few new, different-looking images on the form. | When the study finishes, a line in the thread: "Studied the images again. Changed: …" naming the Image Analysis fields that changed. No card (Image Analysis gets its own card in a later piece). |
+| 6.26 | *(approved client whose Image Analysis has an approved written field, such as Aesthetic or Photography Style)* Upload several different-looking images on the form. | When the study finishes: that field on the Image Analysis tab still says what was approved. A card in the thread ("The new images read differently for a field you reviewed. Nothing changes until you approve.") shows it before and after, from "Image study". A line "Studied the images again. Changed: …" names only fields that were not reviewed. |
 | 6.27 | *(client in review)* In one message, ask to change an approved field and a field nobody has reviewed yet. | The card holds the approved field. The other field is saved at once as your answer (the reply starts "Saved {field}."), and is not on the card. It never shows a sentence like "Use answer_field". |
 | 6.28 | *(approved client)* Attach two PDFs at once and send. | One card. Each field names the PDF it came from, by its real file name. |
 | 6.29 | *(approved client)* Attach a document that only adds information. | No field on the card goes to "none": new documents never clear a field. |
+| 6.30 | Approve the image-study card from 6.26. | The Image Analysis tab shows the new value, approved, without a reload. |
+| 6.31 | Upload more images so an image-study card appears, do not answer it, then upload again. | The first card reads "The images were studied again after this was proposed, so it no longer applies." and has no buttons. Only the newest card can be approved. |
+| 6.32 | Discard an image-study card. Upload one more similar image. | No card comes back for the same reading. (A clearly different batch of images may propose a different value.) |
+| 6.33 | Rewrite an Image Analysis field by hand and save. Upload different-looking images. | That field keeps your words and is on no card. |
+| 6.34 | *(new client in first review, nothing reviewed on the Image Analysis tab)* Upload images. | Image Analysis fills in directly. No card. |
+| 6.35 | After any upload, look at the counted fields (format mix, purpose mix, colours). | Their numbers move, a review on them stays, and they are never on a card. |
 
 ## 7. Turn traces (D509) *(client in review unless marked)*
 

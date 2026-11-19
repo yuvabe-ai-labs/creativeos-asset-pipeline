@@ -8836,3 +8836,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Follow code per page: the first stage after this would have reworked what had just shipped. Staying put while the person has unsaved edits, with a chip instead. Asking which value to keep when a chat answer meets an unsaved edit. A new request or poll for the page: it reads what the panel already loaded.
 
 **Originated →** `docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md`; plan `docs/superpowers/plans/2026-11-19-copilot-page-follows.md`.
+
+### D510 — A study of the images proposes changes to reviewed Image Analysis fields on a change card *(recorded 2026-11-20; refines D318, D505)*
+
+**Decision.** When the client's images are studied again, the study no longer replaces an Image Analysis field a person has approved or rejected. It keeps that field as it is and proposes its new reading on the brand KB's ordinary change card in the copilot thread, sourced to "Image study"; nothing changes until a person approves, and approving goes through the existing change-card route. Fields nobody has reviewed are still written directly. The counted fields (format mix, purpose mix, colours) are still written directly and keep their review: they are the same measure with new numbers. A field rewritten by hand is left alone and is not proposed (Cyril, 2026-11-20). A study that wrote marks any earlier image-study card still waiting as out of date, even when it has nothing new to propose, so an older reading of the images is never approved. A value a person discarded for a field, or dropped from a card they approved, is not proposed for that field again; a different reading is. The thread line "Studied the images again. Changed: …" names only the fields changed directly. A study never fails because the thread could not be written. No migration.
+
+**Why.** Cyril decided on 2026-11-13 that Image Analysis must go through a change card like the rest of the brand KB (D505). Until now a study replaced an approved field whenever it read the images differently and sent it back to "needs review": the one place a reviewed field could still change without a person's say.
+
+**Rejected.** A separate "pending" copy with its own review on the Image Analysis tab: a second approval mechanism to keep in step, and the copilot thread would not show it. Cards for the counted fields: every image upload would produce one. Proposing over a field written by hand: those words were a deliberate choice; the cost is that such a field can go stale without notice.
+
+**Originated →** `docs/superpowers/specs/2026-11-20-copilot-image-analysis-card-design.md`; plan `docs/superpowers/plans/2026-11-20-copilot-image-analysis-card.md`.

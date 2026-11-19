@@ -11,6 +11,7 @@ import { applyTargetEvent, askingTargetOf, NO_TARGET_ACTIVITY, type TargetActivi
 import { kbTarget } from "@/lib/journey/kb-copilot/targets";
 import { copilotThreadService, type KbTurnBody } from "@/services/copilot-thread.service";
 import { refreshTurnLinesSoon } from "./copilot-traces";
+import { imageAnalysisKeys } from "./image-analysis";
 
 // The copilot's saved onboarding thread through TanStack Query. One key for the thread, whichever
 // stage page shows it (journey map §2); a turn is sent by the stage's own hook.
@@ -161,6 +162,9 @@ export function useDecideChange(clientId: string) {
     onSuccess: async ({ state }, { messageId, body }) => {
       await finishTurn(queryClient, key, state);
       router.refresh();
+      // The Image Analysis tab reads its section through its own query, not the page re-read: an
+      // approved image-study card shows there at once (piece 2b).
+      void queryClient.invalidateQueries({ queryKey: imageAnalysisKeys.status(clientId) });
       // A person's own approval lands the changed fields where they are, without moving the page.
       if (body.decision !== "approve") return;
       const card = state.messages.find((m) => m.id === messageId)?.card;
