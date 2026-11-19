@@ -15,7 +15,7 @@ import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { IMAGE_CARD_CONCURRENCY, IMAGE_CARD_MODEL, IMAGE_CARD_VERSION } from "./constants";
 import { readImageCard } from "./read-image";
 import { generateStructured } from "./gemini";
-import { aggregateCards, buildSummaryInput, ImageSummarySchema, toImageAnalysis } from "./summarize";
+import { aggregateCards, approvedWords, buildSummaryInput, ImageSummarySchema, toImageAnalysis } from "./summarize";
 import { studyImageAnalysis } from "./merge";
 import { imageAnalysisCopy } from "./messages";
 import type { ImageAnalysisInput, ImageAnalysisResult } from "./types";
@@ -101,7 +101,8 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
       const summary = await generateStructured({
         model: imageAnalysisSummaryPrompt.model,
         system: imageAnalysisSummaryPrompt.system,
-        parts: [{ text: buildSummaryInput(stats, entries) }],
+        // The model is shown what the team approved, so a study that reads the same keeps those words.
+        parts: [{ text: buildSummaryInput(stats, entries, approvedWords(current)) }],
         schema: ImageSummarySchema,
       });
       // Before anything is written: an earlier study's card still waiting is an older reading of the

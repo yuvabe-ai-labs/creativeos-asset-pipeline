@@ -339,3 +339,22 @@ describe("runImageAnalysis, proposing changes to reviewed fields", () => {
     expect(cardMessages()).toHaveLength(0);
   });
 });
+
+describe("runImageAnalysis, showing the model what the team approved (2b follow-up)", () => {
+  it("gives the summary the approved words, so it keeps them when the images say the same", async () => {
+    vi.clearAllMocks();
+    vi.mocked(getJob).mockResolvedValue({ id: "job-1", client_id: "client-1", input: {} } as never);
+    vi.mocked(listRecentJobs).mockResolvedValue([]);
+    const approved = { ...defaultEmptyImageAnalysis(), aesthetic: { value: "Earthy and calm", confidence: "high" as const, evidence_type: "inferred" as const, status: "approved" as const } };
+    vi.mocked(getActiveKBVersion).mockResolvedValue(version("v-1", approved as never));
+    vi.mocked(listImageCards).mockResolvedValue([{ imageId: "a", source: "upload", card: CARD }]);
+    vi.mocked(listCardImageIds).mockResolvedValue(["a"]);
+    vi.mocked(listImagesNeedingCards).mockResolvedValue([]);
+    vi.mocked(generateStructured).mockResolvedValue(SUMMARY);
+    vi.mocked(listPendingChangeCards).mockResolvedValue([]);
+    vi.mocked(listSettledChangeCards).mockResolvedValue([]);
+    await runImageAnalysis("job-1");
+    const sent = vi.mocked(generateStructured).mock.calls[0][0].parts[0] as { text: string };
+    expect(sent.text).toContain("aesthetic: Earthy and calm");
+  });
+});

@@ -133,6 +133,7 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.33 | Rewrite an Image Analysis field by hand and save. Upload different-looking images. | That field keeps your words and is on no card. |
 | 6.34 | *(new client in first review, nothing reviewed on the Image Analysis tab)* Upload images. | Image Analysis fills in directly. No card. |
 | 6.35 | After any upload, look at the counted fields (format mix, purpose mix, colours). | Their numbers move, a review on them stays, and they are never on a card. |
+| 6.36 | *(approved client with approved written Image Analysis fields)* Upload one more image much like the ones already there. | No card: the study keeps the approved words. (If a card appears whose "after" only rewords the "before", report it as a fail with both texts.) |
 
 ## 7. Turn traces (D509) *(client in review unless marked)*
 

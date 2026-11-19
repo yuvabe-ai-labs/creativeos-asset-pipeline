@@ -28,6 +28,7 @@ The card is the one the brand KB already uses: each field with its value before 
 ## 3. Rules
 
 - **Decided by Cyril:** reviewed written fields go on a card; unreviewed and counted fields update directly; a hand-written field is left alone and is not proposed.
+- **The study is shown what was approved** (Cyril, 2026-11-20, after the review). The written fields are prose the model writes afresh on every study, so without this it would reword an approved field each time and raise a card for nothing. The study is given the approved words and told to return them exactly unless the images now show something different. A card therefore means the images changed, not the wording.
 - **A newer study replaces an unanswered card** *(my call)*. If a card from an earlier study is still waiting when a new study finishes, the earlier card is marked out of date and the new one stands. A person never approves an older reading of the images.
 - **A discarded proposal is not offered again with the same wording** *(my call)*. If a person discards a proposed value for a field (or drops that field from a card they approve), later studies do not propose that same value for it again. A study that reads something different proposes again.
 - **The line in the thread stays, for what changed directly** *(my call)*: "Studied the images again. Changed: …" names only the fields that were updated without a card. When a study only produces a card, the card speaks for itself.

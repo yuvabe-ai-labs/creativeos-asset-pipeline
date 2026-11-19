@@ -17,6 +17,10 @@ Rules:
 - Be concrete and visual: name materials, colours (with #RRGGBB when known), framings, wardrobe.
 - Each text value is one or two plain sentences. List values are short phrases.
 - If the images say nothing about a field (for example no people appear), say so plainly.
+- Some fields may be listed under "Approved by the brand's team". Those words were checked by a
+  person. For each such field, if what is written still describes the images, return it exactly as
+  it is written, word for word. Write new words for it only when the images now show something
+  different, and then say what is different. Never reword an approved field just to say the same thing.
 
 Fields:
   aesthetic               overall visual feel
@@ -34,7 +38,7 @@ Fields:
 
 export const imageAnalysisSummaryPrompt = {
   id: "image-analysis-summary",
-  version: "1.1.0",
+  version: "1.2.0",
   model: IMAGE_SUMMARY_MODEL,
   system: SYSTEM_PROMPT,
 } as const;
