@@ -1,5 +1,6 @@
 import type { ChangeCard, ChangeField } from "@/lib/journey/thread/schema";
 import { reviewFields } from "@/lib/journey/kb-copilot/review";
+import { FIELD_LABELS } from "@/lib/kb/constants";
 import type { KBFieldPatch } from "@/lib/kb/field-patch";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 
@@ -82,4 +83,52 @@ export function refusedKeys(cards: ChangeCard[]): Set<string> {
     }
   }
   return out;
+}
+
+// ── What an image study would change (piece 2b) ──────────────────────────────
+
+/** Where a value proposed by a study of the client's images came from, as a card shows it. */
+export const IMAGE_STUDY_FROM = "Image study";
+const IMAGE_SECTION = "image_analysis";
+const isImagePath = (path: string) => path.startsWith(`${IMAGE_SECTION}.`);
+
+/** A card every field of which is an Image Analysis field: one a study made. */
+export function isImageStudyCard(card: ChangeCard): boolean {
+  return card.fields.length > 0 && card.fields.every((f) => isImagePath(f.path));
+}
+
+/** The values a person turned down per Image Analysis path: every field of a discarded image-study
+ *  card, and each field dropped from an applied one. A field left because it was changed by hand was
+ *  not refused. A study that reads the same thing again does not propose it again. */
+export function refusedImageValues(cards: ChangeCard[]): Map<string, unknown[]> {
+  const out = new Map<string, unknown[]>();
+  for (const card of cards) {
+    if ((card.status !== "discarded" && card.status !== "applied") || !isImageStudyCard(card)) continue;
+    const kept = new Set(card.decision?.kept ?? []);
+    const outOfDate = new Set(card.decision?.outOfDate ?? []);
+    for (const f of card.fields) {
+      if (kept.has(f.path) || outOfDate.has(f.path)) continue;
+      out.set(f.path, [...(out.get(f.path) ?? []), f.after]);
+    }
+  }
+  return out;
+}
+
+/** A pending card from a study's proposals, or null when nothing is left to propose: a value equal
+ *  to what is stored, and a value turned down before for that field, are left out. */
+export function buildImageStudyCard(input: {
+  versionId: string; current: TraceableBrandKB;
+  proposals: { key: string; value: unknown }[]; settled: ChangeCard[];
+}): ChangeCard | null {
+  const stored = input.current.image_analysis as unknown as Record<string, { value: unknown } | undefined>;
+  const refused = refusedImageValues(input.settled);
+  const fields: ChangeField[] = [];
+  for (const p of input.proposals) {
+    const path = `${IMAGE_SECTION}.${p.key}`;
+    const before = stored[p.key]?.value ?? null;
+    if (fields.some((f) => f.path === path) || sameValue(before, p.value)) continue;
+    if ((refused.get(path) ?? []).some((value) => sameValue(value, p.value))) continue;
+    fields.push({ path, label: `Image Analysis · ${FIELD_LABELS[p.key] ?? p.key}`, before, after: p.value, from: IMAGE_STUDY_FROM, docId: null });
+  }
+  return fields.length > 0 ? { kind: "change", versionId: input.versionId, status: "pending", fields, decision: null } : null;
 }

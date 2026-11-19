@@ -1,4 +1,5 @@
 import type { ChangeCard } from "@/lib/journey/thread/schema";
+import { isImageStudyCard } from "./card";
 
 // What the copilot says about a change worked out from documents (D505), word for word.
 
@@ -43,13 +44,20 @@ export function valueText(value: unknown): string {
   return text === "" ? "none" : text;
 }
 
+/** What a study of the images says with its change card, and on a card a newer study overtook (piece 2b). */
+export const imageStudyCopy = {
+  card: (fields: number) =>
+    `The new images read differently for ${fields === 1 ? "a field" : `${fields} fields`} you reviewed. Nothing changes until you approve.`,
+  superseded: "The images were studied again after this was proposed, so it no longer applies.",
+};
+
 export const OUT_OF_DATE_LINE = "Changed by hand since. Approving leaves it as it is.";
 
 /** The footer of a settled card, or null while it is pending. */
 export function settledLine(card: ChangeCard): string | null {
   const by = card.decision?.by ?? "a teammate";
   if (card.status === "discarded") return `Discarded by ${by}.`;
-  if (card.status === "stale") return "The brand KB was rebuilt after this was proposed, so it no longer applies.";
+  if (card.status === "stale") return isImageStudyCard(card) ? imageStudyCopy.superseded : "The brand KB was rebuilt after this was proposed, so it no longer applies.";
   if (card.status === "applied") {
     const kept = card.decision?.kept.length ?? 0;
     if (kept === 0 && (card.decision?.outOfDate.length ?? 0) > 0) return `Approved by ${by}: nothing changed. The fields were changed by hand since.`;

@@ -47,3 +47,25 @@ describe("settledLine", () => {
     expect(settledLine(card({}))).toBeNull();
   });
 });
+
+// ── Piece 2b ─────────────────────────────────────────────────────────────────
+
+import { imageStudyCopy } from "../copy";
+
+describe("image study copy", () => {
+  const imageCard = (over: Partial<ChangeCard>): ChangeCard => ({
+    kind: "change", versionId: "v1", status: "pending", decision: null,
+    fields: [{ path: "image_analysis.aesthetic", label: "Image Analysis · Aesthetic", before: "Earthy", after: "Bold", from: "Image study", docId: null }],
+    ...over,
+  });
+
+  it("words the study's card for one field and for several", () => {
+    expect(imageStudyCopy.card(1)).toBe("The new images read differently for a field you reviewed. Nothing changes until you approve.");
+    expect(imageStudyCopy.card(3)).toBe("The new images read differently for 3 fields you reviewed. Nothing changes until you approve.");
+  });
+
+  it("says an out-of-date image-study card was overtaken by a newer study", () => {
+    expect(settledLine(imageCard({ status: "stale" }))).toBe("The images were studied again after this was proposed, so it no longer applies.");
+    expect(settledLine(card({ status: "stale" }))).toBe("The brand KB was rebuilt after this was proposed, so it no longer applies.");
+  });
+});

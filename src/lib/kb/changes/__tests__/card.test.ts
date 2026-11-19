@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { kbWith } from "@/lib/kb/__tests__/fixtures";
+import { kbWith, withImageAnalysis } from "@/lib/kb/__tests__/fixtures";
 import { buildChangeCard, decideChange, outOfDatePaths, refusedKeys, sameValue } from "../card";
 import type { ChangeCard } from "@/lib/journey/thread/schema";
 
@@ -122,5 +122,69 @@ describe("refusedKeys", () => {
 
   it("remembers nothing from a chat change, a stale card or a pending card", () => {
     expect(refusedKeys([card(), card({ status: "stale" })])).toEqual(new Set());
+  });
+});
+
+// ── Piece 2b: a card for what an image study would change ────────────────────
+
+import { buildImageStudyCard, IMAGE_STUDY_FROM, isImageStudyCard, refusedImageValues } from "../card";
+
+describe("image study cards", () => {
+  const AES = "image_analysis.aesthetic";
+  const MOOD = "image_analysis.visual_mood";
+  const withImages = withImageAnalysis(kbWith({}), { aesthetic: { value: "Earthy", status: "approved" }, visual_mood: { value: "Calm", status: "approved" } });
+  const studyCard = (over: Partial<ChangeCard> = {}): ChangeCard => ({
+    kind: "change", versionId: V1, status: "pending", decision: null,
+    fields: [
+      { path: AES, label: "Image Analysis · Aesthetic", before: "Earthy", after: "Bold", from: IMAGE_STUDY_FROM, docId: null },
+      { path: MOOD, label: "Image Analysis · Visual Mood", before: "Calm", after: "Lively", from: IMAGE_STUDY_FROM, docId: null },
+    ],
+    ...over,
+  });
+  const decided = (kept: string[], outOfDate: string[] = []) => ({ by: "Cyril", byId: null, at: "", kept, outOfDate });
+  const build = (proposals: { key: string; value: unknown }[], settled: ChangeCard[] = []) =>
+    buildImageStudyCard({ versionId: V1, current: withImages, proposals, settled });
+
+  it("makes a card from a study's proposals, sourced to the image study", () => {
+    const made = build([{ key: "aesthetic", value: "Bold" }]);
+    expect(made).toMatchObject({ kind: "change", versionId: V1, status: "pending", decision: null });
+    expect(made?.fields).toEqual([{ path: AES, label: "Image Analysis · Aesthetic", before: "Earthy", after: "Bold", from: "Image study", docId: null }]);
+  });
+
+  it("leaves out a value equal to what is stored, and makes no card when nothing is left", () => {
+    expect(build([{ key: "aesthetic", value: " Earthy " }])).toBeNull();
+    expect(build([])).toBeNull();
+  });
+
+  it("leaves out a value the person discarded for that field", () => {
+    const settled = [studyCard({ status: "discarded", decision: decided([]) })];
+    expect(build([{ key: "aesthetic", value: "Bold" }], settled)).toBeNull();
+  });
+
+  it("proposes again when the study reads something different from what was discarded", () => {
+    const settled = [studyCard({ status: "discarded", decision: decided([]) })];
+    expect(build([{ key: "aesthetic", value: "Minimal" }], settled)?.fields.map((f) => f.after)).toEqual(["Minimal"]);
+  });
+
+  it("remembers a field dropped from an approved card, not one kept or left as changed by hand", () => {
+    const refused = refusedImageValues([
+      studyCard({ status: "applied", decision: decided([AES]) }),                     // mood dropped
+      studyCard({ status: "applied", decision: decided([], [AES, MOOD]) }),            // both left: changed by hand
+      card({ status: "discarded", decision: decided([]) }),                            // not an image card
+      studyCard(),                                                                     // still pending
+    ]);
+    expect([...refused.keys()]).toEqual([MOOD]);
+    expect(refused.get(MOOD)).toEqual(["Lively"]);
+  });
+
+  it("isImageStudyCard: true only when every field is an Image Analysis field", () => {
+    expect(isImageStudyCard(studyCard())).toBe(true);
+    expect(isImageStudyCard(card())).toBe(false);
+    expect(isImageStudyCard(studyCard({ fields: [...studyCard().fields, card().fields[0]] }))).toBe(false);
+  });
+
+  it("an approved image-study card is applied like any other", () => {
+    const d = decideChange(studyCard(), { keep: [AES], currentValues: { [AES]: "Earthy", [MOOD]: "Calm" }, activeVersionId: V1 });
+    expect(d).toMatchObject({ kind: "apply", kept: [AES], patches: [{ path: ["image_analysis", "aesthetic"], patch: { value: "Bold", status: "approved" } }] });
   });
 });
