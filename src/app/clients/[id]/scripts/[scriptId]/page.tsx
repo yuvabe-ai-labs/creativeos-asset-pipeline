@@ -4,7 +4,9 @@ import { getClientBySlug } from "@/lib/db/clients";
 import { getScript } from "@/lib/db/scripts";
 import { getScriptCanvas } from "@/lib/db/canvases";
 import { ScriptCanvasButton } from "@/components/scripts/script-canvas-button";
-import { getGenerateScript, loadGenerateState } from "@/lib/db/script-generate";
+import { getGenerateScript, listCopilotAvatars, listScriptMessages, loadGenerateState } from "@/lib/db/script-generate";
+import { scriptWaiting } from "@/lib/scripts/copilot/waiting";
+import { CopilotChat } from "@/components/scripts/generate/copilot-chat";
 import { listAvatars } from "@/lib/db/avatars";
 import { resolveOrgId } from "@/lib/dal";
 import { scriptsLocked } from "@/lib/journey/stages";
@@ -14,7 +16,6 @@ import { GenerateWorkspace } from "@/components/scripts/generate/generate-worksp
 import { ApprovedReviewBoard } from "@/components/script-review/team/approved-review-board";
 import { loadApprovedVersion, loadTeamReview } from "@/lib/script-review/load";
 import { reelLabel } from "@/lib/scripts/utils";
-import { cn } from "@/lib/utils";
 import { TeamReviewBoard } from "@/components/script-review/team/team-review-board";
 import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";
 import { isVisualiseStage } from "@/lib/scripts/visualise/cast";
@@ -55,8 +56,18 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
 
   // Spec 3 — Visualise and In review show the Visualise view, with spec 4's review on it; an approved
   // script with a review shows the approved version (spec 4, 4.17); other stages the read-only view.
-  const board = isVisualiseStage(script.stage) ? await loadVisualiseBoard(client.id, script) : null;
-  const approved = script.stage === "approved" ? await loadApprovedVersion(script.id) : null;
+  // One round trip for what does not depend on each other: the stage's own view, the approved
+  // script's canvas, and the script's saved copilot thread with the avatars its cards show (piece
+  // 4.1). The thread is read-only after Generate, so it goes to the panel as props: the browser
+  // makes no request for it, and a reopen refreshes the route into Generate's live panel.
+  const [board, approved, scriptCanvas, messages, copilotAvatars] = await Promise.all([
+    isVisualiseStage(script.stage) ? loadVisualiseBoard(client.id, script) : null,
+    script.stage === "approved" ? loadApprovedVersion(script.id) : null,
+    // D372 — an approved script's canvas: Create canvas, or Open canvas once it has one.
+    script.stage === "approved" ? getScriptCanvas(client.id, script.id) : null,
+    listScriptMessages(client.id, script.id),
+    listCopilotAvatars(client.id),
+  ]);
   // Seeds the team's review query, so the board draws its Comments column at once (no reflow).
   const review = board || approved ? await loadTeamReview(script) : null;
   // Faces for the read-only cast: only this client's live avatars, so another client's id shows no face.
@@ -64,8 +75,6 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
     ? {}
     : Object.fromEntries((await listAvatars(client.id)).map((a) => [a.id, a.front?.url ?? null]));
   const label = reelLabel(script.doc.header.reelNumber);
-  // D372 — an approved script's canvas: Create canvas, or Open canvas once it has one.
-  const scriptCanvas = script.stage === "approved" ? await getScriptCanvas(client.id, script.id) : null;
   const canvasAction = script.stage === "approved" ? (
     // Keyed: a server-made element rendered among a client component's children otherwise trips
     // React's list-key check in development.
@@ -77,9 +86,12 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
       canvas={scriptCanvas ? { slug: scriptCanvas.slug } : null}
     />
   ) : null;
+  const waiting = script.stage === "approved"
+    ? scriptWaiting({ stage: "approved", hasCanvas: Boolean(scriptCanvas) })
+    : script.stage === "generate" ? null : scriptWaiting({ stage: script.stage });
 
   return (
-    <main className={cn("mx-auto w-full flex-1 px-6 py-12", board || approved ? "max-w-[96rem]" : "max-w-6xl")}>
+    <main className="mx-auto w-full max-w-[96rem] flex-1 px-6 py-12">
       <Breadcrumb className="animate-rise mb-6 shrink-0">
         <BreadcrumbList>
           {/* A script has no client bar above it (frame.ts), so this trail is the whole way back. */}
@@ -92,16 +104,31 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
           <BreadcrumbItem><BreadcrumbPage>{label ? `${label} · ` : ""}{script.doc.header.title}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      {board ? (
-        <TeamReviewBoard clientId={client.id} initial={{ script, board }} initialReview={review!} />
-      ) : approved ? (
-        <ApprovedReviewBoard clientId={client.id} script={script} version={approved} initialReview={review!} canvasAction={canvasAction} />
-      ) : (
-        <>
-          {canvasAction && <div className="mb-4 flex justify-end">{canvasAction}</div>}
-          <ScriptView script={script} avatarFaces={avatarFaces} />
-        </>
-      )}
+      {/* The script's copilot beside every stage after Generate, folded until opened (spec §3.2). */}
+      <div className="grid items-start gap-6 lg:grid-cols-[auto_minmax(0,1fr)]">
+        <CopilotChat
+          client={{ name: client.name, slug: client.slug }}
+          scriptId={script.id}
+          stage={script.stage}
+          messages={messages}
+          avatars={copilotAvatars}
+          waiting={waiting}
+          live={null}
+        />
+        <div className="min-w-0">
+          {board ? (
+            <TeamReviewBoard clientId={client.id} initial={{ script, board }} initialReview={review!} />
+          ) : approved ? (
+            <ApprovedReviewBoard clientId={client.id} script={script} version={approved} initialReview={review!} canvasAction={canvasAction} />
+          ) : (
+            // The plain read-only view keeps the narrower width it always had.
+            <div className="mx-auto w-full max-w-6xl">
+              {canvasAction && <div className="mb-4 flex justify-end">{canvasAction}</div>}
+              <ScriptView script={script} avatarFaces={avatarFaces} />
+            </div>
+          )}
+        </div>
+      </div>
     </main>
   );
 }
