@@ -23,7 +23,7 @@ export function ProfileCredits({
   const over = monthlyCreditLimit !== null && used > monthlyCreditLimit;
   const fillPct =
     monthlyCreditLimit !== null && monthlyCreditLimit > 0
-      ? Math.min(used / monthlyCreditLimit, 1) * 100
+      ? Math.max(0, Math.min(used / monthlyCreditLimit, 1)) * 100
       : null;
 
   return (
@@ -47,7 +47,7 @@ export function ProfileCredits({
             over ? "text-amber-600 dark:text-amber-400" : "text-foreground",
           )}
         >
-          {used.toLocaleString()}
+          {Math.max(used, 0).toLocaleString()}
         </span>
         {monthlyCreditLimit !== null && (
           <span className="text-sm leading-none text-muted-foreground">
