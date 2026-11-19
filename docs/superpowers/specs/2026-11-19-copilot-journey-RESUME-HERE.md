@@ -9,21 +9,19 @@ For the next conversation that picks up the copilot journey. Read this first, th
 - **Migrations:** 0062, 0063, 0064, 0065 (0065: turn traces). Cyril applies migrations himself; never apply one.
 - **Tests:** full suite passes except two known image-generate failures (`composite-generate` and `image-generate` route tests, "refuses a deprecated model"), plus one known type error in `src/app/api/nodes/[id]/image-generate/route.test.ts`. Not caused by this branch.
 
-## Next step (order set by Cyril, 2026-11-19): turn traces, then page-follows
+## Next step (order set by Cyril, 2026-11-20): one piece at a time, never in parallel
 
-1. **Done:** `69dc1d3b`, words for an unreviewed field are saved even when the model reaches for a change card (QA 4.16).
-2. **Done: turn traces (D509)**, commits `15b2339`..`50d362e4`, reviewed once and fixed. Plan with its Outcome: `docs/superpowers/plans/2026-11-19-copilot-turn-traces.md`. A "Turns" switch in the copilot panel shows every turn's trace. Needs migration **0065** applied and the `copilot-trace-sweep` Trigger task deployed; until 0065 is applied, turns work and just log "could not keep the trace".
-3. **Next: page-follows** (below). Its plan still needs Cyril's read; keeps ADR **D508**.
+**Done on 2026-11-19/20, all committed, nothing pushed:**
+- `69dc1d3b`: words for an unreviewed field are saved even when the model reaches for a change card (QA 4.16).
+- **Turn traces (D509)**, reviewed and fixed. Plan with Outcome: `docs/superpowers/plans/2026-11-19-copilot-turn-traces.md`. A "Turns" switch in the panel shows each turn. Needs migration **0065** and the `copilot-trace-sweep` Trigger task.
+- **The page shows the copilot's work (D508)**, reviewed and fixed (`8bb6eadb`). Plan with Outcome: `docs/superpowers/plans/2026-11-19-copilot-page-follows.md`. Spec: `2026-11-19-copilot-page-follows-design.md`. Not yet run in a browser (QA section 8).
 
-## Then: build "the page shows the copilot's work"
+**Now: piece 2b (Image Analysis through a change card).** Cyril chose approach A on 2026-11-20: reuse the existing change card. Reviewed written fields a study would change go on a card; unreviewed and counted fields update directly; hand-edited fields are left alone and not proposed. Spec: `2026-11-20-copilot-image-analysis-card-design.md` (check its Status line), then plan, then build.
 
-- **Spec (approved):** `docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md`. A general principle: whatever the copilot changes on the page, the page shows it happening (go there, "Copilot is asking", working shimmer, landed highlight). First applied to the brand KB: review fields, the pre-build form's website and handles, the source list.
-- **Plan (reworked to the general version, awaiting Cyril's read):** `docs/superpowers/plans/2026-11-19-copilot-page-follows.md`. 8 tasks. Execution: inline (native), test first, then one independent whole-branch review on the most capable model, then one fix pass. Cyril confirms the plan before building.
-- **Cyril's decisions in it:** the page always follows (B), even mid-edit; the copilot's change wins over an unsaved edit of the same field (A); built as a general principle now (A), with an AGENTS.md rule and ADR D508.
+**Then: piece 4 (scripting)**, from `2026-11-19-copilot-piece-4-scripting-RESUME-HERE.md`; then piece 5 (visualise), from `2026-11-19-copilot-piece-5-visualise-RESUME-HERE.md`. Piece 3 (market research) and piece 6 (canvas) after.
 
 ## Waiting on Cyril
 
-1. **Read the page-follows plan** (see below), then build it.
 2. **Two open part-2 questions:** may the copilot fill any unreviewed field the person talks about, not only the one it asked? Should every "Save changes" write a line in the thread? (The third, "a chat answer against an unsaved edit", is settled by the page-follows spec §3.2.)
 3. **Piece 4:** do internet research findings stay with that script or also go to market research? Cyril owes a prompt for the extra script steps.
 4. **Piece 6:** the canvas copilot's scope. Also unconfirmed readings: chat images go to brand assets; the canvas panel carries over the old copilot's actions.
@@ -50,7 +48,7 @@ The model was told everything it needed on the turn where it said "Confirmed tha
 ## Records to keep updated
 
 - **ADR log:** `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7, append in place (the file is CRLF).
-- **Team design journal:** https://claude.ai/artifact/7yU5A2TiWyxDLTwgaXpjHC (24 entries). Append an entry on every copilot decision and republish.
+- **Team design journal:** https://claude.ai/artifact/7yU5A2TiWyxDLTwgaXpjHC (26 entries). Append an entry on every copilot decision and republish.
 - **QA plan:** add checks as each piece is built.
 
 ## How Cyril likes to work
