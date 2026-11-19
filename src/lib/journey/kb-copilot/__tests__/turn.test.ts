@@ -305,6 +305,45 @@ describe("runKbTurn in review", () => {
     expect(seen).toHaveLength(2);
   });
 
+  it("carries out 'Yes, that's right' on the waiting field itself, without asking the model (D507)", async () => {
+    const { setField, a } = withField();
+    const model = vi.fn(async () => { throw new Error("the model must not be asked"); });
+    const result = await turn({ ctx: inReview, review: reviewOf(), actions: a, model, text: "Yes, that's right" });
+    expect(model).not.toHaveBeenCalled();
+    expect(setField).toHaveBeenCalledWith(AGE, { status: "approved" });
+    expect(result.walk).toEqual({ settled: [AGE], skipped: false, more: false, stopped: false });
+    expect(result.reply).toBe("Marked Age Range as right.");
+    expect(result.changed).toBe(true);
+  });
+
+  it("carries out the walk's other buttons with a reply worded by code", async () => {
+    const model = vi.fn(async () => { throw new Error("the model must not be asked"); });
+    const skipped = await turn({ ctx: inReview, review: reviewOf(), model, text: "Skip this one" });
+    expect(skipped.walk.skipped).toBe(true);
+    expect(skipped.reply).toBe("Skipped. It stays for you to review on the right.");
+    const more = await turn({ ctx: inReview, review: reviewOf({}, null), model, text: "Keep asking" });
+    expect(more.walk.more).toBe(true);
+    expect(more.reply).toBe("Sure.");
+    const stopped = await turn({ ctx: inReview, review: reviewOf({}, null), model, text: "I'll review the rest" });
+    expect(stopped.walk.stopped).toBe(true);
+    expect(stopped.reply).toBe("No more questions. The rest is for you to review on the right.");
+    expect(model).not.toHaveBeenCalled();
+  });
+
+  it("says plainly when a confirmed field turned out to be reviewed already", async () => {
+    const setField = vi.fn(async () => false);
+    const model = vi.fn(async () => { throw new Error("the model must not be asked"); });
+    const result = await turn({ ctx: inReview, review: reviewOf(), actions: actions({ setField }), model, text: "Yes, that's right" });
+    expect(result.reply).toMatch(/already reviewed/);
+    expect(result.walk.settled).toEqual([]);
+  });
+
+  it("still asks the model when a button's words come with a file", async () => {
+    const { model, seen } = scripted([say("ok")]);
+    await turn({ ctx: inReview, review: reviewOf(), model, text: "Yes, that's right", attachments: [{ kind: "document", id: "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c11", name: "brand.pdf", url: null }] });
+    expect(seen).toHaveLength(1);
+  });
+
   it("has no tool that approves the KB", async () => {
     const { model, seen } = scripted([say("Only you can approve it.")]);
     await turn({ ctx: inReview, review: reviewOf(), model });

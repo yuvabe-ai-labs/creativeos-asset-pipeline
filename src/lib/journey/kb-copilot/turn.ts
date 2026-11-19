@@ -7,7 +7,7 @@ import { KB_CONVERSATION_WINDOW, KB_REPLY_CHOICE_MAX_CHARS, KB_REPLY_CHOICES_MAX
 import { canStartBuild, fallbackSuggestions, isBuilding, nextStep, type KbContext } from "./context";
 import type { KBFieldPatch } from "@/lib/kb/field-patch";
 import { coerceValue as coerce, isEmpty, REVIEW_FIELD_PATHS, reviewFields, type ReviewField } from "./review";
-import type { TurnWalk } from "./walk";
+import { walkChoice, type TurnWalk } from "./walk";
 import type { ChangeCard } from "@/lib/journey/thread/schema";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { buildChangeCard, sameValue, type Proposal } from "@/lib/kb/changes/card";
@@ -58,6 +58,12 @@ const CHANGE_READY = "Here is the change. Nothing changes until you approve it."
 /** Where a value the person states in the chat came from, as a change card shows it. */
 export const FROM_CHAT = "You, in this chat";
 const EMPTY_ANSWER = "No value was given.";
+/** What code says after a walk button whose tool says nothing itself. */
+const CHOICE_REPLY: Record<string, string> = {
+  skip_question: "Skipped. It stays for you to review on the right.",
+  keep_asking: "Sure.",
+  stop_asking: "No more questions. The rest is for you to review on the right.",
+};
 const NO_QUESTION = "No question is waiting.";
 
 const fieldArg = z.enum(REVIEW_FIELD_PATHS as [string, ...string[]]);
@@ -280,6 +286,18 @@ export async function runKbTurn(input: {
       },
     },
   };
+
+  // A button the walk offered is carried out here, with no model call (D507): the model once
+  // answered "Yes, that's right" with words and no tool, so nothing was saved and the question came
+  // back. The tool's own code runs, so its refusals still apply, and its sentence is the reply.
+  const choice = input.attachments.length === 0 ? walkChoice(input.text, review) : null;
+  if (choice) {
+    const tool = tools[choice.tool];
+    if (tool.label) input.on?.step?.(tool.label);
+    await tool.run(choice.args);
+    const reply = said.length > 0 ? said.join(" ") : CHOICE_REPLY[choice.tool];
+    return { reply, suggestions: fallbackSuggestions(ctx), changed, saved, walk, card: null };
+  }
 
   const messages: AgentMessage[] = [
     ...input.history.slice(-KB_CONVERSATION_WINDOW).map((m) => ({ role: m.role, content: userContent(storedWords(m), m.attachments) })),

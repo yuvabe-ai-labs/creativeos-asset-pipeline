@@ -8806,3 +8806,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Writing the line from `failJob` itself (the job layer would learn about the copilot, and `failJob` does not know the client or the job's kind). Saying stale jobs failed when a new run starts (`failStaleJobs`): a fresh attempt starts in the same moment, and the sweep already reports dead runs within minutes. Writing back lines for failures that happened before this change.
 
 **Originated →** this conversation (2026-11-19); QA plan `docs/qa/2026-11-18-copilot-journey-manual-qa.md` §5.
+
+### D507 — The review walk's own buttons are carried out by code, not read by the model *(recorded 2026-11-19; refines D499, D501)*
+
+**Decision.** When the person's message is exactly one of the buttons the review walk offers ("Yes, that's right", "There is none", "Skip this one", "Keep asking", "Ask me the open questions", "I'll review the rest") and carries no file, the brand KB turn runs the matching tool itself (`confirm_field` on the waiting field, `skip_question`, `keep_asking`, `stop_asking`) and the model is not called. The tool's own code runs, so its refusals still apply; the reply is the tool's sentence, or a fixed line for the tools that say nothing. A confirm or a skip needs a waiting question. Anything else, including the same words with more typed after them, still goes to the model. Separately, the model's reply keeps each message it wrote as its own paragraph, instead of the SDK's `output_text`, which glues them together.
+
+**Why.** Cyril, 2026-11-19, on Propalyst: pressing "Yes, that's right" got the reply "Confirmed that field." and the same question again. The model had written the words and called no tool, so nothing was saved and the walk asked again. A rebuild of the exact context showed the model had everything it needed; the button is code's own fixed choice for a field code already knows, so asking the model what it means adds a step that can fail. Same principle as D501 (plain saves end with a reply worded by code).
+
+**Rejected.** Forcing a tool call (`tool_choice: "required"`) whenever a question is waiting: still a model reading a fixed button, and it would force a tool on a question about something else. Prompt changes alone: they lower the odds, they do not remove them.
+
+**Originated →** this conversation (2026-11-19); context rebuild artifact https://claude.ai/artifact/HAt3HzDgp7L1V7YQpARpzN.

@@ -56,6 +56,14 @@ describe("openaiAgentModel", () => {
     expect(create.mock.calls[0][1]).toEqual({ timeout: 20_000, maxRetries: 0 });
   });
 
+  it("keeps the model's separate messages apart, instead of gluing them together", async () => {
+    // The SDK's output_text joins every message with nothing between: "Confirmed that field.Got it."
+    const msg = (id: string, text: string) => ({ type: "message", id, role: "assistant", status: "completed", content: [{ type: "output_text", text, annotations: [] }] });
+    create.mockResolvedValue({ output: [msg("m1", "Confirmed that field."), msg("m2", "Got it.")], output_text: "Confirmed that field.Got it." });
+    const out = await openaiAgentModel("m")(base);
+    expect(out.text).toBe("Confirmed that field.\n\nGot it.");
+  });
+
   it("reads tool calls from a streamed response as from a plain one", async () => {
     const withCall = { output: [{ type: "function_call", call_id: "c1", name: "save_website", arguments: "{\"url\":\"acme.com\"}" }], output_text: "" };
     stream.mockImplementation(() => ({ on() { return this; }, finalResponse: async () => withCall }));

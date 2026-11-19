@@ -76,6 +76,10 @@
 | 4.9 | Review every field. | The approve card appears: "Approve the brand KB… Approving it opens market research… Only a person can approve it." |
 | 4.10 | Press the approve card's button. | A line "Approved by {your name}", the Market research tab unlocks. The page header's "Mark KB ready" does the same. |
 | 4.11 | *(two people)* Both approve at the same moment. | One approval line, not two. |
+| 4.12 | On a question with a value, press "Yes, that's right". Do this for five questions in a row. | Every time: the field is marked reviewed on the right, the reply reads "Marked {field} as right.", and the **next** question follows. The same question is never asked twice. |
+| 4.13 | On an empty field's question, press "There is none". Then on the next, press "Skip this one". | "There is none": the field is marked reviewed, empty. "Skip this one": "Skipped. It stays for you to review on the right.", the field stays unreviewed, and the next question follows. |
+| 4.14 | Type "yes, that's right but make it 30 to 45" as an answer. | The copilot reads it (not treated as the button): the field gets "30 to 45". |
+| 4.15 | Watch any reply made of two sentences. | The sentences are separated ("Got it." never runs into the previous sentence with no space). |
 
 ## 5. Background jobs that fail
 

@@ -138,3 +138,33 @@ describe("walkMessages", () => {
     expect(walkMessages({ fields: eight, walk: { asked: [], pending: null }, turn: turnOf() })).toEqual([]);
   });
 });
+
+
+// ── The walk's own buttons, carried out by code (D507) ─────────────────────────
+
+import { walkChoice } from "../walk";
+
+describe("walkChoice", () => {
+  const AGE = "target_audience.age_range";
+  const review = { pending: AGE };
+  it("reads a confirm or a 'there is none' as confirming the waiting field", () => {
+    expect(walkChoice("Yes, that's right", review)).toEqual({ tool: "confirm_field", args: { field: AGE } });
+    expect(walkChoice("There is none", review)).toEqual({ tool: "confirm_field", args: { field: AGE } });
+  });
+  it("reads skip, keep asking and stop as the walk's own tools", () => {
+    expect(walkChoice("Skip this one", review)).toEqual({ tool: "skip_question", args: {} });
+    expect(walkChoice("Keep asking", { pending: null })).toEqual({ tool: "keep_asking", args: {} });
+    expect(walkChoice("Ask me the open questions", { pending: null })).toEqual({ tool: "keep_asking", args: {} });
+    expect(walkChoice("I'll review the rest", { pending: null })).toEqual({ tool: "stop_asking", args: {} });
+  });
+  it("matches the button's words only, ignoring surrounding spaces", () => {
+    expect(walkChoice("  Yes, that's right ", review)).toEqual({ tool: "confirm_field", args: { field: AGE } });
+    expect(walkChoice("Yes, that's right, but it should say 30 to 45", review)).toBeNull();
+    expect(walkChoice("yes", review)).toBeNull();
+  });
+  it("leaves a confirm or a skip to the model when no question is waiting, and everything when no KB is in review", () => {
+    expect(walkChoice("Yes, that's right", { pending: null })).toBeNull();
+    expect(walkChoice("Skip this one", { pending: null })).toBeNull();
+    expect(walkChoice("Keep asking", null)).toBeNull();
+  });
+});

@@ -26,6 +26,18 @@ const CALL_TIMEOUT_MS = 20_000;
 /** It carries the model's own output items (its reasoning and its tool calls) from round to round,
  *  which the API needs back alongside each tool result. A call with no rounds starts a new turn,
  *  so one adapter can be reused, for example to retry after a reply that did not fit. */
+/** The model's words. Each message it wrote is kept as its own paragraph: the SDK's `output_text`
+ *  joins them with nothing between ("Confirmed that field.Got it."). */
+function replyText(response: { output: { type: string; content?: unknown }[]; output_text?: string }): string {
+  const messages = response.output.flatMap((item) => {
+    if (item.type !== "message" || !Array.isArray(item.content)) return [];
+    const text = (item.content as { type: string; text?: string }[])
+      .filter((part) => part.type === "output_text").map((part) => part.text ?? "").join("");
+    return text.trim() ? [text.trim()] : [];
+  });
+  return messages.length > 0 ? messages.join("\n\n") : (response.output_text ?? "");
+}
+
 export function openaiAgentModel(modelId: string): AgentModel {
   const carried: ResponseInputItem[] = [];
   let roundsSent = 0;
@@ -84,7 +96,7 @@ export function openaiAgentModel(modelId: string): AgentModel {
     const calls: ToolCall[] = response.output.flatMap((item) =>
       item.type === "function_call" ? [{ id: item.call_id, name: item.name, args: parseArgs(item.arguments) }] : [],
     );
-    const text = response.output_text ?? "";
+    const text = replyText(response);
     if (!answer || calls.length > 0) return { text, calls };
     // A structured reply arrives as JSON text; the loop checks it against the schema.
     return { text: "", calls, answer: parseArgs(text) };

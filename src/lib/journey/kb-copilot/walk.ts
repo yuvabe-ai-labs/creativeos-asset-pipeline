@@ -1,6 +1,7 @@
 import type { NewCopilotMessage } from "@/lib/db/copilot-messages";
 import type { ThreadMessage } from "@/lib/journey/thread/schema";
 import { QUESTION_VALUE_MAX_CHARS, REVIEW_QUESTIONS_FIRST } from "./constants";
+import { ASK_OPEN_CHOICE } from "./context";
 import { isEmpty, unsettled, type ReviewField } from "./review";
 
 // The review walk (brand KB spec §2.3): the copilot asks about the few fields it could not settle,
@@ -38,6 +39,24 @@ export const NONE_CHOICE = "There is none";
 export const SKIP_CHOICE = "Skip this one";
 export const KEEP_ASKING_CHOICE = "Keep asking";
 export const REVIEW_REST_CHOICE = "I'll review the rest";
+
+/** The walk's own buttons, read as the tool each one means (D507). Code offered them, for a field
+ *  code knows, so code carries them out: the model is not asked what a fixed button means. Only the
+ *  button's exact words count; anything else the person types is the model's to read. A confirm or
+ *  a skip needs a waiting question, and nothing counts outside a review. */
+export function walkChoice(
+  text: string,
+  review: { pending: string | null } | null,
+): { tool: "confirm_field" | "skip_question" | "keep_asking" | "stop_asking"; args: Record<string, unknown> } | null {
+  if (!review) return null;
+  const said = text.trim();
+  const pending = review.pending;
+  if ((said === CONFIRM_CHOICE || said === NONE_CHOICE) && pending) return { tool: "confirm_field", args: { field: pending } };
+  if (said === SKIP_CHOICE && pending) return { tool: "skip_question", args: {} };
+  if (said === KEEP_ASKING_CHOICE || said === ASK_OPEN_CHOICE) return { tool: "keep_asking", args: {} };
+  if (said === REVIEW_REST_CHOICE) return { tool: "stop_asking", args: {} };
+  return null;
+}
 
 /** What one turn did to the walk, as the tools recorded it. */
 export type TurnWalk = {
