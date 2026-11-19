@@ -16,5 +16,5 @@ export function JourneyGuide({ client, state }: FrameClient) {
   if (!framed) return null;
   const panel = framed === "current" ? currentStage(state) : framed;
   if (panel === "kb") return <KbCopilot clientId={client.id} slug={client.slug} />;
-  return <JourneyPanel slug={client.slug} guide={guideFor({ section: panel, state, slug: client.slug })} />;
+  return <JourneyPanel clientId={client.id} slug={client.slug} guide={guideFor({ section: panel, state, slug: client.slug })} />;
 }

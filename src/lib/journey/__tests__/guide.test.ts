@@ -13,6 +13,7 @@ describe("guideFor: market research", () => {
       done: [], waiting: "Approve the brand KB first",
       gate: { title: "Market research is locked", body: "It opens once the brand KB is approved." },
       next: { label: "Go to brand KB", href: "/clients/chupps/kb" },
+      newScript: null,
     });
   });
   it("in progress", () => {
@@ -23,12 +24,14 @@ describe("guideFor: market research", () => {
         body: "Approve the research when it reflects the market. Scripts open after that. I can't approve it for you.",
       },
       next: null,
+      newScript: null,
     });
   });
   it("approved", () => {
     expect(guideFor({ section: "market", state: allDone, slug })).toEqual({
       done: ["Brand KB approved", "Market research approved"], waiting: null, gate: null,
       next: { label: "Go to scripts", href: "/clients/chupps/scripts" },
+      newScript: null,
     });
   });
 });
@@ -42,11 +45,13 @@ describe("guideFor: scripts", () => {
         body: "New scripts open once market research is approved. You can still paste a script you already have.",
       },
       next: { label: "Go to market research", href: "/clients/chupps/market" },
+      newScript: { label: "Paste a script" },
     });
   });
   it("open", () => {
     expect(guideFor({ section: "scripts", state: allDone, slug })).toEqual({
       done: ["Brand KB approved", "Market research approved"], waiting: "Start a new script", gate: null, next: null,
+      newScript: { label: "Start a script" },
     });
   });
   it("lists only what is true", () => {

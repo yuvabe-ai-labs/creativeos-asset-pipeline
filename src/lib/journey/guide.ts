@@ -10,6 +10,8 @@ export type Guide = {
   waiting: string | null;
   gate: { title: string; body: string } | null;
   next: { label: string; href: string } | null;
+  /** The page's own "New script" action, offered by the guide (scripting-panel spec §3.1). */
+  newScript: { label: "Start a script" | "Paste a script" } | null;
 };
 
 /** The Brand KB page has the brand KB copilot instead of a guide (kb-copilot.tsx). */
@@ -27,13 +29,14 @@ export function guideFor({ section, state, slug }: {
   const toScripts = { label: "Go to scripts", href: `/clients/${slug}/scripts` };
 
   if (section === "market") {
-    if (state.market === "approved") return { done, waiting: null, gate: null, next: toScripts };
+    if (state.market === "approved") return { done, waiting: null, gate: null, next: toScripts, newScript: null };
     if (state.market === "locked") {
       return {
         done,
         waiting: "Approve the brand KB first",
         gate: { title: "Market research is locked", body: "It opens once the brand KB is approved." },
         next: toKb,
+        newScript: null,
       };
     }
     return {
@@ -44,6 +47,7 @@ export function guideFor({ section, state, slug }: {
         body: "Approve the research when it reflects the market. Scripts open after that. I can't approve it for you.",
       },
       next: null,
+      newScript: null,
     };
   }
 
@@ -56,7 +60,8 @@ export function guideFor({ section, state, slug }: {
         body: "New scripts open once market research is approved. You can still paste a script you already have.",
       },
       next: toMarket,
+      newScript: { label: "Paste a script" },
     };
   }
-  return { done, waiting: "Start a new script", gate: null, next: null };
+  return { done, waiting: "Start a new script", gate: null, next: null, newScript: { label: "Start a script" } };
 }
