@@ -2,12 +2,13 @@
 
 **For:** whoever runs manual QA on the copilot journey before it is merged.
 **Build:** branch `feat/copilot-journey`. Kept up to date while the branch is built; the last section is the newest work.
-**Last updated:** 2026-11-18.
+**Last updated:** 2026-11-19.
 
 ## Before you start
 
 - **Environment.** Staging, or a local run against the staging database with both `npm run dev` and `npx trigger dev` running. Background work (the KB build, collecting images, studying images, reading new documents) needs Trigger.dev. If it is not running, those steps never finish.
 - **Database.** Migrations 0062, 0063 and 0064 must be applied. No other migration is needed.
+- **Trigger.dev deploy (staging only).** The `kb-propose` task and the 5-minute dead-job sweep must be deployed, or documents are never read and section 6.11 onwards cannot pass.
 - **Clients.** You need three kinds:
   - **New client:** created for the test, no brand KB yet.
   - **Client in review:** a brand KB was built and not every field is reviewed yet.
@@ -83,7 +84,7 @@
 | 5.1 | Stop `npx trigger dev` (local only), attach an image and send. | "Studying the images…" shows. Within about 5 minutes of restarting Trigger.dev it is cleared and the line says the study could not finish, with what to do. It never stays for good. |
 | 5.2 | Use a website that cannot be read. | The build says so in a failure line with what to do, never "nothing found". |
 
-## 6. Change cards on the brand KB *(being built: cases added as each part lands)*
+## 6. Change cards on the brand KB
 
 Change cards are how the copilot changes a field someone has already reviewed: it shows each field before and after, where the new value came from, and lets you keep or drop each one before approving. Nothing changes until a person approves.
 
@@ -115,8 +116,15 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.24 | Hover any field on the Brand KB screen. | No sparkle "Refine with AI" button. Editing by typing, the approve tick on an empty field, Reject and Restore still work. |
 | 6.25 | Open Source files. | The text says the copilot shows what the change would do, for you to approve; it no longer says the KB is rebuilt. |
 | 6.26 | *(approved client whose images were studied before)* Upload a few new, different-looking images on the form. | When the study finishes, a line in the thread: "Studied the images again. Changed: …" naming the Image Analysis fields that changed. No card (Image Analysis gets its own card in a later piece). |
+| 6.27 | *(client in review)* In one message, ask to change an approved field and a field nobody has reviewed yet. | The card holds the approved field. The copilot says, in its own words, that the other field was handled differently (filled directly or left for review). It never shows a sentence like "Use answer_field". |
+| 6.28 | *(approved client)* Attach two PDFs at once and send. | One card. Each field names the PDF it came from, by its real file name. |
+| 6.29 | *(approved client)* Attach a document that only adds information. | No field on the card goes to "none": new documents never clear a field. |
 
 ## Known limits (not bugs)
+
+- A pending change card hides the "Approve the brand KB" card until it is settled, since it may change fields the approval covers.
+- A pending card older than the newest 200 messages in the thread drops out of view.
+- Pressing Save in Source files when only images changed shows no message; the images are studied as usual.
 
 - Locally, a background job started from your machine that dies can take up to 45 minutes to clear from the panel if the staging sweep is the only one running. On staging it clears within about 5 minutes.
 - A teammate looking at the same client does not see the reply appear word by word; they see it when their panel next checks, within 20 seconds.

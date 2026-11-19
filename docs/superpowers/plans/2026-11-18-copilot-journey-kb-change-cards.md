@@ -355,3 +355,36 @@ Restart `npm run dev` and `npx trigger dev`. Use a client with an approved brand
 4. In Source files, remove a document and press "Save & re-analyze". A card lists the fields nothing else supports. Nothing is wiped and the KB stays approved.
 5. The sparkle "Refine with AI" button is gone from every field.
 6. Two browser windows: approve the same card in both. It applies once; the second says it was already settled.
+
+## Outcome (2026-11-19)
+
+Built in ten commits, then one review and one fix pass (`6961cb78..c8924793`, unpushed). Recorded as D505. No migration.
+
+**Departures from the plan**
+- Added `getCopilotMessage` to read one message, so approving a card never reads the whole thread.
+- The card's wording helpers (`approveLabel`, `valueText`, `settledLine`) live in `src/lib/kb/changes/copy.ts` with the proposal copy, and are tested there.
+- The chat's value coercion moved to `review.ts` as `coerceValue`, now shared with the document proposal.
+- `KbContext.proposing` is optional, so every existing test context did not have to change.
+- Also reworded the Source files drawer, which still said Save & re-analyze rebuilds the KB.
+
+**What the review changed**
+- A chat change that was only partly allowed ended the turn and dropped the refused field without a word. The model is now told what was added and what was not.
+- PDFs, Word and PowerPoint files reached the model with no name, so it had to guess a document's name for the card. Each file is now named, the remaining files are named after a removal, and a value whose named document is not there is dropped.
+- The proposal's model call used the SDK's 10-minute default and retries, as long as the task itself, so a hung call ended with no line in the thread. It now has an 8-minute limit and no retries.
+- Re-graded up from minor: a document that could not be read was reported as "nothing changes"; it now fails and says so. The review instructions still said documents are read "in a later step"; fixed.
+- New documents can no longer propose clearing a field; only a removal can.
+
+**Left for later (minor)**
+- A failed write whose put-back also fails can leave a card marked approved with nothing written. The real fix is one SQL function that claims and writes together.
+- The number of fields written is not compared with the number sent.
+- A hand save landing between reading the card's values and writing them can be overwritten.
+- Discarding a card also remembers its out-of-date fields as refused.
+- If a pending card's KB version row were deleted, the thread read would fail; nothing deletes versions today.
+- Save in Source files with only image changes shows no confirmation.
+- A field proposed twice in one turn keeps the first value.
+- A pending card older than the newest 200 messages drops out of the thread and the rail.
+- Two documents with the same file name share refusal memory.
+
+**Not verified**
+- Nothing here was run in a browser or against the real model by the implementer. How well the document prompt finds the right fields is Cyril's test.
+- The `kb-propose` task needs a Trigger.dev deploy to run on staging.
