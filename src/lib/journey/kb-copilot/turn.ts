@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EMPTY_AGENT_REPLY, runAgent, type AgentEvents, type AgentMessage, type AgentModel, type AgentTool } from "@/lib/journey/agent";
+import { EMPTY_AGENT_REPLY, runAgent, type AgentEvents, type AgentMessage, type AgentModel, type AgentTool, type TraceSink } from "@/lib/journey/agent";
 import type { Attachment, ThreadMessage } from "@/lib/journey/thread/schema";
 import { BuildAlreadyRunningError } from "@/lib/kb/build-errors";
 import { kbCopilotSystem } from "@/prompts/kb-copilot";
@@ -93,6 +93,8 @@ export async function runKbTurn(input: {
   /** The client's brand KB as stored, when one has been built: what a change card is made against. */
   kb?: { versionId: string; output: TraceableBrandKB } | null;
   on?: KbTurnEvents;
+  /** Where the turn reports what it did, for its trace (D509). */
+  trace?: TraceSink;
 }): Promise<{ reply: string; suggestions: string[]; changed: boolean; saved: KbSaved; walk: TurnWalk; card: ChangeCard | null }> {
   const { actions, model } = input;
   // The context as the tools have changed it so far this turn, so a later tool sees an earlier one.
@@ -105,6 +107,11 @@ export async function runKbTurn(input: {
   const tell = (sentence: string) => {
     said.push(sentence);
     return sentence;
+  };
+  /** A refusal said in a sentence rather than thrown: the trace marks the turn as refused (D509). */
+  const refuse = (sentence: string) => {
+    input.trace?.refused(sentence);
+    return tell(sentence);
   };
 
   // The review as the tools have changed it so far this turn. A tool only ever writes a field that
@@ -146,11 +153,11 @@ export async function runKbTurn(input: {
       run: async (args) => {
         const { field: path, value } = args as { field: string; value: string | string[] };
         const field = open(path);
-        if (typeof field === "string") return tell(field);
+        if (typeof field === "string") return refuse(field);
         const next = coerce(field.kind, value);
-        if (isEmpty(next)) return tell(EMPTY_ANSWER);
+        if (isEmpty(next)) return refuse(EMPTY_ANSWER);
         const saved = await settle(field, answerPatch(next), "edited");
-        return tell(saved ? `Saved ${field.label}.` : REVIEWED_LOCKED);
+        return saved ? tell(`Saved ${field.label}.`) : refuse(REVIEWED_LOCKED);
       },
     },
     confirm_field: {
@@ -159,9 +166,9 @@ export async function runKbTurn(input: {
       label: "Saving your answer…",
       run: async (args) => {
         const field = open((args as { field: string }).field);
-        if (typeof field === "string") return tell(field);
+        if (typeof field === "string") return refuse(field);
         const saved = await settle(field, { status: "approved" }, "approved");
-        return tell(saved ? `Marked ${field.label} as right.` : REVIEWED_LOCKED);
+        return saved ? tell(`Marked ${field.label} as right.`) : refuse(REVIEWED_LOCKED);
       },
     },
     propose_change: {
@@ -219,7 +226,7 @@ export async function runKbTurn(input: {
       description: "The person does not want to answer the question that is waiting. The field stays for them to review on the page.",
       schema: z.object({}),
       run: async () => {
-        if (!review?.pending || status.get(review.pending) !== "needs_review") return tell(NO_QUESTION);
+        if (!review?.pending || status.get(review.pending) !== "needs_review") return refuse(NO_QUESTION);
         walk.skipped = true;
         return "ok";
       },
@@ -228,7 +235,7 @@ export async function runKbTurn(input: {
       description: "The person wants questions about the brand KB: to start them, or to go on with more.",
       schema: z.object({}),
       run: async () => {
-        if (!review) return tell(NO_REVIEW);
+        if (!review) return refuse(NO_REVIEW);
         walk.more = true;
         return "ok";
       },
@@ -249,8 +256,8 @@ export async function runKbTurn(input: {
       label: "Saving the website…",
       run: async (args) => {
         const { url } = args as { url: string };
-        if (ctx.hasVersion) return tell(WEBSITE_LOCKED);
-        if (isBuilding(ctx)) return tell(WEBSITE_LOCKED_BUILDING);
+        if (ctx.hasVersion) return refuse(WEBSITE_LOCKED);
+        if (isBuilding(ctx)) return refuse(WEBSITE_LOCKED_BUILDING);
         saved.website = await actions.saveWebsite(url);
         ctx = { ...ctx, websiteUrl: saved.website };
         changed = true;
@@ -265,7 +272,7 @@ export async function runKbTurn(input: {
       label: "Saving the handles…",
       run: async (args) => {
         const handles = args as { instagram?: string; facebook?: string };
-        if (!handles.instagram && !handles.facebook) return tell("No handle was given.");
+        if (!handles.instagram && !handles.facebook) return refuse("No handle was given.");
         const stored = await actions.saveSocials(handles);
         // Only what was stored just now: the turn's own `saved` may already hold the website.
         const now: KbSaved = {};
@@ -282,13 +289,13 @@ export async function runKbTurn(input: {
       schema: z.object({}),
       label: "Starting the build…",
       run: async () => {
-        if (isBuilding(ctx)) return tell(ALREADY_RUNNING);
-        if (ctx.hasVersion) return tell(ALREADY_BUILT);
-        if (!canStartBuild(ctx)) return tell(NOTHING_TO_BUILD_FROM);
+        if (isBuilding(ctx)) return refuse(ALREADY_RUNNING);
+        if (ctx.hasVersion) return refuse(ALREADY_BUILT);
+        if (!canStartBuild(ctx)) return refuse(NOTHING_TO_BUILD_FROM);
         try {
           await actions.startBuild();
         } catch (error) {
-          if (error instanceof BuildAlreadyRunningError) return tell(ALREADY_RUNNING);
+          if (error instanceof BuildAlreadyRunningError) return refuse(ALREADY_RUNNING);
           throw error;
         }
         ctx = { ...ctx, job: { status: "queued", phaseMessage: null } };
@@ -316,7 +323,8 @@ export async function runKbTurn(input: {
   if (choice) {
     const tool = tools[choice.tool];
     if (tool.label) input.on?.step?.(tool.label);
-    await tool.run(choice.args);
+    const output = await tool.run(choice.args);
+    input.trace?.choice({ tool: choice.tool, args: choice.args, output });
     const reply = said.length > 0 ? said.join(" ") : CHOICE_REPLY[choice.tool];
     return { reply, suggestions: fallbackSuggestions(ctx), changed, saved, walk, card: null };
   }
@@ -329,6 +337,7 @@ export async function runKbTurn(input: {
   const { text } = await runAgent({
     model, system: kbCopilotSystem(input.ctx, review, review ? null : kbFields), messages, tools,
     on: input.on && { text: input.on.text, reset: input.on.reset, step: input.on.step },
+    trace: input.trace,
   });
   // A turn can end without the model's words: after a plain save it is not asked again, and
   // sometimes it just says nothing. Say what the tools said, never a bare "Done." that could follow

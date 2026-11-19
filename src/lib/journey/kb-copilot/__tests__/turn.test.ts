@@ -4,6 +4,7 @@ import type { ThreadMessage } from "@/lib/journey/thread/schema";
 import { KB_CONVERSATION_WINDOW } from "../constants";
 import type { KbContext } from "../context";
 import { BuildAlreadyRunningError, runKbTurn, type KbActions } from "../turn";
+import { traceRecorder } from "../../trace/recorder";
 
 type ModelInput = Parameters<AgentModel>[0];
 type ModelOutput = Awaited<ReturnType<AgentModel>>;
@@ -592,4 +593,39 @@ describe("runKbTurn, a change that is only partly allowed (review fix)", () => {
     expect(seen[0].system).toContain("read it against the brand KB");
   });
 });
+});
+
+// ── Turn traces (D509) ───────────────────────────────────────────────────────
+
+describe("runKbTurn, reporting to a trace", () => {
+  const AGE = "target_audience.age_range";
+  const TONE = "brand_profile.tone_of_voice";
+  const inReview: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "in_review", unreviewed: [] };
+  const review = (over: Parameters<typeof kbWith>[0] = {}) => ({ fields: reviewFields(kbWith(over)), pending: AGE });
+
+  it("records a reply button carried out by code, with no model call", async () => {
+    const recorder = traceRecorder();
+    const { model, seen } = scripted([say("never asked")]);
+    await turn({ ctx: inReview, review: review(), model, text: "Yes, that's right", trace: recorder });
+    expect(seen).toHaveLength(0);
+    const rec = recorder.record();
+    expect(rec.sent).toBeNull();
+    expect(rec.rounds).toEqual([]);
+    expect(rec.choice).toMatchObject({ tool: "confirm_field", output: expect.stringMatching(/^Marked .+ as right\.$/) });
+  });
+
+  it("records a refusal a tool returns as a sentence", async () => {
+    const recorder = traceRecorder();
+    const { model } = scripted([{ text: "", calls: [call("answer_field", { field: TONE, value: "Bold" })] }, say("It is reviewed.")]);
+    await turn({ ctx: inReview, review: review({ [TONE]: { status: "approved" } }), model, trace: recorder });
+    expect(recorder.record().refusals).toEqual(["That field is already reviewed. Use propose_change to suggest a new value; the person approves it."]);
+  });
+
+  it("passes the trace to the agent loop", async () => {
+    const recorder = traceRecorder();
+    const { model } = scripted([say("Hello.")]);
+    await turn({ model, trace: recorder });
+    expect(recorder.record().sent?.system).toContain("brand KB copilot");
+    expect(recorder.record().rounds.map((r) => r.text)).toEqual(["Hello."]);
+  });
 });
