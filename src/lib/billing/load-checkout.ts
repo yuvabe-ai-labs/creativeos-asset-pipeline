@@ -24,6 +24,9 @@ declare global {
   }
 }
 
+/** The one message from this file that is plain enough to show a person. */
+export const CHECKOUT_LOAD_FAILED = "Could not open the payment window.";
+
 const SCRIPT_URL = "https://checkout.razorpay.com/v1/checkout.js";
 let loading: Promise<void> | null = null;
 
@@ -36,7 +39,7 @@ export function loadCheckout(): Promise<void> {
     script.onload = () => resolve();
     script.onerror = () => {
       loading = null;
-      reject(new Error("Could not open the payment window."));
+      reject(new Error(CHECKOUT_LOAD_FAILED));
     };
     document.body.appendChild(script);
   });
@@ -44,7 +47,7 @@ export function loadCheckout(): Promise<void> {
 }
 
 export function openCheckout(options: CheckoutOptions, onFailed: () => void): void {
-  if (!window.Razorpay) throw new Error("Could not open the payment window.");
+  if (!window.Razorpay) throw new Error(CHECKOUT_LOAD_FAILED);
   const checkout = new window.Razorpay(options);
   checkout.on("payment.failed", onFailed);
   checkout.open();
