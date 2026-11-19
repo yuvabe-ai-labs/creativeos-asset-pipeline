@@ -46,3 +46,11 @@ export async function getTurnTrace(clientId: string, id: string): Promise<(TurnL
   const row = data as LineRow & { trace: TurnTrace };
   return { ...toLine(row), trace: row.trace };
 }
+
+/** Removes every trace created before `cutoff` (the daily sweep, spec §3.3). Returns how many went. */
+export async function deleteTurnTracesBefore(cutoff: string): Promise<number> {
+  const supabase = createServerSupabase();
+  const { error, count } = await supabase.from("copilot_turn_traces").delete({ count: "exact" }).lt("created_at", cutoff);
+  if (error) throw error;
+  return count ?? 0;
+}
