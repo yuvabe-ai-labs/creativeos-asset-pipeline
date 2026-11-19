@@ -57,9 +57,12 @@ export function changedFields(draft: TraceableBrandKB, saved: TraceableBrandKB):
 
 /** After the server's copy changed. `saved` takes the server's document sections. `draft` takes
  *  them too, except the fields the person has changed and not yet saved, which stay as the person
- *  has them (and so still show as unsaved). Image Analysis is left alone in both. */
+ *  has them (and so still show as unsaved). Image Analysis is left alone in both. A dotted path in
+ *  `take` is a field the copilot just wrote: its stored value replaces even an unsaved edit, so a
+ *  later Save never writes the older draft back over it (D508, spec §3.2). */
 export function adoptServerKb(
   draft: TraceableBrandKB, saved: TraceableBrandKB, server: TraceableBrandKB,
+  take: ReadonlySet<string> = new Set(),
 ): { draft: TraceableBrandKB; saved: TraceableBrandKB } {
   let nextDraft = draft;
   let nextSaved = saved;
@@ -69,7 +72,7 @@ export function adoptServerKb(
     const theirs = sectionAt(server, path);
     const merged: Section = { ...mine };
     for (const [key, field] of Object.entries(theirs)) {
-      if (same(mine[key], before[key])) merged[key] = field;
+      if (same(mine[key], before[key]) || take.has([...path, key].join("."))) merged[key] = field;
     }
     nextDraft = withSection(nextDraft, path, merged);
     nextSaved = withSection(nextSaved, path, theirs);

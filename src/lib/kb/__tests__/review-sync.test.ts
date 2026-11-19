@@ -62,3 +62,29 @@ describe("adoptServerKb", () => {
     expect(next.draft.creative_direction.image.feel.status).toBe("approved");
   });
 });
+
+describe("adoptServerKb, a field the copilot wrote (D508, spec §3.2)", () => {
+  const saved = kbWith({});
+  const draft = kbWith({
+    "brand_profile.tagline": { value: "my unsaved line", status: "edited" },
+    "brand_profile.mission": { value: "my unsaved mission", status: "edited" },
+  });
+  const server = kbWith({ "brand_profile.tagline": { value: "the chat answer", status: "edited" } });
+
+  it("takes the server's field over an unsaved edit when the copilot wrote it", () => {
+    const next = adoptServerKb(draft, saved, server, new Set(["brand_profile.tagline"]));
+    expect(next.draft.brand_profile.tagline.value).toBe("the chat answer");
+    expect(paths(changedFields(next.draft, next.saved))).not.toContain("brand_profile.tagline");
+  });
+
+  it("keeps an unsaved edit of every other field", () => {
+    const next = adoptServerKb(draft, saved, server, new Set(["brand_profile.tagline"]));
+    expect(next.draft.brand_profile.mission.value).toBe("my unsaved mission");
+    expect(paths(changedFields(next.draft, next.saved))).toEqual(["brand_profile.mission"]);
+  });
+
+  it("behaves as before when take is empty", () => {
+    expect(adoptServerKb(draft, saved, server)).toEqual(adoptServerKb(draft, saved, server, new Set()));
+    expect(adoptServerKb(draft, saved, server).draft.brand_profile.tagline.value).toBe("my unsaved line");
+  });
+});
