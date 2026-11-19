@@ -125,6 +125,21 @@ export async function listSettledChangeCards(clientId: string): Promise<ChangeCa
   });
 }
 
+/** Every change card of the client's onboarding thread still waiting for a decision, with its
+ *  message id (piece 2b: a newer image study overtakes an earlier study's card). Throws when it
+ *  cannot be read: never "nothing is waiting". */
+export async function listPendingChangeCards(clientId: string): Promise<{ id: string; card: ChangeCard }[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("client_copilot_messages").select("id, card")
+    .eq("client_id", clientId).eq("thread", ONBOARDING).eq("card->>kind", "change").eq("card->>status", "pending");
+  if (error) throw error;
+  return ((data ?? []) as { id: string; card: unknown }[]).flatMap((row) => {
+    const parsed = changeCardSchema.safeParse(row.card);
+    return parsed.success ? [{ id: row.id, card: parsed.data }] : [];
+  });
+}
+
 /** One message of the client's onboarding thread, or null when it is not there. */
 export async function getCopilotMessage(clientId: string, messageId: string): Promise<ThreadMessage | null> {
   const supabase = createServerSupabase();

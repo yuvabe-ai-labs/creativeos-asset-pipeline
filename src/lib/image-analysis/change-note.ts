@@ -2,8 +2,8 @@ import { FIELD_LABELS, MODULE_LEADING_FIELDS } from "@/lib/kb/constants";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { sameValue } from "@/lib/kb/changes/card";
 
-// Until Image Analysis goes through a change card (piece 2b), a re-study still writes the section
-// itself, and the copilot says in the thread which fields it changed (brand KB spec §2.5). Pure.
+// A re-study writes the fields it may write itself (piece 2b: a reviewed field goes on a change card
+// instead), and the copilot says in the thread which fields it changed directly. Pure.
 
 type Section = TraceableBrandKB["image_analysis"];
 

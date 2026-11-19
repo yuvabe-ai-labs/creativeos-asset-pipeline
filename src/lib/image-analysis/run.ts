@@ -16,11 +16,15 @@ import { IMAGE_CARD_CONCURRENCY, IMAGE_CARD_MODEL, IMAGE_CARD_VERSION } from "./
 import { readImageCard } from "./read-image";
 import { generateStructured } from "./gemini";
 import { aggregateCards, buildSummaryInput, ImageSummarySchema, toImageAnalysis } from "./summarize";
-import { mergeImageAnalysis } from "./merge";
+import { studyImageAnalysis } from "./merge";
 import { imageAnalysisCopy } from "./messages";
 import type { ImageAnalysisInput, ImageAnalysisResult } from "./types";
 import { describeError } from "@/lib/describe-error";
-import { hasCopilotMessages, insertCopilotMessages } from "@/lib/db/copilot-messages";
+import { claimChangeCard, hasCopilotMessages, insertCopilotMessages, listPendingChangeCards, listSettledChangeCards } from "@/lib/db/copilot-messages";
+import { getClientById } from "@/lib/db/clients";
+import { ensureOpening } from "@/lib/journey/thread/opening";
+import { buildImageStudyCard, isImageStudyCard } from "@/lib/kb/changes/card";
+import { imageStudyCopy } from "@/lib/kb/changes/copy";
 import { ONBOARDING } from "@/lib/journey/thread/schema";
 import { changedImageFields, imageAnalysisNote } from "./change-note";
 
@@ -53,6 +57,8 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
     let lastKey = job.input?.force ? null : await lastWrittenKey(clientId, jobId);
     // Fields a re-study changed in a section that already had content, for the copilot to say.
     const changed = new Set<string>();
+    // What the last pass that wrote would change in reviewed fields; null when nothing was written.
+    let proposed: Proposed | null = null;
     let result: ImageAnalysisResult = { read: 0, failed: 0, counted: 0, bySource: { upload: 0, website: 0, instagram: 0, facebook: 0 }, written: false };
 
     for (let pass = 0; pass < MAX_PASSES; pass++) {
@@ -102,9 +108,13 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
       // have made a new one), over the reviews it holds now.
       const active = (await getActiveKBVersion(clientId)) ?? before;
       const reviewed = (active.output as TraceableBrandKB | undefined)?.image_analysis;
-      const merged = mergeImageAnalysis(reviewed, toImageAnalysis(stats, summary));
+      // A field the team has reviewed is never replaced: the study keeps it and proposes its new
+      // reading on a change card instead (piece 2b). Everything else is written, as before.
+      const { section: merged, proposals } = studyImageAnalysis(reviewed, toImageAnalysis(stats, summary));
       await setKBImageAnalysis(active.id, merged);
       if (reviewed && hasContent(reviewed)) for (const label of changedImageFields(reviewed, merged)) changed.add(label);
+      // The last pass is the one that stands: its proposals, against the version it wrote to.
+      proposed = { versionId: active.id, current: { ...(active.output as TraceableBrandKB), image_analysis: merged }, proposals };
       result.written = true;
       result.cardSetKey = key;
       lastKey = key;
@@ -115,6 +125,7 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
     }
     if (failed > 0) console.error("[image-analysis] images not read", { jobId, failed, first: firstFailure });
     await sayWhatChanged(clientId, [...changed]);
+    if (proposed) await proposeChanges(clientId, proposed);
 
     await succeedJob(jobId, result, result.written ? imageAnalysisCopy.done(result.counted) : imageAnalysisCopy.upToDate(result.counted));
     return result;
@@ -127,7 +138,30 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
   }
 }
 
-/** The card-set key of the client's last run that wrote the section, or null. */
+/** What a study that wrote would change in fields the team has reviewed. */
+type Proposed = { versionId: string; current: TraceableBrandKB; proposals: { key: string; value: unknown }[] };
+
+/** Puts what a study would change in reviewed fields on a change card in the client's copilot thread
+ *  (piece 2b). A study that wrote overtakes any earlier study's card still waiting, even when it has
+ *  nothing new to propose: an older reading of the images is never approved. Best effort: what the
+ *  study wrote stands, and a failure here never fails the run. */
+async function proposeChanges(clientId: string, proposed: Proposed): Promise<void> {
+  try {
+    const [pending, settled] = await Promise.all([listPendingChangeCards(clientId), listSettledChangeCards(clientId)]);
+    for (const { id, card } of pending) {
+      if (isImageStudyCard(card)) await claimChangeCard(clientId, id, { ...card, status: "stale" });
+    }
+    const card = buildImageStudyCard({ ...proposed, settled });
+    if (!card) return;
+    const client = await getClientById(clientId);
+    if (!client) return;
+    await ensureOpening(client);
+    await insertCopilotMessages(clientId, ONBOARDING, null, [{ role: "assistant", content: imageStudyCopy.card(card.fields.length), card, suggestions: [] }]);
+  } catch (e) {
+    console.error("[image-analysis] could not write the change card", { clientId, error: describeError(e) });
+  }
+}
+
 /** Says in the client's copilot thread which Image Analysis fields a re-study changed. Best effort:
  *  a client with no thread yet gets nothing, and a failure never fails the run. */
 async function sayWhatChanged(clientId: string, labels: string[]): Promise<void> {
