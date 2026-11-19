@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { findNextModuleNeedingReview, getModuleFields, isListField, parseColour } from "./utils";
+import { fieldLocation, findNextModuleNeedingReview, getModuleFields, isListField, parseColour } from "./utils";
 
 // Final review, Important 4: an empty field was edited as a comma-split list, which turned typed
 // Content Rules prose into a list and broke "10,000" into "10, 000".
@@ -102,5 +102,19 @@ describe("findNextModuleNeedingReview", () => {
   it("wraps all the way back to the current module if it's the only one not ready", () => {
     const ready = allReady({ brand_voice: false });
     expect(findNextModuleNeedingReview("brand_voice", ready)).toBe("brand_voice");
+  });
+});
+
+describe("fieldLocation (D508)", () => {
+  it("finds the tab and key of a review path", () => {
+    expect(fieldLocation("creative_direction.video.pacing")).toEqual({ module: "video_direction", fieldKey: "pacing" });
+    expect(fieldLocation("brand_profile.tone_of_voice")).toEqual({ module: "brand_voice", fieldKey: "tone_of_voice" });
+    expect(fieldLocation("target_audience.age_range")).toEqual({ module: "audience_casting", fieldKey: "age_range" });
+  });
+
+  it("is null for a path no tab shows", () => {
+    expect(fieldLocation("nope.x")).toBeNull();
+    expect(fieldLocation("image_analysis.aesthetic")).toBeNull();
+    expect(fieldLocation("brand_profile")).toBeNull();
   });
 });
