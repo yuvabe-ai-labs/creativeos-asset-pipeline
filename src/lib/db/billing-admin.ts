@@ -5,7 +5,8 @@ import { endsAtFromDay } from "@/lib/billing/dates";
 // Yuvabe's billing changes (migration 0067). Each RPC locks the agency, makes the change and logs
 // it in one transaction. Spec 2026-11-20-admin-agency-billing-design.md.
 
-export type BillingMode = "managed" | "plans";
+export type { BillingMode } from "@/lib/billing/grants";
+import type { BillingMode } from "@/lib/billing/grants";
 export type AdminGrantKind = "free" | "admin";
 
 /** False when the agency is missing or already in that mode. */

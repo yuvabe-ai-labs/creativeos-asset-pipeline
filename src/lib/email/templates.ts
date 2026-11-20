@@ -1,3 +1,4 @@
+import { formatDay } from "@/lib/billing/dates";
 import type { Email } from "./send";
 
 // The four emails of spec §6.7. Plain text first; the html is the same words laid out as a card
@@ -79,13 +80,18 @@ export function memberInviteEmail(a: { to: string; agency: string; inviter: stri
   });
 }
 
-export function ownerInviteEmail(a: { to: string; agency: string; link: string }): Email {
+export function ownerInviteEmail(a: { to: string; agency: string; link: string; freeCredits?: { credits: number; day: string } }): Email {
+  const lines = [`You're the owner of ${a.agency} on CreativeOS. Create your account to set it up and invite your team.`];
+  // An agency that pays for a plan can start with free credits (billing piece 2).
+  if (a.freeCredits) {
+    lines.push(`You have ${a.freeCredits.credits.toLocaleString("en-US")} free credits to try CreativeOS until ${formatDay(a.freeCredits.day)}.`);
+  }
   return compose({
     to: [a.to],
     subject: `Set up ${a.agency} on CreativeOS`,
     preview: "Create your account to set up your agency.",
     heading: `Set up ${a.agency}`,
-    lines: [`You're the owner of ${a.agency} on CreativeOS. Create your account to set it up and invite your team.`],
+    lines,
     action: { label: `Set up ${a.agency}`, link: a.link },
     note: "The link works for 7 days.",
   });

@@ -16,6 +16,12 @@ describe("emails (spec §6.3, §6.7)", () => {
   it("invites an owner to set up the agency", () => {
     const e = ownerInviteEmail({ to: "o@x.com", agency: "Acme", link: "https://app.example/invite/t" });
     expect(e.subject).toBe("Set up Acme on CreativeOS");
+    expect(e.text).not.toContain("free credits");
+  });
+
+  it("tells the owner about free credits when the agency starts with them", () => {
+    const e = ownerInviteEmail({ to: "o@x.com", agency: "Acme", link: "https://app.example/invite/t", freeCredits: { credits: 50000, day: "2026-12-03" } });
+    expect(e.text).toContain("You have 50,000 free credits to try CreativeOS until 3 Dec 2026.");
   });
 
   it("tells the owner someone signed up, with the Team page line", () => {

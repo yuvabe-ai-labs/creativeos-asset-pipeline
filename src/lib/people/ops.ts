@@ -189,7 +189,13 @@ export async function makeOwner(agency: Agency, userId: string): Promise<OpResul
   return ok(null);
 }
 
-export async function createAgency(name: string, rawEmail: string, by: Actor): Promise<OpResult<{ orgId: string; link: string; emailed: boolean }>> {
+/** `opts.freeCredits` adds the free-credits line to the owner's email (billing piece 2). */
+export async function createAgency(
+  name: string,
+  rawEmail: string,
+  by: Actor,
+  opts: { freeCredits?: { credits: number; day: string } } = {},
+): Promise<OpResult<{ orgId: string; link: string; emailed: boolean }>> {
   const email = normaliseEmail(rawEmail);
   if (!isValidEmail(email)) return refuse(400, REFUSALS.invalidEmail);
   const [login, openElsewhere, slugs] = await Promise.all([
@@ -204,7 +210,7 @@ export async function createAgency(name: string, rawEmail: string, by: Actor): P
   const orgId = await people.createAgencyWithOwnerInvite({ name, slug: uniqueSlug(name, slugs), ownerEmail: email, token, by: by.userId });
   // Without APP_URL the link is its path (shown to copy on this site) and is not emailed.
   const link = inviteLink(token);
-  const emailed = await emailInvite(link, () => ownerInviteEmail({ to: email, agency: name, link }));
+  const emailed = await emailInvite(link, () => ownerInviteEmail({ to: email, agency: name, link, freeCredits: opts.freeCredits }));
   return ok({ orgId, link, emailed });
 }
 

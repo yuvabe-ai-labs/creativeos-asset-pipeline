@@ -18,3 +18,6 @@ export type OpenGrant = {
   left: number;
   endsAt: string;
 };
+
+/** How an agency is billed (organizations.billing_mode, migration 0067). */
+export type BillingMode = "managed" | "plans";

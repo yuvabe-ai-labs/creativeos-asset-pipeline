@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LinkSentNotice } from "@/components/shared/link-sent-notice";
-import { CreditLimitField } from "./credit-limit-field";
+import { BillingModeField } from "./billing/billing-mode-field";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 // Remounted (key) on every opening: useActionState has no reset, and a finished create must not
@@ -25,6 +25,9 @@ function AddAgencyBody({ onDone }: { onDone: () => void }) {
         <LinkSentNotice emailed={created.emailed} email={created.email} label="Owner's sign-up link" link={created.link} />
         {created.limitNotSaved && (
           <p className="text-sm text-destructive">The credit limit wasn&apos;t saved, so the agency is unlimited for now. Set it on the agency&apos;s page.</p>
+        )}
+        {created.billingNotSaved && (
+          <p className="text-sm text-destructive">The billing or free credits weren&apos;t saved. Set them on the agency&apos;s Billing tab.</p>
         )}
         <DialogFooter><Button onClick={onDone}>Done</Button></DialogFooter>
       </>
@@ -44,7 +47,7 @@ function AddAgencyBody({ onDone }: { onDone: () => void }) {
         <Label htmlFor="email">Owner&apos;s email</Label>
         <Input id="email" name="email" type="email" />
       </div>
-      <CreditLimitField />
+      <BillingModeField />
       {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
       <DialogFooter>
         <Button type="submit" disabled={pending}>{pending ? "Adding…" : "Add agency"}</Button>
