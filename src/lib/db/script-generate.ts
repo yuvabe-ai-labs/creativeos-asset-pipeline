@@ -61,9 +61,37 @@ export function changeGenerateScript<T>(clientId: string, scriptId: string, chan
   return changeWithRetry(
     {
       read: () => getGenerateScript(clientId, scriptId),
-      save: (expected, patch) => saveGenerateScript(clientId, scriptId, expected, patch),
+      save: (current, patch) => saveGenerateScript(clientId, scriptId, current.docVersion, patch),
     },
     change,
+  );
+}
+
+/** Piece 5.1 (D512) — the copilot's write at Visualise: compare-and-set on `updated_at`, the guard
+ *  every Visualise write uses (script-visualise.ts), so a field typed on the board meanwhile is
+ *  never overwritten, and only while the script is still at Visualise. Null when either moved on. */
+async function saveVisualiseScript(clientId: string, scriptId: string, expectedUpdatedAt: string, patch: ScriptPatch): Promise<GenerateScript | null> {
+  if (!isUuid(scriptId)) return null;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("client_scripts")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", scriptId).eq("client_id", clientId).eq("stage", "visualise")
+    .eq("updated_at", expectedUpdatedAt).is("archived_at", null)
+    .select("*")
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToGenerateScript(data as GenerateScriptRow) : null;
+}
+
+export function changeVisualiseScript<T>(clientId: string, scriptId: string, change: (current: GenerateScript) => Change<T>): Promise<ChangeOutcome<T>> {
+  return changeWithRetry(
+    {
+      read: () => getGenerateScript(clientId, scriptId),
+      save: (current, patch) => saveVisualiseScript(clientId, scriptId, current.updatedAt, patch),
+    },
+    change,
+    { stage: "visualise" },
   );
 }
 

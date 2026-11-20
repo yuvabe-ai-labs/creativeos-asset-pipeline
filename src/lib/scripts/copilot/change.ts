@@ -9,21 +9,32 @@ export type ChangeOutcome<T> = { script: GenerateScript; result: T } | { error: 
 
 type ChangeIO = {
   read: () => Promise<GenerateScript | null>;
-  /** Saves only if the stored version still equals `expectedVersion`; null when it moved on. */
-  save: (expectedVersion: number, patch: ScriptPatch) => Promise<GenerateScript | null>;
+  /** Saves only if the stored script is still the one read (`current`); null when it moved on. At
+   *  Generate that is its doc version, at Visualise its `updated_at` (as every Visualise write). */
+  save: (current: GenerateScript, patch: ScriptPatch) => Promise<GenerateScript | null>;
 };
+
+/** The stage a change is for. A change for Generate refuses any other stage, as before; piece 5.1
+ *  lets the copilot change a script at Visualise too (D512). */
+export type ChangeOptions = { stage?: "generate" | "visualise" };
 
 /** Read, decide, compare-and-set; on a conflict, read the newer script and decide again. A copilot
  *  edit is therefore always applied to the script as it is now, never to the copy the model saw. */
-export async function changeWithRetry<T>(io: ChangeIO, change: (current: GenerateScript) => Change<T>, attempts = 3): Promise<ChangeOutcome<T>> {
+export async function changeWithRetry<T>(
+  io: ChangeIO, change: (current: GenerateScript) => Change<T>, { stage = "generate" }: ChangeOptions = {}, attempts = 3,
+): Promise<ChangeOutcome<T>> {
   for (let i = 0; i < attempts; i++) {
     const current = await io.read();
     if (!current) return { error: "Script not found.", status: 404 };
-    if (current.stage !== "generate") return { error: "This script is final. Reopen it from Visualise to change it.", status: 409 };
+    if (current.stage !== stage) {
+      return stage === "generate"
+        ? { error: "This script is final. Reopen it from Visualise to change it.", status: 409 }
+        : { error: "The script has moved on from Visualise, so nothing was changed.", status: 409 };
+    }
     const decided = change(current);
     if ("error" in decided) return decided;
     if (decided.patch === null) return { script: current, result: decided.result };
-    const saved = await io.save(current.docVersion, withSettledGuesses(current, decided.patch, decided.replaces === true));
+    const saved = await io.save(current, withSettledGuesses(current, decided.patch, decided.replaces === true));
     if (saved) return { script: saved, result: decided.result };
   }
   return { error: "The script kept changing while saving. Try again.", status: 409 };
