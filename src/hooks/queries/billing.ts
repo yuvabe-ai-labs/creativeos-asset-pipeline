@@ -30,3 +30,12 @@ export function useCancelPlan() {
 export function useChangePlan() {
   return useMutation({ mutationFn: (priceId: string) => billingService.changePlan(priceId) });
 }
+
+// Top-ups (D522): one payment; the credits come with the order.paid webhook.
+export function useStartTopUp() {
+  return useMutation({ mutationFn: (priceId: string) => billingService.startTopUp(priceId) });
+}
+
+export function useConfirmTopUp() {
+  return useMutation({ mutationFn: (input: CheckoutResult) => billingService.confirmTopUp(input) });
+}

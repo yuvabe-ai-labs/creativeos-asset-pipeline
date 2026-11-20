@@ -1,13 +1,15 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-/** The order as started; credits are added only when its webhook arrives (D514). */
+/** The order as started; credits are added only when its webhook arrives (D514). A top-up (D522)
+ *  also keeps its price, plan, tax, total and the rate in force. */
 export async function insertCreatedPayment(row: {
   orgId: string;
   orderId: string;
   amountPaise: number;
   credits: number;
   createdBy: string;
+  topUp?: { priceId: string; subscriptionId: string; taxMinor: number; totalMinor: number; inrPerUsd: number | null };
 }): Promise<void> {
   const { error } = await createServerSupabase().from("billing_payments").insert({
     org_id: row.orgId,
@@ -16,6 +18,16 @@ export async function insertCreatedPayment(row: {
     credits: row.credits,
     status: "created",
     created_by: row.createdBy,
+    ...(row.topUp
+      ? {
+          kind: "topup",
+          price_id: row.topUp.priceId,
+          subscription_id: row.topUp.subscriptionId,
+          tax_minor: row.topUp.taxMinor,
+          total_minor: row.topUp.totalMinor,
+          inr_per_usd: row.topUp.inrPerUsd,
+        }
+      : {}),
   });
   if (error) throw error;
 }

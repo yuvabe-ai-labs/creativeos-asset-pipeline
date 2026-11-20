@@ -5,6 +5,7 @@ import { isBillingTestEnabled } from "@/lib/billing/test-mode";
 import { PAGE_CONTAINER } from "@/components/shared/page-header";
 import { TestTopUp } from "@/components/billing/test-top-up";
 import { TestPlans, type TestPlan } from "@/components/billing/test-plans";
+import { TestPacks, type TestPack } from "@/components/billing/test-packs";
 import { getCatalog } from "@/lib/db/billing-catalog";
 import { getLiveSubscription } from "@/lib/db/billing-subscriptions";
 
@@ -25,11 +26,21 @@ export default async function BillingTestPage() {
       const price = p.prices.find((pr) => pr.active && pr.interval_months === 1);
       return price ? [{ priceId: price.id, name: p.name, amountMinor: price.amount_minor, credits: price.credits }] : [];
     });
+  const packs: TestPack[] = catalog
+    .filter((p) => p.kind === "topup" && p.active)
+    .flatMap((p) => {
+      const price = p.prices.find((pr) => pr.active && pr.interval_months === null);
+      return price ? [{ priceId: price.id, name: p.name, amountMinor: price.amount_minor, credits: price.credits }] : [];
+    });
+  const planRunning =
+    !!subscription && (subscription.status === "active" || subscription.status === "cancelling") &&
+    !!subscription.currentPeriodEnd && new Date(subscription.currentPeriodEnd) > new Date();
   return (
     <main className={PAGE_CONTAINER}>
       <div className="mx-auto max-w-md space-y-6">
         <TestTopUp />
         <TestPlans plans={plans} subscription={subscription} />
+        <TestPacks packs={packs} planRunning={planRunning} />
       </div>
     </main>
   );

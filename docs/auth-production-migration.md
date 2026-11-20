@@ -1604,3 +1604,25 @@ drop function if exists set_subscription_status(text, text, timestamptz, timesta
 drop function if exists record_subscription_charge(text, text, text, text, bigint, timestamptz, timestamptz);
 notify pgrst, 'reload schema';
 ```
+
+## Migration 0072 — top-ups (D522, 2026-11-21)
+
+Apply after 0071, in any order with the code: it replaces `record_razorpay_payment` (same
+arguments). A test payment behaves exactly as before; a top-up payment (only made by the new code)
+writes a top-up grant.
+
+- A paid top-up writes a `topup` grant ending when the plan's paid month ends (or after the
+  price's `valid_days`); if the plan has no paid month left, the credits last 30 days.
+- Safe to apply: one replaced function, unchanged for every payment that exists today.
+
+**Verify after running:**
+
+```sql
+-- expect the new body: it mentions 'topup'
+select position('topup' in prosrc) > 0 from pg_proc where proname = 'record_razorpay_payment';
+```
+
+**Check after the release (test mode):** with an active plan on `/billing-test`, buy a top-up
+pack; after the webhook, Admin's Billing tab lists a Top-up grant ending with the plan month.
+
+**Rollback:** re-run the `record_razorpay_payment` definition from 0066.

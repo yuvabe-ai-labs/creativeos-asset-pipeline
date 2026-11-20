@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0071** (`supabase/migrations/0001_init.sql` … `0071_monthly_plans.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
+Generated from migrations up to **0072** (`supabase/migrations/0001_init.sql` … `0072_top_ups.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -436,7 +436,7 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `list_agency_people` | org_id → people rows (name, email, status, permissions, invited client, client_ids) | definer, service role | 0062 |
 | `find_user_by_email` | email → (user_id, org_id) | definer, service role | 0062 |
 | `take_invite_send` | org_id, limit → bool | definer, service role | 0063 |
-| `record_razorpay_payment` | order_id, payment_id → bool (locks the order, marks it paid, writes a negative `adjustment` once; false when missing or already paid) | definer, service role | 0066 |
+| `record_razorpay_payment` | order_id, payment_id → bool (locks the order, marks it paid once; a top-up writes a `topup` grant ending with the plan month, a test payment a negative `adjustment`; false when missing or already paid) | definer, service role | 0066, 0072 |
 | `reserve_credits_v2` | org_id, generation_id, amount → text (`ok`/`limit`/`used_up`/`free_ended`/`no_credits`/`payment_due`; managed: monthly limit; paying: refused while a plan payment is due (0071), else holds from grants, first-ending first) | definer, service role | 0067, 0071 |
 | `record_subscription_charge` | razorpay subscription, plan, payment, order, total, period start, end → bool (records the payment once, sets the paid period and the plan charged, writes the month's `plan` grant) | definer, service role | 0071 |
 | `set_subscription_status` | razorpay subscription, status, period start, end → bool | definer, service role | 0071 |
