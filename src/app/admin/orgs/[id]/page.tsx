@@ -15,6 +15,8 @@ import { countGenerationsForOrg, listGenerationsForOrgPage } from "@/lib/db/gene
 import { listImpersonationSessionPage } from "@/lib/db/impersonation-audit";
 import { listAgencyPeople, listOpenInvites } from "@/lib/db/people";
 import { listClientNames } from "@/lib/db/clients";
+import { listOpenGrants } from "@/lib/db/credit-grants";
+import { listBillingLog } from "@/lib/db/billing-admin";
 import { OrgDetailTabs } from "./org-detail-tabs";
 import { EnterImpersonationButton } from "./enter-impersonation-button";
 import { OrgCrumbs } from "./org-crumbs";
@@ -53,6 +55,8 @@ export default async function OrgDetailPage({
     breakdownByType,
     breakdownByModel,
     impersonationSessions,
+    grants,
+    billingLog,
   ] = await Promise.all([
     listAgencyPeople(id),
     listOpenInvites(id),
@@ -66,6 +70,8 @@ export default async function OrgDetailPage({
     getOrgCreditBreakdownByType(id, monthStart, monthEnd),
     getOrgCreditBreakdownByModel(id, monthStart, monthEnd),
     listImpersonationSessionPage(id, { page: 1, pageSize: 20 }),
+    listOpenGrants(id),
+    listBillingLog(id),
   ]);
 
   return (
@@ -103,6 +109,8 @@ export default async function OrgDetailPage({
         breakdownByType={breakdownByType}
         breakdownByModel={breakdownByModel}
         impersonationSessions={impersonationSessions}
+        grants={grants}
+        billingLog={billingLog}
       />
     </main>
   );

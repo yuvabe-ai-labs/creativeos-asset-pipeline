@@ -1,0 +1,27 @@
+import { Card } from "@/components/ui/card";
+import { describeBillingChange } from "@/lib/billing/log-text";
+import { formatRelativeTime } from "@/lib/format/relative-time";
+import type { BillingLogEntry } from "@/lib/db/billing-admin";
+
+// The last 50 billing changes Yuvabe made to this agency (spec §4).
+export function BillingLogCard({ entries }: { entries: BillingLogEntry[] }) {
+  return (
+    <Card className="flex flex-col gap-3 p-6 shadow-card">
+      <h2 className="text-eyebrow">Billing log</h2>
+      {entries.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No billing changes yet.</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-border">
+          {entries.map((e) => (
+            <li key={e.id} className="flex flex-col gap-0.5 py-3">
+              <span className="text-sm">{describeBillingChange(e)}</span>
+              <span className="text-xs text-muted-foreground">
+                {formatRelativeTime(e.createdAt)} · {e.actorName ?? "Yuvabe"}{e.reason ? ` · ${e.reason}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}

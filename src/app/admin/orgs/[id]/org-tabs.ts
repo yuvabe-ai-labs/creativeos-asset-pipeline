@@ -2,11 +2,12 @@ import type { Crumb } from "@/lib/people/nav";
 
 // The admin agency page's tabs, kept in the URL (?tab=) so a link can open one (Set permissions
 // opens People with ?person=). Anything else falls back to Overview.
-export const ORG_TABS = ["overview", "people", "clients", "generations", "support"] as const;
+export const ORG_TABS = ["overview", "billing", "people", "clients", "generations", "support"] as const;
 export type OrgTab = (typeof ORG_TABS)[number];
 
 export const ORG_TAB_LABEL: Record<OrgTab, string> = {
   overview: "Overview",
+  billing: "Billing",
   people: "People",
   clients: "Clients",
   generations: "Generations",

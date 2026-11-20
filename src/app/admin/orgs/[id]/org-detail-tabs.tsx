@@ -5,7 +5,6 @@ import { usePeople } from "@/hooks/queries/people";
 import { orgTabFrom, orgTabUrl } from "./org-tabs";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { CreditLimitEditor } from "./credit-limit-editor";
 import { GenerationsTable } from "@/components/admin/generations-table";
 import { UsageTrendChart } from "@/components/admin/usage-trend-chart";
 import { CreditBreakdownList } from "@/components/admin/credit-breakdown-list";
@@ -24,6 +23,9 @@ import type {
 } from "@/lib/db/organizations";
 import type { GenerationsPage } from "@/lib/db/generations";
 import type { ImpersonationSessionPage } from "@/lib/db/impersonation-audit";
+import type { OpenGrant } from "@/lib/billing/grants";
+import type { BillingLogEntry } from "@/lib/db/billing-admin";
+import { BillingTab } from "@/components/admin/billing/billing-tab";
 
 const triggerClass =
   "flex-none px-0 py-0 font-display text-xl font-semibold tracking-tight text-foreground/40 data-active:text-foreground";
@@ -62,6 +64,8 @@ export function OrgDetailTabs({
   breakdownByType,
   breakdownByModel,
   impersonationSessions,
+  grants,
+  billingLog,
 }: {
   org: OrgRow;
   people: AgencyPerson[];
@@ -76,6 +80,8 @@ export function OrgDetailTabs({
   breakdownByType: CreditBreakdownRow[];
   breakdownByModel: CreditBreakdownRow[];
   impersonationSessions: ImpersonationSessionPage;
+  grants: OpenGrant[];
+  billingLog: BillingLogEntry[];
 }) {
   // The tab and the focused person live in the URL (Set permissions in the Clients tab links to
   // ?tab=people&person=). Switching tabs pushes the URL with the History API, which Next keeps in
@@ -109,6 +115,9 @@ export function OrgDetailTabs({
         <TabsTrigger value="overview" className={triggerClass}>
           Overview
         </TabsTrigger>
+        <TabsTrigger value="billing" className={triggerClass}>
+          Billing
+        </TabsTrigger>
         <TabsTrigger value="people" className={triggerClass}>
           People
         </TabsTrigger>
@@ -123,18 +132,24 @@ export function OrgDetailTabs({
         </TabsTrigger>
       </TabsList>
 
-      {/* Overview: agency identity and the credit limit. The roster lives in People. */}
+      {/* Overview: agency identity. Billing and the credit limit live in Billing; the roster in People. */}
       <TabsContent value="overview" className="animate-rise flex flex-col gap-8">
         <Card className="grid grid-cols-2 gap-6 p-6 shadow-card sm:grid-cols-3">
           <StatTile label="People" value={String((team ?? { people }).people.length)} />
           <StatTile label="Total generations" value={String(generationCount)} />
           <StatTile label="Created" value={formatRelativeTime(org.created_at)} />
         </Card>
+      </TabsContent>
 
-        <Card className="p-6 shadow-card">
-          <h2 className="text-eyebrow mb-3">Monthly credit limit</h2>
-          <CreditLimitEditor orgId={org.id} initial={org.monthly_credit_limit} />
-        </Card>
+      <TabsContent value="billing" className="animate-rise">
+        <BillingTab
+          orgId={org.id}
+          mode={org.billing_mode}
+          planType={org.plan_type}
+          monthlyLimit={org.monthly_credit_limit}
+          grants={grants}
+          log={billingLog}
+        />
       </TabsContent>
 
       {/* People: the owner's Team page, with the owner's powers, plus Make owner and reset password. */}

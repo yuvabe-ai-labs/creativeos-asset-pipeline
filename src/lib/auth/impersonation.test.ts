@@ -21,6 +21,8 @@ const { cookieStore, logMock, getOrgByIdMock } = vi.hoisted(() => ({
       name: "Target Org",
       slug: "target-org",
       monthly_credit_limit: null,
+      billing_mode: "managed",
+      plan_type: "standard",
       created_at: new Date().toISOString(),
     }),
   ),
@@ -161,6 +163,8 @@ describe("startImpersonation", () => {
       name: "Other Org",
       slug: "other-org",
       monthly_credit_limit: null,
+      billing_mode: "managed",
+      plan_type: "standard",
       created_at: new Date().toISOString(),
     });
 

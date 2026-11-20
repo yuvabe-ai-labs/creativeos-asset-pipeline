@@ -6,6 +6,9 @@ export type OrgRow = {
   name: string;
   slug: string;
   monthly_credit_limit: number | null;
+  /** Migration 0067 (billing piece 1): managed by Yuvabe, or paying for a plan. */
+  billing_mode: "managed" | "plans";
+  plan_type: "standard" | "custom";
   created_at: string;
 };
 
@@ -33,6 +36,8 @@ export async function listOrgsWithClientCount(): Promise<OrgWithCount[]> {
     name: o.name,
     slug: o.slug,
     monthly_credit_limit: o.monthly_credit_limit,
+    billing_mode: o.billing_mode,
+    plan_type: o.plan_type,
     created_at: o.created_at,
     client_count: o.clients?.[0]?.count ?? 0,
     owner_status: owned.has(o.id) ? "owned" : invited.has(o.id) ? "invited" : "none",
