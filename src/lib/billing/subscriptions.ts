@@ -1,0 +1,85 @@
+import "server-only";
+import { getOrgById } from "@/lib/db/organizations";
+import {
+  getLiveSubscription,
+  getPurchasablePrice,
+  insertSubscription,
+  savePriceRazorpayPlan,
+  updateSubscription,
+  type PurchasablePrice,
+} from "@/lib/db/billing-subscriptions";
+import { cancelSubscription, changeSubscriptionPlan, createPlan, createSubscription, razorpayKeyId } from "./razorpay";
+import { withGst } from "./gst";
+
+// The owner's plan steps (spec 2026-11-21-monthly-plans-design.md). Each answers either what the
+// browser needs next, or a refusal in plain words. Credits only ever come from the webhook.
+
+export type StepResult<T> = { ok: true; value: T } | { ok: false; status: 400 | 404 | 409; error: string };
+
+const refuse = (status: 400 | 404 | 409, error: string) => ({ ok: false as const, status, error });
+
+/** Razorpay charges up to 120 months (10 years); the owner cancels long before. */
+const TOTAL_CHARGES = 120;
+
+function checkPlanPrice(price: PurchasablePrice | null, orgId: string): string | null {
+  if (!price || price.product.kind !== "plan" || price.intervalMonths !== 1) return "That plan isn't available.";
+  if (!price.active || !price.product.active) return "That plan isn't available.";
+  if (price.product.orgId !== null && price.product.orgId !== orgId) return "That plan isn't available.";
+  return null;
+}
+
+/** The Razorpay plan for a price, made on first use (one per price row; prices never change). */
+async function razorpayPlanFor(price: PurchasablePrice): Promise<string> {
+  if (price.razorpayPlanId) return price.razorpayPlanId;
+  const plan = await createPlan({
+    amountPaise: withGst(price.amountMinor),
+    name: price.product.name,
+    description: `${price.credits.toLocaleString("en-IN")} credits a month`,
+    notes: { price_id: price.id },
+  });
+  return savePriceRazorpayPlan(price.id, plan.id);
+}
+
+export async function startSubscription(orgId: string, priceId: string): Promise<StepResult<{ subscriptionId: string; keyId: string }>> {
+  const [org, price, live] = await Promise.all([getOrgById(orgId), getPurchasablePrice(priceId), getLiveSubscription(orgId)]);
+  if (!org) return refuse(404, "Agency not found.");
+  if (org.billing_mode !== "plans") return refuse(409, "Your agency's credits are looked after by Yuvabe.");
+  const unavailable = checkPlanPrice(price, orgId);
+  if (unavailable || !price) return refuse(400, unavailable ?? "That plan isn't available.");
+
+  if (live) {
+    if (live.status !== "created") return refuse(409, "You already have a plan. Change it from billing.");
+    // Checkout was closed before paying: drop that attempt and start again.
+    if (live.razorpaySubscriptionId) await cancelSubscription(live.razorpaySubscriptionId, false).catch((e) => console.warn("[billing] stale subscription not cancelled", e));
+    await updateSubscription(live.id, { status: "ended" });
+  }
+
+  const planId = await razorpayPlanFor(price);
+  const sub = await createSubscription({ planId, totalCount: TOTAL_CHARGES, notes: { org_id: orgId, price_id: price.id } });
+  await insertSubscription({ orgId, priceId: price.id, razorpaySubscriptionId: sub.id });
+  return { ok: true, value: { subscriptionId: sub.id, keyId: razorpayKeyId() } };
+}
+
+/** Stops the next charge; the plan works until the paid month ends. */
+export async function cancelPlan(orgId: string): Promise<StepResult<{ endsAt: string | null }>> {
+  const live = await getLiveSubscription(orgId);
+  if (!live || !live.razorpaySubscriptionId || live.status === "created") return refuse(404, "You don't have a plan to cancel.");
+  if (live.status === "cancelling") return { ok: true, value: { endsAt: live.currentPeriodEnd } };
+  await cancelSubscription(live.razorpaySubscriptionId, true);
+  await updateSubscription(live.id, { status: "cancelling", cancelAtPeriodEnd: true });
+  return { ok: true, value: { endsAt: live.currentPeriodEnd } };
+}
+
+/** Moves the plan to another price from the next payment. */
+export async function changePlan(orgId: string, priceId: string): Promise<StepResult<{ from: string | null }>> {
+  const [live, price] = await Promise.all([getLiveSubscription(orgId), getPurchasablePrice(priceId)]);
+  if (!live || !live.razorpaySubscriptionId || live.status === "created") return refuse(404, "You don't have a plan to change.");
+  if (live.status === "cancelling") return refuse(409, "Your plan is cancelled. Pick a plan again when it ends.");
+  const unavailable = checkPlanPrice(price, orgId);
+  if (unavailable || !price) return refuse(400, unavailable ?? "That plan isn't available.");
+  if (price.id === live.priceId) return refuse(409, "You're already on this plan.");
+  const planId = await razorpayPlanFor(price);
+  await changeSubscriptionPlan(live.razorpaySubscriptionId, planId);
+  await updateSubscription(live.id, { nextPriceId: price.id });
+  return { ok: true, value: { from: live.currentPeriodEnd } };
+}
