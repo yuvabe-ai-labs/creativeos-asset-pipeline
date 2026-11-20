@@ -254,4 +254,16 @@ describe("POST .../turn at Visualise", () => {
     expect(res.status).toBe(400);
     expect(insertScriptMessages).not.toHaveBeenCalled();
   });
+
+  // Final review, Important 3 — the copilot is told a picture came with the words.
+  it("tells the copilot about a picture sent with words, and saves the words as typed", async () => {
+    const withPicture = { ...doc, locations: [{ id: "cafe", name: "the café", description: "d", image: { url: "https://storage/cafe.png", name: "cafe.png" } as never }] };
+    vi.mocked(getGenerateScript).mockResolvedValue({ ...atVisualise, doc: withPicture });
+    vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "Lovely.", card: null }] }));
+    const { POST } = await import("./route");
+    await lines(await POST(send({ text: "here's the café", picture: { url: "https://storage/cafe.png", name: "cafe.png", target: "location:cafe" } }) as never, { params }));
+    expect(vi.mocked(prepareTurn).mock.calls[0][0].text).toBe(`[The person attached a picture, "cafe.png", to the café; it is already on the board.] here's the café`);
+    expect(vi.mocked(insertScriptMessages).mock.calls[0][3][0]).toMatchObject({ content: "here's the café" });
+  });
 });
+

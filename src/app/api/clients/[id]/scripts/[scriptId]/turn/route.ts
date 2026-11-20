@@ -84,7 +84,10 @@ export async function POST(req: Request, { params }: Ctx) {
               const ctx = await loadCopilotContext(client, { signals: script.doc === null });
               const apply = await prepareTurn(
                 {
-                  script, ctx, text, history, leadAvatarId, locked: scriptsLocked(client),
+                  script, ctx, history, leadAvatarId, locked: scriptsLocked(client),
+                  // Final review, Important 3 — a picture that came with the words is said, in code, so
+                  // the copilot never asks for a picture it was just given. The saved message is as typed.
+                  text: picture ? `[The person attached a picture, "${picture.name}", to ${pictured}; it is already on the board.] ${text}` : text,
                   ...(atVisualise ? { stage: "visualise" as const, board: stored ? boardFacts(stored.script, stored.board, Date.now()) : undefined } : {}),
                 },
                 {

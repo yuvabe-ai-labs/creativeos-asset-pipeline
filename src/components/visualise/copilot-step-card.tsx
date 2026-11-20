@@ -26,13 +26,18 @@ export function CopilotStepCard({ clientId, step, avatars, onAttach }: {
   /** Opens the composer's picture picker for this product or location (Task 8). */
   onAttach?: (target: string) => void;
 }) {
-  const { data, draws } = useVisualiseBoardActions();
+  const { data, draws, model } = useVisualiseBoardActions();
   const link = useLinkCast(clientId, data.script.id);
   const assets = useScriptAssets();
   const follow = useScriptFollow();
+  // The cast steps carry only a count: what can be drawn now is the board's own plan.
+  const plan = "plan" in step ? step.plan : model.plan;
   const draw = (label: string) => (
-    <GenerateAllDialog size="sm" label={label} plan={"plan" in step ? step.plan : { shotIds: [], credits: 0, redraw: false, waiting: 0 }} busy={draws.drawingAll} onConfirm={() => void draws.drawAll("plan" in step ? step.plan.shotIds : [])} />
+    <GenerateAllDialog size="sm" label={label} plan={plan} busy={draws.drawingAll} onConfirm={() => void draws.drawAll(plan.shotIds)} />
   );
+  // The board's rule (withCastAvatar): an avatar another character has is not offered.
+  const taken = new Set(data.script.doc.cast.filter((c) => c.avatarId && !(step.kind === "cast" && c.id === step.castId)).map((c) => c.avatarId));
+  const free = avatars.filter((a) => !taken.has(a.id));
 
   return (
     <div className="flex w-full flex-col gap-3 rounded-xl border border-border bg-background p-3 text-sm">
@@ -40,11 +45,11 @@ export function CopilotStepCard({ clientId, step, avatars, onAttach }: {
       {step.kind === "cast" && (
         <>
           <span className="font-medium">Who plays {step.name}?</span>
-          {avatars.length === 0 ? (
+          {free.length === 0 ? (
             <span className="text-muted-foreground">This client has no avatars ready yet. Make one from {step.name}'s slot on the board.</span>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {avatars.map((a) => (
+              {free.map((a) => (
                 <Button
                   key={a.id}
                   size="sm"

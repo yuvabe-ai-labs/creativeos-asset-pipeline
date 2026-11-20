@@ -3,7 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CopilotTarget } from "@/components/journey/copilot-target";
 import { addLanded, pruneLanded, type Landed, type TargetState } from "@/hooks/use-follow-copilot";
-import { visualiseStep } from "@/lib/scripts/copilot/visualise-walk";
+import { visualiseStep, type VisualiseStep } from "@/lib/scripts/copilot/visualise-walk";
+import type { ScriptStage } from "@/lib/scripts/constants";
 import { showOnBoard } from "./show-on-board";
 import { useVisualiseBoardActions } from "./visualise-board-context";
 
@@ -15,24 +16,32 @@ import { useVisualiseBoardActions } from "./visualise-board-context";
 type Follow = { stateOf: (target: string) => TargetState; land: (targets: string[]) => void };
 const FollowContext = createContext<Follow | null>(null);
 
-/** Pure: one target's marks. */
-export function targetState(target: string, asking: string | null, landed: Landed): TargetState {
-  const l = landed.get(target);
-  return { asking: target === asking, writing: false, landed: l?.n ?? null, version: l?.n ?? 0 };
+/** Pure: one target's marks. `versions` only grows, so a faded highlight never re-mounts the target
+ *  a second time (an edit begun just after a change is kept). */
+export function targetState(target: string, asking: string | null, landed: Landed, versions: ReadonlyMap<string, number>): TargetState {
+  return { asking: target === asking, writing: false, landed: landed.get(target)?.n ?? null, version: versions.get(target) ?? 0 };
+}
+
+/** Pure: what the walk asks about, only while the board is being made (never once it is with the client). */
+export function askingTarget(step: VisualiseStep, stage: ScriptStage): string | null {
+  if (stage !== "visualise") return null;
+  return step.kind === "cast" || step.kind === "finish_avatar" ? `cast:${step.castId}` : null;
 }
 
 /** Inside VisualiseBoardProvider: the walk's step names what is being asked about. */
 export function ScriptFollowProvider({ children }: { children: ReactNode }) {
   const { data, model } = useVisualiseBoardActions();
   const step = visualiseStep({ doc: data.script.doc, avatars: model.avatars, views: model.views, plan: model.plan });
-  const asking = step.kind === "cast" || step.kind === "finish_avatar" ? `cast:${step.castId}` : null;
+  const asking = askingTarget(step, data.script.stage);
   const [landed, setLanded] = useState<Landed>(() => new Map());
+  const [versions, setVersions] = useState<ReadonlyMap<string, number>>(() => new Map());
   const count = useRef(0);
 
   const land = useCallback((targets: string[]) => {
     if (targets.length === 0) return;
     const n = ++count.current;
     setLanded((m) => addLanded(m, targets.map((target) => ({ target, n })), Date.now()));
+    setVersions((v) => new Map([...v, ...targets.map((t) => [t, n] as const)]));
     showOnBoard(targets[0]);
   }, []);
   // One timer, for whichever landing fades next.
@@ -43,7 +52,7 @@ export function ScriptFollowProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [landed]);
 
-  const value = useMemo<Follow>(() => ({ stateOf: (t) => targetState(t, asking, landed), land }), [asking, landed, land]);
+  const value = useMemo<Follow>(() => ({ stateOf: (t) => targetState(t, asking, landed, versions), land }), [asking, landed, versions, land]);
   return <FollowContext.Provider value={value}>{children}</FollowContext.Provider>;
 }
 

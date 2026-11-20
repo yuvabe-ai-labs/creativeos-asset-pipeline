@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { GenerateAllPlan } from "@/lib/scripts/visualise/state";
 import { generateAllLabel } from "@/lib/scripts/visualise/state";
-import { makeScript } from "@/lib/scripts/visualise/__tests__/fixtures";
+import { HUSBAND_AVATAR, makeScript } from "@/lib/scripts/visualise/__tests__/fixtures";
 import { CopilotStepCard } from "../copilot-step-card";
 import { CopilotSendCard } from "../copilot-send-card";
 import { ScriptAssetsProvider } from "@/components/scripts/script-assets-context";
@@ -53,6 +53,22 @@ describe("CopilotStepCard", () => {
     const out = wrap(<CopilotStepCard clientId="c1" step={{ kind: "drawing", count: 6 }} avatars={[]} />);
     expect(out).toContain("Drawing 6 panels…");
     expect(out).not.toContain("<button");
+  });
+});
+
+// Final review, Important 1 and 4.
+describe("CopilotStepCard's cast step", () => {
+  it("offers the shots it can already draw as a working button", () => {
+    const out = wrap(<CopilotStepCard clientId="c1" step={{ kind: "cast", castId: "meenakshi", name: "Meenakshi", drawable: 4 }} avatars={avatars} />);
+    const button = out.match(/<button[^>]*>(?:(?!<\/button>).)*Draw the 4 panels I can draw now/s)?.[0] ?? "";
+    expect(button).not.toBe("");
+    expect(button).not.toMatch(/<button[^>]*\sdisabled=""/);
+  });
+  it("does not offer an avatar another character already has", () => {
+    const taken = [...avatars, { id: HUSBAND_AVATAR, name: "Ravi", story: "", front: null, specific: false }];
+    const out = wrap(<CopilotStepCard clientId="c1" step={{ kind: "cast", castId: "meenakshi", name: "Meenakshi", drawable: 0 }} avatars={taken} />);
+    expect(out).toContain("Priya");
+    expect(out).not.toContain("Ravi");
   });
 });
 

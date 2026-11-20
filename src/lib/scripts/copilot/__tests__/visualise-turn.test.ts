@@ -120,4 +120,26 @@ describe("the copilot's turn at Visualise", () => {
     if ("error" in accepted) throw new Error(accepted.error);
     expect(accepted.result.reply).toBe("Applied: Added a closing shot.");
   });
+
+  // Final review, Important 4 — the page's rule for casting holds for the copilot too.
+  it("refuses giving a character an avatar another character already has", async () => {
+    const cast = doc.cast.map((c) => ({ ...c, avatarId: c.id === "husband" ? "7a2d3c4e-0000-4000-8000-000000000009" : null }));
+    const script = { ...atVisualise, doc: { ...doc, cast } };
+    const m = fakeModel({ script_visualise_edit: [out({ ops: [op({ op: "link_avatar", cast: { castId: "meenakshi", name: "Meenakshi", description: "", avatarId: "7a2d3c4e-0000-4000-8000-000000000009" } })], reply: "Cast her." })] });
+    const apply = await prepareTurn({ script, ctx: { ...ctx, avatars: [{ id: "7a2d3c4e-0000-4000-8000-000000000009", name: "Priya", story: "", front: null, specific: false }] as never }, text: "Priya plays Meenakshi", history: [], stage: "visualise", board }, deps(m.call));
+    const r = apply(script);
+    if ("error" in r) throw new Error(r.error);
+    expect(r.patch).toBeNull();
+    expect(r.result[0].content).toBe("Meenakshi's husband already has this avatar in this script.");
+  });
+
+  // Final review, re-graded Important — a card left pending from Generate cannot change the notes at Visualise.
+  it("does not apply an old card's notes change when it is accepted at Visualise", () => {
+    const card = { kind: "proposal" as const, status: "pending" as const, summary: "Confirmed it.", before: [], after: [], ops: [op({ op: "confirm_item", itemId: "g1" })] };
+    const r = acceptProposal(atVisualise, card, { newShotId: () => "n", avatarIds: new Set() });
+    if ("error" in r) throw new Error(r.error);
+    expect(r.patch).toBeNull();
+    expect(r.result).toEqual({ card: { ...card, status: "stale" }, reply: VISUALISE_REFUSALS.notes });
+  });
 });
+

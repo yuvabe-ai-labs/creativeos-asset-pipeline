@@ -237,6 +237,16 @@ async function prepareEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, 
 
 const REOPEN_OFFER: OfferCard = { kind: "offer", action: "reopen" };
 
+/** The character who already had an avatar that the edit also gave someone else, or null. */
+function sharedAvatar(before: ScriptDoc, after: ScriptDoc): string | null {
+  for (const c of after.cast) {
+    if (!c.avatarId || before.cast.find((b) => b.id === c.id)?.avatarId === c.avatarId) continue;
+    const other = after.cast.find((o) => o.id !== c.id && o.avatarId === c.avatarId);
+    if (other) return other.name;
+  }
+  return null;
+}
+
 /** The shots a card shows: the ones the edit touches, and for a character's change, every shot that
  *  character is in, since their name and description are drawn there. */
 function shownShots(ops: EditOp[], doc: ScriptDoc, touched: string[]): string[] {
@@ -278,6 +288,9 @@ async function prepareVisualiseEdit(input: TurnInput, deps: TurnDeps, base: Copi
     }
     const r = applyOps(current.doc, current.notes, out.ops, gen);
     if (!r.ok) return { patch: null, result: answer(`I couldn't make that change: ${r.error} Nothing was changed.`, null, false) };
+    // Final review, Important 4 — the board's rule for casting (withCastAvatar): one avatar, one character.
+    const twice = sharedAvatar(current.doc, r.doc);
+    if (twice) return { patch: null, result: answer(`${twice} already has this avatar in this script.`, null, false) };
     if (routeVisualiseOps(out.ops, r.touchedShotIds).kind === "card") {
       const shown = shownShots(out.ops, current.doc, r.touchedShotIds);
       const card: ProposalCard = { kind: "proposal", status: "pending", summary: reply, ops: out.ops, ...beforeAfter(current.doc, r.doc, shown) };
@@ -290,6 +303,10 @@ async function prepareVisualiseEdit(input: TurnInput, deps: TurnDeps, base: Copi
 export function acceptProposal(current: GenerateScript, card: ProposalCard, gen: OpsGen): Change<{ card: ProposalCard; reply: string }> {
   if (card.status !== "pending") return { error: "That change was already settled.", status: 409 };
   if (!current.doc) return { error: "There's no draft to change.", status: 409 };
+  // A card left pending from Generate keeps the Visualise rules: the notes stay behind a reopen.
+  if (current.stage === "visualise" && routeVisualiseOps(card.ops, []).kind === "refuse") {
+    return { patch: null, result: { card: { ...card, status: "stale" }, reply: VISUALISE_REFUSALS.notes } };
+  }
   // card.before is the shots as they were when proposed: a shot changed since then is not overwritten.
   const stale = staleTargets(card.ops, card.before, current.doc);
   if (stale.length > 0) {
