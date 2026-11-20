@@ -9,7 +9,7 @@ import { BillingChangeDialog } from "./billing-change-dialog";
 
 const WHAT_HAPPENS: Record<BillingMode, string> = {
   managed: "Their credits stop counting and the monthly credit limit applies. The agency is never charged.",
-  plans: "AI runs need credits from now: free credits, or a plan once plans are on.",
+  plans: "From now on, AI runs use credits: free credits Yuvabe gives, or a plan the owner buys. With none, runs stop.",
 };
 
 const SUMMARY: Record<BillingMode, string> = {

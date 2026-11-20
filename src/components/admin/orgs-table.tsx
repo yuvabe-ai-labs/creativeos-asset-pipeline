@@ -67,8 +67,14 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
                   <span className="flex-1 text-sm text-muted-foreground">
                     {org.client_count} client{org.client_count === 1 ? "" : "s"}
                   </span>
-                  <span className="flex-1 text-sm text-muted-foreground">
-                    {org.billing_mode === "plans" ? "Pays for a plan" : org.monthly_credit_limit === null ? "Managed · Unlimited" : `Managed · ${Number(org.monthly_credit_limit).toLocaleString("en-IN")}`}
+                  {/* Billing on top, its limit underneath: the same two-line shape as the agency column. */}
+                  <span className="flex flex-1 flex-col">
+                    <span className="text-sm text-muted-foreground">{org.billing_mode === "plans" ? "Pays for a plan" : "Managed"}</span>
+                    {org.billing_mode === "managed" && (
+                      <span className="text-xs whitespace-nowrap text-muted-foreground/70">
+                        {org.monthly_credit_limit === null ? "Unlimited" : `${Number(org.monthly_credit_limit).toLocaleString("en-IN")} a month`}
+                      </span>
+                    )}
                   </span>
                   <span className="flex-1 text-right text-sm text-muted-foreground">{formatRelativeTime(org.created_at)}</span>
                 </Link>
