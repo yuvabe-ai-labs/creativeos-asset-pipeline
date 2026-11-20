@@ -17,7 +17,7 @@ import { CopilotThinking } from "./copilot-thinking";
 /** The script's copilot panel, kept with the script and shown at every stage (scripting-panel spec
  *  §3.2), in the same shell as the client's panel. At Generate it is the live chat; after it, the
  *  saved thread read-only (`live: null`), folded until opened, with what the script is waiting on. */
-export function CopilotChat({ client, scriptId, stage, messages, avatars, waiting, live, footer }: {
+export function CopilotChat({ client, scriptId, stage, messages, avatars, waiting, live, footer, renderComposer }: {
   client: { name: string; slug: string };
   scriptId: string;
   stage: ScriptStage;
@@ -28,6 +28,8 @@ export function CopilotChat({ client, scriptId, stage, messages, avatars, waitin
   live: { actions: ChatActions; suggestions: Suggestion[] } | null;
   /** Piece 5.1 — at Visualise, the walk's current step under the thread. Hidden while answering. */
   footer?: ReactNode;
+  /** Piece 5.1 — at Visualise, the message box that also takes a picture. */
+  renderComposer?: (box: { busy: boolean; text: string; onTextChange: (text: string) => void }) => ReactNode;
 }) {
   const generate = stage === "generate";
   // Piece 5.1 — the copilot leads at Visualise, so it starts open there; In review and Approved
@@ -76,7 +78,9 @@ export function CopilotChat({ client, scriptId, stage, messages, avatars, waitin
           <p className="text-sm">{foot.line}</p>
         </div>
       )}
-      {live && <CopilotComposer busy={busy} text={text} onTextChange={setText} onSend={live.actions.send} />}
+      {live && (renderComposer
+        ? renderComposer({ busy, text, onTextChange: setText })
+        : <CopilotComposer busy={busy} text={text} onTextChange={setText} onSend={live.actions.send} />)}
     </JourneyPanelShell>
   );
 }

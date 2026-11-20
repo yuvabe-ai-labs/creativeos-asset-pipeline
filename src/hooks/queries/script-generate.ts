@@ -42,13 +42,16 @@ export function useSendTurn(clientId: string, scriptId: string, onDraft?: (draft
   const key = scriptKeys.generate(clientId, scriptId);
   return useMutation({
     mutationFn: (message: TurnMessage) => scriptGenerateService.turn(clientId, scriptId, message, onDraft),
-    onMutate: async ({ text }) => {
+    onMutate: async ({ text, picture }) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<GenerateState>(key);
       if (previous) {
         queryClient.setQueryData<GenerateState>(key, {
           ...previous,
-          messages: [...previous.messages, { id: `pending-${Date.now()}`, role: "user", content: text, card: null, suggestions: [], createdAt: new Date().toISOString() }],
+          messages: [...previous.messages, {
+            id: `pending-${Date.now()}`, role: "user", content: text, card: picture ? { kind: "picture", ...picture } : null,
+            suggestions: [], createdAt: new Date().toISOString(),
+          }],
         });
       }
       return { previous };

@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { toast } from "sonner";
+import { CopilotPictureComposer } from "./copilot-picture-composer";
 import { CopilotChat } from "@/components/scripts/generate/copilot-chat";
 import type { ChatActions } from "@/components/scripts/generate/copilot-chat-message";
 import { useGenerateState, useResolveProposal, useSendTurn } from "@/hooks/queries/script-generate";
@@ -31,6 +33,8 @@ export function VisualiseCopilot({ client, initialState, initialReview }: {
   const proposal = useResolveProposal(client.id, scriptId);
   const link = useLinkCast(client.id, scriptId);
   const fail = (e: Error) => toast.error(e.message);
+  // The step card's "Attach a picture" on an item opens the composer's picker for that item.
+  const [attach, setAttach] = useState<{ target: string; n: number } | null>(null);
   // Seeded from the page, shared with the board's review actions: no request of its own.
   const latest = useTeamScriptReview(client.id, initialState.script.id, initialReview).data?.latest ?? null;
 
@@ -51,7 +55,7 @@ export function VisualiseCopilot({ client, initialState, initialReview }: {
   const step = visualiseStep(walk);
   const footer = !live ? null : step.kind === "send"
     ? <CopilotSendCard clientId={client.id} script={board.script} latest={latest} missing={sendMissing({ ...walk, pendingCard })} />
-    : <CopilotStepCard clientId={client.id} step={step} avatars={state.avatars} />;
+    : <CopilotStepCard clientId={client.id} step={step} avatars={state.avatars} onAttach={(target) => setAttach((a) => ({ target, n: (a?.n ?? 0) + 1 }))} />;
   const waiting = live ? scriptWaiting({ stage: "visualise", step, pendingCard, busy }) : scriptWaiting({ stage: "in_review" });
 
   return (
@@ -64,6 +68,16 @@ export function VisualiseCopilot({ client, initialState, initialReview }: {
       waiting={waiting}
       live={live ? { actions, suggestions: suggestionsFor(state) } : null}
       footer={footer}
+      renderComposer={(box) => (
+        <CopilotPictureComposer
+          {...box}
+          clientId={client.id}
+          scriptId={scriptId}
+          doc={board.script.doc}
+          request={attach}
+          onSend={(message) => turn.mutate(message, { onError: fail })}
+        />
+      )}
     />
   );
 }

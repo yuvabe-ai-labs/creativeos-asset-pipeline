@@ -46,6 +46,12 @@ export function CopilotChatMessage({ message, actions, avatars }: { message: Scr
       {card?.kind === "confirmation" && <CopilotConfirmationCard card={card.card} avatars={avatars} disabled={busy} onWrite={actions ? () => actions.send("Write it.") : undefined} />}
       {card?.kind === "proposal" && <CopilotProposalCard card={card} disabled={busy} onResolve={actions ? (d) => actions.resolve(message.id, d) : undefined} />}
       {card?.kind === "import" && <CopilotImportCard card={card} disabled={busy} onResolve={actions ? (d) => actions.resolve(message.id, d) : undefined} />}
+      {card?.kind === "picture" && (
+        <figure className="flex flex-col items-end gap-1">
+          <img src={card.url} alt="" className="max-h-40 rounded-lg border border-border object-cover" />
+          <figcaption className="text-xs text-muted-foreground">{card.name}</figcaption>
+        </figure>
+      )}
       {card?.kind === "offer" && (actions?.renderOffer
         ? actions.renderOffer(card)
         : <span className="text-xs text-muted-foreground">{OFFERED[card.action]}</span>)}

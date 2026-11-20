@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { pictureUrl, targetName } from "@/lib/scripts/copilot/picture-target";
 import { apiError, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { resolveCallerContext } from "@/lib/dal";
 import {
@@ -16,6 +18,8 @@ import { isUuid } from "@/lib/avatars/utils";
 import { mightBeScript } from "@/lib/scripts/copilot/import";
 import { SCRIPTS_LOCKED_MESSAGE, scriptsLocked } from "@/lib/journey/stages";
 
+const PictureBody = z.object({ url: z.string().min(1).max(2000), name: z.string().min(1).max(200), target: z.string().regex(/^(product|location):.+$/) });
+
 // A first draft is one long structured call; give it room (as the avatar generation routes do).
 export const maxDuration = 300;
 
@@ -30,11 +34,13 @@ export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
   return withClient(req, params, async (clientId, client) =>
     withTryCatch("The copilot could not answer.", async () => {
-      const body = (await req.json().catch(() => null)) as { text?: unknown; leadAvatarId?: unknown } | null;
+      const body = (await req.json().catch(() => null)) as { text?: unknown; leadAvatarId?: unknown; picture?: unknown } | null;
       const text = typeof body?.text === "string" ? body.text.trim() : "";
       // A lead chip's avatar (D362); the turn links it only if it is one of this client's.
       const leadAvatarId = typeof body?.leadAvatarId === "string" && isUuid(body.leadAvatarId) ? body.leadAvatarId : null;
-      if (!text) return apiError("Write a message first.", 400);
+      // Piece 5.1 §3.7 — a picture the browser already put on its product or location.
+      const picture = PictureBody.safeParse(body?.picture).success ? PictureBody.parse(body?.picture) : null;
+      if (!text && !picture) return apiError("Write a message first.", 400);
       if (text.length > MAX_PASTE_CHARS) return apiError(`Keep a message under ${MAX_PASTE_CHARS.toLocaleString("en")} characters.`, 400);
 
       const script = await getGenerateScript(clientId, scriptId);
@@ -42,6 +48,11 @@ export async function POST(req: Request, { params }: Ctx) {
       // Piece 5.1 (D512): the copilot also answers at Visualise. In review and Approved stay read-only.
       if (script.stage !== "generate" && script.stage !== "visualise") return apiError("This script is final. Reopen it from Visualise to change it.", 409);
       const atVisualise = script.stage === "visualise";
+      // Rule 14: the picture must be one this script holds, on the item it names.
+      const pictured = picture && atVisualise && script.doc ? targetName(script.doc, picture.target) : null;
+      if (picture && (!pictured || !script.doc || pictureUrl(script.doc, picture.target) !== picture.url)) {
+        return apiError("That picture isn't on this script.", 400);
+      }
       // Copilot journey spec §5.3: a new script waits for approved market research. A pasted script
       // does not, and a script already written is never stranded. Refused before anything is saved.
       if (scriptsLocked(client) && script.doc === null && !mightBeScript(text)) {
@@ -49,12 +60,17 @@ export async function POST(req: Request, { params }: Ctx) {
       }
 
       const { userId } = await resolveCallerContext();
+      // A picture with no words is answered by code: nothing for the model to read (piece 5.1 §3.7).
+      const pictureOnly = Boolean(picture && !text);
       // At Visualise the copilot is told the storyboard as it stands; read beside the history (rule 5).
       const [history, stored] = await Promise.all([
-        listScriptMessages(clientId, scriptId),
-        atVisualise ? getScript(clientId, scriptId).then(async (s) => (s ? { script: s, board: await loadVisualiseBoard(clientId, s) } : null)) : null,
+        pictureOnly ? [] : listScriptMessages(clientId, scriptId),
+        atVisualise && !pictureOnly
+          ? getScript(clientId, scriptId).then(async (s) => (s ? { script: s, board: await loadVisualiseBoard(clientId, s) } : null))
+          : null,
       ]);
-      await insertScriptMessages(clientId, scriptId, userId, [{ role: "user", content: text, card: null }]);
+      const pictureCard = picture ? { kind: "picture" as const, ...picture } : null;
+      await insertScriptMessages(clientId, scriptId, userId, [{ role: "user", content: text, card: pictureCard }]);
 
       const encoder = new TextEncoder();
       const stream = new ReadableStream<Uint8Array>({
@@ -62,7 +78,8 @@ export async function POST(req: Request, { params }: Ctx) {
           const emit = (line: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
           try {
             let replies: Reply[];
-            try {
+            if (pictureOnly) replies = [{ content: `Added it to ${pictured}.`, card: null }];
+            else try {
               // Signals feed the brief (suggestions, angles) only: an edit after the draft never reads them.
               const ctx = await loadCopilotContext(client, { signals: script.doc === null });
               const apply = await prepareTurn(

@@ -15,7 +15,11 @@ const send = (url: string, method: string, body?: unknown) =>
   });
 
 /** One chat message; `leadAvatarId` when a lead chip sent it (D362). */
-export type TurnMessage = { text: string; leadAvatarId?: string };
+export type TurnMessage = {
+  text: string; leadAvatarId?: string;
+  /** Piece 5.1 — a picture already put on its product or location, at Visualise. */
+  picture?: { url: string; name: string; target: string };
+};
 
 class ScriptGenerateService {
   async create(clientId: string): Promise<string> {

@@ -233,4 +233,25 @@ describe("POST .../turn at Visualise", () => {
     expect(vi.mocked(setPanelPick).mock.calls).toEqual([[SCRIPT_ID, "s01", "a1"]]);
     expect(vi.mocked(insertScriptMessages).mock.calls[1][3]).toEqual([{ role: "assistant", content: "Picked.", card: null }]);
   });
+
+  it("records a picture with its target and answers without the model", async () => {
+    const withPicture = { ...doc, locations: [{ id: "cafe", name: "the café", description: "d", image: { url: "https://storage/cafe.png", name: "cafe.png" } as never }] };
+    vi.mocked(getGenerateScript).mockResolvedValue({ ...atVisualise, doc: withPicture });
+    const { POST } = await import("./route");
+    const res = await POST(send({ text: "", picture: { url: "https://storage/cafe.png", name: "cafe.png", target: "location:cafe" } }) as never, { params });
+    expect(res.status).toBe(200);
+    await lines(res);
+    expect(vi.mocked(insertScriptMessages).mock.calls[0][3]).toEqual([
+      { role: "user", content: "", card: { kind: "picture", url: "https://storage/cafe.png", name: "cafe.png", target: "location:cafe" } },
+    ]);
+    expect(vi.mocked(insertScriptMessages).mock.calls[1][3]).toEqual([{ role: "assistant", content: "Added it to the café.", card: null }]);
+    expect(prepareTurn).not.toHaveBeenCalled();
+  });
+
+  it("refuses a picture that is not on the script", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(send({ text: "", picture: { url: "https://elsewhere/x.png", name: "x.png", target: "location:cafe" } }) as never, { params });
+    expect(res.status).toBe(400);
+    expect(insertScriptMessages).not.toHaveBeenCalled();
+  });
 });
