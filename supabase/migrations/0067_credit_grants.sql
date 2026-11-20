@@ -293,6 +293,144 @@ as $$
    order by g.ends_at, g.created_at;
 $$;
 
+-- Yuvabe's billing changes from Admin (piece 2, spec 2026-11-20-admin-agency-billing-design.md).
+-- Each locks the agency, makes the change and writes its billing_log row in one transaction.
+
+create or replace function admin_set_billing_mode(
+  p_org_id uuid,
+  p_mode text,
+  p_actor uuid,
+  p_reason text
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_old text;
+begin
+  select billing_mode into v_old from organizations where id = p_org_id for update;
+  if not found or v_old = p_mode then
+    return false;
+  end if;
+
+  update organizations set billing_mode = p_mode where id = p_org_id;
+
+  insert into billing_log (org_id, actor_id, action, before, after, reason)
+  values (p_org_id, p_actor, 'billing_mode',
+          jsonb_build_object('billing_mode', v_old), jsonb_build_object('billing_mode', p_mode), p_reason);
+  return true;
+end;
+$$;
+
+-- Free credits or credits Yuvabe adds. Plan and top-up grants come only from payments.
+create or replace function admin_grant_credits(
+  p_org_id uuid,
+  p_kind text,
+  p_credits numeric,
+  p_ends_at timestamptz,
+  p_actor uuid,
+  p_reason text
+) returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  if p_kind not in ('free', 'admin') then
+    raise exception 'admin_grant_credits: kind % is not allowed', p_kind;
+  end if;
+
+  perform 1 from organizations where id = p_org_id for update;
+  if not found then
+    return null;
+  end if;
+
+  insert into credit_grants (org_id, kind, credits, ends_at, created_by, reason)
+  values (p_org_id, p_kind, p_credits, p_ends_at, p_actor, p_reason)
+  returning id into v_id;
+
+  insert into billing_log (org_id, actor_id, action, before, after, reason)
+  values (p_org_id, p_actor, 'grant', null,
+          jsonb_build_object('grant_id', v_id, 'kind', p_kind, 'credits', p_credits, 'ends_at', p_ends_at), p_reason);
+  return v_id;
+end;
+$$;
+
+-- Take back unused credits from one grant: never more than is left on it.
+create or replace function admin_take_back_credits(
+  p_grant_id uuid,
+  p_credits numeric,
+  p_actor uuid,
+  p_reason text
+) returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_org uuid;
+  v_grant credit_grants%rowtype;
+begin
+  select org_id into v_org from credit_grants where id = p_grant_id;
+  if not found then
+    return 'not_found';
+  end if;
+  perform 1 from organizations where id = v_org for update;
+
+  select * into v_grant from credit_grants where id = p_grant_id for update;
+  if p_credits <= 0 or p_credits > greatest(v_grant.credits - v_grant.used, 0) then
+    return 'too_many';
+  end if;
+
+  update credit_grants set credits = credits - p_credits where id = p_grant_id;
+
+  insert into billing_log (org_id, actor_id, action, before, after, reason)
+  values (v_org, p_actor, 'take_back',
+          jsonb_build_object('grant_id', p_grant_id, 'kind', v_grant.kind, 'credits', v_grant.credits),
+          jsonb_build_object('grant_id', p_grant_id, 'kind', v_grant.kind, 'credits', v_grant.credits - p_credits),
+          p_reason);
+  return 'ok';
+end;
+$$;
+
+-- Move a grant's end date, or end it now (p_ends_at = now()).
+create or replace function admin_set_grant_end(
+  p_grant_id uuid,
+  p_ends_at timestamptz,
+  p_actor uuid,
+  p_reason text
+) returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_org uuid;
+  v_grant credit_grants%rowtype;
+  v_end timestamptz;
+begin
+  select org_id into v_org from credit_grants where id = p_grant_id;
+  if not found then
+    return 'not_found';
+  end if;
+  perform 1 from organizations where id = v_org for update;
+
+  select * into v_grant from credit_grants where id = p_grant_id for update;
+  v_end := greatest(p_ends_at, v_grant.starts_at + interval '1 second');
+  update credit_grants set ends_at = v_end where id = p_grant_id;
+
+  insert into billing_log (org_id, actor_id, action, before, after, reason)
+  values (v_org, p_actor, 'grant_end',
+          jsonb_build_object('grant_id', p_grant_id, 'kind', v_grant.kind, 'ends_at', v_grant.ends_at),
+          jsonb_build_object('grant_id', p_grant_id, 'kind', v_grant.kind, 'ends_at', v_end),
+          p_reason);
+  return 'ok';
+end;
+$$;
+
 revoke all on function reserve_credits_v2(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function reserve_credits_v2(uuid, uuid, numeric) to service_role;
 revoke all on function settle_credits(uuid, uuid, numeric) from public, anon, authenticated;
@@ -301,5 +439,14 @@ revoke all on function refund_credits(uuid, uuid) from public, anon, authenticat
 grant execute on function refund_credits(uuid, uuid) to service_role;
 revoke all on function credit_balance(uuid) from public, anon, authenticated;
 grant execute on function credit_balance(uuid) to service_role;
+
+revoke all on function admin_set_billing_mode(uuid, text, uuid, text) from public, anon, authenticated;
+grant execute on function admin_set_billing_mode(uuid, text, uuid, text) to service_role;
+revoke all on function admin_grant_credits(uuid, text, numeric, timestamptz, uuid, text) from public, anon, authenticated;
+grant execute on function admin_grant_credits(uuid, text, numeric, timestamptz, uuid, text) to service_role;
+revoke all on function admin_take_back_credits(uuid, numeric, uuid, text) from public, anon, authenticated;
+grant execute on function admin_take_back_credits(uuid, numeric, uuid, text) to service_role;
+revoke all on function admin_set_grant_end(uuid, timestamptz, uuid, text) from public, anon, authenticated;
+grant execute on function admin_set_grant_end(uuid, timestamptz, uuid, text) to service_role;
 
 notify pgrst, 'reload schema';

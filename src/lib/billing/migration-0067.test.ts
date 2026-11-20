@@ -10,7 +10,8 @@ const fn = (name: string) => {
   expect(start, name).toBeGreaterThan(-1);
   return SQL.slice(start, SQL.indexOf("$$;", start));
 };
-const FUNCTIONS = ["reserve_credits_v2", "settle_credits", "refund_credits", "credit_balance"];
+const ADMIN = ["admin_set_billing_mode", "admin_grant_credits", "admin_take_back_credits", "admin_set_grant_end"];
+const FUNCTIONS = ["reserve_credits_v2", "settle_credits", "refund_credits", "credit_balance", ...ADMIN];
 
 describe("migration 0067", () => {
   it("keeps every existing agency managed and standard", () => {
@@ -72,6 +73,28 @@ describe("migration 0067", () => {
       expect(SQL, name).toMatch(new RegExp(`revoke all on function ${name}\\([^)]*\\) from public, anon, authenticated;`));
       expect(SQL, name).toMatch(new RegExp(`grant execute on function ${name}\\([^)]*\\) to service_role;`));
     }
+  });
+
+  it("logs each admin change in the same transaction, after locking the agency", () => {
+    for (const name of ADMIN) {
+      const body = fn(name);
+      expect(body, name).toMatch(/from organizations where id = (p_org_id|v_org) for update/);
+      expect(body, name).toContain("insert into billing_log (org_id, actor_id, action, before, after, reason)");
+    }
+  });
+
+  it("lets Admin write only free or added credits", () => {
+    expect(fn("admin_grant_credits")).toContain("if p_kind not in ('free', 'admin') then");
+  });
+
+  it("never takes back more than is left", () => {
+    const body = fn("admin_take_back_credits");
+    expect(body).toContain("p_credits > greatest(v_grant.credits - v_grant.used, 0)");
+    expect(body).toContain("return 'too_many';");
+  });
+
+  it("keeps a moved end date after the grant starts", () => {
+    expect(fn("admin_set_grant_end")).toContain("greatest(p_ends_at, v_grant.starts_at + interval '1 second')");
   });
 
   it("leaves the old reserve_credits in place for the release in between", () => {
