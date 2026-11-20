@@ -2,7 +2,7 @@
 
 **For:** whoever runs manual QA on the copilot journey before it is merged.
 **Build:** branch `feat/copilot-journey`. Kept up to date while the branch is built; the last section is the newest work.
-**Last updated:** 2026-11-19.
+**Last updated:** 2026-11-20 (section 10 added; rows 9.5–9.7, 9.10 and 9.11 corrected for 5.1).
 
 ## Before you start
 
@@ -174,13 +174,13 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 9.2 | *(market research not approved)* Open the Scripts tab, then Avatars and Brand assets. | The guide says scripts are locked and offers "Paste a script" beside "Go to market research", on all three tabs. |
 | 9.3 | Inside a script at Generate, press "‹ {client}" in the panel header. | You land on the client's Scripts tab. |
 | 9.4 | At Generate, watch the folded rail through a script: answering questions, a change card, open items, nothing open. Then send a message and watch it while the copilot answers. | It reads "answer the copilot", "review the change", "settle the open items", "mark the script final" in turn; while answering, "Copilot". |
-| 9.5 | Mark a script final. | On Visualise the panel is there, folded, the rail reading "Waiting for you: finish the storyboard and send it for review". Unfolded: the whole conversation, no message box, no suggestions, "Visualise" and the line at the foot. |
-| 9.6 | On that Visualise page, look at the cards in the thread (angles, confirmation, a proposal left pending). | No buttons on any of them. A decided proposal still says "Applied" or "Not applied". |
-| 9.7 | Unfold at Visualise, send for review, then approve. | It stays unfolded In review ("Waiting for the client's review") and Approved ("Waiting for you: create the canvas"; nothing once the canvas exists). |
+| 9.5 | Mark a script final. | *(Changed by 5.1, see section 10.)* On Visualise the panel is there and **open**, with the whole conversation and a message box. Section 10 covers what it does there. |
+| 9.6 | On that Visualise page, look at the old Generate cards in the thread (angles, confirmation, a proposal left pending). | No buttons on them: they belong to Generate. A decided proposal still says "Applied" or "Not applied". |
+| 9.7 | Leave the panel open at Visualise, send for review, then approve. | It stays open In review ("Waiting for the client's review") and Approved ("Waiting for you: create the canvas"; nothing once the canvas exists), with no message box at either. (Visualise, In review and Approved share one fold choice; if you never touch it, In review and Approved start folded, as in 10.16.) |
 | 9.8 | Open an approved script with no review (the plain read-only view). | The panel is there, folded; the script keeps its usual width beside it. |
 | 9.9 | Reopen a script from Visualise. | Back at Generate the message box is back, the fold is whatever you chose at Generate, and a still-pending proposal has its buttons again. |
-| 9.10 | Make the window narrower than the panel's breakpoint at each stage. | At Generate the chat stacks above the script as before. At the later stages no panel; the storyboard has the page. |
-| 9.11 | At Visualise, open DevTools → Network and reload. | No request for the script's copilot thread from the browser. |
+| 9.10 | Make the window narrower than the panel's breakpoint at each stage. | At Generate and Visualise the chat stacks above the page. In review and Approved: no panel; the storyboard has the page. |
+| 9.11 | At Visualise, open DevTools → Network and reload. Then send one message. | No request for the script's copilot thread on load (the page brings it). Sending makes one `/turn` request, then the board is read again once. |
 
 ## 10. The copilot at Visualise (D512–D515)
 
