@@ -1,81 +1,91 @@
 # Billing phase 1: agency onboarding to credit management
 
-**Date:** 2026-11-19 · **Status:** draft, the journey is to be confirmed with Cyril (prototype:
-`OneDrive/Documents/CreativeOS/Credits/shared/2026-11-19-billing-journey-prototype-v3.html`; the decisions in `Credits/2026-11-19-phase-1-notes.md`)
-· **Builds on:** the plan agreed with Anupama (`Credits/shared/2026-11-18-credits-full-plan.html`),
-the Razorpay architecture page, and the test top-up (D514, `2026-11-19-razorpay-test-top-up-design.md`).
+**Date:** 2026-11-19, revised 2026-11-20 after the call with Anupama · **Status:** journey agreed;
+the questions at the end go to Cyril · **Prototype:**
+`OneDrive/Documents/CreativeOS/Credits/shared/2026-11-20-billing-journey-prototype-v4.html`, the
+plan page `Credits/shared/2026-11-20-credits-plan-v2.html`, the notes
+`Credits/2026-11-19-phase-1-notes.md` · **Builds on:** the test top-up (D514,
+`2026-11-19-razorpay-test-top-up-design.md`).
 
 This is the map for phase 1. Each piece below gets its own spec, plan and build, in the order given.
 
 ## What phase 1 makes possible
 
-An agency is onboarded by Yuvabe, its owner picks a plan and pays by card, UPI or UPI Autopay,
-the plan renews monthly, the owner can top up and see billing, a failed payment pauses AI runs,
-and Yuvabe sees every agency's billing and can add credits.
+Yuvabe adds an agency, optionally with free credits that end on a date we set. The owner tries
+the product, picks a monthly plan and pays by card or UPI Autopay, the plan renews every month,
+the owner can top up and see who used what, a failed payment stops AI runs, and Yuvabe can see
+and change every agency's billing at any time.
 
 ### The journey
 
-1. **Yuvabe adds the agency** in Admin: name, owner's email and **billing**: pays for a plan, or
-   managed by Yuvabe (a monthly credit limit, as today, never charged). No plan or price is chosen
-   here. The owner is invited as today: the email, and the sign-up link to copy.
-2. **The owner signs up** as today and lands in an empty workspace with a bar at the top: pick a
-   plan to start generating. It opens **Yuvabe's plans**, the same for every paying agency.
-   Clients, brand kits and inviting the team work before paying. **Any AI run needs a plan**: the owner sees "Pick a plan to start creating"; a member
-   sees that the agency hasn't picked a plan. An owner of a managed agency lands in the workspace.
-3. **The owner picks a plan and pays** through Razorpay. Monthly plans renew on the day of the first
-   payment. The 7-day plan is bought once per agency unless Yuvabe allows it again.
+1. **Yuvabe adds the agency** in Admin: name, owner's email and **billing**:
+   - **Pays for a plan.** Optionally **free credits to start**: an amount and an end date.
+   - **Managed by Yuvabe.** A monthly credit limit or unlimited, as today. Never charged. Our own
+     team and every agency that exists today.
+   The owner is invited as today: the email (which mentions any free credits), and the sign-up
+   link to copy.
+2. **The owner signs up** and lands in the workspace. A bar at the top shows the free credits and
+   their end date, or "Pick a plan to start generating". Clients, brand kits and inviting the team
+   work without a plan. **An AI run needs credits**: free credits or a plan.
+3. **The owner picks a plan and pays** through Razorpay. Monthly plans only; they renew on the day
+   of the first payment. A plan bought while free credits are left adds its credits on top.
 4. **Credits arrive when Razorpay's signed webhook confirms the payment** (never from the browser).
-5. **Runs** hold credits at the start and take only the real cost at the end (as today).
-6. **At 80% used** the owner sees a warning. A **top-up** adds credits until the plan month ends.
-   Top-ups need an active monthly plan. Members never see credits or billing; when blocked they are
-   told to ask the owner.
-7. **Every month** Razorpay charges the plan. New plan credits arrive; what was left last month,
+5. **Runs** hold credits at the start and take only the real cost at the end (as today). **Credits
+   that end first are used first**: free credits, then plan credits, then top-ups.
+6. **Free credits end on their end date.** Whatever is left is gone. Without a plan, AI runs stop
+   until one is picked.
+7. **At 80% used** the owner sees a warning. A **top-up** adds credits until the plan month ends.
+   Top-ups need a plan. Members never see credits or billing; when blocked they are told to ask
+   the owner.
+8. **Every month** Razorpay charges the plan. New plan credits arrive; what was left last month,
    top-ups included, ends.
-8. **Change plan** applies from the next payment. **Cancel** keeps the plan until the end of the
-   paid month.
-9. **A failed renewal pauses AI runs** at once. Razorpay retries for 3 days and emails the owner.
-   Nothing is deleted; paying restores everything.
-10. **Admin billing** lists every agency (payment due first) with plan, status, renewal date and
-    credits left; Yuvabe can add credits with a reason, allow the 7-day plan again, send a payment
-    link, and switch an agency between paying and managed.
+9. **Change plan** applies from the next payment. **Cancel** stops the next charge, with no refund;
+   the plan works until the paid month ends.
+10. **A failed renewal stops AI runs** at once: view only, with a message. Nothing is deleted;
+    paying restores everything.
+11. **Yuvabe can change any agency at any time** (below). Every change is logged with who, when and
+    a reason.
 
-Today's agencies become **managed by Yuvabe**: their monthly limit works as now; no payments.
+### Yuvabe admin controls
+
+- **Agencies:** add; switch between paying and managed (switching to managed cancels the plan with
+  Razorpay, no refund); give more free credits, move their end date, or end them now; add credits
+  or take back unused ones; change a managed agency's limit.
+- **Plans and prices:** add, rename or hide plans and top-up packs; set their credits; set the
+  plan margin and the top-up margin over our AI cost. **One price list for every paying agency.**
+  A change applies to each agency from its next payment; the screen lists who is affected before
+  saving.
+- **Plan type** on each agency, always `standard` for now, so custom plans can come later.
+- **Payments and usage:** every payment with failed ones first, renewals coming up, what each
+  agency has paid; send a payment link after a failed payment; usage for every agency by member,
+  client and canvas (the usage view the owner sees).
 
 ### Later (not phase 1)
 
-- Different prices or margins for one agency (every paying agency sees the same plans).
-- Upgrading mid-month (credits from both plans); until then, top up and change from the next payment.
-- Top-up packs with their own validity, or that don't expire.
+- Custom plans and prices for one agency (`plan_type = custom`).
+- Yearly or 6-monthly plans at a lower price.
+- Refunds from Admin. Until then: refund in Razorpay, then take the credits back in Admin.
+- Extra days to pay after a failed payment. Pausing or closing an agency.
+- Upgrading mid-month. Until then: top up, and the new plan starts from the next payment.
+- Top-ups that last longer than the plan month.
+- Emails at 80% and 100% used, and before free credits end.
 - Model prices in the database with start dates (prices stay in code; a change needs a release).
-- Emails at 80% and 100% used (phase 1 has the in-app warning).
-- Yearly plans; Admin's paid-versus-cost report per agency.
-
-### Still to think through: Yuvabe admin controls
-
-Not worked out yet; piece 6 waits on it. The prototype's Admin billing screen is a first idea.
-
-- Creating and changing plans, prices and top-up packs, and what happens to agencies already on a
-  plan when a price changes.
-- Moving an agency between paying for a plan and managed.
-- Adding credits and taking them back; who at Yuvabe can, and whether a reason is needed.
-- Pausing or closing an agency. Refunds.
-- Failed payments: sending a payment link, giving extra days.
-- Allowing the 7-day plan a second time.
-- What Admin shows: payments, renewals due, credits used against what was paid.
+- A public landing page where agencies sign up and pay on their own.
 
 ### To confirm with Cyril
 
-1. **Plans above ₹15,000 a month.** RBI's e-mandate rules stop automatic charges above ₹15,000
-   without the customer approving each one; Studio and Agency are above it with GST. Owner approves
-   each month's charge from a Razorpay message (as the prototype shows), or yearly or bank transfer
-   for big plans?
-2. **GST invoices.** Razorpay's invoice per payment with the agency's GSTIN, or our own numbering?
-3. **Failed payment.** Pause at the first failed attempt (as agreed with Anupama: no grace period),
-   or after Razorpay's 3 retry days?
-4. **Before paying.** Can the owner look around first (AI runs blocked), or must a plan be picked
-   first?
-5. **7-day plan.** Once per agency by default; Yuvabe can allow it again.
-6. **Final prices and credit amounts** (all current figures are examples).
+1. **Plans above ₹15,000 a month.** RBI rules stop automatic charges above ₹15,000 unless the owner
+   approves each one. Studio and Agency are above it with GST. How should those agencies pay?
+2. **GST invoices.** Is Razorpay's invoice for each payment, with the agency's GSTIN, enough, or do
+   we need our own invoice numbers?
+3. **Failed payment.** Stop AI runs at the first failed attempt, or after Razorpay's retry days?
+4. **Yearly or 6-monthly plans** at a lower price: when, and at what discount?
+5. **Rupee rate.** Plans are priced in rupees from a dollar cost (1,000 credits = $1). Which rate,
+   and who updates it?
+6. **Free credits:** how many, and for how long, by default?
+7. **Prices and credits.** The real plans, credit amounts, plan margin and top-up margin.
+
+None of these blocks pieces 1 and 2; prices, margins and the free-credit defaults are settings.
 
 ### Needed from Razorpay before pieces 3 and 4
 
@@ -83,49 +93,57 @@ UPI is off on the account (`/v1/methods` reports `upi: false`) and recurring pay
 Ask support to enable UPI (collect, intent, QR), Subscriptions, UPI Autopay and card e-mandates in
 test and live mode; finish account activation (KYC) for live.
 
-## A simplification that shapes the ledger
+## The ledger: grants that end
 
-Every credit grant in a billing period ends at the same moment: plan credits, top-ups and
-Yuvabe's added credits all end when the plan month ends (the 7-day plan when its 7 days end). So
-the order "plan credits first, then top-ups" never changes what an agency can do or what it loses,
-and **one balance per period** is enough: credits granted in the current period minus credits used
-in it. No per-bucket accounting. The billing page still shows plan credits and top-ups separately,
-which is derived from the grants. If top-ups with their own validity arrive later, buckets come
-with them.
+Free credits end on their own date; plan credits, top-ups and Yuvabe's added credits end when the
+plan month ends. Because the end dates differ, one balance per period is not enough (the earlier
+draft's simplification no longer holds). Instead:
+
+- Every credit an agency receives is a **grant**: kind (`free`, `plan`, `topup`, `admin`), credits,
+  starts, ends.
+- A run's hold is **allocated to grants** in end-date order (the one ending first, first), and
+  settlement moves the real cost onto the same grants. So "credits that end first are used first"
+  is exact, and what is lost when a grant ends is exact too.
+- The balance is the sum of what is left on grants that have started and not ended. No job is
+  needed for credits to end: an ended grant simply stops counting.
+- **Managed agencies have no grants** and keep today's monthly limit check unchanged.
 
 ## Pieces, in build order
 
 | # | Piece | Depends on | Delivers |
 |---|---|---|---|
-| 1 | **Plans and agency billing settings** | – | `billing_plans`, `topup_packs`; per agency: billing mode (plans / managed), 7-day allowed; Admin's add-agency popup gains Billing (the credit limit shows only for managed); existing agencies set to managed |
-| 2 | **Credit periods and balance** | 1 | `credit_transactions` gains `grant` rows tied to a period; `billing_periods` (agency, start, end, source); `reserve_credits` v2: managed agencies keep the monthly limit; paying agencies need an active period and a positive balance; reasons returned (no plan, paused, not enough) so the UI can say which |
-| 3 | **One-time payments** | 2 | 7-day plan and top-ups through Razorpay Orders, built on the test top-up (`billing_payments`, the webhook, signatures); grants a period (7-day) or credits into the current period (top-up) |
-| 4 | **Monthly subscriptions** | 2 | One Razorpay Plan per plan and price, created on demand when a price changes; subscribe; webhooks `subscription.activated`, `.charged`, `.pending`, `.halted`, `.cancelled` stored once by event id; renewal opens the next period; change plan at the cycle end; cancel at the cycle end; payment due pauses runs; nightly check against Razorpay |
-| 5 | **Owner screens** | 3 (4 for monthly) | Plans page (opened from the "pick a plan" bar after sign-up), Razorpay Checkout, credits left in the canvas bar with a credits popover, billing page (plan, credits, top up, payments and invoices, change, cancel), header credits pill states, banners and blocked-run dialogs for owner and member, 80% warning |
-| 6 | **Admin billing** | 2 and the admin controls above | First idea: billing list across agencies; add credits with a reason (audit-logged); allow 7-day again; send a payment link; switch paying / managed. Scope set once the admin controls are thought through |
+| 1 | **Credit grants and the paying-agency balance** | – | `organizations.billing_mode` and `plan_type`; `credit_grants`, `credit_grant_uses`; `reserve_credits` v2 (managed: limit as today; paying: grants, with a reason when refused: no credits yet, free credits ended, used up); settlement through one RPC that moves the hold onto the same grants; `credit_balance` for screens; the billing log |
+| 2 | **Admin: add an agency with billing, and change it any time** | 1 | Add-agency popup gains Billing and free credits; the agency page gains a Billing tab: switch billing, free credits (give more, move the end date, end now), add or take back credits, the log. Existing agencies stay managed |
+| 3 | **Plans, packs and prices** | 1 | `billing_plans`, `topup_packs`, `billing_settings` (AI cost per 1,000 credits, plan margin, top-up margin); prices derived; Admin's Plans and prices screen with who-is-affected before saving |
+| 4 | **One-time payments (top-ups)** | 1, 3 | Top-ups through Razorpay Orders, built on the test top-up; a paid order writes a `topup` grant ending with the plan month |
+| 5 | **Monthly subscriptions** | 1, 3 | One Razorpay Plan per plan and price, created on demand; subscribe; webhooks `subscription.activated`, `.charged`, `.pending`, `.halted`, `.cancelled` stored once by event id; each charge writes a `plan` grant for the month; change plan and cancel at the cycle end; payment due stops runs; nightly check against Razorpay |
+| 6 | **Owner screens** | 1, 3 (4, 5 for paying) | The free-credits / pick-a-plan bar, plans page, Razorpay Checkout, credits by kind with end dates, billing page (plan, credits, top up, payments and invoices, change, cancel, who used what), blocked-run dialogs for owner and member, 80% warning |
+| 7 | **Admin payments and usage** | 4, 5 | Payments across agencies (failed first, renewals in 7 days), send a payment link, usage for every agency |
 
-Pieces 3 and 6 can run alongside 4. The test top-up page (`/billing-test`) is removed when piece 5
-ships.
+Pieces 1 to 3 need nothing from Razorpay and can ship before UPI and Subscriptions are enabled.
+The test top-up page (`/billing-test`) is removed when piece 6 ships.
 
 ## Data model sketch (detailed in each piece's spec)
 
-- `organizations`: `billing_mode` (`managed` | `plans`, default `managed`), `trial_allowed`
-  (default true, false after first purchase).
-- `billing_plans`: name, kind (`monthly` | `trial`), credits, price (paise, before GST), days
-  (trial), active. Yuvabe's margin is in the price; it is not stored per agency. `topup_packs`: credits, price, active.
+- `organizations`: `billing_mode` (`managed` | `plans`, default `managed`), `plan_type`
+  (`standard` | `custom`, default `standard`).
+- `credit_grants`: agency, kind, credits, starts at, ends at, source (payment, subscription
+  charge, admin), created by, reason.
+- `credit_grant_uses`: generation, grant, credits (the hold or the settled cost on that grant).
+- `billing_log`: agency, who, what, before and after, reason, when.
+- `billing_settings` (one row), `billing_plans` (name, credits, active, sort), `topup_packs`.
 - `billing_subscriptions`: agency, plan, Razorpay subscription id, status (`created`, `active`,
   `payment_due`, `cancelling`, `ended`), current period start and end, next plan.
-- `billing_periods`: agency, starts, ends, source (subscription charge, 7-day order, admin).
-- `billing_payments` (from 0066): gains kind (plan, renewal, trial, top-up), plan or pack, invoice.
+- `billing_payments` (from 0066): gains kind (plan, renewal, top-up), plan or pack, invoice.
 - `razorpay_events`: event id (unique), type, payload, processed at.
-- `credit_transactions`: new type `grant` (positive amount) with `period_id`; usage rows gain
-  `period_id`, so a balance is one sum over one period.
 
 ## Testing approach
 
 - Unit and route tests per piece, as in the test top-up (signatures, idempotency, refusals).
+- SQL is pinned by text tests (as for 0065) and checked by hand on staging with the scripted cases
+  in each piece's spec.
 - The replay script grows to send subscription events, so renewals, failures and repeats are
   tested locally without waiting a month.
-- Concurrency test before launch (agreed with Anupama): many runs at once against a small balance;
-  the balance never goes below zero and every hold is released.
+- Concurrency test before launch: many runs at once against a small balance; the balance never
+  goes below zero and every hold is released.
 - End to end in Razorpay test mode through the tunnel, once UPI and Subscriptions are enabled.
