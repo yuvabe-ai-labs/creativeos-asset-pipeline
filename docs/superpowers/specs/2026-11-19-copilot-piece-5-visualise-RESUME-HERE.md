@@ -1,5 +1,7 @@
 # Copilot journey, piece 5 (visualise and client review): resume here
 
+> **Status 2026-11-20: 5.1 (the copilot at Visualise) is BUILT** as D512–D515: spec `2026-11-20-copilot-visualise-design.md`, plan with Outcome `../plans/2026-11-20-copilot-visualise.md`, QA section 10. Open items 1–4, 6 and 7 below are settled there (7: both leftovers stay off this piece). **What remains is 5.2, the copilot at client review:** item 5 below (what the panel says once the client has commented; whether the copilot proposes changes from comments or only points to them), plus whether it gets a message box In review and Approved and what it can do there (5.1 left both read-only, as D511). Start 5.2 with a design pass: questions one at a time.
+
 For the conversation that picks up piece 5. Read this, then `2026-11-19-copilot-journey-RESUME-HERE.md` (the whole branch), then the documents named below. **Nothing here is a spec yet.** The next step is a design pass with Cyril, then a spec, then a plan, then the build.
 
 ## What piece 5 is
