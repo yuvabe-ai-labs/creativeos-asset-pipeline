@@ -52,6 +52,18 @@ const ALLOWLIST: Record<string, string> = {
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
     "createAgencyAction — orgId is an explicit caller-supplied parameter, never correlated " +
     "with the impersonation session's target org.",
+  setBillingModeAction:
+    "billing-admin.ts: the agency page's Billing tab, the same D85 platform-administration category as " +
+    "admin.ts (requireSuperAdmin()-gated); orgId is an explicit caller-supplied parameter.",
+  grantCreditsAction:
+    "billing-admin.ts: the agency page's Billing tab, the same D85 platform-administration category as " +
+    "admin.ts (requireSuperAdmin()-gated); orgId is an explicit caller-supplied parameter.",
+  takeBackCreditsAction:
+    "billing-admin.ts: the agency page's Billing tab, the same D85 platform-administration category as " +
+    "admin.ts (requireSuperAdmin()-gated); orgId is an explicit caller-supplied parameter.",
+  setGrantEndAction:
+    "billing-admin.ts: the agency page's Billing tab, the same D85 platform-administration category as " +
+    "admin.ts (requireSuperAdmin()-gated); orgId is an explicit caller-supplied parameter.",
 };
 
 function findActionFiles(dir: string): string[] {
