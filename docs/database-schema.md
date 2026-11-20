@@ -399,6 +399,10 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `settle_credits` | org_id, generation_id, actual → bool (refund + consumption rows; moves the cost onto the held grants; false when already settled) | definer, service role | 0067 |
 | `refund_credits` | org_id, generation_id → bool (refund row; gives held credits back to their grants; false when already settled) | definer, service role | 0067 |
 | `credit_balance` | org_id → (grant_id, kind, credits, used, left_credits, ends_at) for open grants | definer, service role | 0067 |
+| `admin_set_billing_mode` | org_id, mode, actor, reason → bool (false when missing or unchanged; logs) | definer, service role | 0067 |
+| `admin_grant_credits` | org_id, kind (free/admin), credits, ends_at, actor, reason → grant id (null when the agency is missing; logs) | definer, service role | 0067 |
+| `admin_take_back_credits` | grant_id, credits, actor, reason → text (`ok`/`not_found`/`too_many`; never more than is left; logs) | definer, service role | 0067 |
+| `admin_set_grant_end` | grant_id, ends_at, actor, reason → text (`ok`/`not_found`; kept after the start; logs) | definer, service role | 0067 |
 
 ### Used by RLS
 - `auth_org_ids()` → setof uuid: the caller's agencies. Definer; executable by `authenticated` and `service_role` (0062).

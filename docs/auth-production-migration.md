@@ -1393,6 +1393,9 @@ release still calls `reserve_credits`, which 0067 leaves in place (0068 drops it
   own), `credit_grant_uses` and `billing_log` (server only).
 - Adds `reserve_credits_v2`, `settle_credits`, `refund_credits` and `credit_balance` (service role
   only). From the release, every run's hold and settlement goes through them.
+- Adds Admin's billing changes (`admin_set_billing_mode`, `admin_grant_credits`,
+  `admin_take_back_credits`, `admin_set_grant_end`), each writing its `billing_log` row in the same
+  transaction. The agency page's Billing tab reads grants and the log, so the page needs 0067.
 - Safe to apply: new columns with defaults, new tables, new functions. No existing row changes.
 
 **Verify after running:**
@@ -1402,9 +1405,10 @@ release still calls `reserve_credits`, which 0067 leaves in place (0068 drops it
 select relname, relrowsecurity from pg_class
  where relname in ('credit_grants', 'credit_grant_uses', 'billing_log');
 
--- expect four rows, security definer
+-- expect eight rows, security definer
 select proname, prosecdef from pg_proc
- where proname in ('reserve_credits_v2', 'settle_credits', 'refund_credits', 'credit_balance');
+ where proname in ('reserve_credits_v2', 'settle_credits', 'refund_credits', 'credit_balance',
+                   'admin_set_billing_mode', 'admin_grant_credits', 'admin_take_back_credits', 'admin_set_grant_end');
 
 -- expect every agency managed
 select billing_mode, count(*) from organizations group by 1;
@@ -1415,10 +1419,18 @@ SQL"): set one test agency to `billing_mode = 'plans'`, write grants by hand, an
 cases there (no grants; one free grant; free plus plan; refund; repeated settle; free ended; a
 managed agency with a limit). Then set the test agency back to `managed` and delete its grants.
 
+Then in Admin (piece 2): add a paying agency with free credits (the invite email has the free
+credits line); on its Billing tab take some back, move the end date, end them now, add credits,
+switch to managed and back. The billing log shows each change with its reason.
+
 **Rollback** (only with the code from before the release deployed, since the release calls the
 new functions):
 
 ```sql
+drop function if exists admin_set_grant_end(uuid, timestamptz, uuid, text);
+drop function if exists admin_take_back_credits(uuid, numeric, uuid, text);
+drop function if exists admin_grant_credits(uuid, text, numeric, timestamptz, uuid, text);
+drop function if exists admin_set_billing_mode(uuid, text, uuid, text);
 drop function if exists credit_balance(uuid);
 drop function if exists refund_credits(uuid, uuid);
 drop function if exists settle_credits(uuid, uuid, numeric);
