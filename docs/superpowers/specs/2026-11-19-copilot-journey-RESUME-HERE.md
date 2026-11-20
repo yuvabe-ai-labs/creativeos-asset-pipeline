@@ -1,19 +1,19 @@
-# Copilot journey: resume here (updated 2026-11-20, after piece 4.1 was built)
+# Copilot journey: resume here (updated 2026-11-20, after piece 5.1 was built)
 
 For the next conversation that picks up the copilot journey. Read this first, then the documents it points to.
 
 ## Where things are
 
 - **Branch:** `feat/copilot-journey`, in the worktree `.claude/worktrees/copilot-journey` (links to its files need that prefix). The whole copilot is built on this one branch and merged once at the end (Cyril, 2026-11-13). **Nothing is pushed or merged without Cyril's say.**
-- **Built and committed:** piece 1 (frame, tabs, guide, gates); piece 2 (brand KB chat, review walk, streaming D502/D503, change cards D505); D504 (images studied on send); D506 (a failed background job is said once in the thread); D507 (the review walk's own buttons are carried out by code). D508–D511 recorded; next free **D512**.
+- **Built and committed:** piece 1 (frame, tabs, guide, gates); piece 2 (brand KB chat, review walk, streaming D502/D503, change cards D505); D504 (images studied on send); D506 (a failed background job is said once in the thread); D507 (the review walk's own buttons are carried out by code). D508–D515 recorded; next free **D516** (the log has two D489s: always write "D489 (second)" for the Visualise one).
 - **Migrations:** 0062, 0063, 0064, 0065 (0065: turn traces). Cyril applies migrations himself; never apply one.
 - **Tests:** full suite passes except two known image-generate failures (`composite-generate` and `image-generate` route tests, "refuses a deprecated model"), plus one known type error in `src/app/api/nodes/[id]/image-generate/route.test.ts`. Not caused by this branch.
 
-## Next step: piece 5 (the copilot acts at Visualise and client review): design pass
+## Next step: piece 5.2 (the copilot at client review): design pass
 
-**Cyril parked piece 4.2 (the extra script steps) for the end of the journey (2026-11-20).** Next is piece 5, from `2026-11-19-copilot-piece-5-visualise-RESUME-HERE.md`. Then 3, 6, and 4.2 last.
+**Piece 5.1 is built** (the copilot at Visualise, D512–D515). Spec `docs/superpowers/specs/2026-11-20-copilot-visualise-design.md`; plan with Outcome `docs/superpowers/plans/2026-11-20-copilot-visualise.md` (its deferred minors are listed there); QA section 10. No migration. Next is **5.2**: what the copilot says and does once a script is In review (its message box there, what it says once the client has commented, and whether it proposes changes from the comments). Then 3, 6, and 4.2 last. **Cyril parked piece 4.2 (the extra script steps) for the end of the journey (2026-11-20).**
 
-**Piece 4.1 is built** (D511, plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`; QA section 9). Next is a design pass and spec for **4.2**, then its plan, then the build, as before. One piece at a time, never in parallel (Cyril, 2026-11-20). Before 4.2, Cyril may want a look at 4.1's eight deferred minors (listed in its plan's Outcome); the one most likely to matter is the storyboard being squeezed on a laptop screen while the panel is unfolded.
+**Piece 4.1 is built** (D511, plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`; QA section 9). One piece at a time, never in parallel (Cyril, 2026-11-20). 4.1's eight deferred minors are in its plan's Outcome; the one most likely to matter grew with 5.1: the panel now starts open at Visualise, so the storyboard is squeezed on a laptop screen by default.
 
 What 4.1 was, in one line each (built):
 - The Scripts tab's copilot guide offers **"Start a script"** (the same action as the page's "New script"; "Paste a script" while locked).
@@ -48,7 +48,8 @@ Facts the 4.1 build relied on (kept for piece 5, which builds on the same panel)
 - None of it has been run in a browser or against the live model. QA plan sections 6.26–6.36, 7 and 8, and check 4.16.
 - Each plan's Outcome lists the minor review findings left for later.
 - **Piece 4.1, scripting in the panel, part 1 (D511).** Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`. No migration. QA section 9.
-- **Next free ADR number: D512.**
+- **Piece 5.1, the copilot at Visualise (D512–D515).** Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-visualise.md`. No migration. QA section 10.
+- **Next free ADR number: D516.**
 
 ## Waiting on Cyril
 
@@ -57,7 +58,7 @@ Facts the 4.1 build relied on (kept for piece 5, which builds on the same panel)
 3. **One open part-2 question:** should every "Save changes" write a line in the thread? (Filling a field the copilot did not ask about is built and fixed; a chat answer against an unsaved edit is settled by D508.)
 4. **Piece 4.2:** Cyril may still supply his own prompt for the extra script steps; the stand-in is approved for now.
 5. **Piece 3:** do internet research findings stay with that script or also go to market research?
-6. **Piece 5:** the open questions in its resume doc (casting and locations at once or as a card; what the panel says once the client has commented; the gate before the client).
+6. **Piece 5.2:** what the panel says once the client has commented, and whether the copilot proposes changes from the comments or only points to them.
 7. **Piece 6:** the canvas copilot's scope. Unconfirmed readings: chat images go to brand assets; the canvas panel carries over the old copilot's actions.
 
 ## Owed before the one merge
@@ -73,7 +74,7 @@ Facts the 4.1 build relied on (kept for piece 5, which builds on the same panel)
 
 ## Pieces still to build
 
-5 (visualise and client review: the copilot acts there), 3 (market research agent), 6 (canvas), then 4.2 (the extra script steps, parked to the end by Cyril 2026-11-20). Each follows: design pass, spec, plan, build. Each adds its targets to the page-follows mechanism instead of its own.
+5.2 (client review), 3 (market research agent), 6 (canvas), then 4.2 (the extra script steps, parked to the end by Cyril 2026-11-20). Each follows: design pass, spec, plan, build. Each adds its targets to the page-follows mechanism instead of its own.
 
 ## Open findings from the context rebuild (for after traces exist)
 

@@ -255,3 +255,62 @@
 - [ ] **Step 2:** QA section 10: one check per success-story beat (spec §8) plus each Review Focus line.
 - [ ] **Step 3:** Run the full suite `npx vitest run > .superpowers/sdd/full.txt 2>&1; tail -n 30 .superpowers/sdd/full.txt` and `npx tsc --noEmit` — Expected: only the known failures (the `composite-generate` and `image-generate` "refuses a deprecated model" tests; tsc at `image-generate/route.test.ts(56,12)`).
 - [ ] **Step 4: Commit** `docs(copilot): 5.1 built: D512–D515, QA section 10, resume-here`.
+
+
+## Outcome (built 2026-11-20)
+
+Built as D512–D515 in ten tasks, `580fc112..0ae343b9`, inline, test first. No migration. Full suite after the fix pass: 6039 passed, only the two known deprecated-model tests fail (before it, five files had timed out under the full parallel run and passed alone: the known flake). tsc: only the known `image-generate/route.test.ts(56,12)`.
+
+**Final review** (one fresh reviewer): no Critical, five Important; all five Review Focus lines held. One minor was re-graded Important (an old Generate card could change the notes at Visualise). All six fixed in one pass, each with a test that failed first:
+
+- I1 "Draw the N panels I can draw now" always disabled — "offers the shots it can already draw as a working button" RED→GREEN
+- I2 landed target re-mounted again after the fade — "keeps a target's version once its highlight has faded" RED→GREEN
+- I3 a picture sent with words not told to the model — "tells the copilot about a picture sent with words, and saves the words as typed" RED→GREEN
+- I4 two characters given the same avatar — "refuses giving a character an avatar another character already has" RED→GREEN (proven by disabling the check) + "does not offer an avatar another character already has" RED→GREEN
+- I5 "Copilot is asking" In review — "asks about a cast slot only at Visualise" RED→GREEN
+- (re-graded) an old Generate card's notes change accepted at Visualise — "does not apply an old card's notes change when it is accepted at Visualise" RED→GREEN
+
+**Rulings made while building** (each: what, why, cost if wrong):
+
+- ChangeIO.save takes (current, patch) instead of (version, patch); the existing tests' save mocks were adapted to read current.docVersion (same assertions) — the Visualise save needs updated_at, which only the read script carries — cost if wrong: none outside change.ts' two callers
+- the Visualise model call is named "script_visualise_edit" (not "script_edit") — keeps Generate's call name and any per-name handling untouched — cost if wrong: none
+- a character's card (update_cast/remove_cast) shows every shot the character is on screen in, not only touched shots — the proposal card shows shots only, and a rename would otherwise show an empty before/after — cost if wrong: a busier card
+- the notes refusal is checked before the edits are applied — an unknown confirm id would otherwise answer "couldn't make that change" instead of the reopen refusal — cost if wrong: none
+- conversation.ts gained lines for the two new card kinds (tsc exhaustiveness) — cost if wrong: none
+- boardFacts lives in src/lib/scripts/visualise/board-facts.ts with a resolvePicks helper (pure, tested) — the route only calls setPanelPick for resolved takes — cost if wrong: none
+- the turn route reads the board via getScript + loadVisualiseBoard in parallel with the history (one extra read at Visualise only) — loadVisualiseBoard takes a Script, not a GenerateScript — cost if wrong: one extra query per Visualise turn
+- an accepted card at Visualise replies "Applied: …" without the open-items line (added test) — the script is final, so "still open before Final" would mislead — cost if wrong: none
+- page.tsx shows no waiting line at Visualise until Task 6 wires the walk (tsc needs the step) — same branch, unmerged — cost if wrong: none once Task 6 lands
+- the panel component is its own file (visualise-copilot.tsx), the workspace only lays out — one component per file (docs/component-structure.md) — cost if wrong: none
+- the walk's waiting line is wired here (plan put it in Task 7) — the rail would otherwise be blank at Visualise between tasks — cost if wrong: none
+- at Visualise suggestionsFor returns the copilot's own chips from its last reply (existing "offers nothing once the script has left Generate" test updated) — the message box is back and its chips are part of it — cost if wrong: a chip the model writes at Visualise shows
+- the board-refresh-after-turn logic is an exported pure helper landGenerateState (tested), used by useSendTurn and every useStateWrite — cost if wrong: one extra board read after a Generate→… write past Generate (none at Generate)
+- TeamReviewBoard now needs VisualiseBoardProvider; its test wraps it — the only other mount is the page, which provides it — cost if wrong: none
+- the stage shown by the Visualise panel is the board query's (fresher after a move to review), not the thread cache's (same stale-cache lesson as D511's review fix) — cost if wrong: none
+- every draw button in the chat is the board's GenerateAllDialog (new optional label/size props), so drawing from the chat asks the same credit confirmation as the page — a chat button must not be a quicker way to spend — cost if wrong: one extra click
+- the send card's button is the page's ShareDialog trigger, reading "Move to In review" as on the page (not "Send for client review") — same action, same words; the card's eyebrow says "Send for client review" — cost if wrong: wording
+- "Draw it" for a location shows no credits — the board's own location button shows none either — cost if wrong: a missing price on one paid button (as on the page)
+- an offer card after Visualise (no renderOffer) is a one-line note ("Offered to draw the panels") — read-only, as D511's cards — cost if wrong: none
+- pictureTarget checks the item the message names before "the only item without a picture" (plan listed the opposite order) — an explicit name ("this is the bottle") should win over a guess from the board — cost if wrong: none; both are the spec's "the message or the board makes it clear"
+- the route checks the picture's url is the item's current picture in the stored doc (rule 14), so a body cannot attach a foreign url; "refuses a picture that is not on the script" passed before the change too (an empty text was already a 400) — it pins the guard, not a RED — cost if wrong: none
+- the composer uploads with useUploadScriptImage directly (not ScriptAssets.upload, which swallows errors and returns nothing) so it can read the new picture's url from the written doc — same service, same folder — cost if wrong: none
+- the step card's "Attach a picture" opens the composer's picker through a counter-stamped request prop — cost if wrong: a browser that refuses a programmatic picker open after the click would need a second click
+- the follow state is tested through a pure targetState(target, asking, landed) plus FollowTarget's no-provider render — a static render cannot call land() then re-render — cost if wrong: the provider's wiring is covered by review, not a test
+- a cast button pressed on the step card (the person's click in the chat) also lands its cast slot — it is the chat changing the board — cost if wrong: an extra highlight
+- FollowTarget renders plain children outside the Visualise screen, so BoardChips/PanelTile stay unchanged elsewhere — cost if wrong: none
+
+**Deferred minors** (from the final review):
+
+- step card shows the old step for one round trip after a turn (board only invalidated, not written)
+- a newly added shot is not scrolled to (show-on-board looks before the refetch); show-on-board ignores reduced motion and duplicates use-follow-copilot's scrollToTarget
+- picks dropped silently when the same turn becomes a card or goes stale
+- a failed setPanelPick reports "nothing was changed" after the doc was saved
+- an old pending import card from Generate gets a live Accept at Visualise that answers 409
+- cast buttons list status-ready avatars, not castReadyForPanels (four views); list only as fresh as the last thread read
+- sendMissing says "X has no avatar" when X has one that is not ready
+- composer clears typed words on the "nothing to attach to" toast and on a failed upload
+- PictureTargetChoice buttons not disabled while uploading (double click uploads twice)
+- picture body parsed twice; a malformed picture with text is dropped silently
+- extra script reads (page loadGenerateState re-reads the row; turn route getGenerateScript + getScript)
+- FollowTarget adds wrapper divs around chips and tiles — check layout in the browser
+- test gaps — composer "none" path, provider wiring
