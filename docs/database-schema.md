@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0066** (`supabase/migrations/0001_init.sql` … `0066_billing_payments.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
+Generated from migrations up to **0067** (`supabase/migrations/0001_init.sql` … `0067_credit_grants.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -19,6 +19,7 @@ Contents: [Agencies & people](#agencies--people) · [Clients & brand KB](#client
 An agency (tenant). *0012*
 - `id` uuid PK · `name` text · `slug` text unique · `monthly_credit_limit` numeric (null = unlimited; ×1000 in 0019)
 - `invite_window_start` timestamptz, `invite_window_count` int default 0: the 50-a-day invite send counter (0063, `take_invite_send`)
+- `billing_mode` text check managed/plans (default managed) · `plan_type` text check standard/custom (default standard) (0067, D515)
 - RLS: service role only.
 
 ### profiles
@@ -177,13 +178,31 @@ One AI generation job (image/video/prompt/…), owned by a node, an avatar or a 
 The credit ledger: reservation, consumption, refund, adjustment. *0019* · org_id · *Realtime*
 - `id` uuid PK · `org_id` → organizations · `generation_id` → generations set null (nullable, 0028) · `amount` numeric · `type` check
 - Indexes: `org_id`, `generation_id`, `(org_id, created_at)`
-- RLS: select owners of the agency only (0065). Written by `reserve_credits` and the server.
+- RLS: select owners of the agency only (0065). Written by `reserve_credits_v2`, `settle_credits`, `refund_credits` (0067) and the server.
 
 ### billing_payments
 One row per Razorpay order for the test top-up (D514). *0066* · org_id
 - `id` uuid PK · `org_id` → organizations cascade · `razorpay_order_id` text unique · `razorpay_payment_id` text unique (set when paid) · `amount_paise` integer > 0 · `credits` integer > 0 · `status` check created/paid (default created) · `created_by` → auth.users set null · `created_at` · `paid_at`
 - Indexes: `org_id`
 - RLS: select `owners read`, owners of the agency only. Written by the server (service role) and `record_razorpay_payment`.
+
+### credit_grants
+A paying agency’s credits: each grant ends (free credits, a plan month, a top-up, credits Yuvabe added). Used first-ending first (D515). *0067* · org_id
+- `id` uuid PK · `org_id` → organizations cascade · `kind` check free/plan/topup/admin · `credits` numeric >= 0 · `used` numeric default 0 (running total of its `credit_grant_uses`) · `starts_at` default now() · `ends_at` (> starts_at) · `payment_id` → billing_payments set null · `created_by` → auth.users set null · `reason`
+- Indexes: `(org_id, ends_at)`, `payment_id`
+- RLS: select `owners read`, owners of the agency only. Written only by the server and the 0067 functions.
+
+### credit_grant_uses
+How much of each grant a run holds, then used once settled. *0067*
+- `generation_id` → generations cascade · `grant_id` → credit_grants cascade · `credits` numeric >= 0 · PK `(generation_id, grant_id)`
+- Indexes: `grant_id`
+- RLS: service role only.
+
+### billing_log
+Every billing change Yuvabe makes to an agency: who, what, before and after, why. *0067* · org_id
+- `id` uuid PK · `org_id` → organizations cascade · `actor_id` → auth.users set null · `action` text · `before`, `after` jsonb · `reason`
+- Indexes: `org_id`
+- RLS: service role only.
 
 ### background_jobs
 Generic background job rows (kind + input/result), one live job per `lock_key`. *0044* · org_id
@@ -353,7 +372,7 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | Function | Args → returns | Rights | Migration |
 |---|---|---|---|
 | `acquire_canvas_lock` | canvas_id, session_id, name, stale_seconds → bool | invoker | 0010 |
-| `reserve_credits` | org_id, generation_id, amount → bool (locks the org row, checks the monthly limit, inserts a reservation) | invoker | 0020 |
+| `reserve_credits` | org_id, generation_id, amount → bool (locks the org row, checks the monthly limit, inserts a reservation); replaced by `reserve_credits_v2`, dropped in 0068 | invoker | 0020 |
 | `org_monthly_credit_history` | org_id, months=6 → (month, credits_used), zero-filled | invoker | 0023, 0024 |
 | `org_daily_credit_history` | org_id, days=30 → (day, credits_used) | invoker | 0025 |
 | `org_yearly_credit_history` | org_id, years=5 → (year, credits_used) | invoker | 0025 |
@@ -376,6 +395,10 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `find_user_by_email` | email → (user_id, org_id) | definer, service role | 0062 |
 | `take_invite_send` | org_id, limit → bool | definer, service role | 0063 |
 | `record_razorpay_payment` | order_id, payment_id → bool (locks the order, marks it paid, writes a negative `adjustment` once; false when missing or already paid) | definer, service role | 0066 |
+| `reserve_credits_v2` | org_id, generation_id, amount → text (`ok`/`limit`/`used_up`/`free_ended`/`no_credits`; managed: monthly limit; paying: holds from grants, first-ending first) | definer, service role | 0067 |
+| `settle_credits` | org_id, generation_id, actual → bool (refund + consumption rows; moves the cost onto the held grants; false when already settled) | definer, service role | 0067 |
+| `refund_credits` | org_id, generation_id → bool (refund row; gives held credits back to their grants; false when already settled) | definer, service role | 0067 |
+| `credit_balance` | org_id → (grant_id, kind, credits, used, left_credits, ends_at) for open grants | definer, service role | 0067 |
 
 ### Used by RLS
 - `auth_org_ids()` → setof uuid: the caller's agencies. Definer; executable by `authenticated` and `service_role` (0062).

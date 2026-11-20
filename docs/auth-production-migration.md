@@ -1381,3 +1381,51 @@ Dropping the table and function leaves any `adjustment` rows already written in 
 delete from credit_transactions
 where type = 'adjustment' and generation_id is null and org_id = '<org id>';
 ```
+
+## Migration 0067 — credit_grants (D515, 2026-11-20)
+
+Apply after 0066 and **before** the release that calls the new functions. The code before that
+release still calls `reserve_credits`, which 0067 leaves in place (0068 drops it).
+
+- Adds `billing_mode` (default `managed`) and `plan_type` (default `standard`) to `organizations`.
+  Every existing agency becomes managed and behaves as before.
+- Adds `credit_grants` (a paying agency's credits, each with an end date; owners can read their
+  own), `credit_grant_uses` and `billing_log` (server only).
+- Adds `reserve_credits_v2`, `settle_credits`, `refund_credits` and `credit_balance` (service role
+  only). From the release, every run's hold and settlement goes through them.
+- Safe to apply: new columns with defaults, new tables, new functions. No existing row changes.
+
+**Verify after running:**
+
+```sql
+-- expect three rows, RLS on
+select relname, relrowsecurity from pg_class
+ where relname in ('credit_grants', 'credit_grant_uses', 'billing_log');
+
+-- expect four rows, security definer
+select proname, prosecdef from pg_proc
+ where proname in ('reserve_credits_v2', 'settle_credits', 'refund_credits', 'credit_balance');
+
+-- expect every agency managed
+select billing_mode, count(*) from organizations group by 1;
+```
+
+**Check on staging after the release** (spec `2026-11-20-credit-grants-design.md`, "Checking the
+SQL"): set one test agency to `billing_mode = 'plans'`, write grants by hand, and run the seven
+cases there (no grants; one free grant; free plus plan; refund; repeated settle; free ended; a
+managed agency with a limit). Then set the test agency back to `managed` and delete its grants.
+
+**Rollback** (only with the code from before the release deployed, since the release calls the
+new functions):
+
+```sql
+drop function if exists credit_balance(uuid);
+drop function if exists refund_credits(uuid, uuid);
+drop function if exists settle_credits(uuid, uuid, numeric);
+drop function if exists reserve_credits_v2(uuid, uuid, numeric);
+drop table if exists billing_log;
+drop table if exists credit_grant_uses;
+drop table if exists credit_grants;
+alter table organizations drop column if exists plan_type, drop column if exists billing_mode;
+notify pgrst, 'reload schema';
+```
