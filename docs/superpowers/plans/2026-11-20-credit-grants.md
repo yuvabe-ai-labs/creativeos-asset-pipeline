@@ -211,7 +211,7 @@ declare
   v_not_free integer;
   v_need numeric;
   v_take numeric;
-  g record;
+  rec record;
 begin
   select billing_mode, monthly_credit_limit into v_mode, v_limit
     from organizations where id = p_org_id for update;
@@ -248,18 +248,18 @@ begin
     end if;
 
     v_need := p_amount;
-    for g in
+    for rec in
       select g.id, greatest(g.credits - g.used, 0) as left_now
         from credit_grants g
        where g.org_id = p_org_id and g.starts_at <= now() and g.ends_at > now()
        order by g.ends_at, g.created_at
     loop
       exit when v_need <= 0;
-      v_take := least(g.left_now, v_need);
+      v_take := least(rec.left_now, v_need);
       if v_take > 0 then
         insert into credit_grant_uses (generation_id, grant_id, credits)
-        values (p_generation_id, g.id, v_take);
-        update credit_grants set used = used + v_take where id = g.id;
+        values (p_generation_id, rec.id, v_take);
+        update credit_grants set used = used + v_take where id = rec.id;
         v_need := v_need - v_take;
       end if;
     end loop;
@@ -290,8 +290,8 @@ declare
   v_rest numeric;
   v_share numeric;
   v_last uuid;
-  u record;
-  g record;
+  held record;
+  rec record;
 begin
   perform 1 from organizations where id = p_org_id for update;
 
@@ -311,28 +311,28 @@ begin
     (p_org_id, p_generation_id, p_actual, 'consumption');
 
   v_rest := p_actual;
-  for u in
+  for held in
     select cu.grant_id, cu.credits
       from credit_grant_uses cu
       join credit_grants g on g.id = cu.grant_id
      where cu.generation_id = p_generation_id
      order by g.ends_at, g.created_at
   loop
-    v_share := least(u.credits, v_rest);
+    v_share := least(held.credits, v_rest);
     v_rest := v_rest - v_share;
-    v_last := u.grant_id;
-    update credit_grants set used = used - u.credits + v_share where id = u.grant_id;
+    v_last := held.grant_id;
+    update credit_grants set used = used - held.credits + v_share where id = held.grant_id;
     if v_share > 0 then
       update credit_grant_uses set credits = v_share
-       where generation_id = p_generation_id and grant_id = u.grant_id;
+       where generation_id = p_generation_id and grant_id = held.grant_id;
     else
       delete from credit_grant_uses
-       where generation_id = p_generation_id and grant_id = u.grant_id;
+       where generation_id = p_generation_id and grant_id = held.grant_id;
     end if;
   end loop;
 
   if v_last is not null and v_rest > 0 then
-    for g in
+    for rec in
       select g.id, g.credits - g.used as left_now
         from credit_grants g
        where g.org_id = p_org_id and g.starts_at <= now() and g.ends_at > now()
@@ -340,12 +340,12 @@ begin
        order by g.ends_at, g.created_at
     loop
       exit when v_rest <= 0;
-      v_share := least(g.left_now, v_rest);
+      v_share := least(rec.left_now, v_rest);
       insert into credit_grant_uses (generation_id, grant_id, credits)
-      values (p_generation_id, g.id, v_share)
+      values (p_generation_id, rec.id, v_share)
       on conflict (generation_id, grant_id)
         do update set credits = credit_grant_uses.credits + excluded.credits;
-      update credit_grants set used = used + v_share where id = g.id;
+      update credit_grants set used = used + v_share where id = rec.id;
       v_rest := v_rest - v_share;
     end loop;
 
