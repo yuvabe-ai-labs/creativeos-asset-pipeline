@@ -78,7 +78,7 @@ describe("POST /api/canvases/[cid]/editor/transcribe", () => {
   });
 
   it("402s at the credit limit and gives the reservation back", async () => {
-    vi.mocked(reserveCredits).mockResolvedValue({ ok: false });
+    vi.mocked(reserveCredits).mockResolvedValue({ ok: false, reason: "limit" });
     expect((await post({ nodeId: NODE })).status).toBe(402);
     expect(refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "gen1" });
     expect(insertJob).not.toHaveBeenCalled();

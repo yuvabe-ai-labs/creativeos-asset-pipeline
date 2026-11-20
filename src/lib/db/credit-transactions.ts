@@ -1,77 +1,47 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { isCreditRefusal, type CreditRefusal } from "@/lib/billing/grants";
 
 // Thrown by route handlers when reserveCredits rejects a request — callers map this to a
 // 402 response, distinct from a generic generation failure (500).
 export class CreditLimitError extends Error {}
 
-// Row-locked check-and-insert via the reserve_credits RPC (migration 0020) — the org row is
-// locked for the call's duration, serializing concurrent reservation attempts so the
-// sum-then-insert can't race. { ok: false } (never throws for a normal cap-exceeded case)
-// when the org's monthly cap would be exceeded; a null monthly_credit_limit always succeeds.
+// Row-locked check-and-hold via reserve_credits_v2 (migration 0067). A managed agency is checked
+// against its monthly limit as before; a paying agency's hold is taken from its grants, the one
+// ending first, first. Refusals come back with the reason (never thrown); an answer the code
+// doesn't know throws, so a mismatch between code and database never lets a run through.
 export async function reserveCredits(
   orgId: string,
   generationId: string,
   amount: number,
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: true } | { ok: false; reason: CreditRefusal }> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase.rpc("reserve_credits", {
+  const { data, error } = await supabase.rpc("reserve_credits_v2", {
     p_org_id: orgId,
     p_generation_id: generationId,
     p_amount: amount,
   });
   if (error) throw error;
-  return { ok: data === true };
+  if (data === "ok") return { ok: true };
+  if (isCreditRefusal(data)) return { ok: false, reason: data };
+  throw new Error(`reserve_credits_v2 answered ${JSON.stringify(data)}`);
 }
 
-// This generation's reservation amount, read back from the ledger (the source of truth —
-// not duplicated onto the generations row). 0 if no reservation was ever made, so both
-// settleGeneration and refundReservation are safe no-ops when called on a generation that
-// was never actually reserved (e.g. reserveCredits itself threw before completing).
-async function getReservedAmount(generationId: string): Promise<number> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("credit_transactions")
-    .select("amount")
-    .eq("generation_id", generationId)
-    .eq("type", "reservation")
-    .maybeSingle();
-  if (error) throw error;
-  return (data as { amount: number } | null)?.amount ?? 0;
-}
-
-// Whether this generation already reached a terminal ledger state (a refund or consumption
-// row already exists). Used as a guard so settleGeneration/refundReservation are idempotent
-// when a route's catch-block cleanup runs after settlement already succeeded — without this,
-// a transient error on the line right after settleGeneration (e.g. succeedGeneration) would
-// trigger a second refund for the same reservation, double-crediting the org.
-async function alreadySettled(generationId: string): Promise<boolean> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("credit_transactions")
-    .select("id")
-    .eq("generation_id", generationId)
-    .in("type", ["refund", "consumption"])
-    .limit(1);
-  if (error) throw error;
-  return (data?.length ?? 0) > 0;
-}
-
-// Success terminal state (design spec §4): refund the reservation AND record the actual
-// cost in one insert — net ledger effect is exactly actualAmount, not the estimate. Call
-// this and succeedGeneration's creditsCharged with the SAME actualAmount value.
+// Success terminal state (design spec §4): refund the hold and record the real cost, and move the
+// cost onto the grants the run held — one transaction in settle_credits (migration 0067). A
+// repeat call changes nothing, so a route's catch-block cleanup after settling is safe. Call this
+// and succeedGeneration's creditsCharged with the SAME actualAmount value.
 export async function settleGeneration(input: {
   orgId: string;
   generationId: string;
   actualAmount: number;
 }): Promise<void> {
-  if (await alreadySettled(input.generationId)) return;
-  const reserved = await getReservedAmount(input.generationId);
   const supabase = createServerSupabase();
-  const { error } = await supabase.from("credit_transactions").insert([
-    { org_id: input.orgId, generation_id: input.generationId, amount: -reserved, type: "refund" },
-    { org_id: input.orgId, generation_id: input.generationId, amount: input.actualAmount, type: "consumption" },
-  ]);
+  const { error } = await supabase.rpc("settle_credits", {
+    p_org_id: input.orgId,
+    p_generation_id: input.generationId,
+    p_actual: input.actualAmount,
+  });
   if (error) throw error;
 }
 
@@ -96,20 +66,16 @@ export async function getReservationAmounts(
   );
 }
 
-// Failure/cancel terminal state (design spec §4): refund the reservation only — net ledger
-// effect is zero.
+// Failure/cancel terminal state: refund the hold and give its credits back to their grants
+// (refund_credits, migration 0067). A repeat call changes nothing.
 export async function refundReservation(input: {
   orgId: string;
   generationId: string;
 }): Promise<void> {
-  if (await alreadySettled(input.generationId)) return;
-  const reserved = await getReservedAmount(input.generationId);
   const supabase = createServerSupabase();
-  const { error } = await supabase.from("credit_transactions").insert({
-    org_id: input.orgId,
-    generation_id: input.generationId,
-    amount: -reserved,
-    type: "refund",
+  const { error } = await supabase.rpc("refund_credits", {
+    p_org_id: input.orgId,
+    p_generation_id: input.generationId,
   });
   if (error) throw error;
 }
