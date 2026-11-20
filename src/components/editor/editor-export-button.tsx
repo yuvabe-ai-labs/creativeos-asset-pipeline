@@ -9,6 +9,7 @@ import { useStartExport } from "@/hooks/queries/editor";
 import { dubLanguageLabel } from "@/lib/dubbing/types";
 import { SaveFailure } from "@/lib/editor/autosave";
 import { fontCoversText } from "@/lib/editor/caption-fonts";
+import { captionLook } from "@/lib/editor/caption-style";
 import { ApiError } from "@/services/read-json";
 import { EditorExportDialog } from "./editor-export-dialog";
 import { EditorRenderDialog } from "./editor-render-dialog";
@@ -22,12 +23,12 @@ export function EditorExportButton({ canvasId, nodeId, title, flush }: { canvasI
   const [mp4Open, setMp4Open] = useState(false);
   const hasPieces = useEditorStore((s) => s.doc.pieces.length > 0);
   const captions = useEditorStore((s) => s.doc.captions);
-  const font = useEditorStore((s) => s.doc.captionStyle.font);
+  const captionStyle = useEditorStore((s) => s.doc.captionStyle);
   const dubLanguage = useEditorStore((s) => s.sources.find((x) => x.language && s.doc.pieces.some((p) => p.sourceNodeId === x.nodeId && p.sound === "dubbed"))?.language ?? null);
 
   const run = async () => {
     // D393 — a caption whose font lacks some of its letters arrives in a substitute font.
-    const uncovered = captions.filter((c) => !fontCoversText(font, c.text)).length;
+    const uncovered = captions.filter((c) => !fontCoversText(captionLook({ captionStyle }, c).font, c.text)).length;
     if (uncovered > 0) {
       toast.warning(`${uncovered} caption${uncovered === 1 ? " uses" : "s use"} letters the caption font doesn't have. Premiere will show those in another font.`);
     }

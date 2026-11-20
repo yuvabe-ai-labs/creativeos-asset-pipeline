@@ -24,23 +24,34 @@ export function EditorPanelRail({ label, side, shortcut, onExpand }: { label: st
   );
 }
 
-/** A side panel's header: its name, an optional count, and the chevron. The whole row hides the
- *  panel, not just the chevron. */
-export function EditorPanelHeader({ label, aside, side, shortcut, onCollapse, className }: { label: string; aside?: ReactNode; side: "left" | "right"; shortcut: string; onCollapse(): void; className?: string }) {
+/** A side panel's header: its name and an optional count on the left; its actions, then the hide
+ *  chevron (pointing at the edge the panel hides into), on the right. Same order on either side. */
+export function EditorPanelHeader({ label, aside, actions, side, shortcut, onCollapse, className }: {
+  label: string;
+  aside?: ReactNode;
+  /** Buttons shown before the chevron. */
+  actions?: ReactNode;
+  side: "left" | "right";
+  shortcut: string;
+  onCollapse(): void;
+  className?: string;
+}) {
   const Icon = side === "left" ? ChevronLeft : ChevronRight;
   return (
-    <Button
-      variant="ghost"
-      aria-label={`Hide ${label.toLowerCase()}`}
-      title={`Hide ${label.toLowerCase()} (${shortcut})`}
-      onClick={onCollapse}
-      className={cn("group/header -mx-2 h-8 w-[calc(100%+1rem)] flex-none justify-between gap-2 px-2 font-normal", className)}
-    >
-      <span className="text-eyebrow-sm">{label}</span>
-      <span className="flex items-center gap-1.5">
-        {aside !== undefined && <span className="text-xs tabular-nums text-muted-foreground">{aside}</span>}
-        <Icon className="size-4 text-muted-foreground transition-colors duration-200 group-hover/header:text-foreground" strokeWidth={1.5} />
-      </span>
-    </Button>
+    <div className={cn("flex h-8 items-center gap-1", className)}>
+      <span className="text-eyebrow-sm min-w-0 flex-1 truncate">{label}</span>
+      {aside !== undefined && <span className="text-xs tabular-nums text-muted-foreground">{aside}</span>}
+      {actions}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={`Hide ${label.toLowerCase()}`}
+        title={`Hide ${label.toLowerCase()} (${shortcut})`}
+        onClick={onCollapse}
+        className="-mr-2 text-muted-foreground hover:text-foreground"
+      >
+        <Icon className="size-4" strokeWidth={1.5} />
+      </Button>
+    </div>
   );
 }

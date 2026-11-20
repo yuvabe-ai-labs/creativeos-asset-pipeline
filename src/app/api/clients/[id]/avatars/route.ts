@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { resolveCallerContext } from "@/lib/dal";
+import { isKbReady, KB_NOT_READY_MESSAGE } from "@/lib/clients/kb-gate";
 import { createDraftAvatar, listAvatars } from "@/lib/db/avatars";
 import { AVATAR_NAME_MAX, AVATAR_STORY_MAX } from "@/lib/avatars/constants";
 
@@ -21,8 +22,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // POST /api/clients/:id/avatars — start a draft. Called by the Studio at the first upload,
 // carrying whatever name and story were typed before it (D287).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, async (clientId, client) =>
     withTryCatch("Could not create the avatar.", async () => {
+      if (!isKbReady(client)) return apiError(KB_NOT_READY_MESSAGE, 409); // D503
       const parsed = CreateSchema.safeParse(await req.json().catch(() => ({})));
       if (!parsed.success) return apiError("Invalid request body.", 400);
       const caller = await resolveCallerContext();

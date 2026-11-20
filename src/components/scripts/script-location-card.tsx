@@ -115,7 +115,7 @@ export function ScriptLocationCard({ location, large = false }: { location: Scri
             )}
             <Button variant="ghost" size="sm" disabled={uploading} onClick={() => setPicking(true)}>
               <ImagePlus className="size-4" strokeWidth={1.5} />
-              {uploading ? "Adding…" : "Add a picture"}
+              {uploading ? "Adding…" : location.image ? "Replace picture" : "Add a picture"}
             </Button>
             {location.image && (
               <Button variant="ghost" size="sm" onClick={() => assets.op({ op: "set_location_image", locationId: location.id, image: null })}>
@@ -129,6 +129,7 @@ export function ScriptLocationCard({ location, large = false }: { location: Scri
               onOpenChange={setPicking}
               title={`A picture of ${location.name}`}
               max={1}
+              current={currentUrl}
               onUpload={(files) => void assets.upload(files.slice(0, 1), { kind: "location", locationId: location.id })}
               onPick={([image]) => image && assets.op({ op: "set_location_image", locationId: location.id, image })}
             />

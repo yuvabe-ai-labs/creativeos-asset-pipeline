@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { listAvatars } from "@/lib/db/avatars";
 import { resolveOrgId } from "@/lib/dal";
+import { redirectUnlessKbReady } from "@/lib/clients/kb-gate";
 import { AvatarsLibrary } from "@/components/avatars/avatars-library";
 import {
   Breadcrumb,
@@ -23,6 +24,8 @@ export default async function AvatarsPage({ params }: { params: Promise<{ id: st
   // Org isolation: a client outside the caller's org redirects the same as a nonexistent
   // one — mirrors the Market page's guard.
   if (!client || client.org_id !== effectiveOrgId) redirect("/");
+  // D503: no scripts or avatars until the Brand KB is set up, the same rule as the canvases page.
+  redirectUnlessKbReady(client);
 
   const avatars = await listAvatars(client.id);
 

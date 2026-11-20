@@ -39,11 +39,8 @@ import {
   MULTISHOT_MODELS,
   multishotCapabilityFor,
   checkLadder,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- TEMPORARY: model Select commented out
   describeCapability,
 } from "@/lib/nodes/multishot-models";
-// TEMPORARY: unused while the model Select below is commented out — keep for restoring it.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 type MultishotFocusViewProps = {
@@ -140,7 +137,6 @@ export function MultishotFocusView({
   const addable = canAddCut(draft.cuts, cap);
   // Base UI resolves SelectValue's label from `items`. Without it, a bare <SelectValue /> renders
   // the raw VALUE — which is why this trigger read "gemini:gemini-omni-1.1-flash".
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- TEMPORARY: model Select commented out
   const modelItems = Object.fromEntries(MULTISHOT_MODELS.map((m) => [m.id, m.label]));
 
   // Takes a TRANSFORM, not a finished array: the functional form is only protection if the
@@ -217,9 +213,6 @@ export function MultishotFocusView({
                   because it GOVERNS the duration chip beside the title — changing it re-derives
                   the ceiling that chip is measured against — then the draft's Cancel / Save. */}
               <div className="flex shrink-0 items-center gap-2">
-                {/* TEMPORARY: model selection hidden for now — the node keeps using its saved (or default)
-                   model. Restore by uncommenting the Select below.
-
                 <Select
                   items={modelItems}
                   value={cap.id}
@@ -236,8 +229,8 @@ export function MultishotFocusView({
                   }
                   disabled={isReadOnly}
                 >
-                  h-10 matches the lg Cancel / Save beside it. min-w holds the
-                      slot while letting a longer model name grow instead of clipping.
+                  {/* h-10 matches the lg Cancel / Save beside it. min-w holds the
+                      slot while letting a longer model name grow instead of clipping. */}
                   <SelectTrigger className="min-w-[168px] text-sm data-[size=default]:h-10" aria-label="Multishot model">
                     <SelectValue />
                   </SelectTrigger>
@@ -246,8 +239,8 @@ export function MultishotFocusView({
                       <SelectItem key={m.id} value={m.id} className="items-start py-1.5">
                         <div className="flex flex-col items-start gap-0.5">
                           <span>{m.label}</span>
-                          Every model stays selectable. D97 — the app rejects and explains
-                              rather than prevents, and checkLadder already writes that sentence.
+                          {/* Every model stays selectable. D97 — the app rejects and explains
+                              rather than prevents, and checkLadder already writes that sentence. */}
                           <span className="text-xs text-muted-foreground">
                             {describeCapability(m)}
                           </span>
@@ -256,7 +249,6 @@ export function MultishotFocusView({
                     ))}
                   </SelectContent>
                 </Select>
-                */}
 
                 {/* Always shown; disabled until there is something to save or discard. */}
                 {!isReadOnly && (

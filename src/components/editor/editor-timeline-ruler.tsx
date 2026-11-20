@@ -19,7 +19,7 @@ export function EditorTimelineRuler({ time, total, width, onScrubStart, onScrub 
   onScrubStart(): void;
   onScrub(t: number): void;
 }) {
-  const { zoom, fit, zoomBy } = useEditorView();
+  const { zoom, fit, fitted, zoomBy } = useEditorView();
   const { minor, major } = rulerStep(zoom);
   const count = Math.floor(width / zoom / minor) + 1;
   const ticks = Array.from({ length: count }, (_, i) => Math.round(i * minor * 100) / 100);
@@ -64,7 +64,7 @@ export function EditorTimelineRuler({ time, total, width, onScrubStart, onScrub 
       />
       <ContextMenuContent>
         <ContextMenuItem onClick={fit}>
-          Fit the reel <span className="ml-auto pl-6 text-xs text-muted-foreground">Shift Z</span>
+          {fitted ? "Back to the previous zoom" : "Fit the reel"} <span className="ml-auto pl-6 text-xs text-muted-foreground">Shift Z</span>
         </ContextMenuItem>
         <ContextMenuItem onClick={() => zoomBy(1.3)}>
           Zoom in <span className="ml-auto pl-6 text-xs text-muted-foreground">Ctrl +</span>

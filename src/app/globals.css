@@ -476,6 +476,15 @@
   border-radius: 999px;
 }
 
+/* No scrollbar at all, still scrollable (wheel, trackpad, keyboard, code) — the editor's timeline,
+   which has its own ways to move (wheel, zoom, Fit, the playhead following). */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* Marching-ant edges — flowing connection lines for the canvas loading state */
 @keyframes dash-flow {
   to {

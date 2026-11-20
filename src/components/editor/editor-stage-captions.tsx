@@ -1,19 +1,19 @@
 "use client";
 
 import { captionTimes } from "@/lib/editor/captions";
+import { captionLook } from "@/lib/editor/caption-style";
 import { captionBoxStyle } from "./caption-look-css";
 import { CaptionLineRender } from "./editor-caption-line-render";
 import { useEditorStore } from "./editor-store-provider";
 import { usePlayback } from "./editor-playback-context";
 
 /** Captions showing at the playhead, word by word, where the reel's style places them (D396,
- *  D397). Click one to select it; the selected caption gets the draggable overlay instead, and a
+ *  D397), each in its own look (D505). Click one to select it; the selected caption gets the draggable overlay instead, and a
  *  second click there edits its words (D412). */
 export function EditorStageCaptions({ skipId }: { skipId?: string | null }) {
   const doc = useEditorStore((s) => s.doc);
   const select = useEditorStore((s) => s.select);
   const { time, fps } = usePlayback();
-  const style = doc.captionStyle;
   const frame = Math.round(time * fps);
   const showing = doc.captions.filter((c) => {
     if (c.id === skipId) return false;
@@ -22,7 +22,9 @@ export function EditorStageCaptions({ skipId }: { skipId?: string | null }) {
   });
   return (
     <>
-      {showing.map((c) => (
+      {showing.map((c) => {
+        const style = captionLook(doc, c);
+        return (
         <p
           key={c.id}
           data-keep-selection=""
@@ -33,7 +35,8 @@ export function EditorStageCaptions({ skipId }: { skipId?: string | null }) {
         >
           <CaptionLineRender doc={doc} caption={c} style={style} frame={frame} fps={fps} />
         </p>
-      ))}
+        );
+      })}
     </>
   );
 }

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
 import { getAvatar } from "@/lib/db/avatars";
 import { resolveOrgId } from "@/lib/dal";
+import { redirectUnlessKbReady } from "@/lib/clients/kb-gate";
 import { loadAvatarGenerations, loadVoicePreviewState } from "@/lib/avatars/studio-server";
 import { AvatarStudio } from "@/components/avatars/avatar-studio";
 
@@ -16,6 +17,8 @@ export default async function AvatarPage({
   const client = await getClientBySlug(id);
   const effectiveOrgId = await resolveOrgId();
   if (!client || client.org_id !== effectiveOrgId) redirect("/");
+  // D503: no scripts or avatars until the Brand KB is set up, the same rule as the canvases page.
+  redirectUnlessKbReady(client);
 
   // Missing, another client's, or archived: back to the library, never confirming it exists.
   const avatar = await getAvatar(client.id, avatarId);
