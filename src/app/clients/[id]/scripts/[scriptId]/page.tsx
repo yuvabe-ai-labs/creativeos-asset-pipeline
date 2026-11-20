@@ -88,7 +88,8 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
   ) : null;
   const waiting = script.stage === "approved"
     ? scriptWaiting({ stage: "approved", hasCanvas: Boolean(scriptCanvas) })
-    : script.stage === "generate" ? null : scriptWaiting({ stage: script.stage });
+    // Visualise's line follows the walk, worked out beside the board (piece 5.1, Task 6).
+    : script.stage === "in_review" ? scriptWaiting({ stage: "in_review" }) : null;
 
   return (
     <main className="mx-auto w-full max-w-[96rem] flex-1 px-6 py-12">

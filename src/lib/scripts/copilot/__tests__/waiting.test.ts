@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { VisualiseStep } from "../visualise-walk";
 import reel01 from "@/lib/scripts/fixtures/reel-01.json";
 import { scriptDocSchema } from "@/lib/scripts/schema";
 import { IMPORT_REPLY_PREFIX } from "../constants";
@@ -65,8 +66,32 @@ describe("scriptWaiting at Generate", () => {
 });
 
 describe("scriptWaiting after Generate", () => {
-  it("at Visualise", () => {
-    expect(scriptWaiting({ stage: "visualise" })).toEqual({ kind: "task", line: "Waiting for you: finish the storyboard and send it for review" });
+  // Piece 5.1 §3.6 — at Visualise the line follows the walk.
+  const plan = (n: number) => ({ shotIds: Array.from({ length: n }, (_, i) => `s${i}`), credits: null, redraw: false, waiting: 0 });
+  const atVisualise = (step: VisualiseStep, over: { pendingCard?: boolean; busy?: boolean } = {}) =>
+    scriptWaiting({ stage: "visualise", step, pendingCard: over.pendingCard ?? false, busy: over.busy ?? false });
+  it("at Visualise, a character without an avatar", () => {
+    expect(atVisualise({ kind: "cast", castId: "m", name: "Meenakshi", drawable: 0 })).toEqual({ kind: "task", line: "Waiting for you: choose who plays Meenakshi" });
+  });
+  it("at Visualise, an avatar not ready to draw", () => {
+    expect(atVisualise({ kind: "finish_avatar", castId: "m", name: "Meenakshi", drawable: 0 })).toEqual({ kind: "task", line: "Waiting for you: finish Meenakshi's avatar" });
+  });
+  it("at Visualise, missing pictures", () => {
+    expect(atVisualise({ kind: "pictures", missing: [], plan: plan(2) })).toEqual({ kind: "task", line: "Waiting for you: add the missing pictures" });
+  });
+  it("at Visualise, panels to draw", () => {
+    expect(atVisualise({ kind: "draw", plan: plan(6) })).toEqual({ kind: "task", line: "Waiting for you: draw 6 panels" });
+    expect(atVisualise({ kind: "draw", plan: plan(1) })).toEqual({ kind: "task", line: "Waiting for you: draw 1 panel" });
+  });
+  it("at Visualise, nothing while panels are drawn or the copilot answers", () => {
+    expect(atVisualise({ kind: "drawing", count: 3 })).toBeNull();
+    expect(atVisualise({ kind: "send" }, { busy: true })).toBeNull();
+  });
+  it("at Visualise, everything drawn", () => {
+    expect(atVisualise({ kind: "send" })).toEqual({ kind: "task", line: "Waiting for you: send the storyboard for client review" });
+  });
+  it("at Visualise, a change card waiting", () => {
+    expect(atVisualise({ kind: "send" }, { pendingCard: true })).toEqual({ kind: "change", line: "Waiting for you: review the change" });
   });
   it("in review", () => {
     expect(scriptWaiting({ stage: "in_review" })).toEqual({ kind: "client", line: "Waiting for the client's review" });
