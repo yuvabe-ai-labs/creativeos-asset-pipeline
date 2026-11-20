@@ -21,6 +21,7 @@ import { OrgDetailTabs } from "./org-detail-tabs";
 import { EnterImpersonationButton } from "./enter-impersonation-button";
 import { OrgCrumbs } from "./org-crumbs";
 import { PAGE_CONTAINER, PageHeader } from "@/components/shared/page-header";
+import { AdminSectionNav } from "@/components/admin/admin-section-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,7 @@ export default async function OrgDetailPage({
 
   return (
     <main className={PAGE_CONTAINER}>
+      <AdminSectionNav />
       <div className="mb-6">
         <PageHeader
           breadcrumb={<OrgCrumbs org={{ id: org.id, name: org.name }} />}
