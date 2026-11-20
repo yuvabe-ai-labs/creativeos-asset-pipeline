@@ -17,6 +17,7 @@ import { listAgencyPeople, listOpenInvites } from "@/lib/db/people";
 import { listClientNames } from "@/lib/db/clients";
 import { listOpenGrants } from "@/lib/db/credit-grants";
 import { listBillingLog } from "@/lib/db/billing-admin";
+import { getLiveSubscription } from "@/lib/db/billing-subscriptions";
 import { OrgDetailTabs } from "./org-detail-tabs";
 import { EnterImpersonationButton } from "./enter-impersonation-button";
 import { OrgCrumbs } from "./org-crumbs";
@@ -57,6 +58,7 @@ export default async function OrgDetailPage({
     impersonationSessions,
     grants,
     billingLog,
+    subscription,
   ] = await Promise.all([
     listAgencyPeople(id),
     listOpenInvites(id),
@@ -72,6 +74,7 @@ export default async function OrgDetailPage({
     listImpersonationSessionPage(id, { page: 1, pageSize: 20 }),
     listOpenGrants(id),
     listBillingLog(id),
+    getLiveSubscription(id),
   ]);
 
   return (
@@ -111,6 +114,7 @@ export default async function OrgDetailPage({
         impersonationSessions={impersonationSessions}
         grants={grants}
         billingLog={billingLog}
+        subscription={subscription}
       />
     </main>
   );

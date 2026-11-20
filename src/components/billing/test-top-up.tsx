@@ -5,7 +5,7 @@ import { CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirmTestPayment, useCreateTestOrder } from "@/hooks/queries/billing";
 import { TEST_PACK } from "@/lib/billing/constants";
-import { CHECKOUT_LOAD_FAILED, loadCheckout, openCheckout } from "@/lib/billing/load-checkout";
+import { CHECKOUT_LOAD_FAILED, loadCheckout, openCheckout, type CheckoutSuccess } from "@/lib/billing/load-checkout";
 import { ApiError } from "@/services/read-json";
 
 type Status = { tone: "info" | "ok" | "error"; text: string } | null;
@@ -34,7 +34,7 @@ export function TestTopUp() {
           currency: "INR",
           name: "CreativeOS",
           description: `${order.credits.toLocaleString("en-IN")} credits (test)`,
-          handler: async (r) => {
+          handler: async (r: CheckoutSuccess) => {
             try {
               await confirm.mutateAsync({ orderId: r.razorpay_order_id, paymentId: r.razorpay_payment_id, signature: r.razorpay_signature });
               setStatus({ tone: "ok", text: "Payment received. The credits are added as soon as it's confirmed." });

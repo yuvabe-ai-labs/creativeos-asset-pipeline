@@ -1567,3 +1567,40 @@ select proname, prosecdef from pg_proc where proname = 'admin_save_offer';
 drop function if exists admin_save_offer(uuid, text, text, text, boolean, bigint, numeric, integer, uuid, text);
 notify pgrst, 'reload schema';
 ```
+
+## Migration 0071 — monthly plans (D521, 2026-11-21)
+
+Apply after 0070, then release. It replaces `reserve_credits_v2` (same arguments) with one more
+refusal, `payment_due`. Code from before the release would treat that answer as unknown and fail
+the run, but no agency has a subscription before the release, so it can't occur.
+
+- Adds `record_subscription_charge` (Razorpay's `subscription.charged`: records the payment once,
+  sets the paid period and the plan charged, writes the month's plan grant) and
+  `set_subscription_status` (the other subscription events). Service role only.
+- `reserve_credits_v2` refuses a paying agency whose plan payment is due, before its credits.
+- Safe to apply: new functions and a replaced one with the same behaviour for every agency today.
+
+**Razorpay setup for this release:** in the Razorpay Dashboard (test mode), the webhook must send
+`subscription.activated`, `subscription.charged`, `subscription.pending`,
+`subscription.halted`, `subscription.cancelled`, `subscription.completed`,
+`subscription.resumed` and `order.paid`.
+
+**Verify after running:**
+
+```sql
+-- expect two rows, security definer
+select proname, prosecdef from pg_proc
+ where proname in ('record_subscription_charge', 'set_subscription_status');
+```
+
+**Check after the release (test mode):** on `/billing-test` as the owner of a paying agency,
+subscribe to a plan with a test card; after the webhook, Admin's Billing tab shows the plan as
+Active with its renewal date and a Plan grant. Cancel shows Cancelled and the end date.
+
+**Rollback:** re-run the `reserve_credits_v2` definition from 0067, then:
+
+```sql
+drop function if exists set_subscription_status(text, text, timestamptz, timestamptz);
+drop function if exists record_subscription_charge(text, text, text, text, bigint, timestamptz, timestamptz);
+notify pgrst, 'reload schema';
+```

@@ -1,17 +1,25 @@
 "use client";
 
 export type CheckoutSuccess = { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
+export type SubscriptionCheckoutSuccess = { razorpay_subscription_id: string; razorpay_payment_id: string; razorpay_signature: string };
 
-export type CheckoutOptions = {
-  key: string;
+type CommonOptions = { key: string; name: string; description: string; modal?: { ondismiss?: () => void } };
+
+/** A one-time payment for an order (top-ups). */
+export type OrderCheckoutOptions = CommonOptions & {
   order_id: string;
   amount: number;
   currency: "INR";
-  name: string;
-  description: string;
   handler: (response: CheckoutSuccess) => void;
-  modal?: { ondismiss?: () => void };
 };
+
+/** The first payment of a monthly plan; Razorpay sets the amount from the plan. */
+export type SubscriptionCheckoutOptions = CommonOptions & {
+  subscription_id: string;
+  handler: (response: SubscriptionCheckoutSuccess) => void;
+};
+
+export type CheckoutOptions = OrderCheckoutOptions | SubscriptionCheckoutOptions;
 
 type CheckoutInstance = {
   open(): void;

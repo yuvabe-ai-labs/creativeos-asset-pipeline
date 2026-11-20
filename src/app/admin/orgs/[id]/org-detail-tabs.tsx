@@ -25,6 +25,7 @@ import type { GenerationsPage } from "@/lib/db/generations";
 import type { ImpersonationSessionPage } from "@/lib/db/impersonation-audit";
 import type { OpenGrant } from "@/lib/billing/grants";
 import type { BillingLogEntry } from "@/lib/db/billing-admin";
+import type { LiveSubscription } from "@/lib/db/billing-subscriptions";
 import { BillingTab } from "@/components/admin/billing/billing-tab";
 
 const triggerClass =
@@ -66,6 +67,7 @@ export function OrgDetailTabs({
   impersonationSessions,
   grants,
   billingLog,
+  subscription,
 }: {
   org: OrgRow;
   people: AgencyPerson[];
@@ -82,6 +84,7 @@ export function OrgDetailTabs({
   impersonationSessions: ImpersonationSessionPage;
   grants: OpenGrant[];
   billingLog: BillingLogEntry[];
+  subscription: LiveSubscription | null;
 }) {
   // The tab and the focused person live in the URL (Set permissions in the Clients tab links to
   // ?tab=people&person=). Switching tabs pushes the URL with the History API, which Next keeps in
@@ -149,6 +152,7 @@ export function OrgDetailTabs({
           monthlyLimit={org.monthly_credit_limit}
           grants={grants}
           log={billingLog}
+          subscription={subscription}
         />
       </TabsContent>
 

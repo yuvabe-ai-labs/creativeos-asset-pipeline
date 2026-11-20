@@ -49,4 +49,25 @@ describe("Billing tab", () => {
     expect(html).toContain("Gave 50,000 free credits until 3 Dec 2026");
     expect(html).toContain("Yuva · Trial");
   });
+
+  const sub = { id: "s", status: "active" as const, priceId: "p", nextPriceId: null, planName: "Studio", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1" };
+
+  it("shows a paying agency's plan, its price and when it renews", () => {
+    const html = renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} subscription={sub} />);
+    expect(html).toContain("Studio");
+    expect(html).toContain("₹12,000 a month + GST");
+    expect(html).toContain("Active");
+    expect(html).toContain("Renews 21 Dec 2026");
+  });
+
+  it("warns when a payment is due, and says when a cancelled plan ends", () => {
+    expect(renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} subscription={{ ...sub, status: "payment_due" }} />))
+      .toContain("AI runs are stopped until the payment goes through");
+    expect(renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} subscription={{ ...sub, status: "cancelling" }} />))
+      .toContain("Ends 21 Dec 2026");
+  });
+
+  it("says when a paying agency has no plan yet", () => {
+    expect(renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} />)).toContain("No plan yet.");
+  });
 });

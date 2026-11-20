@@ -4,6 +4,8 @@ import { Card } from "@/components/ui/card";
 import { CreditLimitEditor } from "@/app/admin/orgs/[id]/credit-limit-editor";
 import type { BillingMode, OpenGrant } from "@/lib/billing/grants";
 import type { BillingLogEntry } from "@/lib/db/billing-admin";
+import type { LiveSubscription } from "@/lib/db/billing-subscriptions";
+import { PlanLine } from "./plan-line";
 import { BillingModeHeader } from "./billing-mode-card";
 import { GrantsPanel } from "./grants-card";
 import { BillingLog } from "./billing-log-card";
@@ -17,6 +19,7 @@ export function BillingTab({
   monthlyLimit,
   grants,
   log,
+  subscription = null,
 }: {
   orgId: string;
   mode: BillingMode;
@@ -24,6 +27,7 @@ export function BillingTab({
   monthlyLimit: number | null;
   grants: OpenGrant[];
   log: BillingLogEntry[];
+  subscription?: LiveSubscription | null;
 }) {
   return (
     <div className="flex flex-col gap-8">
@@ -36,7 +40,10 @@ export function BillingTab({
             <CreditLimitEditor orgId={orgId} initial={monthlyLimit} />
           </div>
         ) : (
-          <GrantsPanel orgId={orgId} grants={grants} />
+          <>
+            <PlanLine subscription={subscription} />
+            <GrantsPanel orgId={orgId} grants={grants} />
+          </>
         )}
       </Card>
       <BillingLog entries={log} />
