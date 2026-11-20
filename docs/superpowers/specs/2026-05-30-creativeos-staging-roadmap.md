@@ -8858,3 +8858,43 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** A message box at every stage now (nothing answers it until piece 5). One fold memory per script (unfolding to read the thread at Visualise would also leave Generate unfolded or folded against the person's choice there). Loading the thread in the browser at the later stages (a second request for data the server page already reads; it is read-only, so it goes down as props).
 
 **Originated →** `docs/superpowers/specs/2026-11-20-copilot-scripting-panel-design.md`; plan `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`.
+
+### D512 — The script's copilot acts at Visualise, as an extension of the writing copilot *(recorded 2026-11-20; refines D511, D497)*
+
+**Decision.** At Visualise the script's panel gets its message box back, starts open, and its messages go to the same copilot that wrote the script: the same thread, the same message route, the same typed edits and before-and-after cards. The route accepts a script at Visualise (In review and Approved stay read-only, as D511) and saves through a compare-and-set on `updated_at`, the guard every Visualise write uses, only while the script is still at Visualise. At Visualise only, the edit prompt carries the storyboard as the board shows it (each shot's panel, its versions and pick, who has no avatar, what has no picture) and a short set of rules, and the output adds panel picks ("version 2 of S3") and one offered button (draw, send, reopen). One screen-level provider owns the board query, the panel model, the draw queue and the product and location actions; the board and the panel both read it, so every button in the chat is the board's own action.
+
+**Why.** Cyril, 2026-11-20: the copilot does everything the person can do on the page beside it, and leads them through it. Reusing the writing copilot keeps the instructions tuned over many rounds and one place that changes a script; the Visualise part of the prompt is sent only at Visualise, and a test pins Generate's prompt word for word.
+
+**Rejected.** A separate Visualise agent on the shared tool loop (approach B): it would re-implement and re-check edits the writing copilot already makes, give two code paths that change one script, and two copilots answering in one thread. The walk without typed requests (Cyril decided typed requests act). Following a teammate's board changes live (one channel per screen): its own piece of work; the panel is as fresh as the board in this browser.
+
+**Originated →** `docs/superpowers/specs/2026-11-20-copilot-visualise-design.md`; plan `docs/superpowers/plans/2026-11-20-copilot-visualise.md`.
+
+### D513 — At Visualise a request applies at once, comes as a card, or is refused; the copilot's shot cards relax D489 (second) *(recorded 2026-11-20; refines D489 (second), D332)*
+
+**Decision.** At Visualise, casting an avatar, changing the lead, products and locations, and a change to one shot or one field of the script apply at once, as typing on the board does; the page shows them land. A change across several shots, adding, removing, splitting or moving shots, and adding, removing, renaming or redescribing a character come as a before-and-after card accepted right at Visualise, without a reopen; a character's card shows every shot they are in. The reel's notes and open items, and a pasted whole script, are refused with a Reopen button. One request has one outcome: if any part needs a card the whole request is a card, and if any part is refused nothing is applied. Picking a panel version applies at once; drawing, sending and reopening are only ever offered as buttons the person presses.
+
+**Why.** Cyril, 2026-11-20: casting and assets change at once; changes to the words work as while writing (one shot or field at once, several on a card); adding or reordering shots is a card at Visualise. A character's name and description are drawn, so their change touches panels and is shown first. A pasted script has new shots, so accepting it would lose every panel.
+
+**Rejected.** Every change to the words as a card at Visualise (it needs a new kind of card for a change easy to see and undo on the page). Sending every shot change through a reopen (it takes the script back to writing for one extra shot). The page's own controls are unchanged: adding or removing a shot by hand still needs a reopen.
+
+**Originated →** as D512.
+
+### D514 — The copilot leads at Visualise with a walk worked out from the board *(recorded 2026-11-20; refines D500)*
+
+**Decision.** The bottom of the thread at Visualise always shows the current step, written by code from the board each time it is shown and never stored: who plays each character on screen (lead first, with the client's avatars as buttons), an avatar not ready to draw (pointing to its slot), panels being drawn, the locations and products the shots still to draw use that have no picture (each with attach, draw it, or pick on the board, and always "Draw N panels without them"), then "Draw N panels", then the send card. Every draw button in the chat is the board's Generate all, with its credit confirmation. The send card is always offered when asked for, names what is missing (shots with no panel, panels being drawn, characters with no avatar, a waiting change card) and never blocks; its button is the page's Move to In review. The rail's "Waiting for you" line follows the walk.
+
+**Why.** Cyril, 2026-11-20: the copilot leads; the send is always available and says what is missing; pictures come before drawing, because a location's or product's picture is part of what a panel is drawn from and adding one afterwards means paying to redraw. A stored step would go stale the moment a step is done by hand.
+
+**Rejected.** Speaking only when asked. Holding the send back until everything is drawn (a team may send a half-drawn board on purpose). The draw button first with pictures listed under it (it makes paying twice easy). A one-click draw in the chat without the page's confirmation.
+
+**Originated →** as D512.
+
+### D515 — A picture attached in a script's chat stays with the script *(recorded 2026-11-20; replaces the copilot journey design §8 item 1)*
+
+**Decision.** At Visualise the message box takes a picture. Which product or location it is for is decided in the browser before it uploads: the item whose "Attach a picture" was pressed, else the one item the message names, else the only item still without a picture; otherwise it asks with one button per item. It then uploads exactly as the board does, into the script's own folder, never brand assets, and the thread keeps the picture with its message. A picture with no words is answered by code ("Added it to the café."), with no model call; the route accepts only a picture that is that item's current one in the stored script.
+
+**Why.** Cyril, 2026-11-20: the picture goes where the page would put it. The earlier plan (brand assets) was a reading of a "yes" never confirmed; saving one-off references there would fill the library every later script draws from.
+
+**Rejected.** Saving every attached picture to brand assets. Letting the model decide the target (code can, from the item pressed or named, and asks otherwise). An "Also add to brand assets" button: maybe later.
+
+**Originated →** as D512.

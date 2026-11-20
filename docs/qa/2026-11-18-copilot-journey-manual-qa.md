@@ -182,6 +182,28 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 9.10 | Make the window narrower than the panel's breakpoint at each stage. | At Generate the chat stacks above the script as before. At the later stages no panel; the storyboard has the page. |
 | 9.11 | At Visualise, open DevTools → Network and reload. | No request for the script's copilot thread from the browser. |
 
+## 10. The copilot at Visualise (D512–D515)
+
+| # | Do | Expected |
+|---|---|---|
+| 10.1 | Mark a script final whose characters have no avatar. | Visualise opens with the panel open. At the foot of the thread: "Who plays {lead}?" with the client's avatars as buttons; the lead's cast slot on the board says "Copilot is asking". The rail reads "Waiting for you: choose who plays {lead}". |
+| 10.2 | Press an avatar on that card. | The cast slot fills and highlights; the card moves to the next character, or on. |
+| 10.3 | With a location used by shots still to draw and no picture. | The card: "The café has no picture. Panels drawn now would need redrawing once it does.", with Attach a picture and Draw it, and "Draw N panels without them". |
+| 10.4 | Press Attach a picture on that card and choose an image. Send with no words. | The picture shows in the thread; the copilot answers "Added it to the café." with no model wait; the café chip shows the picture and highlights. It is in the script's folder, not in Brand assets. |
+| 10.5 | Attach a picture with the paperclip and send "here you go" on a script with two products and a location, all without pictures. | "Which is this for?" with one button each; picking one uploads it there and sends the message. |
+| 10.6 | Type "add a closing shot of the product on the counter". | A before-and-after card; nothing changes on the board. Accept: the new shot appears with no panel, other panels unchanged; the card at the foot says "Draw 1 panel" (or the new count). |
+| 10.7 | Type "make the hook line shorter". | It changes at once; that shot's panel shows Out of date; no card. |
+| 10.8 | Type "call the husband Ravi". | A card showing every shot he is in; accept: his name changes, those panels go Out of date. |
+| 10.9 | Type "draw them". | The reply offers the board's Generate all with its count and credits; pressing it asks the same confirmation as the page. |
+| 10.10 | Draw all. | The card says "Drawing N panels…"; the rail has no waiting line while it runs; panels appear on the board. |
+| 10.11 | Type "use the first version of S2" on a shot with two versions. | S2's panel switches to version 1. |
+| 10.12 | Type "send it to the client" with two shots undrawn. | The send card lists "2 shots have no panel; the client will see them as text only." and Move to In review; pressing it moves the script exactly as the page's button. |
+| 10.13 | Type "confirm the open items" or paste a whole script. | Refused in one sentence, with a Reopen button; nothing changes. |
+| 10.14 | *(two tabs)* Type into a shot in tab A while the copilot is changing the same shot from tab B. | The copilot leaves your text and says so; nothing is overwritten. |
+| 10.15 | Send for review in tab A, then send a message in tab B still on Visualise. | The copilot says the script has moved on from Visualise; nothing changes. |
+| 10.16 | Open the script In review. | The panel is folded, read-only, "Waiting for the client's review"; offers in the thread are one-line notes. |
+| 10.17 | Open a script at Generate. | Everything as before 5.1: same steps, wording, cards and drafting. |
+
 ## Known limits (not bugs)
 
 - A pending change card hides the "Approve the brand KB" card until it is settled, since it may change fields the approval covers.

@@ -1,6 +1,6 @@
 # The copilot at Visualise (piece 5.1)
 
-**Status:** approved by Cyril, 2026-11-20 ("go ahead", with both builder-check answers as recommended). Plan next.
+**Status:** approved by Cyril, 2026-11-20 ("go ahead", with both builder-check answers as recommended). **Built 2026-11-20 as D512–D515** (plan `docs/superpowers/plans/2026-11-20-copilot-visualise.md`); not yet run in a browser.
 **Part of:** the copilot journey (`2026-11-12-copilot-journey-design.md`), piece 5, on the same branch, merged once with the rest. Piece 5 is built in two parts *(my call)*: **5.1, this spec: the copilot at Visualise**, and **5.2: the copilot at client review** (what it says while the client reviews, and what it does with the client's comments), which gets its own spec. Stands on 4.1 (D511): the script's panel is already on the Visualise page, read-only.
 
 ## 1. Problem
