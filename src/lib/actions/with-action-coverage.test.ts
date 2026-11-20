@@ -61,6 +61,18 @@ const ALLOWLIST: Record<string, string> = {
   takeBackCreditsAction:
     "billing-admin.ts: the agency page's Billing tab, the same D85 platform-administration category as " +
     "admin.ts (requireSuperAdmin()-gated); orgId is an explicit caller-supplied parameter.",
+  saveBillingSettingsAction:
+    "billing-catalog.ts: Admin's Plans and prices, the same D85 platform-administration category as " +
+    "admin.ts (requireSuperAdmin()-gated); it changes the catalog, not any agency's data.",
+  saveProductAction:
+    "billing-catalog.ts: Admin's Plans and prices, the same D85 platform-administration category as " +
+    "admin.ts (requireSuperAdmin()-gated); it changes the catalog, not any agency's data.",
+  addPriceAction:
+    "billing-catalog.ts: Admin's Plans and prices, the same D85 platform-administration category as " +
+    "admin.ts (requireSuperAdmin()-gated); it changes the catalog, not any agency's data.",
+  setPriceActiveAction:
+    "billing-catalog.ts: Admin's Plans and prices, the same D85 platform-administration category as " +
+    "admin.ts (requireSuperAdmin()-gated); it changes the catalog, not any agency's data.",
   setGrantEndAction:
     "billing-admin.ts: the agency page's Billing tab, the same D85 platform-administration category as " +
     "admin.ts (requireSuperAdmin()-gated); orgId is an explicit caller-supplied parameter.",
