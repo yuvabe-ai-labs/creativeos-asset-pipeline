@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RupeesField, SettingsFormSchema, ProductFormSchema, PriceFormSchema } from "../catalog-schema";
+import { RupeesField, SettingsFormSchema, ProductFormSchema, OfferFormSchema } from "../catalog-schema";
 
 const first = (r: { success: boolean; error?: { issues: { message: string }[] } }) => r.error?.issues[0]?.message;
 
@@ -28,22 +28,10 @@ describe("Plans and prices forms", () => {
     expect(first(ProductFormSchema.safeParse({ kind: "plan", name: "S", description: "" }))).toBe("Enter a name.");
   });
 
-  const price = { kind: "plan" as const, amount: "12,000", credits: "100,000", intervalMonths: 1, reason: "", replacing: false };
-
-  it("reads a monthly price", () => {
-    expect(PriceFormSchema.parse(price)).toMatchObject({ amount: 1_200_000, credits: 100_000, intervalMonths: 1 });
-  });
-
-  it("offers only the intervals phase 1 supports", () => {
-    expect(first(PriceFormSchema.safeParse({ ...price, intervalMonths: 12 }))).toBe("Pick how often the plan is paid.");
-  });
-
-  it("pays a top-up once", () => {
-    expect(PriceFormSchema.safeParse({ ...price, kind: "topup", intervalMonths: null }).success).toBe(true);
-    expect(first(PriceFormSchema.safeParse({ ...price, kind: "topup" }))).toBe("A top-up pack is paid once.");
-  });
-
-  it("needs a reason to replace a price", () => {
-    expect(first(PriceFormSchema.safeParse({ ...price, replacing: true }))).toBe("Add a reason.");
+  it("reads a plan and its price together", () => {
+    expect(OfferFormSchema.parse({ kind: "plan", name: "Studio", description: "", amount: "12,000", credits: "1,00,000", reason: "" }))
+      .toEqual({ kind: "plan", name: "Studio", description: null, amount: 1_200_000, credits: 100_000, reason: "" });
+    expect(OfferFormSchema.safeParse({ kind: "plan", name: "Studio", description: "", amount: "12,000", credits: "0", reason: "" }).error?.issues[0]?.message)
+      .toBe("Enter the credits as a whole number above 0.");
   });
 });

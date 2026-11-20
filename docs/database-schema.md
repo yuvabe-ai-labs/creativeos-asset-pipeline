@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0069** (`supabase/migrations/0001_init.sql` … `0069_billing_catalog_admin.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
+Generated from migrations up to **0070** (`supabase/migrations/0001_init.sql` … `0070_billing_save_offer.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -448,6 +448,7 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `admin_save_product` | id (null adds), kind, name, description, sort, active, actor → uuid (logs) | definer, service role | 0069 |
 | `admin_add_price` | product_id, amount, list amount, interval, credits, cadence, valid_days, replaces, actor, reason → (new_price_id, moved_count) (replacing hides the old price and moves live subscriptions to the new one from the next payment; logs) | definer, service role | 0069 |
 | `admin_set_price_active` | price_id, active, actor → bool (logs) | definer, service role | 0069 |
+| `admin_save_offer` | product_id (null adds), kind, name, description, active, amount, credits, interval, actor, reason → (product_id, price_changed, moved_count) (a plan or pack and its price in one step; a changed price is a new row replacing the old for its subscribers; logs) | definer, service role | 0070 |
 | `billing_price_subscriber_counts` | → (price_id, subscribers) live subscriptions per price | definer, service role | 0069 |
 | `admin_set_grant_end` | grant_id, ends_at, actor, reason → text (`ok`/`not_found`; kept after the start; logs) | definer, service role | 0067 |
 

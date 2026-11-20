@@ -1,6 +1,5 @@
 import * as z from "zod";
 import { CreditsField, ReasonField } from "./admin-schema";
-import { PLAN_INTERVALS } from "./pricing";
 
 // Admin's Plans and prices forms (spec 2026-11-21-plans-and-prices-design.md). Typed text in,
 // stored units out: rupees become paise.
@@ -60,21 +59,9 @@ export const ProductFormSchema = z.object({
     .transform((s) => (s === "" ? null : s)),
 });
 
-export const PriceFormSchema = z
-  .object({
-    kind: ProductKindField,
-    amount: RupeesField,
-    credits: CreditsField,
-    intervalMonths: z.number().int().nullable(),
-    reason: z.string().trim().max(500),
-    replacing: z.boolean(),
-  })
-  .superRefine((v, ctx) => {
-    if (v.kind === "plan" && !(PLAN_INTERVALS as readonly number[]).includes(v.intervalMonths ?? -1)) {
-      ctx.addIssue({ code: "custom", message: "Pick how often the plan is paid." });
-    }
-    if (v.kind === "topup" && v.intervalMonths !== null) {
-      ctx.addIssue({ code: "custom", message: "A top-up pack is paid once." });
-    }
-    if (v.replacing && v.reason === "") ctx.addIssue({ code: "custom", message: "Add a reason." });
-  });
+/** Add a plan or pack, or edit it, in one step: its details and its price together. */
+export const OfferFormSchema = ProductFormSchema.extend({
+  amount: RupeesField,
+  credits: CreditsField,
+  reason: z.string().trim().max(500, { error: "Keep the reason under 500 characters." }),
+});

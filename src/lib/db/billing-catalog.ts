@@ -117,36 +117,49 @@ export async function saveProduct(
   return (data as string | null) ?? null;
 }
 
-/** Adds a price; with `replaces`, hides that price and moves its subscribers to this one from
- *  their next payment. Returns how many subscriptions moved. */
-export async function addPrice(
-  p: { productId: string; amountMinor: number; credits: number; intervalMonths: number | null; replaces: string | null; reason: string | null },
+/** Adds a plan or pack with its price (`productId` null), or edits it: name, description and
+ *  visibility in place; a changed amount or credits becomes a new price that replaces the old one
+ *  for its agencies from their next payment (admin_save_offer, migration 0070). */
+export async function saveOffer(
+  o: {
+    productId: string | null;
+    kind: "plan" | "topup";
+    name: string;
+    description: string | null;
+    active: boolean;
+    amountMinor: number;
+    credits: number;
+    intervalMonths: number | null;
+    reason: string | null;
+  },
   actorId: string,
-): Promise<{ priceId: string; moved: number }> {
+): Promise<{ productId: string; priceChanged: boolean; moved: number }> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase.rpc("admin_add_price", {
-    p_product_id: p.productId,
-    p_amount_minor: p.amountMinor,
-    p_list_amount_minor: null,
-    p_interval_months: p.intervalMonths,
-    p_credits: p.credits,
-    // Phase 1: a plan's credits arrive every month; a top-up has no cadence.
-    p_credits_every_months: p.intervalMonths === null ? null : 1,
-    p_valid_days: null,
-    p_replaces: p.replaces,
+  const { data, error } = await supabase.rpc("admin_save_offer", {
+    p_product_id: o.productId,
+    p_kind: o.kind,
+    p_name: o.name,
+    p_description: o.description,
+    p_active: o.active,
+    p_amount_minor: o.amountMinor,
+    p_credits: o.credits,
+    p_interval_months: o.intervalMonths,
     p_actor: actorId,
-    p_reason: p.reason,
+    p_reason: o.reason,
   });
   if (error) throw error;
-  const row = ((data ?? []) as { new_price_id: string; moved_count: number }[])[0];
-  if (!row) throw new Error("admin_add_price returned no row");
-  return { priceId: row.new_price_id, moved: Number(row.moved_count) };
+  const row = ((data ?? []) as { product_id: string; price_changed: boolean; moved_count: number }[])[0];
+  if (!row) throw new Error("admin_save_offer returned no row");
+  return { productId: row.product_id, priceChanged: row.price_changed, moved: Number(row.moved_count) };
 }
 
-/** False when the price is missing or already so. */
-export async function setPriceActive(priceId: string, active: boolean, actorId: string): Promise<boolean> {
+/** The price in force for a product and interval, to tell whether an edit changes it. */
+export async function getCurrentPrice(productId: string, intervalMonths: number | null): Promise<{ amountMinor: number; credits: number } | null> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase.rpc("admin_set_price_active", { p_price_id: priceId, p_active: active, p_actor: actorId });
+  let query = supabase.from("billing_prices").select("amount_minor, credits").eq("product_id", productId).eq("active", true);
+  query = intervalMonths === null ? query.is("interval_months", null) : query.eq("interval_months", intervalMonths);
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw error;
-  return data === true;
+  const r = data as { amount_minor: number | string; credits: number | string } | null;
+  return r ? { amountMinor: Number(r.amount_minor), credits: Number(r.credits) } : null;
 }

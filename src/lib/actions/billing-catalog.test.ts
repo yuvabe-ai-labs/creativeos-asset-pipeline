@@ -3,30 +3,31 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
   requireSuperAdmin: vi.fn(), revalidatePath: vi.fn(),
-  saveBillingSettings: vi.fn(), saveProduct: vi.fn(), addPrice: vi.fn(), setPriceActive: vi.fn(),
+  saveBillingSettings: vi.fn(), saveProduct: vi.fn(), saveOffer: vi.fn(), getCurrentPrice: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-super-admin", () => ({ requireSuperAdmin: m.requireSuperAdmin }));
 vi.mock("next/cache", () => ({ revalidatePath: m.revalidatePath }));
 vi.mock("@/lib/db/billing-catalog", () => ({
-  saveBillingSettings: m.saveBillingSettings, saveProduct: m.saveProduct, addPrice: m.addPrice, setPriceActive: m.setPriceActive,
+  saveBillingSettings: m.saveBillingSettings, saveProduct: m.saveProduct, saveOffer: m.saveOffer, getCurrentPrice: m.getCurrentPrice,
 }));
 
-import { saveBillingSettingsAction, saveProductAction, addPriceAction, setPriceActiveAction } from "./billing-catalog";
+import { saveBillingSettingsAction, saveOfferAction, setOfferShownAction } from "./billing-catalog";
 
 const P = "3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e";
-const OLD = "5a6b7c8d-1e2f-4a3b-9c4d-5e6f7a8b9c0d";
+const offer = { productId: null, kind: "plan" as const, name: "Studio", description: "", active: true, amount: "12,000", credits: "1,00,000", reason: "" };
 
 beforeEach(() => {
   for (const fn of Object.values(m)) fn.mockReset();
   m.requireSuperAdmin.mockResolvedValue({ userId: "admin-1", platformRole: "super_admin" });
+  m.saveOffer.mockResolvedValue({ productId: P, priceChanged: true, moved: 0 });
 });
 
 describe("Plans and prices actions", () => {
   it("are for super admins only", async () => {
     m.requireSuperAdmin.mockRejectedValue(new Error("NOT_FOUND"));
-    await expect(setPriceActiveAction(OLD, false)).rejects.toThrow("NOT_FOUND");
-    await expect(saveProductAction({ id: null, kind: "plan", name: "Studio", description: "" })).rejects.toThrow("NOT_FOUND");
-    expect(m.setPriceActive).not.toHaveBeenCalled();
+    await expect(saveOfferAction(offer)).rejects.toThrow("NOT_FOUND");
+    await expect(setOfferShownAction({ productId: P, kind: "plan", name: "S", description: null, shown: false })).rejects.toThrow("NOT_FOUND");
+    expect(m.saveOffer).not.toHaveBeenCalled();
   });
 
   it("saves settings as a new row and refreshes the page", async () => {
@@ -35,28 +36,54 @@ describe("Plans and prices actions", () => {
     expect(m.revalidatePath).toHaveBeenCalledWith("/admin/plans");
   });
 
-  it("replaces a price and says how many agencies move", async () => {
-    m.addPrice.mockResolvedValue({ priceId: "n", moved: 3 });
-    await expect(addPriceAction({ productId: P, kind: "plan", amount: "12,000", credits: "100000", intervalMonths: 1, replaces: OLD, reason: "Cost went up" }))
-      .resolves.toEqual({ moved: 3 });
-    expect(m.addPrice).toHaveBeenCalledWith({ productId: P, amountMinor: 1_200_000, credits: 100_000, intervalMonths: 1, replaces: OLD, reason: "Cost went up" }, "admin-1");
+  it("adds a plan and its monthly price in one step, with no reason needed", async () => {
+    await expect(saveOfferAction(offer)).resolves.toEqual({ moved: 0 });
+    expect(m.saveOffer).toHaveBeenCalledWith(
+      { productId: null, kind: "plan", name: "Studio", description: null, active: true, amountMinor: 1_200_000, credits: 100_000, intervalMonths: 1, reason: null },
+      "admin-1",
+    );
+    expect(m.getCurrentPrice).not.toHaveBeenCalled();
+  });
+
+  it("adds a top-up pack paid once", async () => {
+    await saveOfferAction({ ...offer, kind: "topup" });
+    expect(m.saveOffer).toHaveBeenCalledWith(expect.objectContaining({ kind: "topup", intervalMonths: null }), "admin-1");
+  });
+
+  it("asks for a reason when an edit changes the price", async () => {
+    m.getCurrentPrice.mockResolvedValue({ amountMinor: 1_010_000, credits: 100_000 });
+    await expect(saveOfferAction({ ...offer, productId: P })).resolves.toEqual({ error: "Add a reason for the new price." });
+    expect(m.saveOffer).not.toHaveBeenCalled();
+  });
+
+  it("edits name and description without a reason when the price stays", async () => {
+    m.getCurrentPrice.mockResolvedValue({ amountMinor: 1_200_000, credits: 100_000 });
+    m.saveOffer.mockResolvedValue({ productId: P, priceChanged: false, moved: 0 });
+    await expect(saveOfferAction({ ...offer, productId: P, name: "Studio Plus" })).resolves.toEqual({ moved: 0 });
+  });
+
+  it("says how many agencies move to a new price", async () => {
+    m.saveOffer.mockResolvedValue({ productId: P, priceChanged: true, moved: 3 });
+    await expect(saveOfferAction({ ...offer, productId: P, reason: "Costs went up" })).resolves.toEqual({ moved: 3 });
   });
 
   it("refuses bad input before writing", async () => {
-    await expect(addPriceAction({ productId: "nope", kind: "plan", amount: "1", credits: "1", intervalMonths: 1, replaces: null, reason: "" })).resolves.toEqual({ error: "Price not found." });
-    await expect(addPriceAction({ productId: P, kind: "plan", amount: "abc", credits: "1", intervalMonths: 1, replaces: null, reason: "" })).resolves.toEqual({ error: "Enter the price in rupees, for example 10,100." });
-    expect(m.addPrice).not.toHaveBeenCalled();
+    await expect(saveOfferAction({ ...offer, productId: "nope" })).resolves.toEqual({ error: "Plan not found." });
+    await expect(saveOfferAction({ ...offer, amount: "abc" })).resolves.toEqual({ error: "Enter the price in rupees, for example 10,100." });
+    await expect(saveOfferAction({ ...offer, name: "S" })).resolves.toEqual({ error: "Enter a name." });
+    expect(m.saveOffer).not.toHaveBeenCalled();
     expect(m.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("says plainly when a plan is missing", async () => {
-    m.saveProduct.mockResolvedValue(null);
-    await expect(saveProductAction({ id: P, kind: "plan", name: "Studio", description: "" })).resolves.toEqual({ error: "Plan not found." });
+  it("hides and shows a plan", async () => {
+    m.saveProduct.mockResolvedValue(P);
+    await expect(setOfferShownAction({ productId: P, kind: "plan", name: "Studio", description: null, shown: false })).resolves.toEqual({});
+    expect(m.saveProduct).toHaveBeenCalledWith({ id: P, kind: "plan", name: "Studio", description: null, active: false }, "admin-1");
   });
 
   it("hides database errors behind plain words", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    m.setPriceActive.mockRejectedValue(new Error("connection reset"));
-    await expect(setPriceActiveAction(OLD, false)).resolves.toEqual({ error: "Could not save the change. Try again." });
+    m.saveOffer.mockRejectedValue(new Error("connection reset"));
+    await expect(saveOfferAction(offer)).resolves.toEqual({ error: "Could not save the change. Try again." });
   });
 });

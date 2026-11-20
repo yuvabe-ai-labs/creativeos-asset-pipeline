@@ -1,13 +1,12 @@
-import { Card } from "@/components/ui/card";
 import { describeBillingChange } from "@/lib/billing/log-text";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { BillingLogEntry } from "@/lib/db/billing-admin";
 
 // The last 50 billing changes Yuvabe made to this agency (spec §4).
-export function BillingLogCard({ entries }: { entries: BillingLogEntry[] }) {
+export function BillingLog({ entries }: { entries: BillingLogEntry[] }) {
   return (
-    <Card className="flex flex-col gap-3 p-6 shadow-card">
-      <h2 className="text-eyebrow">Billing log</h2>
+    <section className="flex flex-col gap-2">
+      <h2 className="text-eyebrow text-muted-foreground">Billing log</h2>
       {entries.length === 0 ? (
         <p className="text-sm text-muted-foreground">No billing changes yet.</p>
       ) : (
@@ -22,6 +21,6 @@ export function BillingLogCard({ entries }: { entries: BillingLogEntry[] }) {
           ))}
         </ul>
       )}
-    </Card>
+    </section>
   );
 }

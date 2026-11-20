@@ -1543,3 +1543,27 @@ delete from billing_log where org_id is null;
 alter table billing_log alter column org_id set not null;
 notify pgrst, 'reload schema';
 ```
+
+## Migration 0070 — one-step plan save (D520, 2026-11-21)
+
+Apply after 0069 and **before** the release with the redesigned Plans and prices page (adding or
+editing a plan calls `admin_save_offer`).
+
+- Adds `admin_save_offer`: adds a plan or top-up pack with its price, or edits it. A changed
+  amount or credits becomes a new price; the old one is hidden and its live subscriptions move to
+  the new one from their next payment. Logged in the same transaction. Service role only.
+- Safe to apply: one new function.
+
+**Verify after running:**
+
+```sql
+-- expect one row, security definer
+select proname, prosecdef from pg_proc where proname = 'admin_save_offer';
+```
+
+**Rollback:**
+
+```sql
+drop function if exists admin_save_offer(uuid, text, text, text, boolean, bigint, numeric, integer, uuid, text);
+notify pgrst, 'reload schema';
+```

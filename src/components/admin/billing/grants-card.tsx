@@ -2,7 +2,6 @@
 
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { formatDay, lastDayOf } from "@/lib/billing/dates";
 import type { OpenGrant } from "@/lib/billing/grants";
 import { GRANT_KIND_LABEL } from "./billing-labels";
@@ -13,14 +12,15 @@ import { GrantEndDialog } from "./grant-end-dialog";
 const addChip = "border border-dashed border-primary/40 hover:bg-primary/5";
 const n = (v: number) => v.toLocaleString("en-US");
 
-// A paying agency's open credits, the one ending first at the top (spec §3).
-export function GrantsCard({ orgId, grants }: { orgId: string; grants: OpenGrant[] }) {
+// A paying agency's open credits, the one ending first at the top (spec §3). The body of the
+// Billing card for a paying agency.
+export function GrantsPanel({ orgId, grants }: { orgId: string; grants: OpenGrant[] }) {
   const left = grants.reduce((sum, g) => sum + g.left, 0);
   return (
-    <Card className="flex flex-col gap-4 p-6 shadow-card">
+    <div className="flex flex-col gap-4 p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h2 className="text-eyebrow">Credits</h2>
+          <span className="text-eyebrow text-muted-foreground">Credits</span>
           <span className="font-display text-xl font-semibold tracking-tight">{n(left)} left</span>
         </div>
         <div className="flex gap-2">
@@ -49,6 +49,6 @@ export function GrantsCard({ orgId, grants }: { orgId: string; grants: OpenGrant
         </ul>
       )}
       {grants.length > 0 && <p className="text-xs text-muted-foreground">Credits that end first are used first.</p>}
-    </Card>
+    </div>
   );
 }

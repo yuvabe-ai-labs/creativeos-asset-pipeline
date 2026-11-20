@@ -9,8 +9,8 @@ import type { BillingActionResult } from "@/lib/actions/billing-admin";
 
 type Submit = (reason: string) => Promise<BillingActionResult>;
 
-// Every change on the Billing tab: its own fields, then a reason (required, it goes in the
-// billing log), then Save. The body remounts on each opening so a finished change never shows
+// Every billing change in Admin: its own fields, then a reason for the billing log (shown unless
+// `askReason` is false, e.g. adding a new plan), then Save. The body remounts on each opening so a finished change never shows
 // again, as in the Add an agency popup.
 export function BillingChangeDialog({
   trigger,
@@ -18,6 +18,7 @@ export function BillingChangeDialog({
   description,
   saveLabel,
   children,
+  askReason = true,
   onOpen,
   onSubmit,
 }: {
@@ -27,6 +28,8 @@ export function BillingChangeDialog({
   saveLabel: string;
   /** The change's own fields. */
   children?: ReactNode;
+  /** False hides the reason field (nothing changes that needs explaining). */
+  askReason?: boolean;
   /** Clears the change's own fields on each opening (their state lives with the caller). */
   onOpen?: () => void;
   onSubmit: Submit;
@@ -37,7 +40,7 @@ export function BillingChangeDialog({
     <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) { setOpening((n) => n + 1); onOpen?.(); } }}>
       <DialogTrigger render={trigger} />
       <DialogContent className="sm:max-w-md">
-        <ChangeBody key={opening} title={title} description={description} saveLabel={saveLabel} onSubmit={onSubmit} onDone={() => setOpen(false)}>
+        <ChangeBody key={opening} title={title} description={description} saveLabel={saveLabel} askReason={askReason} onSubmit={onSubmit} onDone={() => setOpen(false)}>
           {children}
         </ChangeBody>
       </DialogContent>
@@ -50,6 +53,7 @@ function ChangeBody({
   description,
   saveLabel,
   children,
+  askReason,
   onSubmit,
   onDone,
 }: {
@@ -57,6 +61,7 @@ function ChangeBody({
   description?: ReactNode;
   saveLabel: string;
   children?: ReactNode;
+  askReason: boolean;
   onSubmit: Submit;
   onDone: () => void;
 }) {
@@ -80,10 +85,12 @@ function ChangeBody({
         {description && <DialogDescription>{description}</DialogDescription>}
       </DialogHeader>
       {children}
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="billing-reason">Reason</Label>
-        <Textarea id="billing-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Shown in the billing log" rows={2} />
-      </div>
+      {askReason && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="billing-reason">Reason</Label>
+          <Textarea id="billing-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Shown in the billing log" rows={2} />
+        </div>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
       <DialogFooter>
         <Button type="button" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : saveLabel}</Button>

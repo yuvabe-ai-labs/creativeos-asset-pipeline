@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: () => ({ rpc: m.rpc, from: m.from }) }));
 
-import { getCatalog, getBillingSettings, getSubscriberCounts, addPrice, saveProduct, setPriceActive, saveBillingSettings } from "../billing-catalog";
+import { getCatalog, getBillingSettings, getSubscriberCounts, saveOffer, saveProduct, saveBillingSettings } from "../billing-catalog";
 
 beforeEach(() => { m.rpc.mockReset(); m.from.mockReset(); });
 
@@ -49,24 +49,19 @@ describe("catalog reads", () => {
 });
 
 describe("catalog writes", () => {
-  it("adds a monthly price with credits every month, and reports moved subscriptions", async () => {
-    m.rpc.mockResolvedValue({ data: [{ new_price_id: "n1", moved_count: 2 }], error: null });
-    await expect(addPrice({ productId: "p1", amountMinor: 1_200_000, credits: 100_000, intervalMonths: 1, replaces: "old", reason: "New price" }, "admin"))
-      .resolves.toEqual({ priceId: "n1", moved: 2 });
-    expect(m.rpc).toHaveBeenCalledWith("admin_add_price", expect.objectContaining({ p_interval_months: 1, p_credits_every_months: 1, p_replaces: "old", p_valid_days: null }));
-  });
-
-  it("adds a top-up price with no cadence", async () => {
-    m.rpc.mockResolvedValue({ data: [{ new_price_id: "n2", moved_count: 0 }], error: null });
-    await addPrice({ productId: "p2", amountMinor: 300_000, credits: 25_000, intervalMonths: null, replaces: null, reason: null }, "admin");
-    expect(m.rpc).toHaveBeenCalledWith("admin_add_price", expect.objectContaining({ p_interval_months: null, p_credits_every_months: null }));
+  it("saves a plan and its price in one call, and reports moved subscriptions", async () => {
+    m.rpc.mockResolvedValue({ data: [{ product_id: "p1", price_changed: true, moved_count: 2 }], error: null });
+    await expect(saveOffer({ productId: "p1", kind: "plan", name: "Studio", description: null, active: true, amountMinor: 1_200_000, credits: 100_000, intervalMonths: 1, reason: "Up" }, "admin"))
+      .resolves.toEqual({ productId: "p1", priceChanged: true, moved: 2 });
+    expect(m.rpc).toHaveBeenCalledWith("admin_save_offer", {
+      p_product_id: "p1", p_kind: "plan", p_name: "Studio", p_description: null, p_active: true,
+      p_amount_minor: 1_200_000, p_credits: 100_000, p_interval_months: 1, p_actor: "admin", p_reason: "Up",
+    });
   });
 
   it("passes the other writes through and throws database errors", async () => {
     m.rpc.mockResolvedValue({ data: "p1", error: null });
-    await expect(saveProduct({ id: null, kind: "plan", name: "Studio", description: null }, "admin")).resolves.toBe("p1");
-    m.rpc.mockResolvedValue({ data: true, error: null });
-    await expect(setPriceActive("x", false, "admin")).resolves.toBe(true);
+    await expect(saveProduct({ id: "p1", kind: "plan", name: "Studio", description: null, active: false }, "admin")).resolves.toBe("p1");
     m.rpc.mockResolvedValue({ data: null, error: new Error("down") });
     await expect(saveBillingSettings({ inrPerUsd: 100, planMarginPct: 20, topupMarginPct: 25, minMarginPct: 15, note: "n" }, "admin")).rejects.toThrow("down");
   });

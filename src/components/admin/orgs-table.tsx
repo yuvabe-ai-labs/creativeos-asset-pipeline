@@ -37,7 +37,7 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
         <div className="text-eyebrow flex items-center gap-4 border-b bg-muted/40 py-3 pl-5 text-[0.7rem] text-muted-foreground/80">
           <span className="flex-[3]">Agency</span>
           <span className="flex-1">Clients</span>
-          <span className="flex-1 whitespace-nowrap">Credit limit</span>
+          <span className="flex-1 whitespace-nowrap">Billing</span>
           <span className="flex-1 text-right">Created</span>
           {/* Every row has this actions column, so rows with Resend line up with the rest. */}
           <span className="w-28 shrink-0 pr-5" aria-hidden />
@@ -68,7 +68,7 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
                     {org.client_count} client{org.client_count === 1 ? "" : "s"}
                   </span>
                   <span className="flex-1 text-sm text-muted-foreground">
-                    {org.monthly_credit_limit === null ? "Unlimited" : org.monthly_credit_limit}
+                    {org.billing_mode === "plans" ? "Pays for a plan" : org.monthly_credit_limit === null ? "Managed · Unlimited" : `Managed · ${Number(org.monthly_credit_limit).toLocaleString("en-IN")}`}
                   </span>
                   <span className="flex-1 text-right text-sm text-muted-foreground">{formatRelativeTime(org.created_at)}</span>
                 </Link>

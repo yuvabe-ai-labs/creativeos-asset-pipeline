@@ -19,7 +19,12 @@ describe("Billing tab", () => {
     expect(html).toContain("Managed by Yuvabe");
     expect(html).toContain("Monthly credit limit");
     expect(html).not.toContain("Give free credits");
-    expect(html).toContain("Plan type: Standard");
+    expect(html).toContain("Yuvabe pays. The agency is never charged.");
+    expect(html).not.toContain("Custom plan");
+  });
+
+  it("marks a custom plan", () => {
+    expect(renderToStaticMarkup(<BillingTab {...base} planType="custom" mode="plans" grants={[]} />)).toContain("Custom plan");
   });
 
   it("lists a paying agency's credits, first-ending first, with what is left", () => {

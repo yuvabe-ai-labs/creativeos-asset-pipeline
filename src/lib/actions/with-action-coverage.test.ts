@@ -64,13 +64,10 @@ const ALLOWLIST: Record<string, string> = {
   saveBillingSettingsAction:
     "billing-catalog.ts: Admin's Plans and prices, the same D85 platform-administration category as " +
     "admin.ts (requireSuperAdmin()-gated); it changes the catalog, not any agency's data.",
-  saveProductAction:
+  saveOfferAction:
     "billing-catalog.ts: Admin's Plans and prices, the same D85 platform-administration category as " +
     "admin.ts (requireSuperAdmin()-gated); it changes the catalog, not any agency's data.",
-  addPriceAction:
-    "billing-catalog.ts: Admin's Plans and prices, the same D85 platform-administration category as " +
-    "admin.ts (requireSuperAdmin()-gated); it changes the catalog, not any agency's data.",
-  setPriceActiveAction:
+  setOfferShownAction:
     "billing-catalog.ts: Admin's Plans and prices, the same D85 platform-administration category as " +
     "admin.ts (requireSuperAdmin()-gated); it changes the catalog, not any agency's data.",
   setGrantEndAction:
