@@ -8799,3 +8799,23 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Swapping the tile's Scripts and Avatars buttons for one **Set up Brand KB** button (tried, and turned down by the user on 18 Nov 2026: the tile should look the same for every client). Hiding the buttons alone (a typed or bookmarked URL, and the create routes, would still get through). Letting the script copilot run without a KB (it can, with `hasKb: false`, but a script written with no brand context is what the KB step exists to prevent).
 
 **Originated →** this log.
+
+### D504 — The timeline loses its ⋯ clip button, All clips and Quiet stretches; Fit toggles back *(recorded 2026-11-20; refines D405, D410, the task-menu design)*
+
+**Decision.** A clip's menu opens on right-click only: the ⋯ button the selected clip showed on the Video lane is gone. The timeline header no longer has an **All clips** menu; work on every clip starts from the Inspector's task list with no clip selected. The Inspector no longer lists a selected clip's **Quiet stretches** (they stay shaded on the Audio lane, with their right-click menu). **Fit** is a toggle: the first press fits the reel to the screen, a second press (while the view is still the one Fit made) goes back to the zoom and scroll from before; any other zoom ends the fitted state. The header button shows the pressed state, and the ruler and View menus read "Back to the previous zoom" while fitted.
+
+**Why.** User, 20 Nov 2026: the ⋯ button and right-click did the same job; All clips repeated the Inspector; the quiet stretches section wasn't wanted; pressing Fit again did nothing.
+
+**Rejected.** Keeping the ⋯ button as a discoverability aid (right-click is the editor's pattern for every lane). A separate "Restore zoom" button.
+
+**Originated →** this log.
+
+### D505 — Each caption keeps its own style and position *(recorded 2026-11-20; refines D396, D398)*
+
+**Decision.** A caption styled or moved on its own carries `look`: its whole style (font, size, colour, word by word, active colour, upcoming, outline, box, box colour, caps) **and** its position (x, y). From then on the reel's `captionStyle` never reaches it; the reel's style is only the default for captions that have no `look` (new ones, and ones never touched). What a caption shows with is `captionLook(doc, caption)`. `applyCaptionLook` copies the caption's current style, applies the patch and stores all of it; `resetCaptionLook` puts the caption back on the default. Selecting a caption anywhere (its line in a clip's Captions task, the preview, the Captions lane, the default Text tab) opens its clip's Captions task in the Inspector with that line picked, and the same style controls as the default's (`EditorCaptionsStyle` / `EditorCaptionPresets` with a `captionId`) open right under the line, with **Use default style** to reset. On the preview, dragging the selected caption moves it alone and a corner drag resizes it alone. The default Style panel shows only for the Captions task with nothing selected. The stage, the Captions lane, the Premiere titles and the MP4's ASS (one style per distinct look, each line positioned on its own) render each caption's own style; the export lists and font-checks every font used. Redoing a clip's auto captions replaces its unedited lines, their own style included.
+
+**Why.** User, 20 Nov 2026: editing or moving one caption changed every caption; each must be kept separately. Two earlier cuts the same day fell short: a caption that kept only the keys changed on it still followed the default for the rest, moving stayed reel-wide, and selecting a caption on the preview opened the reel-wide panel.
+
+**Rejected.** Storing only the keys that differ from the default (the caption kept changing with it). Keeping position reel-wide (D396's drag moved every caption, which the user did not want).
+
+**Originated →** this log.

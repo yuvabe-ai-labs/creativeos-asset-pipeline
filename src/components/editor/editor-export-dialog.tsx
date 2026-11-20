@@ -6,7 +6,8 @@ import { Check, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useExportStatus } from "@/hooks/queries/editor";
-import { captionFont } from "@/lib/editor/caption-fonts";
+import { captionFont, type CaptionFontKey } from "@/lib/editor/caption-fonts";
+import { captionLook } from "@/lib/editor/caption-style";
 import { exportChecklist, exportSubtitle } from "@/lib/editor/export-copy";
 import { EditorExportHowTo, EditorExportTracks } from "./editor-export-howto";
 import { useEditorStore } from "./editor-store-provider";
@@ -21,9 +22,9 @@ export function EditorExportDialog({ canvasId, jobId, title, dubLabel, onClose, 
 }) {
   const { data } = useExportStatus(canvasId, jobId);
   const pieces = useEditorStore((s) => s.doc.pieces.length);
-  const hasCaptions = useEditorStore((s) => s.doc.captions.length > 0);
-  const font = useEditorStore((s) => s.doc.captionStyle.font);
-  const fonts = useMemo(() => (hasCaptions ? [captionFont(font).label] : []), [hasCaptions, font]);
+  // Every font a caption uses (D505), as one string so the selector stays stable.
+  const fontKeys = useEditorStore((s) => [...new Set(s.doc.captions.map((c) => captionLook(s.doc, c).font))].sort().join(","));
+  const fonts = useMemo(() => (fontKeys ? fontKeys.split(",").map((k) => captionFont(k as CaptionFontKey).label) : []), [fontKeys]);
   const result = data?.status === "succeeded" ? data.result : null;
   const failed = data?.status === "failed";
 

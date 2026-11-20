@@ -46,14 +46,23 @@ export function EditorTimeline({ height, captionsLane, tools }: { height: number
     return () => ro.disconnect();
   }, [scrollerRef]);
 
-  // Ctrl/⌘ + wheel zooms (a non-passive listener, so the page doesn't zoom instead).
+  // Ctrl/⌘ + wheel zooms (a non-passive listener, so the page doesn't zoom instead). The timeline has
+  // no scrollbar, so a plain wheel scrolls it sideways whenever the lanes fit without scrolling down.
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12);
+        return;
+      }
+      if (e.shiftKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return; // already sideways
+      const lanes = el.parentElement;
+      if (lanes && lanes.scrollHeight > lanes.clientHeight) return; // the wheel scrolls the lanes down
+      if (el.scrollWidth <= el.clientWidth) return;
       e.preventDefault();
-      zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12);
+      el.scrollLeft += e.deltaY;
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -97,7 +106,7 @@ export function EditorTimeline({ height, captionsLane, tools }: { height: number
             </span>
           ))}
         </div>
-        <div ref={scrollerRef} className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+        <div ref={scrollerRef} className="scrollbar-none min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
           <div ref={contentRef} className="relative" style={{ width: contentWidth }}>
             <EditorTimelineRuler time={time} total={total} width={contentWidth} onScrubStart={pause} onScrub={(t) => seek(t)} />
             <div className="relative" style={{ height: VIDEO_LANE_PX }} onClick={onEmpty}>

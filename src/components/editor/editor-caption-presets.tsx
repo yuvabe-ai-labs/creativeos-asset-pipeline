@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
-import { applyCaptionStyle, CAPTION_PRESETS, PRESET_KEYS, presetOf, type CaptionLook } from "@/lib/editor/caption-style";
+import { applyCaptionLook, applyCaptionStyle, CAPTION_PRESETS, captionLook, PRESET_KEYS, presetOf, type CaptionLook } from "@/lib/editor/caption-style";
 import { cn } from "@/lib/utils";
 import { CAPTION_FONT_CSS } from "./caption-font-faces";
 import { useEditorStore } from "./editor-store-provider";
@@ -17,9 +17,12 @@ const sampleStyle = (look: CaptionLook): CSSProperties => ({
       : { textShadow: "0 1px 6px rgba(0,0,0,.6)" }),
 });
 
-/** Four looks (D396). A preset never moves or retimes captions. */
-export function EditorCaptionPresets() {
-  const style = useEditorStore((s) => s.doc.captionStyle);
+/** Four looks (D396). A preset never moves or retimes captions. With `captionId`, it sets that
+ *  caption's own look only (D505). */
+export function EditorCaptionPresets({ captionId }: { captionId?: string } = {}) {
+  const reelStyle = useEditorStore((s) => s.doc.captionStyle);
+  const ownLook = useEditorStore((s) => (captionId ? s.doc.captions.find((x) => x.id === captionId)?.look : undefined));
+  const style = captionLook({ captionStyle: reelStyle }, { look: ownLook });
   const apply = useEditorStore((s) => s.apply);
   const editable = useEditorStore((s) => s.editable);
   const current = presetOf(style);
@@ -34,7 +37,7 @@ export function EditorCaptionPresets() {
             aria-checked={current === k}
             variant="outline"
             disabled={!editable}
-            onClick={() => apply((d) => applyCaptionStyle(d, look))}
+            onClick={() => apply((d) => (captionId ? applyCaptionLook(d, captionId, look) : applyCaptionStyle(d, look)))}
             className={cn(
               "flex h-auto flex-col gap-1 rounded-[10px] border-border bg-neutral-900 py-3 text-white transition-transform duration-200 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-[1.006] hover:bg-neutral-900 hover:text-white",
               current === k && "outline outline-2 outline-offset-2 outline-primary",
