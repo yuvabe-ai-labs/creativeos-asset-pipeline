@@ -18,7 +18,7 @@ export function VisualiseCopilotWorkspace({ client, initialState, initialBoard, 
   return (
     <VisualiseBoardProvider clientId={client.id} initial={initialBoard}>
       <div className="grid items-start gap-6 lg:grid-cols-[auto_minmax(0,1fr)]">
-        <VisualiseCopilot client={client} initialState={initialState} />
+        <VisualiseCopilot client={client} initialState={initialState} initialReview={initialReview} />
         <div className="min-w-0">
           <TeamReviewBoard clientId={client.id} initial={initialBoard} initialReview={initialReview} />
         </div>

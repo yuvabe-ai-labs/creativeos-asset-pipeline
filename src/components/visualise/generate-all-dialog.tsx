@@ -11,18 +11,21 @@ import { generateAllLabel, type GenerateAllPlan } from "@/lib/scripts/visualise/
 
 // D346 — Generate all shows its total first ("Redraw 9 panels · about N credits"), then runs.
 // It sits once on the page, beside the storyboard it draws.
-export function GenerateAllDialog({ plan, busy, onConfirm }: {
+export function GenerateAllDialog({ plan, busy, onConfirm, label = "Generate all", size }: {
   plan: GenerateAllPlan;
   busy: boolean;
   onConfirm: () => void;
+  /** Piece 5.1 — the copilot's cards name the draw ("Draw 6 panels without them"); same dialog. */
+  label?: string;
+  size?: "sm";
 }) {
   const [open, setOpen] = useState(false);
   const none = plan.shotIds.length === 0;
   return (
     <>
-      <Button disabled={none || busy} onClick={() => setOpen(true)}>
+      <Button size={size} disabled={none || busy} onClick={() => setOpen(true)}>
         <Sparkles className="size-4" strokeWidth={1.5} />
-        {busy ? "Drawing…" : "Generate all"}
+        {busy ? "Drawing…" : label}
       </Button>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>

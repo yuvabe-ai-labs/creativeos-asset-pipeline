@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
-import type { CopilotAvatar, ScriptMessage } from "@/lib/scripts/copilot/schema";
+import type { ReactNode } from "react";
+import type { CopilotAvatar, OfferCard, ScriptMessage } from "@/lib/scripts/copilot/schema";
 import { CopilotText } from "@/components/copilot/copilot-text";
 import { PersonText } from "@/components/copilot/person-text";
 import { CopilotResearchCard, researchRows } from "./copilot-research-card";
@@ -17,6 +18,12 @@ export type ChatActions = {
   resolve: (messageId: string, decision: "accept" | "reject") => void;
   /** Links an avatar to a character, from a chip after an import (paste-a-script §4.3). */
   link: (castId: string, avatarId: string) => void;
+  /** Piece 5.1 — at Visualise, the button a reply offered (draw, send, reopen), drawn live. */
+  renderOffer?: (card: OfferCard) => ReactNode;
+};
+
+const OFFERED: Record<OfferCard["action"], string> = {
+  draw: "Offered to draw the panels", send: "Offered to send for client review", reopen: "Offered to reopen the script",
 };
 
 /** `actions: null` after Generate: the cards are shown without their buttons, which only apply there. */
@@ -39,6 +46,9 @@ export function CopilotChatMessage({ message, actions, avatars }: { message: Scr
       {card?.kind === "confirmation" && <CopilotConfirmationCard card={card.card} avatars={avatars} disabled={busy} onWrite={actions ? () => actions.send("Write it.") : undefined} />}
       {card?.kind === "proposal" && <CopilotProposalCard card={card} disabled={busy} onResolve={actions ? (d) => actions.resolve(message.id, d) : undefined} />}
       {card?.kind === "import" && <CopilotImportCard card={card} disabled={busy} onResolve={actions ? (d) => actions.resolve(message.id, d) : undefined} />}
+      {card?.kind === "offer" && (actions?.renderOffer
+        ? actions.renderOffer(card)
+        : <span className="text-xs text-muted-foreground">{OFFERED[card.action]}</span>)}
     </li>
   );
 }

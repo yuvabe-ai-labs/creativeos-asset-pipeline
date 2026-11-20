@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { JourneyPanelShell } from "@/components/journey/journey-panel-shell";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCopilotCollapsed } from "@/hooks/use-copilot-collapsed";
@@ -17,7 +17,7 @@ import { CopilotThinking } from "./copilot-thinking";
 /** The script's copilot panel, kept with the script and shown at every stage (scripting-panel spec
  *  §3.2), in the same shell as the client's panel. At Generate it is the live chat; after it, the
  *  saved thread read-only (`live: null`), folded until opened, with what the script is waiting on. */
-export function CopilotChat({ client, scriptId, stage, messages, avatars, waiting, live }: {
+export function CopilotChat({ client, scriptId, stage, messages, avatars, waiting, live, footer }: {
   client: { name: string; slug: string };
   scriptId: string;
   stage: ScriptStage;
@@ -26,6 +26,8 @@ export function CopilotChat({ client, scriptId, stage, messages, avatars, waitin
   waiting: ScriptWaiting | null;
   /** Generate only: the composer, the suggestions and the cards' buttons. null is read-only. */
   live: { actions: ChatActions; suggestions: Suggestion[] } | null;
+  /** Piece 5.1 — at Visualise, the walk's current step under the thread. Hidden while answering. */
+  footer?: ReactNode;
 }) {
   const generate = stage === "generate";
   // Piece 5.1 — the copilot leads at Visualise, so it starts open there; In review and Approved
@@ -56,6 +58,7 @@ export function CopilotChat({ client, scriptId, stage, messages, avatars, waitin
       <ScrollArea className="min-h-0 flex-1">
         <ol className="flex flex-col gap-4 p-4" aria-live="polite">
           {messages.map((m) => <CopilotChatMessage key={m.id} message={m} actions={live?.actions ?? null} avatars={avatars} />)}
+          {footer && !busy && <li>{footer}</li>}
           {busy && (
             <li>
               <CopilotThinking writing={live?.actions.writing} />

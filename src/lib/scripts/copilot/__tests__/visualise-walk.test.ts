@@ -3,7 +3,7 @@ import type { ScriptDoc } from "@/lib/scripts/schema";
 import type { Avatar } from "@/lib/avatars/schema";
 import type { GenerateAllPlan, PanelStatus, PanelView } from "@/lib/scripts/visualise/state";
 import { HUSBAND_AVATAR, MEENAKSHI_AVATAR, linkedDoc, readyAvatar, reel01Doc } from "@/lib/scripts/visualise/__tests__/fixtures";
-import { visualiseStep, type WalkInput } from "../visualise-walk";
+import { sendMissing, visualiseStep, type WalkInput } from "../visualise-walk";
 
 const ready = new Map<string, Avatar>([[MEENAKSHI_AVATAR, readyAvatar(MEENAKSHI_AVATAR, "m")], [HUSBAND_AVATAR, readyAvatar(HUSBAND_AVATAR, "h")]]);
 const view = (status: PanelStatus): PanelView => ({ status, pick: null, takes: [], failure: null, staleBecause: [], waitingFor: [], canGenerate: status !== "waiting" });
@@ -60,5 +60,27 @@ describe("visualiseStep", () => {
 
   it("offers the send once every shot has a current panel", () => {
     expect(visualiseStep(input())).toEqual({ kind: "send" });
+  });
+});
+
+describe("sendMissing", () => {
+  it("names nothing when the board is ready", () => {
+    expect(sendMissing({ ...input(), pendingCard: false })).toEqual([]);
+  });
+  it("names shots with no panel, one and several", () => {
+    const doc = linkedDoc();
+    const two = views(doc, (id) => (id === "s01" || id === "s02" ? "not_yet" : "ready"));
+    expect(sendMissing({ ...input({ doc, views: two }), pendingCard: false })).toEqual(["2 shots have no panel; the client will see them as text only."]);
+    const one = views(doc, (id) => (id === "s01" ? "failed" : "ready"));
+    expect(sendMissing({ ...input({ doc, views: one }), pendingCard: false })).toEqual(["1 shot has no panel; the client will see it as text only."]);
+  });
+  it("names panels still being drawn, characters with no avatar, and a waiting card", () => {
+    const doc = reel01Doc();
+    const drawing = views(doc, (id) => (id === "s03" ? "generating" : "ready"));
+    expect(sendMissing({ ...input({ doc, views: drawing, avatars: new Map() }), pendingCard: true })).toEqual([
+      "1 panel is still being drawn.",
+      "Meenakshi and Meenakshi's husband have no avatar.",
+      "A change is still waiting for you in the chat.",
+    ]);
   });
 });

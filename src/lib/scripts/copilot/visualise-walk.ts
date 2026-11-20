@@ -1,6 +1,7 @@
 import type { ScriptDoc } from "../schema";
 import type { Avatar } from "@/lib/avatars/schema";
 import { castReadyForPanels } from "../visualise/panel-inputs";
+import { listSentence } from "@/lib/avatars/generation";
 import type { GenerateAllPlan, PanelView } from "../visualise/state";
 
 // Piece 5.1 §3.2 (D514) — the copilot leads at Visualise. Each step is worked out by code from the
@@ -49,4 +50,19 @@ export function visualiseStep({ doc, avatars, views, plan }: WalkInput): Visuali
   if (missing.length > 0) return { kind: "pictures", missing, plan };
   if (drawable > 0) return { kind: "draw", plan };
   return { kind: "send" };
+}
+
+/** Piece 5.1 §3.5 — what the send card names before the button. It never blocks the send. A panel
+ *  out of date still shows the client its picked version, so only shots with none are counted. */
+export function sendMissing({ doc, avatars, views, pendingCard }: WalkInput & { pendingCard: boolean }): string[] {
+  const statuses = doc.shots.map((s) => views.get(s.id)?.status);
+  const bare = statuses.filter((s) => s === "not_yet" || s === "failed" || s === "waiting").length;
+  const drawing = statuses.filter((s) => s === "generating").length;
+  const uncast = onScreenCast(doc).filter((c) => !castReadyForPanels(c.avatarId ? avatars.get(c.avatarId) : undefined)).map((c) => c.name);
+  const out: string[] = [];
+  if (bare > 0) out.push(bare === 1 ? "1 shot has no panel; the client will see it as text only." : `${bare} shots have no panel; the client will see them as text only.`);
+  if (drawing > 0) out.push(drawing === 1 ? "1 panel is still being drawn." : `${drawing} panels are still being drawn.`);
+  if (uncast.length > 0) out.push(`${listSentence(uncast)} ${uncast.length === 1 ? "has" : "have"} no avatar.`);
+  if (pendingCard) out.push("A change is still waiting for you in the chat.");
+  return out;
 }
