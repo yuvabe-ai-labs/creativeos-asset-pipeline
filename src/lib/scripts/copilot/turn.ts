@@ -18,7 +18,10 @@ import { anglesOutputSchema, cardOutputSchema, detectOutputSchema, draftOutputSc
 import { nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
 import { renderFormatMenu, SCRIPT_FORMATS } from "./formats";
 import { cleanSuggestions } from "./suggestions";
-import type { Brief, GenerateScript, MessageCard, ProposalCard, ScriptMessage, ScriptNotes } from "./schema";
+import type { Brief, GenerateScript, MessageCard, OfferCard, ProposalCard, ScriptMessage, ScriptNotes } from "./schema";
+import { visualiseTurnSchema, type EditOp } from "./output";
+import { boardText, type BoardFacts } from "./board-text";
+import { routeVisualiseOps, VISUALISE_REFUSALS } from "./visualise-edits";
 import { renderConversation } from "./conversation";
 import {
   angleText, applyAngle, cardToNotes, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
@@ -29,7 +32,12 @@ import {
 // changeGenerateScript runs against the script as it is now and compare-and-sets (D332, D337).
 
 /** `suggestions`: the brand-aware chips the model wrote with this reply (brand-neutral spec §3.1). */
-export type Reply = { content: string; card: MessageCard | null; suggestions?: string[] };
+export type Reply = {
+  content: string; card: MessageCard | null; suggestions?: string[];
+  /** Piece 5.1 — panel versions to pick, at Visualise only. The route sets them and drops them
+   *  before the reply is saved. */
+  picks?: { shotId: string; version: number }[];
+};
 export type TurnDeps = {
   /** The writing model (SCRIPT_WRITER_MODEL): the draft and chat edits. */
   call: StructuredCall;
@@ -48,6 +56,9 @@ export type TurnInput = {
   /** New scripts wait for market research approval (copilot journey spec §5.3): only a whole pasted
    *  script goes on for a script that is not written yet. */
   locked?: boolean;
+  /** Piece 5.1 (D512) — the stage the turn is for, and at Visualise the storyboard as it stands. */
+  stage?: "generate" | "visualise";
+  board?: BoardFacts;
 };
 export type Apply = (current: GenerateScript) => Change<Reply[]>;
 
@@ -66,7 +77,16 @@ export async function prepareTurn(input: TurnInput, deps: TurnDeps): Promise<App
   if (mightBeScript(input.text)) {
     const quick = deps.quick ?? deps.call;
     const seen = await quick({ name: "script_detect", ...detectPrompt(base, { hasDraft: input.script.doc !== null, text: input.text }), schema: detectOutputSchema });
-    if (seen.wholeScript) return prepareImport(input, deps, base);
+    if (seen.wholeScript) {
+      // Piece 5.1 §3.3 — at Visualise a new script would replace every shot, and every panel with it.
+      if (input.stage === "visualise") return () => ({ patch: null, result: [{ content: VISUALISE_REFUSALS.replace, card: REOPEN_OFFER }] });
+      return prepareImport(input, deps, base);
+    }
+  }
+  if (input.stage === "visualise") {
+    if (input.text.length > MAX_MESSAGE_CHARS) return () => ({ patch: null, result: [{ content: TOO_LONG, card: null }] });
+    if (!input.script.doc || !input.board) return () => ({ error: "There's no storyboard to change.", status: 409 });
+    return prepareVisualiseEdit(input, deps, base, input.script.doc, input.board);
   }
   // The route refuses short messages up front; a long one that is not a whole script stops here,
   // before any brief is read, so the gate cannot be walked around with a padded message.
@@ -212,6 +232,58 @@ async function prepareEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, 
       return { patch: null, result: answer(`${reply} It touches ${r.touchedShotIds.length} shots, so here it is before and after.`, card) };
     }
     return { patch: { doc: r.doc, notes: r.notes }, result: answer(`${reply}\n\n${openItemsLine(fillToFinal(r.doc, r.notes))}`) };
+  };
+}
+
+const REOPEN_OFFER: OfferCard = { kind: "offer", action: "reopen" };
+
+/** The shots a card shows: the ones the edit touches, and for a character's change, every shot that
+ *  character is in, since their name and description are drawn there. */
+function shownShots(ops: EditOp[], doc: ScriptDoc, touched: string[]): string[] {
+  const castIds = new Set(ops.flatMap((o) => (o.op === "update_cast" || o.op === "remove_cast") && o.cast?.castId ? [o.cast.castId] : []));
+  const ids = new Set(touched);
+  for (const s of doc.shots) if (s.onScreen.some((id) => castIds.has(id))) ids.add(s.id);
+  return [...ids];
+}
+
+/** Piece 5.1 §3.3 (D512, D513) — a message at Visualise. The same edits as at Generate, routed by
+ *  routeVisualiseOps: at once, on a card, or refused with a Reopen button. The model may also pick
+ *  panel versions and offer one button (draw, send, reopen) that the person presses. */
+async function prepareVisualiseEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, doc: ScriptDoc, board: BoardFacts): Promise<Apply> {
+  const { script, ctx, text } = input;
+  const out = await deps.call({
+    name: "script_visualise_edit",
+    ...editPrompt(base, {
+      doc, notes: script.notes, openItems: fillToFinal(doc, script.notes), conversation: renderConversation(input.history), text,
+      board: boardText(board),
+    }),
+    schema: visualiseTurnSchema,
+  });
+  const gen: OpsGen = { newShotId: deps.newShotId ?? randomShotId, avatarIds: new Set(ctx.avatars.map((a) => a.id)) };
+  const reply = out.reply.trim() || "Done.";
+  const suggestions = cleanSuggestions(out.suggestions ?? []);
+  const offer: OfferCard | null = out.offer === "none" ? null : { kind: "offer", action: out.offer };
+  const picks = out.picks.length > 0 ? out.picks : undefined;
+  const answer = (content: string, card: MessageCard | null, withPicks = true): Reply[] =>
+    [{ content, card, suggestions, ...(withPicks && picks ? { picks } : {}) }];
+  return (current) => {
+    if (out.ops.length === 0) return { patch: null, result: answer(reply, offer) };
+    if (!current.doc) return { error: "There's no storyboard to change.", status: 409 };
+    // The notes are refused whatever else is asked, before anything is applied.
+    const refused = routeVisualiseOps(out.ops, []);
+    if (refused.kind === "refuse") return { patch: null, result: answer(refused.reason, REOPEN_OFFER, false) };
+    const stale = staleTargets(out.ops, doc.shots, current.doc);
+    if (stale.length > 0) {
+      return { patch: null, result: answer(`You changed ${stale.join(", ")} while I was working, so I left it as you wrote it. Ask me again if you still want the change.`, null, false) };
+    }
+    const r = applyOps(current.doc, current.notes, out.ops, gen);
+    if (!r.ok) return { patch: null, result: answer(`I couldn't make that change: ${r.error} Nothing was changed.`, null, false) };
+    if (routeVisualiseOps(out.ops, r.touchedShotIds).kind === "card") {
+      const shown = shownShots(out.ops, current.doc, r.touchedShotIds);
+      const card: ProposalCard = { kind: "proposal", status: "pending", summary: reply, ops: out.ops, ...beforeAfter(current.doc, r.doc, shown) };
+      return { patch: null, result: answer(`${reply} Here it is before and after; nothing changes until you accept it.`, card, false) };
+    }
+    return { patch: { doc: r.doc }, result: answer(reply, offer) };
   };
 }
 

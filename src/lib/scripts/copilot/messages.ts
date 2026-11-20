@@ -98,13 +98,30 @@ export function draftPrompt(base: CopilotBase, i: { brief: Brief; card: Confirma
   };
 }
 
-export function editPrompt(base: CopilotBase, i: { doc: ScriptDoc; notes: ScriptNotes; openItems: OpenItem[]; conversation: string; text: string }): Prompt {
+/** Piece 5.1 (D512) — what the copilot may do once the script is at Visualise. Sent only at Visualise,
+ *  so the prompt at Generate is exactly as it was. */
+export const VISUALISE_RULES = [
+  "The script is final and its storyboard is being drawn. You can still change it: casting, the lead, locations, products and the script's words apply at once; adding, removing, splitting or moving shots, and adding, removing, renaming or redescribing a character, are shown to the person before and after to accept.",
+  "Panels are drawn only by the person: never claim to draw one. When they want panels drawn or redrawn, set offer to \"draw\" and say the button is below.",
+  "Sending the storyboard to the client is the person's click: when they ask, set offer to \"send\".",
+  "Reopening the script for writing is the person's click: when they ask, or when what they want needs it (the reel's notes, its open items, a whole new script), set offer to \"reopen\".",
+  "To use another drawn version of a shot's panel, add it to picks with the shot's id and the version number shown in the storyboard.",
+  "Never set or describe a picture for a location or product; the person attaches pictures.",
+  "Otherwise set offer to \"none\" and picks to [].",
+].map((r) => `- ${r}`).join("\n");
+
+export function editPrompt(base: CopilotBase, i: {
+  doc: ScriptDoc; notes: ScriptNotes; openItems: OpenItem[]; conversation: string; text: string;
+  /** Piece 5.1 — the storyboard at Visualise (board-text.ts); absent at Generate. */
+  board?: string;
+}): Prompt {
   return {
     system: system(base, "edit"),
     user: [
       section("The script as it stands (JSON, with ids)", json(i.doc)),
       section("The reel's notes (JSON; confirmations have ids for confirm_item)", json(i.notes)),
       section("Still open before Final", i.openItems.map((o) => `- ${o.label}: ${o.question}`).join("\n")),
+      ...(i.board === undefined ? [] : [section("The storyboard at Visualise", i.board), section("At Visualise", VISUALISE_RULES)]),
       conversationSection(i.conversation),
       section("The person's message", i.text),
     ].join("\n\n"),
