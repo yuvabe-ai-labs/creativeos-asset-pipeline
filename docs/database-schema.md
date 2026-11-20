@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0068** (`supabase/migrations/0001_init.sql` … `0068_billing_catalog.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
+Generated from migrations up to **0069** (`supabase/migrations/0001_init.sql` … `0069_billing_catalog_admin.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -200,8 +200,8 @@ How much of each grant a run holds, then used once settled. *0067*
 - RLS: service role only.
 
 ### billing_log
-Every billing change Yuvabe makes to an agency: who, what, before and after, why. *0067* · org_id
-- `id` uuid PK · `org_id` → organizations cascade · `actor_id` → auth.users set null · `action` text · `before`, `after` jsonb · `reason`
+Every billing change Yuvabe makes: to an agency, or to the catalog and settings (no agency, 0069). *0067, 0069* · org_id
+- `id` uuid PK · `org_id` → organizations cascade (nullable since 0069) · `actor_id` → auth.users set null · `action` text · `before`, `after` jsonb · `reason`
 - Indexes: `org_id`
 - RLS: service role only.
 
@@ -218,7 +218,7 @@ How a product is paid for. Fixed once written (trigger `billing_prices_fixed`): 
 - RLS: service role only.
 
 ### billing_settings
-Pricing inputs over time; the latest row with `effective_from <= now()` is in force. Seeded with ₹100, 1%, 20%, 10%. *0068*
+Pricing inputs over time; the latest row with `effective_from <= now()` is in force. Seeded with ₹100, 1%, 20%, 10% (0068), then ₹100, 20%, 25%, 15% (0069, D519). *0068*
 - `id` uuid PK · `inr_per_usd` > 0 · `plan_margin_pct` · `topup_margin_pct` · `min_margin_pct` · `effective_from` · `created_by` → auth.users set null · `note`
 - Indexes: `effective_from`
 - RLS: service role only.
@@ -444,6 +444,11 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `admin_set_billing_mode` | org_id, mode, actor, reason → bool (false when missing or unchanged; logs) | definer, service role | 0067 |
 | `admin_grant_credits` | org_id, kind (free/admin), credits, ends_at, actor, reason → grant id (null when the agency is missing; logs) | definer, service role | 0067 |
 | `admin_take_back_credits` | grant_id, credits, actor, reason → text (`ok`/`not_found`/`too_many`; never more than is left; logs) | definer, service role | 0067 |
+| `admin_save_billing_settings` | inr_per_usd, plan/topup/min margin, actor, note → uuid (a new settings row; logs) | definer, service role | 0069 |
+| `admin_save_product` | id (null adds), kind, name, description, sort, active, actor → uuid (logs) | definer, service role | 0069 |
+| `admin_add_price` | product_id, amount, list amount, interval, credits, cadence, valid_days, replaces, actor, reason → (new_price_id, moved_count) (replacing hides the old price and moves live subscriptions to the new one from the next payment; logs) | definer, service role | 0069 |
+| `admin_set_price_active` | price_id, active, actor → bool (logs) | definer, service role | 0069 |
+| `billing_price_subscriber_counts` | → (price_id, subscribers) live subscriptions per price | definer, service role | 0069 |
 | `admin_set_grant_end` | grant_id, ends_at, actor, reason → text (`ok`/`not_found`; kept after the start; logs) | definer, service role | 0067 |
 
 ### Used by RLS

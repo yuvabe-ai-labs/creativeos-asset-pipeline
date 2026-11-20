@@ -1500,3 +1500,46 @@ drop function if exists billing_prices_fixed();
 drop table if exists billing_products;
 notify pgrst, 'reload schema';
 ```
+
+## Migration 0069 — Admin writes the catalog (D519, 2026-11-21)
+
+Apply after 0068 and **before** the release with Admin's Plans and prices page (the page calls
+`billing_price_subscriber_counts`).
+
+- `billing_log.org_id` becomes nullable: catalog and settings changes are logged with no agency.
+- Adds a `billing_settings` row: ₹100 to the dollar, plan margin 20%, top-up margin 25%, minimum
+  margin 15%. The margins are examples until the real prices are set.
+- Adds `admin_save_billing_settings`, `admin_save_product`, `admin_add_price`,
+  `admin_set_price_active` (each logs in the same transaction) and
+  `billing_price_subscriber_counts`. Service role only.
+- Safe to apply: one relaxed column, one inserted row, new functions.
+
+**Verify after running:**
+
+```sql
+-- expect 15
+select min_margin_pct from billing_settings order by effective_from desc limit 1;
+
+-- expect five rows, security definer
+select proname, prosecdef from pg_proc
+ where proname in ('admin_save_billing_settings', 'admin_save_product', 'admin_add_price',
+                   'admin_set_price_active', 'billing_price_subscriber_counts');
+```
+
+**Check in Admin after the release:** Plans and prices opens with the settings; add a plan and a
+monthly price (the margin shows; a price below 15% shows the warning); add a top-up pack and a
+price; give the plan a new price (the old one shows Hidden); hide and show a price.
+
+**Rollback:**
+
+```sql
+drop function if exists billing_price_subscriber_counts();
+drop function if exists admin_set_price_active(uuid, boolean, uuid);
+drop function if exists admin_add_price(uuid, bigint, bigint, integer, numeric, integer, integer, uuid, uuid, text);
+drop function if exists admin_save_product(uuid, text, text, text, integer, boolean, uuid);
+drop function if exists admin_save_billing_settings(numeric, numeric, numeric, numeric, uuid, text);
+delete from billing_settings where min_margin_pct = 15 and created_by is null;
+delete from billing_log where org_id is null;
+alter table billing_log alter column org_id set not null;
+notify pgrst, 'reload schema';
+```
