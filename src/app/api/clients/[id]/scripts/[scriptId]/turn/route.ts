@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { apiError, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { resolveCallerContext } from "@/lib/dal";
 import {
-  changeGenerateScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState,
+  changeGenerateScript, changeVisualiseScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState,
 } from "@/lib/db/script-generate";
+import { getScript } from "@/lib/db/scripts";
+import { setPanelPick } from "@/lib/db/script-panels";
+import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";
+import { boardFacts, resolvePicks } from "@/lib/scripts/visualise/board-facts";
 import { loadCopilotContext } from "@/lib/scripts/copilot/context";
 import { streamingCaller, structuredCaller } from "@/lib/scripts/copilot/model";
 import { prepareTurn, type Reply } from "@/lib/scripts/copilot/turn";
@@ -35,7 +39,9 @@ export async function POST(req: Request, { params }: Ctx) {
 
       const script = await getGenerateScript(clientId, scriptId);
       if (!script) return apiError("Script not found.", 404);
-      if (script.stage !== "generate") return apiError("This script is final. Reopen it from Visualise to change it.", 409);
+      // Piece 5.1 (D512): the copilot also answers at Visualise. In review and Approved stay read-only.
+      if (script.stage !== "generate" && script.stage !== "visualise") return apiError("This script is final. Reopen it from Visualise to change it.", 409);
+      const atVisualise = script.stage === "visualise";
       // Copilot journey spec §5.3: a new script waits for approved market research. A pasted script
       // does not, and a script already written is never stranded. Refused before anything is saved.
       if (scriptsLocked(client) && script.doc === null && !mightBeScript(text)) {
@@ -43,7 +49,11 @@ export async function POST(req: Request, { params }: Ctx) {
       }
 
       const { userId } = await resolveCallerContext();
-      const history = await listScriptMessages(clientId, scriptId);
+      // At Visualise the copilot is told the storyboard as it stands; read beside the history (rule 5).
+      const [history, stored] = await Promise.all([
+        listScriptMessages(clientId, scriptId),
+        atVisualise ? getScript(clientId, scriptId).then(async (s) => (s ? { script: s, board: await loadVisualiseBoard(clientId, s) } : null)) : null,
+      ]);
       await insertScriptMessages(clientId, scriptId, userId, [{ role: "user", content: text, card: null }]);
 
       const encoder = new TextEncoder();
@@ -56,7 +66,10 @@ export async function POST(req: Request, { params }: Ctx) {
               // Signals feed the brief (suggestions, angles) only: an edit after the draft never reads them.
               const ctx = await loadCopilotContext(client, { signals: script.doc === null });
               const apply = await prepareTurn(
-                { script, ctx, text, history, leadAvatarId, locked: scriptsLocked(client) },
+                {
+                  script, ctx, text, history, leadAvatarId, locked: scriptsLocked(client),
+                  ...(atVisualise ? { stage: "visualise" as const, board: stored ? boardFacts(stored.script, stored.board, Date.now()) : undefined } : {}),
+                },
                 {
                   call: structuredCaller(SCRIPT_WRITER_MODEL),
                   quick: structuredCaller(SCRIPT_QUICK_MODEL),
@@ -64,8 +77,14 @@ export async function POST(req: Request, { params }: Ctx) {
                   onDraft: (draft) => emit({ type: "draft", draft }),
                 },
               );
-              const outcome = await changeGenerateScript(clientId, scriptId, apply);
+              const outcome = await (atVisualise ? changeVisualiseScript : changeGenerateScript)(clientId, scriptId, apply);
               replies = "error" in outcome ? [{ content: outcome.error, card: null }] : outcome.result;
+              // Piece 5.1 — the panel versions the copilot picked, only for takes drawn for that shot.
+              const picks = "error" in outcome ? [] : replies.flatMap((r) => r.picks ?? []);
+              if (stored && picks.length > 0) {
+                await Promise.all(resolvePicks(picks, stored.board.takes).map((p) => setPanelPick(script.id, p.shotId, p.takeId)));
+              }
+              replies = replies.map(({ picks: _picks, ...reply }) => reply);
             } catch (e) {
               console.error("[script-copilot] turn failed", e);
               replies = [{ content: "Something went wrong on my side, and nothing was changed. Send that again.", card: null }];

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import reel01 from "@/lib/scripts/fixtures/reel-01.json";
 import { scriptDocSchema } from "@/lib/scripts/schema";
-import { prepareTurn, type TurnDeps } from "../turn";
+import { acceptProposal, prepareTurn, type TurnDeps } from "../turn";
 import { editPrompt } from "../messages";
 import { EMPTY_BRIEF, EMPTY_NOTES, type GenerateScript } from "../schema";
 import type { CopilotContext } from "../context";
@@ -109,5 +109,15 @@ describe("the copilot's turn at Visualise", () => {
     const m = fakeModel({ script_visualise_edit: [out({ reply: "Picked version 1 for S2.", picks: [{ shotId: "s02", version: 1 }] })] });
     const r = await run("use the first version of S2", m.call);
     expect(r.result.at(-1)?.picks).toEqual([{ shotId: "s02", version: 1 }]);
+  });
+
+  it("says only what it applied when a card is accepted at Visualise (no open items: the script is final)", async () => {
+    const shot = { beat: "CLOSE", lengthSeconds: 3, visual: "The bottle.", vo: "", onScreenText: "", onScreen: [], products: [], location: "" };
+    const m = fakeModel({ script_visualise_edit: [out({ ops: [op({ op: "insert_shot", afterShotId: "s14", shot })], reply: "Added a closing shot." })] });
+    const card = (await run("add a closing shot", m.call)).result[0].card;
+    if (card?.kind !== "proposal") throw new Error("no card");
+    const accepted = acceptProposal(atVisualise, card, { newShotId: () => "new9", avatarIds: new Set() });
+    if ("error" in accepted) throw new Error(accepted.error);
+    expect(accepted.result.reply).toBe("Applied: Added a closing shot.");
   });
 });

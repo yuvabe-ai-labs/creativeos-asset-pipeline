@@ -1,6 +1,7 @@
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import {
-  changeGenerateScript, claimProposalCard, insertScriptMessages, listCopilotAvatars, listScriptMessages, loadGenerateState, setMessageCard,
+  changeGenerateScript, changeVisualiseScript, claimProposalCard, getGenerateScript, insertScriptMessages, listCopilotAvatars,
+  listScriptMessages, loadGenerateState, setMessageCard,
 } from "@/lib/db/script-generate";
 import { acceptImport } from "@/lib/scripts/copilot/import-turn";
 import { acceptProposal } from "@/lib/scripts/copilot/turn";
@@ -19,7 +20,11 @@ export async function POST(req: Request, { params }: Ctx) {
       const decision = body?.decision;
       if (decision !== "accept" && decision !== "reject") return apiError("Accept or reject.", 400);
 
-      const message = (await listScriptMessages(clientId, scriptId)).find((m) => m.id === messageId);
+      // Piece 5.1 (D513): a card the copilot made at Visualise is accepted there, through the
+      // Visualise write. The stage is read beside the thread (rule 5).
+      const [messages, stored] = await Promise.all([listScriptMessages(clientId, scriptId), getGenerateScript(clientId, scriptId)]);
+      const change = stored?.stage === "visualise" ? changeVisualiseScript : changeGenerateScript;
+      const message = messages.find((m) => m.id === messageId);
       const card = message?.card?.kind === "proposal" || message?.card?.kind === "import" ? message.card : null;
       if (!card) return apiError("That change is not on this script.", 404);
       if (card.status !== "pending") return apiError("That change was already settled.", 409);
@@ -42,7 +47,7 @@ export async function POST(req: Request, { params }: Ctx) {
         await insertScriptMessages(clientId, scriptId, null, [{ role: "assistant", content: outcome.result.reply, card: null }]);
       } else {
         const avatarIds = new Set((await listCopilotAvatars(clientId)).map((a) => a.id));
-        const outcome = await changeGenerateScript(clientId, scriptId, (current) => acceptProposal(current, card, { newShotId, avatarIds }));
+        const outcome = await change(clientId, scriptId, (current) => acceptProposal(current, card, { newShotId, avatarIds }));
         if ("error" in outcome) {
           // Nothing was applied: put the card back so it can be tried again.
           await setMessageCard(clientId, scriptId, messageId, card);

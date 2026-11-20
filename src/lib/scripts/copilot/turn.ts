@@ -301,7 +301,11 @@ export function acceptProposal(current: GenerateScript, card: ProposalCard, gen:
   }
   return {
     patch: { doc: r.doc, notes: r.notes },
-    result: { card: { ...card, status: "accepted" }, reply: `Applied: ${card.summary}\n\n${openItemsLine(fillToFinal(r.doc, r.notes))}` },
+    // At Visualise the script is final: there are no open items to point at (piece 5.1).
+    result: {
+      card: { ...card, status: "accepted" },
+      reply: current.stage === "visualise" ? `Applied: ${card.summary}` : `Applied: ${card.summary}\n\n${openItemsLine(fillToFinal(r.doc, r.notes))}`,
+    },
   };
 }
 
