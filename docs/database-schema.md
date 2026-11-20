@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0067** (`supabase/migrations/0001_init.sql` … `0067_credit_grants.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
+Generated from migrations up to **0068** (`supabase/migrations/0001_init.sql` … `0068_billing_catalog.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -181,15 +181,16 @@ The credit ledger: reservation, consumption, refund, adjustment. *0019* · org_i
 - RLS: select owners of the agency only (0065). Written by `reserve_credits_v2`, `settle_credits`, `refund_credits` (0067) and the server.
 
 ### billing_payments
-One row per Razorpay order for the test top-up (D514). *0066* · org_id
-- `id` uuid PK · `org_id` → organizations cascade · `razorpay_order_id` text unique · `razorpay_payment_id` text unique (set when paid) · `amount_paise` integer > 0 · `credits` integer > 0 · `status` check created/paid (default created) · `created_by` → auth.users set null · `created_at` · `paid_at`
-- Indexes: `org_id`
+One row per Razorpay payment: the test top-up (D514), then plans, renewals and top-ups (0068). *0066, 0068* · org_id
+- `id` uuid PK · `org_id` → organizations cascade · `razorpay_order_id` text unique · `razorpay_payment_id` text unique (set when paid) · `amount_paise` integer > 0 (before discount and tax) · `credits` integer > 0 · `status` check created/paid/failed/refunded (default created) · `created_by` → auth.users set null · `created_at` · `paid_at`
+- 0068: `kind` check test/plan/renewal/topup (default test) · `price_id` → billing_prices set null · `subscription_id` → billing_subscriptions set null · `discount_id` → billing_discounts set null · `currency` (default INR) · `discount_minor`, `tax_minor` (default 0) · `total_minor` · `inr_per_usd` (the rate in force) · `razorpay_invoice_id`
+- Indexes: `org_id`, `price_id`, `subscription_id`, `discount_id`
 - RLS: select `owners read`, owners of the agency only. Written by the server (service role) and `record_razorpay_payment`.
 
 ### credit_grants
 A paying agency’s credits: each grant ends (free credits, a plan month, a top-up, credits Yuvabe added). Used first-ending first (D515). *0067* · org_id
-- `id` uuid PK · `org_id` → organizations cascade · `kind` check free/plan/topup/admin · `credits` numeric >= 0 · `used` numeric default 0 (running total of its `credit_grant_uses`) · `starts_at` default now() · `ends_at` (> starts_at) · `payment_id` → billing_payments set null · `created_by` → auth.users set null · `reason`
-- Indexes: `(org_id, ends_at)`, `payment_id`
+- `id` uuid PK · `org_id` → organizations cascade · `kind` check free/plan/topup/admin · `credits` numeric >= 0 · `used` numeric default 0 (running total of its `credit_grant_uses`) · `starts_at` default now() · `ends_at` (> starts_at) · `payment_id` → billing_payments set null · `price_id` → billing_prices set null, `subscription_id` → billing_subscriptions set null (0068) · `created_by` → auth.users set null · `reason`
+- Indexes: `(org_id, ends_at)`, `payment_id`, `price_id`, `subscription_id`
 - RLS: select `owners read`, owners of the agency only. Written only by the server and the 0067 functions.
 
 ### credit_grant_uses
@@ -202,6 +203,47 @@ How much of each grant a run holds, then used once settled. *0067*
 Every billing change Yuvabe makes to an agency: who, what, before and after, why. *0067* · org_id
 - `id` uuid PK · `org_id` → organizations cascade · `actor_id` → auth.users set null · `action` text · `before`, `after` jsonb · `reason`
 - Indexes: `org_id`
+- RLS: service role only.
+
+### billing_products
+What is sold: a plan or a top-up pack. `org_id` set = a custom plan only that agency sees (D518). *0068*
+- `id` uuid PK · `kind` check plan/topup · `name` · `description` · `org_id` → organizations cascade (nullable) · `features` jsonb default {} · `sort` · `active`
+- Indexes: `(kind, active)`, `org_id`
+- RLS: service role only.
+
+### billing_prices
+How a product is paid for. Fixed once written (trigger `billing_prices_fixed`): a change is a new row. *0068*
+- `id` uuid PK · `product_id` → billing_products cascade · `currency` (default INR) · `amount_minor` bigint > 0 (before tax) · `list_amount_minor` (for "save X%", >= amount) · `interval_months` 1–36 (null: top-up) · `credits` numeric > 0 (per drop, or per pack) · `credits_every_months` (plans; divides the interval) · `valid_days` (top-ups; null: ends with the plan period) · `razorpay_plan_id` unique · `active`
+- Indexes: `(product_id, active)`
+- RLS: service role only.
+
+### billing_settings
+Pricing inputs over time; the latest row with `effective_from <= now()` is in force. Seeded with ₹100, 1%, 20%, 10%. *0068*
+- `id` uuid PK · `inr_per_usd` > 0 · `plan_margin_pct` · `topup_margin_pct` · `min_margin_pct` · `effective_from` · `created_by` → auth.users set null · `note`
+- Indexes: `effective_from`
+- RLS: service role only.
+
+### billing_discounts
+Discount codes, and discounts Yuvabe applies to one agency (no code). *0068*
+- `id` uuid PK · `code` unique (nullable) · `percent_off` (0–100] or `amount_off_minor` (exactly one) · `currency` · `product_id` → billing_products cascade · `price_id` → billing_prices cascade · `org_id` → organizations cascade · `cycles` · `max_redemptions` · `redeemed_count` · `starts_at` · `ends_at` · `active` · `created_by` → auth.users set null
+- Indexes: `org_id`, `product_id`, `price_id`
+- RLS: service role only.
+
+### billing_accounts
+An agency’s billing details for Razorpay and GST invoices. *0068*
+- `org_id` uuid PK → organizations cascade · `razorpay_customer_id` unique · `legal_name` · `gstin` (15 characters) · `billing_email` · `address` jsonb
+- RLS: select `owners read`, owners of the agency only.
+
+### billing_subscriptions
+An agency’s plan. One live subscription per agency. *0068* · org_id
+- `id` uuid PK · `org_id` → organizations cascade · `price_id` → billing_prices · `next_price_id` → billing_prices (change from the next payment) · `discount_id` → billing_discounts set null · `discount_cycles_left` · `status` check created/active/payment_due/cancelling/ended · `current_period_start`, `current_period_end` · `next_credit_at` (next credit drop) · `cancel_at_period_end` · `razorpay_subscription_id` unique · `ended_at`
+- Indexes: unique `org_id` where status <> ended, `org_id`, `status`, `next_credit_at`, `price_id`, `next_price_id`, `discount_id`
+- RLS: select `owners read`, owners of the agency only.
+
+### razorpay_events
+Every Razorpay webhook, stored once by its event id. *0068*
+- `event_id` text PK · `type` · `payload` jsonb · `received_at` · `processed_at` · `error`
+- Indexes: `received_at` where not processed
 - RLS: service role only.
 
 ### background_jobs

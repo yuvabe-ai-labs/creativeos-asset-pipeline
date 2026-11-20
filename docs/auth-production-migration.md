@@ -1441,3 +1441,62 @@ drop table if exists credit_grants;
 alter table organizations drop column if exists plan_type, drop column if exists billing_mode;
 notify pgrst, 'reload schema';
 ```
+
+## Migration 0068 — billing catalog (D518, 2026-11-21)
+
+Apply after 0067, in any order with the code: nothing reads these tables until piece 3.
+
+- Adds the catalog and billing tables: `billing_products` (plans and top-up packs; a custom plan
+  has an agency), `billing_prices` (fixed once written, one per interval and currency),
+  `billing_settings` (planning rate and margins over time, seeded with one row),
+  `billing_discounts`, `billing_accounts` (GSTIN, Razorpay customer), `billing_subscriptions`
+  (one live per agency) and `razorpay_events` (each webhook once).
+- `billing_payments` gains what each payment was charged with (kind, price, subscription,
+  discount, currency, discount, tax, total, rate, invoice); existing rows become `kind = 'test'`.
+  Its status also allows `failed` and `refunded`.
+- `credit_grants` gains `price_id` and `subscription_id`.
+- Safe to apply: new tables, nullable columns or columns with defaults, a wider status check.
+
+**Verify after running:**
+
+```sql
+-- expect seven rows, RLS on
+select relname, relrowsecurity from pg_class
+ where relname in ('billing_products', 'billing_prices', 'billing_settings', 'billing_discounts',
+                   'billing_accounts', 'billing_subscriptions', 'razorpay_events');
+
+-- expect one row: 100
+select inr_per_usd from billing_settings;
+
+-- a price can't change: the update must fail
+insert into billing_products (kind, name) values ('plan', 'Check') returning id;
+insert into billing_prices (product_id, amount_minor, interval_months, credits, credits_every_months)
+values ('<product id>', 1000000, 1, 100000, 1) returning id;
+update billing_prices set amount_minor = 1 where id = '<price id>';
+delete from billing_products where name = 'Check';
+```
+
+**Rollback:**
+
+```sql
+drop index if exists credit_grants_subscription_id_idx;
+drop index if exists credit_grants_price_id_idx;
+alter table credit_grants drop column if exists subscription_id, drop column if exists price_id;
+alter table billing_payments drop constraint if exists billing_payments_status_check;
+alter table billing_payments add constraint billing_payments_status_check check (status in ('created', 'paid'));
+alter table billing_payments
+  drop column if exists razorpay_invoice_id, drop column if exists inr_per_usd,
+  drop column if exists total_minor, drop column if exists tax_minor,
+  drop column if exists discount_minor, drop column if exists currency,
+  drop column if exists discount_id, drop column if exists subscription_id,
+  drop column if exists price_id, drop column if exists kind;
+drop table if exists razorpay_events;
+drop table if exists billing_subscriptions;
+drop table if exists billing_accounts;
+drop table if exists billing_discounts;
+drop table if exists billing_settings;
+drop table if exists billing_prices;
+drop function if exists billing_prices_fixed();
+drop table if exists billing_products;
+notify pgrst, 'reload schema';
+```
