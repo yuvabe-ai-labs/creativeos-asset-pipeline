@@ -16,7 +16,7 @@ import { GenerateWorkspace } from "@/components/scripts/generate/generate-worksp
 import { ApprovedReviewBoard } from "@/components/script-review/team/approved-review-board";
 import { loadApprovedVersion, loadTeamReview } from "@/lib/script-review/load";
 import { reelLabel } from "@/lib/scripts/utils";
-import { TeamReviewBoard } from "@/components/script-review/team/team-review-board";
+import { VisualiseCopilotWorkspace } from "@/components/visualise/visualise-copilot-workspace";
 import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";
 import { isVisualiseStage } from "@/lib/scripts/visualise/cast";
 import {
@@ -58,15 +58,17 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
   // script with a review shows the approved version (spec 4, 4.17); other stages the read-only view.
   // One round trip for what does not depend on each other: the stage's own view, the approved
   // script's canvas, and the script's saved copilot thread with the avatars its cards show (piece
-  // 4.1). The thread is read-only after Generate, so it goes to the panel as props: the browser
-  // makes no request for it, and a reopen refreshes the route into Generate's live panel.
-  const [board, approved, scriptCanvas, messages, copilotAvatars] = await Promise.all([
-    isVisualiseStage(script.stage) ? loadVisualiseBoard(client.id, script) : null,
+  // 4.1). At Visualise and In review the thread seeds the panel's live state (piece 5.1); after
+  // that it goes to the read-only panel as props, so the browser makes no request for it.
+  const visualising = isVisualiseStage(script.stage);
+  const [board, approved, scriptCanvas, copilotState, messages, copilotAvatars] = await Promise.all([
+    visualising ? loadVisualiseBoard(client.id, script) : null,
     script.stage === "approved" ? loadApprovedVersion(script.id) : null,
     // D372 — an approved script's canvas: Create canvas, or Open canvas once it has one.
     script.stage === "approved" ? getScriptCanvas(client.id, script.id) : null,
-    listScriptMessages(client.id, script.id),
-    listCopilotAvatars(client.id),
+    visualising ? loadGenerateState(client.id, script.id) : null,
+    visualising ? [] : listScriptMessages(client.id, script.id),
+    visualising ? [] : listCopilotAvatars(client.id),
   ]);
   // Seeds the team's review query, so the board draws its Comments column at once (no reflow).
   const review = board || approved ? await loadTeamReview(script) : null;
@@ -86,10 +88,7 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
       canvas={scriptCanvas ? { slug: scriptCanvas.slug } : null}
     />
   ) : null;
-  const waiting = script.stage === "approved"
-    ? scriptWaiting({ stage: "approved", hasCanvas: Boolean(scriptCanvas) })
-    // Visualise's line follows the walk, worked out beside the board (piece 5.1, Task 6).
-    : script.stage === "in_review" ? scriptWaiting({ stage: "in_review" }) : null;
+  const waiting = script.stage === "approved" ? scriptWaiting({ stage: "approved", hasCanvas: Boolean(scriptCanvas) }) : null;
 
   return (
     <main className="mx-auto w-full max-w-[96rem] flex-1 px-6 py-12">
@@ -105,31 +104,39 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
           <BreadcrumbItem><BreadcrumbPage>{label ? `${label} · ` : ""}{script.doc.header.title}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      {/* The script's copilot beside every stage after Generate, folded until opened (spec §3.2). */}
-      <div className="grid items-start gap-6 lg:grid-cols-[auto_minmax(0,1fr)]">
-        <CopilotChat
-          client={{ name: client.name, slug: client.slug }}
-          scriptId={script.id}
-          stage={script.stage}
-          messages={messages}
-          avatars={copilotAvatars}
-          waiting={waiting}
-          live={null}
+      {board && copilotState ? (
+        // Piece 5.1 — the copilot beside the storyboard, sharing its draws and actions.
+        <VisualiseCopilotWorkspace
+          client={{ id: client.id, name: client.name, slug: client.slug }}
+          initialState={copilotState}
+          initialBoard={{ script, board }}
+          initialReview={review!}
         />
-        <div className="min-w-0">
-          {board ? (
-            <TeamReviewBoard clientId={client.id} initial={{ script, board }} initialReview={review!} />
-          ) : approved ? (
-            <ApprovedReviewBoard clientId={client.id} script={script} version={approved} initialReview={review!} canvasAction={canvasAction} />
-          ) : (
-            // The plain read-only view keeps the narrower width it always had.
-            <div className="mx-auto w-full max-w-6xl">
-              {canvasAction && <div className="mb-4 flex justify-end">{canvasAction}</div>}
-              <ScriptView script={script} avatarFaces={avatarFaces} />
-            </div>
-          )}
+      ) : (
+        // An approved script: the copilot read-only beside it, folded until opened (spec §3.2).
+        <div className="grid items-start gap-6 lg:grid-cols-[auto_minmax(0,1fr)]">
+          <CopilotChat
+            client={{ name: client.name, slug: client.slug }}
+            scriptId={script.id}
+            stage={script.stage}
+            messages={messages}
+            avatars={copilotAvatars}
+            waiting={waiting}
+            live={null}
+          />
+          <div className="min-w-0">
+            {approved ? (
+              <ApprovedReviewBoard clientId={client.id} script={script} version={approved} initialReview={review!} canvasAction={canvasAction} />
+            ) : (
+              // The plain read-only view keeps the narrower width it always had.
+              <div className="mx-auto w-full max-w-6xl">
+                {canvasAction && <div className="mb-4 flex justify-end">{canvasAction}</div>}
+                <ScriptView script={script} avatarFaces={avatarFaces} />
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }

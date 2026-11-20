@@ -5,23 +5,21 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ScriptContextCard } from "@/components/scripts/script-context-card";
 import { ScriptSheetFrame } from "@/components/scripts/script-sheet-frame";
-import { usePickTake, useReopenScript, useSetVisualiseField, useVisualiseBoard, type BoardData } from "@/hooks/queries/visualise";
+import { usePickTake, useReopenScript, useSetVisualiseField } from "@/hooks/queries/visualise";
 import { ScriptEditProvider, type ScriptEdit } from "@/components/scripts/script-edit-context";
-import { usePanelDraws } from "@/hooks/use-panel-draws";
-import { useVisualiseModel } from "@/hooks/use-visualise-model";
 import { errorMessage } from "@/lib/avatars/utils";
 import { formatRange, timeShots } from "@/lib/scripts/timeline";
 import { Label } from "@/components/ui/label";
 import { AvatarAdvancedSettings } from "@/components/avatars/avatar-advanced-settings";
 import { AvatarModelSelect } from "@/components/avatars/avatar-model-select";
-import { PANEL_MODEL_ID, PANEL_MODEL_IDS } from "@/lib/scripts/visualise/constants";
+import { PANEL_MODEL_IDS } from "@/lib/scripts/visualise/constants";
 import { BoardChips } from "./board-chips";
 import { GenerateAllDialog } from "./generate-all-dialog";
 import { PanelDialog } from "./panel-dialog";
 import { PanelTile } from "./panel-tile";
 import { StoryboardGrid } from "./storyboard-grid";
 import { VisualiseReadiness } from "./visualise-readiness";
-import { ScriptAssetsProvider } from "@/components/scripts/script-assets-context";
+import { useVisualiseBoardActions } from "./visualise-board-context";
 
 // Spec 3 §4, laid out as a storyboard sheet (D465): the readiness line across the top; the summary
 // card with the cast, locations and products as chips; then every shot's panel at full width, each
@@ -38,13 +36,11 @@ export type VisualiseReview = {
   column?: ReactNode;
 };
 
-export function VisualiseView({ clientId, initial, review }: { clientId: string; initial: BoardData; review?: VisualiseReview }) {
+/** The board, the panel model, the draws and the asset actions come from VisualiseBoardProvider
+ *  (piece 5.1), which the copilot's panel shares. */
+export function VisualiseView({ clientId, review }: { clientId: string; review?: VisualiseReview }) {
   const router = useRouter();
-  const query = useVisualiseBoard(clientId, initial.script.id, initial);
-  const { script, board } = query.data;
-  const [panelModelId, setPanelModelId] = useState(PANEL_MODEL_ID);
-  const draws = usePanelDraws(clientId, script.id, panelModelId);
-  const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt, panelModelId);
+  const { data: { script, board }, panelModelId, setPanelModelId, draws, model } = useVisualiseBoardActions();
   const reopen = useReopenScript(clientId, script.id);
   const setField = useSetVisualiseField(clientId, script.id);
   // D489 — the script's text is typed here while it is in Visualise; In review it is read-only,
@@ -72,8 +68,6 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
   };
 
   return (
-    // D446 — products and locations are edited here too: their pictures are visual work.
-    <ScriptAssetsProvider clientId={clientId} scriptId={script.id}>
     <MaybeScriptEdit edit={edit}>
     <div className="flex flex-col gap-6">
       <VisualiseReadiness
@@ -156,7 +150,6 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
       )}
     </div>
     </MaybeScriptEdit>
-    </ScriptAssetsProvider>
   );
 }
 

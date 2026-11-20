@@ -28,10 +28,13 @@ export function CopilotChat({ client, scriptId, stage, messages, avatars, waitin
   live: { actions: ChatActions; suggestions: Suggestion[] } | null;
 }) {
   const generate = stage === "generate";
+  // Piece 5.1 — the copilot leads at Visualise, so it starts open there; In review and Approved
+  // start folded so the board keeps its room. A stored choice wins either way.
+  const foldedByDefault = stage !== "generate" && stage !== "visualise";
   const foldKey = scriptFoldKey(scriptId, stage);
   const busy = live?.actions.busy ?? false;
   // The shell owns the fold; read here only so the thread scrolls when it unfolds (same store).
-  const [collapsed] = useCopilotCollapsed(foldKey, !generate);
+  const [collapsed] = useCopilotCollapsed(foldKey, foldedByDefault);
   const end = useRef<HTMLDivElement>(null);
   const [text, setText] = useState("");
   // Follow the conversation: scroll to the newest message, or the working line, when either appears,
@@ -43,12 +46,12 @@ export function CopilotChat({ client, scriptId, stage, messages, avatars, waitin
   return (
     <JourneyPanelShell
       foldKey={foldKey}
-      foldedByDefault={!generate}
+      foldedByDefault={foldedByDefault}
       waitingLine={waiting?.line ?? null}
       busy={busy}
       back={{ label: client.name, href: `/clients/${client.slug}/scripts` }}
       placement="page"
-      narrow={generate ? "stacked" : "hidden"}
+      narrow={generate || stage === "visualise" ? "stacked" : "hidden"}
     >
       <ScrollArea className="min-h-0 flex-1">
         <ol className="flex flex-col gap-4 p-4" aria-live="polite">

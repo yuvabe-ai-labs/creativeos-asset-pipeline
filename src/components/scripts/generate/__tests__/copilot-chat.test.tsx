@@ -26,8 +26,11 @@ describe("the script's copilot after Generate", () => {
     expect(out).toMatch(/<a[^>]*href="\/clients\/chupps\/scripts"/);
   });
 
-  it("starts folded", () => {
-    expect(out).toContain('aria-label="Show copilot"');
+  // Piece 5.1: the copilot leads at Visualise, so it starts open there; later stages start folded.
+  it("starts open at Visualise, and folded In review and Approved", () => {
+    expect(out).not.toContain('aria-label="Show copilot"');
+    expect(html({ stage: "in_review" })).toContain('aria-label="Show copilot"');
+    expect(html({ stage: "approved" })).toContain('aria-label="Show copilot"');
   });
 });
 

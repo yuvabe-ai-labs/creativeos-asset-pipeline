@@ -85,6 +85,8 @@ export function castStillAsked(state: GenerateState): CastMember | undefined {
 
 export function suggestionsFor(state: GenerateState): Suggestion[] {
   const { script } = state;
+  // Piece 5.1 — at Visualise only the chips the copilot wrote with its last reply.
+  if (script.stage === "visualise") return script.doc ? modelChips(state, []) : [];
   if (script.stage !== "generate") return [];
 
   if (!script.doc) {
