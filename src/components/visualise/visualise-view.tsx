@@ -20,6 +20,7 @@ import { PanelTile } from "./panel-tile";
 import { StoryboardGrid } from "./storyboard-grid";
 import { VisualiseReadiness } from "./visualise-readiness";
 import { useVisualiseBoardActions } from "./visualise-board-context";
+import { FollowTarget } from "./script-follow-context";
 
 // Spec 3 §4, laid out as a storyboard sheet (D465): the readiness line across the top; the summary
 // card with the cast, locations and products as chips; then every shot's panel at full width, each
@@ -110,8 +111,8 @@ export function VisualiseView({ clientId, review }: { clientId: string; review?:
           }
         >
           {timed.map((t) => (
+            <FollowTarget key={t.shot.id} id={`shot:${t.shot.id}`}>
             <PanelTile
-              key={t.shot.id}
               shot={t.shot}
               doc={script.doc}
               label={`S${t.index + 1}`}
@@ -124,6 +125,7 @@ export function VisualiseView({ clientId, review }: { clientId: string; review?:
               onVersions={() => setOpenShot(t.shot.id)}
               shotMarker={review?.shotMarker(t.shot.id)}
             />
+            </FollowTarget>
           ))}
         </StoryboardGrid>
       </ScriptSheetFrame>

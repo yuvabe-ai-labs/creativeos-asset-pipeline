@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { CopilotPictureComposer } from "./copilot-picture-composer";
+import { useScriptFollow } from "./script-follow-context";
+import { changedTargets } from "@/lib/scripts/copilot/changed-targets";
 import { CopilotChat } from "@/components/scripts/generate/copilot-chat";
 import type { ChatActions } from "@/components/scripts/generate/copilot-chat-message";
 import { useGenerateState, useResolveProposal, useSendTurn } from "@/hooks/queries/script-generate";
@@ -33,6 +35,13 @@ export function VisualiseCopilot({ client, initialState, initialReview }: {
   const proposal = useResolveProposal(client.id, scriptId);
   const link = useLinkCast(client.id, scriptId);
   const fail = (e: Error) => toast.error(e.message);
+  // §3.8 — what a copilot change touched lands on the board. Compared with the board as it was when
+  // the message went, so a change the person made meanwhile is not shown as the copilot's.
+  const follow = useScriptFollow();
+  const landing = () => {
+    const before = board.script.doc;
+    return (next: GenerateState) => { if (next.script.doc) follow?.land(changedTargets(before, next.script.doc)); };
+  };
   // The step card's "Attach a picture" on an item opens the composer's picker for that item.
   const [attach, setAttach] = useState<{ target: string; n: number } | null>(null);
   // Seeded from the page, shared with the board's review actions: no request of its own.
@@ -46,9 +55,9 @@ export function VisualiseCopilot({ client, initialState, initialReview }: {
   const actions: ChatActions = {
     busy,
     writing: false,
-    send: (text) => turn.mutate({ text }, { onError: fail }),
-    link: (castId, avatarId) => link.mutate({ castId, avatarId }, { onError: fail }),
-    resolve: (messageId, decision) => proposal.mutate({ messageId, decision }, { onError: fail }),
+    send: (text) => turn.mutate({ text }, { onError: fail, onSuccess: landing() }),
+    link: (castId, avatarId) => link.mutate({ castId, avatarId }, { onError: fail, onSuccess: () => follow?.land([`cast:${castId}`]) }),
+    resolve: (messageId, decision) => proposal.mutate({ messageId, decision }, { onError: fail, onSuccess: landing() }),
     renderOffer: (card) => <CopilotOfferCard clientId={client.id} card={card} latest={latest} pendingCard={pendingCard} />,
   };
   const walk = { doc: board.script.doc, avatars: model.avatars, views: model.views, plan: model.plan };
@@ -75,7 +84,13 @@ export function VisualiseCopilot({ client, initialState, initialReview }: {
           scriptId={scriptId}
           doc={board.script.doc}
           request={attach}
-          onSend={(message) => turn.mutate(message, { onError: fail })}
+          onSend={(message) => {
+            const landed = landing();
+            turn.mutate(message, {
+              onError: fail,
+              onSuccess: (next) => { landed(next); if (message.picture) follow?.land([message.picture.target]); },
+            });
+          }}
         />
       )}
     />

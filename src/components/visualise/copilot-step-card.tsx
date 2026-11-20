@@ -11,6 +11,7 @@ import { generateAllLabel } from "@/lib/scripts/visualise/state";
 import { GenerateAllDialog } from "./generate-all-dialog";
 import { showOnBoard } from "./show-on-board";
 import { useVisualiseBoardActions } from "./visualise-board-context";
+import { useScriptFollow } from "./script-follow-context";
 
 const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -28,6 +29,7 @@ export function CopilotStepCard({ clientId, step, avatars, onAttach }: {
   const { data, draws } = useVisualiseBoardActions();
   const link = useLinkCast(clientId, data.script.id);
   const assets = useScriptAssets();
+  const follow = useScriptFollow();
   const draw = (label: string) => (
     <GenerateAllDialog size="sm" label={label} plan={"plan" in step ? step.plan : { shotIds: [], credits: 0, redraw: false, waiting: 0 }} busy={draws.drawingAll} onConfirm={() => void draws.drawAll("plan" in step ? step.plan.shotIds : [])} />
   );
@@ -48,7 +50,10 @@ export function CopilotStepCard({ clientId, step, avatars, onAttach }: {
                   size="sm"
                   variant="outline"
                   disabled={link.isPending}
-                  onClick={() => link.mutate({ castId: step.castId, avatarId: a.id }, { onError: (e) => toast.error(e.message) })}
+                  onClick={() => link.mutate(
+                    { castId: step.castId, avatarId: a.id },
+                    { onError: (e) => toast.error(e.message), onSuccess: () => follow?.land([`cast:${step.castId}`]) },
+                  )}
                 >
                   {a.front && <img src={a.front} alt="" className="size-5 rounded-full object-cover" />}
                   {a.name}
