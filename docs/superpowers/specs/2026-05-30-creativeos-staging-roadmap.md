@@ -8819,3 +8819,63 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Storing only the keys that differ from the default (the caption kept changing with it). Keeping position reel-wide (D396's drag moved every caption, which the user did not want).
 
 **Originated →** this log.
+
+### D528 — A video or image is charged from what the provider says it billed *(recorded 2026-11-21; refines D484, D366, D299)*
+
+**Decision.** Gemini Omni and Seedance return their own usage, and completion bills from it. Omni's interaction `usage` becomes `{ inputTokens, videoOutputTokens, textOutputTokens, thoughtTokens }`, priced at Google's rates (input $1.50/M; video out $12/M on 1.2, $17.50/M on 1.1 until its reroute; text and thinking $9/M). Seedance's `usage.completion_tokens` is priced at $10.70/M up to 720p and $11.70/M at 1080p. The task sends the usage in the webhook, `completeGeneration` reads it through `readVideoUsage` and stores it in `generations.tokens_used`. With no usable usage the per-second price (`computeVideoCost`) still applies, and a voice change stays priced by its voice. Estimates add Omni's extras (`estimateVideoCostUsd`): about 1,100 input tokens per image sent, the take's own length as input on an edit, and 1,500 tokens of thinking. Gemini image models now also bill their text output and thinking at each model's text rate (Nano Banana 2.1 $7.50/M, 3.1 Flash Image $3/M, 3 Pro Image $12/M), and their estimate adds 1,000 such tokens. All of it lives in `src/lib/video-gen/provider-usage.ts` and `src/lib/image-gen/cost.ts`.
+
+**Why.** A credit audit on 19 Nov 2026 found every charge came from our own price tables, never from the provider. Four real probes showed Google billing more than we deducted: Omni bills its input (an edit's source video as many tokens as the output; a reference image ~1,100) and its thinking (330–1,530 tokens a call), and Nano Banana 2.1 bills ~1,000 tokens of text and thinking an image. We charged 7–18% below Google's bill. BytePlus already reports the exact tokens it bills; our per-second Seedance price was exact only at 16:9.
+
+**Rejected.** Raising the per-second rates to cover the gap (thinking is near fixed per call, so a flat uplift overcharges long clips and undercharges short ones). Trusting the webhook's usage as typed (it is validated, and a malformed one falls back to the per-second price).
+
+**Originated →** this log.
+
+### D529 — AI models live in the database: `ai_models` and `ai_model_prices` *(recorded 2026-11-21; refines D467, D484, D528)*
+
+**Decision.** Every model the app runs is a row in `ai_models` (today's string id, provider, kind, labels, status `draft`/`live`/`hidden`/`retired`, `replaced_by`, sort order, `adapter_key`, the provider's model id, and `params`, `rules` and `capabilities` as JSON in today's TypeScript shapes). Prices are rows in `ai_model_prices`. The TypeScript registries and price tables become the seed and are deleted once every caller reads the catalog. Provider adapters stay in code, registered by `adapter_key`; a model whose adapter is not in the running build cannot be set live.
+
+**Why.** A provider's price change or a new model needed a release, and until it shipped we charged the old price (credits plan, 18 Nov; user, 21 Nov).
+
+**Rejected.** A separate providers table, a model-versions table and a rate-card-items table (two tables cover phase 1; generations already store the parameters they ran with). Only prices in the database, with parameters left in code (every new model would still need a deploy). JSON Schema for parameters (`ParamSpec` already drives the UI, the rules and validation).
+
+**Originated →** [2026-11-21-model-catalog-design.md](2026-11-21-model-catalog-design.md).
+
+### D530 — A price is a dated row that is never edited *(recorded 2026-11-21)*
+
+**Decision.** `ai_model_prices` has one row per model per `effective_from`, with price lines (`meter`, `unit_usd`, optional `when` on request parameters) and estimate allowances. A run uses the row with the latest `effective_from` at or before its start. Updates are refused; a row can be deleted only before it starts. The super admin enters a provider's new price from the provider's date, today or later.
+
+**Why.** The provider decides when its price changes (e.g. Omni 1.1 billed at 1.2 rates from 3 Dec). Every past run must still show what it was charged and why.
+
+**Rejected.** Editable price rows (they rewrite history). A minimum notice period before a new price (the provider sets the date, not us).
+
+**Originated →** [2026-11-21-model-catalog-design.md](2026-11-21-model-catalog-design.md).
+
+### D531 — Every adapter returns a provider bill; one module prices the estimate and the charge *(recorded 2026-11-21; generalises D528)*
+
+**Decision.** After a run each adapter returns `{ source, meters, raw }`: `provider_charge` when the provider says what it deducted (Kling units, ElevenLabs credits, Apify dollars), `provider_usage` when it says what was used (Gemini, OpenAI, BytePlus tokens or images), `request` when it says nothing (fal, Sarvam). One pricing module turns meters into USD with the run's price row, for the estimate (predicted meters plus allowances) and the charge (the bill). Credits are USD × 1000 × (1 + markup), rounded up to 5; the markup is 0 until a markup table exists. A bill meter with no price line is priced at 0 and flagged.
+
+**Why.** Probes on 19 and 21 Nov showed every provider reports a charge, a usage, or nothing, and each case is a quantity per meter times a price.
+
+**Rejected.** Charging from our own per-second tables (they missed input and thinking tokens). Correcting charges afterwards from provider usage APIs (most give daily totals only, and the Google key is shared by every environment).
+
+**Originated →** [2026-11-21-model-catalog-design.md](2026-11-21-model-catalog-design.md).
+
+### D532 — Features that charge no credits record their cost on `generations` *(recorded 2026-11-21)*
+
+**Decision.** The script writer, KB extraction and website research, image analysis, avatar brief, Copilot, compose, parse, split scene, file extract and Apify imports insert a `generations` row with `record_only = true`, the provider bill and `cost_usd`, and no reservation or ledger rows. A failed run that the provider still billed keeps its bill on the failed row, and the user is refunded.
+
+**Why.** These calls cost money that appeared on provider invoices and nowhere in the app (credit audit, 19 Nov). User, 21 Nov: record the cost, don't deduct credits; refund failed runs and record the loss.
+
+**Rejected.** A separate provider-charges table (generations already carry cost and usage). Deducting credits for these features.
+
+**Originated →** [2026-11-21-model-catalog-design.md](2026-11-21-model-catalog-design.md).
+
+### D533 — Margin stays on the credit price; access, limits and run markups come later as their own tables *(recorded 2026-11-21; follows the 20 Nov credits decisions)*
+
+**Decision.** 1,000 credits = $1 of what the provider charged, fixed. The selling margin stays on the price of credits (`billing_settings`). Every agency gets every live model. Later, `model_access` (plan or agency → provider or model, allow or deny), `spend_limits` and `model_markups` (global, provider or model, from a date) are added as separate tables that reference `ai_models`, with no change to it.
+
+**Why.** User, 21 Nov: one global margin for now, access deferred with the schema ready for it, per-provider or per-model control in future.
+
+**Rejected.** Empty access, limit and markup tables created now. A per-run margin replacing the credit-price margin.
+
+**Originated →** [2026-11-21-model-catalog-design.md](2026-11-21-model-catalog-design.md).
