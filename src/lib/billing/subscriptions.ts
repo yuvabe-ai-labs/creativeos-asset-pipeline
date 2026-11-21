@@ -8,7 +8,7 @@ import {
   updateSubscription,
   type PurchasablePrice,
 } from "@/lib/db/billing-subscriptions";
-import { cancelSubscription, changeSubscriptionPlan, createPlan, createSubscription, razorpayKeyId } from "./razorpay";
+import { cancelSubscription, changeSubscriptionPlan, createPlan, createSubscription, getSubscription, razorpayKeyId } from "./razorpay";
 import { withGst } from "./gst";
 
 // The owner's plan steps (spec 2026-11-21-monthly-plans-design.md). Each answers either what the
@@ -65,6 +65,12 @@ export async function cancelPlan(orgId: string): Promise<StepResult<{ endsAt: st
   const live = await getLiveSubscription(orgId);
   if (!live || !live.razorpaySubscriptionId || live.status === "created") return refuse(404, "You don't have a plan to cancel.");
   if (live.status === "cancelling") return { ok: true, value: { endsAt: live.currentPeriodEnd } };
+  // A payment is due: there is no paid month left to use, so the plan ends now (D526).
+  if (live.status === "payment_due") {
+    await cancelSubscription(live.razorpaySubscriptionId, false);
+    await updateSubscription(live.id, { status: "ended", cancelAtPeriodEnd: false });
+    return { ok: true, value: { endsAt: null } };
+  }
   await cancelSubscription(live.razorpaySubscriptionId, true);
   await updateSubscription(live.id, { status: "cancelling", cancelAtPeriodEnd: true });
   return { ok: true, value: { endsAt: live.currentPeriodEnd } };
@@ -75,6 +81,7 @@ export async function changePlan(orgId: string, priceId: string): Promise<StepRe
   const [live, price] = await Promise.all([getLiveSubscription(orgId), getPurchasablePrice(priceId)]);
   if (!live || !live.razorpaySubscriptionId || live.status === "created") return refuse(404, "You don't have a plan to change.");
   if (live.status === "cancelling") return refuse(409, "Your plan is cancelled. Pick a plan again when it ends.");
+  if (live.status === "payment_due") return refuse(409, "Pay the amount due first, then change your plan.");
   const unavailable = checkPlanPrice(price, orgId);
   if (unavailable || !price) return refuse(400, unavailable ?? "That plan isn't available.");
   if (price.id === live.priceId) return refuse(409, "You're already on this plan.");
@@ -82,4 +89,15 @@ export async function changePlan(orgId: string, priceId: string): Promise<StepRe
   await changeSubscriptionPlan(live.razorpaySubscriptionId, planId);
   await updateSubscription(live.id, { nextPriceId: price.id });
   return { ok: true, value: { from: live.currentPeriodEnd } };
+}
+
+/** Where the owner pays a due charge (D526): Razorpay's hosted page for the subscription, which
+ *  retries the card, takes a new one, or switches to UPI or a bank mandate. Paying there brings
+ *  the plan back; the webhook adds the month's credits. */
+export async function payNowLink(orgId: string): Promise<StepResult<{ url: string }>> {
+  const live = await getLiveSubscription(orgId);
+  if (!live || !live.razorpaySubscriptionId || live.status !== "payment_due") return refuse(409, "Nothing is due right now.");
+  const sub = await getSubscription(live.razorpaySubscriptionId);
+  if (!sub.short_url) return refuse(409, "The payment page isn't ready yet. Check your email for the payment request.");
+  return { ok: true, value: { url: sub.short_url } };
 }

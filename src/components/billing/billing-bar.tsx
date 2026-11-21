@@ -22,7 +22,7 @@ const n = (v: number) => v.toLocaleString("en-IN");
 export function ownerLine(s: OwnerBillingSummary): Line | null {
   switch (s.state) {
     case "payment_due":
-      return { tone: "warn", icon: TriangleAlert, text: "Your payment didn't go through, so AI runs are paused. Nothing is lost.", action: { label: "Open billing", href: "/billing" } };
+      return { tone: "warn", icon: TriangleAlert, text: "Your payment didn't go through, so AI runs are paused. Nothing is lost.", action: { label: "Pay now", href: "/billing" } };
     case "no_plan":
       return { tone: "brand", icon: Zap, text: "Pick a plan to start generating.", action: { label: "See plans", href: "/billing/plans" } };
     case "free":

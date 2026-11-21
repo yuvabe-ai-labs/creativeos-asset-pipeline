@@ -1651,3 +1651,32 @@ drop function if exists org_credit_usage_by(uuid, timestamptz, timestamptz, text
 drop index if exists generations_org_id_created_at_idx;
 notify pgrst, 'reload schema';
 ```
+
+## Migration 0074 — failed payment rules (D526, 2026-11-21)
+
+Apply after 0073, in any order with the code (the code before it never reads the new column).
+
+- Adds `billing_subscriptions.payment_due_since` (indexed where set).
+- Replaces `set_subscription_status` and `record_subscription_charge` (same arguments) with
+  forward-only rules: an ended plan stays ended; a late payment-due for a period already paid is
+  ignored; an older charge found late is recorded without moving the paid period back.
+- Safe to apply: a nullable column, a partial index, two replaced functions.
+
+**Trigger.dev:** the release adds two scheduled tasks, `reconcile-billing-orders` (hourly) and
+`reconcile-billing-plans` (nightly, 02:00 India time). They need `RAZORPAY_KEY_ID` and
+`RAZORPAY_KEY_SECRET` in the Trigger.dev environment, as the app has.
+
+**Verify after running:**
+
+```sql
+select column_name from information_schema.columns
+ where table_name = 'billing_subscriptions' and column_name = 'payment_due_since';
+```
+
+**Rollback:** re-run the two function definitions from 0071, then:
+
+```sql
+drop index if exists billing_subscriptions_payment_due_since_idx;
+alter table billing_subscriptions drop column if exists payment_due_since;
+notify pgrst, 'reload schema';
+```

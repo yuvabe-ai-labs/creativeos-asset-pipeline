@@ -39,3 +39,8 @@ export function useStartTopUp() {
 export function useConfirmTopUp() {
   return useMutation({ mutationFn: (input: CheckoutResult) => billingService.confirmTopUp(input) });
 }
+
+// Pay a due plan charge on the payment page (D526).
+export function usePayNow() {
+  return useMutation({ mutationFn: () => billingService.payNow() });
+}

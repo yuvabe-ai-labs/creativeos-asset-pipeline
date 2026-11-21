@@ -38,6 +38,10 @@ class BillingService {
     return readJson<{ received: true }>(res, "The payment couldn't be confirmed.");
   }
 
+  async payNow(): Promise<{ url: string }> {
+    return readJson<{ url: string }>(await fetch("/api/billing/pay-now", { method: "POST" }), "Could not open the payment page.");
+  }
+
   async cancelPlan(): Promise<{ endsAt: string | null }> {
     return readJson<{ endsAt: string | null }>(await fetch("/api/billing/cancel", { method: "POST" }), "Could not cancel the plan.");
   }

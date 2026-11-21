@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0073** (`supabase/migrations/0001_init.sql` … `0073_usage_by.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
+Generated from migrations up to **0074** (`supabase/migrations/0001_init.sql` … `0074_payment_due_rules.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -236,8 +236,8 @@ An agency’s billing details for Razorpay and GST invoices. *0068*
 
 ### billing_subscriptions
 An agency’s plan. One live subscription per agency. *0068* · org_id
-- `id` uuid PK · `org_id` → organizations cascade · `price_id` → billing_prices · `next_price_id` → billing_prices (change from the next payment) · `discount_id` → billing_discounts set null · `discount_cycles_left` · `status` check created/active/payment_due/cancelling/ended · `current_period_start`, `current_period_end` · `next_credit_at` (next credit drop) · `cancel_at_period_end` · `razorpay_subscription_id` unique · `ended_at`
-- Indexes: unique `org_id` where status <> ended, `org_id`, `status`, `next_credit_at`, `price_id`, `next_price_id`, `discount_id`
+- `id` uuid PK · `org_id` → organizations cascade · `price_id` → billing_prices · `next_price_id` → billing_prices (change from the next payment) · `discount_id` → billing_discounts set null · `discount_cycles_left` · `status` check created/active/payment_due/cancelling/ended · `current_period_start`, `current_period_end` · `next_credit_at` (next credit drop) · `cancel_at_period_end` · `razorpay_subscription_id` unique · `ended_at` · `payment_due_since` (0074; set when a payment first becomes due, cleared when paid)
+- Indexes: unique `org_id` where status <> ended, `org_id`, `status`, `next_credit_at`, `price_id`, `next_price_id`, `discount_id`, `payment_due_since` where set (0074)
 - RLS: select `owners read`, owners of the agency only.
 
 ### razorpay_events
@@ -438,8 +438,8 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `take_invite_send` | org_id, limit → bool | definer, service role | 0063 |
 | `record_razorpay_payment` | order_id, payment_id → bool (locks the order, marks it paid once; a top-up writes a `topup` grant ending with the plan month, a test payment a negative `adjustment`; false when missing or already paid) | definer, service role | 0066, 0072 |
 | `reserve_credits_v2` | org_id, generation_id, amount → text (`ok`/`limit`/`used_up`/`free_ended`/`no_credits`/`payment_due`; managed: monthly limit; paying: refused while a plan payment is due (0071), else holds from grants, first-ending first) | definer, service role | 0067, 0071 |
-| `record_subscription_charge` | razorpay subscription, plan, payment, order, total, period start, end → bool (records the payment once, sets the paid period and the plan charged, writes the month's `plan` grant) | definer, service role | 0071 |
-| `set_subscription_status` | razorpay subscription, status, period start, end → bool | definer, service role | 0071 |
+| `record_subscription_charge` | razorpay subscription, plan, payment, order, total, period start, end → bool (records the payment once and writes its month's `plan` grant; only the latest period's charge moves the plan forward and clears a due payment) | definer, service role | 0071, 0074 |
+| `set_subscription_status` | razorpay subscription, status, period start, end → bool (forward only: an ended plan stays ended, a late payment-due for a paid period is ignored; keeps `payment_due_since`) | definer, service role | 0071, 0074 |
 | `settle_credits` | org_id, generation_id, actual → bool (refund + consumption rows; moves the cost onto the held grants; false when already settled) | definer, service role | 0067 |
 | `refund_credits` | org_id, generation_id → bool (refund row; gives held credits back to their grants; false when already settled) | definer, service role | 0067 |
 | `credit_balance` | org_id → (grant_id, kind, credits, used, left_credits, ends_at) for open grants | definer, service role | 0067 |

@@ -51,7 +51,7 @@ describe("Billing tab", () => {
     expect(html).toContain("Yuva · Trial");
   });
 
-  const sub = { id: "s", status: "active" as const, priceId: "p", nextPriceId: null, planName: "Studio", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1" };
+  const sub = { id: "s", status: "active" as const, priceId: "p", nextPriceId: null, planName: "Studio", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1", paymentDueSince: null };
 
   it("shows a paying agency's plan, its price and when it renews", () => {
     const html = renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} subscription={sub} />);

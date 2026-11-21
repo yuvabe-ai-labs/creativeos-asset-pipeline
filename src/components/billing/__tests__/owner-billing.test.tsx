@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/" }));
 vi.mock("@/hooks/queries/billing", () => {
   const m = () => ({ mutateAsync: vi.fn(), isPending: false });
-  return { useSubscribe: m, useConfirmSubscription: m, useStartTopUp: m, useConfirmTopUp: m, useCancelPlan: m, useChangePlan: m };
+  return { useSubscribe: m, useConfirmSubscription: m, useStartTopUp: m, useConfirmTopUp: m, useCancelPlan: m, useChangePlan: m, usePayNow: m };
 });
 
 import { ownerLine } from "../billing-bar";
@@ -20,7 +20,7 @@ const plans = [
   { priceId: "p1", productId: "a", name: "Starter", description: null, amountMinor: 1_200_000, credits: 100_000 },
   { priceId: "p2", productId: "b", name: "Studio", description: "For growing teams", amountMinor: 2_400_000, credits: 200_000 },
 ];
-const sub = { id: "s", status: "active" as const, priceId: "p1", nextPriceId: null, planName: "Starter", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1" };
+const sub = { id: "s", status: "active" as const, priceId: "p1", nextPriceId: null, planName: "Starter", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1", paymentDueSince: null };
 
 describe("the workspace bar", () => {
   it("shows free credits and when they end, with a way to the plans", () => {
@@ -69,8 +69,10 @@ describe("the owner's billing page", () => {
   });
 
   it("explains a due payment without naming the payment company", () => {
-    const html = renderToStaticMarkup(<PlanSummary subscription={{ ...sub, status: "payment_due" }} />);
+    const html = renderToStaticMarkup(<PlanSummary subscription={{ ...sub, status: "payment_due", paymentDueSince: "2026-11-21T06:00:00Z" }} />);
     expect(html).toContain("Payment due");
+    expect(html).toContain("Pay now");
+    expect(html).toContain("If it isn&#x27;t paid by 21 Dec 2026, the plan ends.");
     expect(html).toContain("AI runs are paused");
     expect(html).not.toMatch(/razorpay/i);
   });

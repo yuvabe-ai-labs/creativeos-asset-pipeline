@@ -16,6 +16,8 @@ export type LiveSubscription = {
   credits: number | null;
   currentPeriodEnd: string | null;
   razorpaySubscriptionId: string | null;
+  /** When the payment first became due (0074); null otherwise. */
+  paymentDueSince: string | null;
 };
 
 type LiveRow = {
@@ -25,6 +27,7 @@ type LiveRow = {
   next_price_id: string | null;
   current_period_end: string | null;
   razorpay_subscription_id: string | null;
+  payment_due_since: string | null;
   price: { amount_minor: number | string; credits: number | string; product: { name: string } | null } | null;
 };
 
@@ -33,7 +36,7 @@ export async function getLiveSubscription(orgId: string): Promise<LiveSubscripti
   const { data, error } = await createServerSupabase()
     .from("billing_subscriptions")
     .select(
-      "id, status, price_id, next_price_id, current_period_end, razorpay_subscription_id, price:billing_prices!billing_subscriptions_price_id_fkey(amount_minor, credits, product:billing_products(name))",
+      "id, status, price_id, next_price_id, current_period_end, razorpay_subscription_id, payment_due_since, price:billing_prices!billing_subscriptions_price_id_fkey(amount_minor, credits, product:billing_products(name))",
     )
     .eq("org_id", orgId)
     .neq("status", "ended")
@@ -51,6 +54,7 @@ export async function getLiveSubscription(orgId: string): Promise<LiveSubscripti
     credits: r.price ? Number(r.price.credits) : null,
     currentPeriodEnd: r.current_period_end,
     razorpaySubscriptionId: r.razorpay_subscription_id,
+    paymentDueSince: r.payment_due_since,
   };
 }
 
@@ -193,4 +197,44 @@ export async function markRazorpayEvent(eventId: string, outcome: { error: strin
   const patch = outcome.error ? { error: outcome.error.slice(0, 500) } : { processed_at: new Date().toISOString(), error: null };
   const { error } = await createServerSupabase().from("razorpay_events").update(patch).eq("event_id", eventId);
   if (error) throw error;
+}
+
+// ── The check against Razorpay (D526) ─────────────────────────────────────────────────────────
+
+export type CheckableSubscription = { id: string; orgId: string; status: SubscriptionStatus; razorpaySubscriptionId: string; currentPeriodEnd: string | null; paymentDueSince: string | null };
+
+/** Live plans to compare with Razorpay, least recently updated first, bounded per run. */
+export async function listSubscriptionsToCheck(limit: number): Promise<CheckableSubscription[]> {
+  const { data, error } = await createServerSupabase()
+    .from("billing_subscriptions")
+    .select("id, org_id, status, razorpay_subscription_id, current_period_end, payment_due_since")
+    .neq("status", "ended")
+    .not("razorpay_subscription_id", "is", null)
+    .order("updated_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  return ((data ?? []) as { id: string; org_id: string; status: SubscriptionStatus; razorpay_subscription_id: string; current_period_end: string | null; payment_due_since: string | null }[]).map((r) => ({
+    id: r.id,
+    orgId: r.org_id,
+    status: r.status,
+    razorpaySubscriptionId: r.razorpay_subscription_id,
+    currentPeriodEnd: r.current_period_end,
+    paymentDueSince: r.payment_due_since,
+  }));
+}
+
+/** One-time orders (top-ups) still unpaid after `olderThan`, within the last `within`. */
+export async function listUnpaidOrders(olderThan: string, within: string, limit: number): Promise<string[]> {
+  const { data, error } = await createServerSupabase()
+    .from("billing_payments")
+    .select("razorpay_order_id")
+    .eq("status", "created")
+    .neq("kind", "plan")
+    .neq("kind", "renewal")
+    .lt("created_at", olderThan)
+    .gte("created_at", within)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  return ((data ?? []) as { razorpay_order_id: string }[]).map((r) => r.razorpay_order_id);
 }

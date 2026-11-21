@@ -63,7 +63,44 @@ export async function createPlan(input: { amountPaise: number; name: string; des
   );
 }
 
-export type RazorpaySubscription = { id: string; status: string; plan_id: string; current_start?: number | null; current_end?: number | null };
+export type RazorpaySubscription = {
+  id: string;
+  status: string;
+  plan_id: string;
+  current_start?: number | null;
+  current_end?: number | null;
+  /** Razorpay's hosted page for this subscription: pay a due charge, change card or method. */
+  short_url?: string | null;
+};
+
+const READ_FAILED = "Could not reach the payment service.";
+
+export async function getSubscription(subscriptionId: string): Promise<RazorpaySubscription> {
+  return razorpay<RazorpaySubscription>(`/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: "GET" }, READ_FAILED);
+}
+
+export type RazorpayInvoice = {
+  id: string;
+  status: string;
+  payment_id: string | null;
+  order_id: string | null;
+  amount: number;
+  amount_paid?: number | null;
+  billing_start: number | null;
+  billing_end: number | null;
+};
+
+/** A subscription's invoices (one per charge), newest first as Razorpay returns them. */
+export async function listSubscriptionInvoices(subscriptionId: string): Promise<RazorpayInvoice[]> {
+  const res = await razorpay<{ items: RazorpayInvoice[] }>(`/invoices?subscription_id=${encodeURIComponent(subscriptionId)}&count=100`, { method: "GET" }, READ_FAILED);
+  return res.items ?? [];
+}
+
+/** The payments made against an order (a top-up). */
+export async function listOrderPayments(orderId: string): Promise<{ id: string; status: string }[]> {
+  const res = await razorpay<{ items: { id: string; status: string }[] }>(`/orders/${encodeURIComponent(orderId)}/payments`, { method: "GET" }, READ_FAILED);
+  return res.items ?? [];
+}
 
 /** A monthly subscription to a plan, charged up to `totalCount` times. */
 export async function createSubscription(input: { planId: string; totalCount: number; notes: Record<string, string> }): Promise<RazorpaySubscription> {

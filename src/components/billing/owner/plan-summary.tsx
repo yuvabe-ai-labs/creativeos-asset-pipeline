@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useCancelPlan } from "@/hooks/queries/billing";
+import { useCancelPlan, usePayNow } from "@/hooks/queries/billing";
+import { useState } from "react";
 import type { LiveSubscription } from "@/lib/db/billing-subscriptions";
 import { formatRupees } from "@/lib/billing/pricing";
 import { ApiError } from "@/services/read-json";
@@ -18,6 +19,8 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "n
 export function PlanSummary({ subscription }: { subscription: LiveSubscription | null }) {
   const router = useRouter();
   const cancel = useCancelPlan();
+  const payNow = usePayNow();
+  const [payError, setPayError] = useState<string | null>(null);
   const paid = subscription && subscription.status !== "created" ? subscription : null;
 
   if (!paid) {
@@ -35,7 +38,8 @@ export function PlanSummary({ subscription }: { subscription: LiveSubscription |
   const end = paid.currentPeriodEnd ? day(paid.currentPeriodEnd) : null;
   const line =
     paid.status === "cancelling" ? `Cancelled. Works until ${end ?? "the paid month ends"}.`
-    : paid.status === "payment_due" ? "Your payment didn't go through, so AI runs are paused. Check your email for the payment request, or pay with another method. Nothing is lost."
+    : paid.status === "payment_due"
+      ? `Your payment didn't go through, so AI runs are paused. Pay now with the same card, a new one or UPI; runs start again as soon as it goes through. Nothing is lost.${paid.paymentDueSince ? ` If it isn't paid by ${day(new Date(new Date(paid.paymentDueSince).getTime() + 30 * 86_400_000).toISOString())}, the plan ends.` : ""}`
     : `Renews ${end ?? "every month"}${paid.nextPriceId ? ". Your new plan starts then." : "."}`;
 
   return (
@@ -56,7 +60,24 @@ export function PlanSummary({ subscription }: { subscription: LiveSubscription |
         </span>
       </div>
       {paid.status !== "cancelling" && (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {paid.status === "payment_due" && (
+            <Button
+              size="sm"
+              disabled={payNow.isPending}
+              onClick={async () => {
+                setPayError(null);
+                try {
+                  const { url } = await payNow.mutateAsync();
+                  window.open(url, "_blank", "noopener");
+                } catch (e) {
+                  setPayError(e instanceof ApiError ? e.message : "Could not open the payment page.");
+                }
+              }}
+            >
+              {payNow.isPending ? "Opening…" : "Pay now"}
+            </Button>
+          )}
           <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/billing/plans" />}>Change plan</Button>
           <ConfirmStepDialog
             trigger={<Button variant="ghost" size="sm">Cancel plan</Button>}
@@ -73,6 +94,7 @@ export function PlanSummary({ subscription }: { subscription: LiveSubscription |
               }
             }}
           />
+          {payError && <p className="w-full text-sm text-destructive">{payError}</p>}
         </div>
       )}
     </div>

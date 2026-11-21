@@ -20,7 +20,6 @@ export default async function AdminPaymentsPage() {
   const [paid, attention, payments] = await Promise.all([sumPaidSince(usageRange("this_month").from), listPlansNeedingAttention(7), listRecentPayments(50)]);
   const due = attention.filter((a) => a.status === "payment_due");
   const renewing = attention.filter((a) => a.status !== "payment_due");
-  const failed = payments.filter((p) => p.status === "failed").length;
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-14">
@@ -34,7 +33,7 @@ export default async function AdminPaymentsPage() {
         <Card className="grid grid-cols-1 gap-6 p-6 shadow-card sm:grid-cols-3">
           <Stat label="Paid this month" value={formatRupees(paid.totalMinor)} note={paid.count === 1 ? "1 payment" : `${paid.count} payments`} />
           <Stat label="Payments due" value={String(due.length)} note={due.length ? "AI runs are paused for these" : "None"} warn={due.length > 0} />
-          <Stat label="Renewing in 7 days" value={String(renewing.length)} note={failed ? `${failed} failed recently` : "No recent failures"} />
+          <Stat label="Renewing in 7 days" value={String(renewing.length)} note={renewing.length ? "Plans renewing or ending" : "None this week"} />
         </Card>
 
         {attention.length > 0 && (

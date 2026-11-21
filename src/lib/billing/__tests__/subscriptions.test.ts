@@ -3,17 +3,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
   getOrgById: vi.fn(), getLive: vi.fn(), getPrice: vi.fn(), insert: vi.fn(), savePlan: vi.fn(), update: vi.fn(),
-  createPlan: vi.fn(), createSubscription: vi.fn(), cancel: vi.fn(), change: vi.fn(),
+  createPlan: vi.fn(), createSubscription: vi.fn(), cancel: vi.fn(), change: vi.fn(), getSubscription: vi.fn(),
 }));
 vi.mock("@/lib/db/organizations", () => ({ getOrgById: m.getOrgById }));
 vi.mock("@/lib/db/billing-subscriptions", () => ({
   getLiveSubscription: m.getLive, getPurchasablePrice: m.getPrice, insertSubscription: m.insert, savePriceRazorpayPlan: m.savePlan, updateSubscription: m.update,
 }));
 vi.mock("../razorpay", () => ({
-  createPlan: m.createPlan, createSubscription: m.createSubscription, cancelSubscription: m.cancel, changeSubscriptionPlan: m.change, razorpayKeyId: () => "rzp_test_id",
+  createPlan: m.createPlan, createSubscription: m.createSubscription, cancelSubscription: m.cancel, changeSubscriptionPlan: m.change, getSubscription: m.getSubscription, razorpayKeyId: () => "rzp_test_id",
 }));
 
-import { startSubscription, cancelPlan, changePlan } from "../subscriptions";
+import { startSubscription, cancelPlan, changePlan, payNowLink } from "../subscriptions";
 
 const price = (over: Partial<Record<string, unknown>> = {}) => ({
   id: "price_1", amountMinor: 1_200_000, credits: 100_000, intervalMonths: 1, active: true, razorpayPlanId: null,
@@ -108,5 +108,28 @@ describe("cancelPlan and changePlan", () => {
     await expect(changePlan("org", "price_1")).resolves.toMatchObject({ ok: false, status: 409 });
     m.getLive.mockResolvedValue(live({ priceId: "price_1" }));
     await expect(changePlan("org", "price_1")).resolves.toEqual({ ok: false, status: 409, error: "You're already on this plan." });
+  });
+});
+
+describe("a payment due (D526)", () => {
+  it("ends the plan at once when cancelled, since no paid month is left", async () => {
+    m.getLive.mockResolvedValue(live({ status: "payment_due" }));
+    await expect(cancelPlan("org")).resolves.toEqual({ ok: true, value: { endsAt: null } });
+    expect(m.cancel).toHaveBeenCalledWith("sub_old", false);
+    expect(m.update).toHaveBeenCalledWith("row_1", { status: "ended", cancelAtPeriodEnd: false });
+  });
+
+  it("refuses a plan change until it is paid", async () => {
+    m.getLive.mockResolvedValue(live({ status: "payment_due" }));
+    await expect(changePlan("org", "price_1")).resolves.toEqual({ ok: false, status: 409, error: "Pay the amount due first, then change your plan." });
+    expect(m.change).not.toHaveBeenCalled();
+  });
+
+  it("gives the payment page to pay it, and nothing when nothing is due", async () => {
+    m.getLive.mockResolvedValue(live({ status: "payment_due" }));
+    m.getSubscription.mockResolvedValue({ id: "sub_old", status: "halted", plan_id: "p", short_url: "https://rzp.io/i/abc" });
+    await expect(payNowLink("org")).resolves.toEqual({ ok: true, value: { url: "https://rzp.io/i/abc" } });
+    m.getLive.mockResolvedValue(live());
+    await expect(payNowLink("org")).resolves.toEqual({ ok: false, status: 409, error: "Nothing is due right now." });
   });
 });
