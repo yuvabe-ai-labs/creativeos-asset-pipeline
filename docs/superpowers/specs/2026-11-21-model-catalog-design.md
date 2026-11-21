@@ -230,9 +230,10 @@ Once every caller reads the catalog, the registries and price tables are deleted
 - One mock-mode run per adapter through reserve, complete and settle.
 - A record-only call writes a row and no ledger rows.
 
-## Questions
+## Seed values (21 Nov)
 
-- The price we pay per Kling unit. Seeded at $0.1508 (what the current table implies).
-- The price we pay per ElevenLabs credit on the current plan.
-- Whether `veo:*` and `openai:gpt-image-1` are retired in the seed. Both providers announced
-  shutdowns in October.
+- Kling: $0.1508 per unit (`provider_unit`).
+- ElevenLabs: Creator plan, $22 for 121,000 credits a month, so $0.000182 per credit
+  (`provider_credit`). Checked against a 3-second voice change: 30 credits ≈ $0.11 a minute.
+- `veo:*` and `openai:gpt-image-1` are seeded as `retired`. Google shut Veo 3.1 down on 22 Oct and
+  OpenAI shut gpt-image-1 down on 23 Oct.
