@@ -111,6 +111,11 @@ matches the run's parameters is used; a line with no `when` matches any run.
 | `provider_bill` | jsonb | the bill, below |
 | `record_only` | boolean not null default false | true for features that record cost and deduct no credits |
 
+Indexes: `generations (model_price_id)`, and `generations (org_id, record_only, created_at)` for
+usage reports. Record-only calls (Copilot, compose, parse) are far more frequent than media
+runs; canvas and history queries filter by node and never read them, and every usage report
+filters on `record_only`.
+
 `cost_usd` holds what the provider charged us. `credits_charged` holds what the agency was
 charged. A record-only row has a `provider_bill` and `cost_usd`, `credits_charged` 0 and no ledger
 rows. It may have no node (`node_id` is already nullable).
@@ -204,7 +209,9 @@ Once every caller reads the catalog, the registries and price tables are deleted
 ## Later (no change to the two tables)
 
 - `model_access`: plan or agency, provider or model, allow or deny.
-- `spend_limits`: plan or agency, provider or model, monthly USD.
+- `spend_limits`: plan or agency, provider or model, monthly USD. The check before a run reads a
+  running total (one row per agency, model and month, updated in the same step as the charge),
+  never a sum over `generations`.
 - `model_markups`: global, provider or model, percentage, from a date.
 - `feature_models`: which model each built-in feature uses.
 - Adding a model of an existing provider from Admin (params and rules editor).
