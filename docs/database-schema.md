@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0074** (`supabase/migrations/0001_init.sql` … `0074_payment_due_rules.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
+Generated from migrations up to **0075** (`supabase/migrations/0001_init.sql` … `0075_billing_realtime.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -188,7 +188,7 @@ One row per Razorpay payment: the test top-up (D514), then plans, renewals and t
 - RLS: select `owners read`, owners of the agency only. Written by the server (service role) and `record_razorpay_payment`.
 
 ### credit_grants
-A paying agency’s credits: each grant ends (free credits, a plan month, a top-up, credits Yuvabe added). Used first-ending first (D515). *0067* · org_id
+A paying agency’s credits: each grant ends (free credits, a plan month, a top-up, credits Yuvabe added). Used first-ending first (D515). *0067* · org_id · *Realtime* (0075)
 - `id` uuid PK · `org_id` → organizations cascade · `kind` check free/plan/topup/admin · `credits` numeric >= 0 · `used` numeric default 0 (running total of its `credit_grant_uses`) · `starts_at` default now() · `ends_at` (> starts_at) · `payment_id` → billing_payments set null · `price_id` → billing_prices set null, `subscription_id` → billing_subscriptions set null (0068) · `created_by` → auth.users set null · `reason`
 - Indexes: `(org_id, ends_at)`, `payment_id`, `price_id`, `subscription_id`
 - RLS: select `owners read`, owners of the agency only. Written only by the server and the 0067 functions.
@@ -235,7 +235,7 @@ An agency’s billing details for Razorpay and GST invoices. *0068*
 - RLS: select `owners read`, owners of the agency only.
 
 ### billing_subscriptions
-An agency’s plan. One live subscription per agency. *0068* · org_id
+An agency’s plan. One live subscription per agency. *0068* · org_id · *Realtime* (0075)
 - `id` uuid PK · `org_id` → organizations cascade · `price_id` → billing_prices · `next_price_id` → billing_prices (change from the next payment) · `discount_id` → billing_discounts set null · `discount_cycles_left` · `status` check created/active/payment_due/cancelling/ended · `current_period_start`, `current_period_end` · `next_credit_at` (next credit drop) · `cancel_at_period_end` · `razorpay_subscription_id` unique · `ended_at` · `payment_due_since` (0074; set when a payment first becomes due, cleared when paid)
 - Indexes: unique `org_id` where status <> ended, `org_id`, `status`, `next_credit_at`, `price_id`, `next_price_id`, `discount_id`, `payment_due_since` where set (0074)
 - RLS: select `owners read`, owners of the agency only.
@@ -483,7 +483,7 @@ Dropped: `org_review_counts_for_types` (created 0062, dropped 0063).
 ## Types, Realtime, storage
 
 - **Enum** `client_kb_job_status`: queued, researching, extracting, finalizing, succeeded, failed (0008).
-- **Realtime publication** `supabase_realtime`: `client_kb_jobs` (0008), `generations` (0014), `credit_transactions` (0022), `node_versions` (0030), `moodboard_items` (0040). One channel per screen, filtered client-side (performance rule 3).
+- **Realtime publication** `supabase_realtime`: `client_kb_jobs` (0008), `generations` (0014), `credit_transactions` (0022), `node_versions` (0030), `moodboard_items` (0040), `credit_grants` and `billing_subscriptions` (0075; owners only, through their `owners read` policies). One channel per screen, filtered client-side (performance rule 3).
 - **Storage bucket** `node-files` (public, 0004), legacy: nothing in the app uploads to it any more. Its `storage.objects` policies: `Public read node-files` (select, checks only `bucket_id`) stays, because old rows can still hold its public URLs. The insert and delete policies checked only `bucket_id` with no role, so the anon key could upload and delete; 0064 drops both, so writes are service role only (the one left is `removeObject` deleting an old supabase.co URL, `src/lib/storage/index.ts`). Every other file lives in Google Cloud Storage (`src/lib/storage/gcs.ts`), outside the migrations.
 
 ## Known leftovers

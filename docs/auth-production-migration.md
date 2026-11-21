@@ -1680,3 +1680,26 @@ drop index if exists billing_subscriptions_payment_due_since_idx;
 alter table billing_subscriptions drop column if exists payment_due_since;
 notify pgrst, 'reload schema';
 ```
+
+## Migration 0075 — live credits after a payment (D527, 2026-11-21)
+
+Apply after 0074, in any order with the code.
+
+- Adds `credit_grants` and `billing_subscriptions` to the `supabase_realtime` publication, so an
+  owner's popover and workspace bar update when credits arrive or the plan changes. Owners receive
+  the rows through the "owners read" policies; members receive nothing.
+- Safe to apply: re-runnable; no table or row changes.
+
+**Verify after running:**
+
+```sql
+-- expect two rows
+select tablename from pg_publication_tables
+ where pubname = 'supabase_realtime' and tablename in ('credit_grants', 'billing_subscriptions');
+```
+
+**Rollback:**
+
+```sql
+alter publication supabase_realtime drop table credit_grants, billing_subscriptions;
+```

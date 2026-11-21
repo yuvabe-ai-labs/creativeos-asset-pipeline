@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Building2, LogOut, UserRound } from "lucide-react";
 import { useIdentity } from "@/hooks/use-identity";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidateMe } from "@/hooks/queries/me";
 import { logoutAction } from "@/lib/actions/auth";
 import { initials } from "@/lib/format/initials";
 import { createBrowserSupabase } from "@/lib/supabase/client";
@@ -28,7 +29,14 @@ export function ProfilePopover() {
   // A refused run's message depends on who is viewing (D523); the 402 handlers read this.
   useEffect(() => setViewerOwnsAgency(isOwner === true), [isOwner]);
   const queryClient = useQueryClient();
-  const [liveDelta, setLiveDelta] = useState(0);
+  // Runs counted live since the figures from /api/me were read. Fresh figures already include
+  // them, so the count starts again whenever the figures change (adjusted during render, React's
+  // pattern for state derived from props) and a refetch never counts a run twice.
+  const figures = `${creditsUsed}|${billing && "left" in billing ? `${billing.left}|${billing.state}` : ""}`;
+  const [live, setLive] = useState({ figures, delta: 0 });
+  if (live.figures !== figures) setLive({ figures, delta: 0 });
+  const liveDelta = live.figures === figures ? live.delta : 0;
+  const setLiveDelta = (add: (d: number) => number) => setLive((l) => ({ figures: l.figures, delta: add(l.delta) }));
 
   // This subscription lives HERE, in the always-mounted popover shell, and NOT in
   // ProfileCredits where it started — that placement is the whole fix. HeaderActions mounts
@@ -42,7 +50,12 @@ export function ProfilePopover() {
     if (!hydrated || !orgId || !showCredits) return;
     let cancelled = false;
     let channel: RealtimeChannel | null = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const supabase = createBrowserSupabase();
+    const refreshSoon = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => void invalidateMe(queryClient), 800);
+    };
 
     // @supabase/ssr's browser client doesn't proactively load the session on init — it's
     // lazy until something calls getSession()/getUser(). Subscribing to Realtime before
@@ -71,14 +84,22 @@ export function ProfilePopover() {
             setLiveDelta((d) => d + row.amount);
           },
         )
+        // D527: new credits (a top-up, a plan payment, free credits) and plan changes (paid,
+        // payment due, cancelled) re-read /api/me, which the popover, the workspace bar and the
+        // Billing link all show. Only grant INSERTs: every run UPDATEs its grant's used total,
+        // and refetching per run is what the performance rules forbid. Bursts (a charge writes a
+        // payment, a grant and a plan update together) collapse into one refetch.
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "credit_grants", filter: `org_id=eq.${orgId}` }, refreshSoon)
+        .on("postgres_changes", { event: "*", schema: "public", table: "billing_subscriptions", filter: `org_id=eq.${orgId}` }, refreshSoon)
         .subscribe();
     });
 
     return () => {
       cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [hydrated, orgId, showCredits]);
+  }, [hydrated, orgId, showCredits, queryClient]);
 
   // Incrementing locally by each row's `amount` avoids a refetch per event. Settlement
   // writes two rows (refund of the reservation, then actual consumption), and
