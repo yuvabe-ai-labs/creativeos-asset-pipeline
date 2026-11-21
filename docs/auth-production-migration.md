@@ -1626,3 +1626,28 @@ select position('topup' in prosrc) > 0 from pg_proc where proname = 'record_razo
 pack; after the webhook, Admin's Billing tab lists a Top-up grant ending with the plan month.
 
 **Rollback:** re-run the `record_razorpay_payment` definition from 0066.
+
+## Migration 0073 — who used what (D524, 2026-11-21)
+
+Apply after 0072 and before the release with "Who used what" on Billing.
+
+- Adds the index `generations (org_id, created_at)` and `org_credit_usage_by` (credits charged in a
+  period per member, client or canvas; service role only, read-only).
+- Safe to apply: an index and a read-only function. On a large `generations` table the index build
+  locks writes to it briefly; apply at a quiet time, or build it with `create index concurrently`
+  by hand first (the migration's `if not exists` then skips it).
+
+**Verify after running:**
+
+```sql
+select indexname from pg_indexes where indexname = 'generations_org_id_created_at_idx';
+select proname, prosecdef from pg_proc where proname = 'org_credit_usage_by';
+```
+
+**Rollback:**
+
+```sql
+drop function if exists org_credit_usage_by(uuid, timestamptz, timestamptz, text);
+drop index if exists generations_org_id_created_at_idx;
+notify pgrst, 'reload schema';
+```

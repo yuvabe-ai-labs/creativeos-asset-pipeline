@@ -7,6 +7,7 @@ import { CreditGrantList } from "@/components/billing/credit-grant-list";
 import { PlanSummary } from "@/components/billing/owner/plan-summary";
 import { TopUpSection } from "@/components/billing/owner/top-up-section";
 import { PaymentsList } from "@/components/billing/owner/payments-list";
+import { UsageSection } from "@/components/billing/owner/usage-section";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Billing · CreativeOS" };
@@ -42,6 +43,7 @@ export default async function BillingPage() {
           </div>
         </Card>
         <TopUpSection packs={billing.packs} planRunning={planRunning} />
+        <UsageSection />
         <PaymentsList payments={billing.payments} />
       </div>
     </main>

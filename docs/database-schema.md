@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0072** (`supabase/migrations/0001_init.sql` … `0072_top_ups.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
+Generated from migrations up to **0073** (`supabase/migrations/0001_init.sql` … `0073_usage_by.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -171,7 +171,7 @@ One AI generation job (image/video/prompt/…), owned by a node, an avatar or a 
 - `type` · `status` (running/succeeded/failed) · `provider_job_id` · `model_used` · `params_snapshot`, `inputs_snapshot`, `tokens_used`, `meta` jsonb · `error`
 - `cost_usd` numeric (renamed from credits_consumed, 0019) · `credits_charged` numeric · `output_snapshot` text (0016)
 - `version_id` → node_versions (no on delete action) · `user_id` uuid (no FK) · `org_id` → organizations (not null) · `client_id` → clients (no on delete action, 0016)
-- Indexes: `node_id`, `status`, `version_id`, `org_id`, `client_id`, `avatar_id`, `script_id`
+- Indexes: `node_id`, `status`, `version_id`, `org_id`, `client_id`, `avatar_id`, `script_id`, `(org_id, created_at)` (0073)
 - RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065).
 
 ### credit_transactions
@@ -443,6 +443,7 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `settle_credits` | org_id, generation_id, actual → bool (refund + consumption rows; moves the cost onto the held grants; false when already settled) | definer, service role | 0067 |
 | `refund_credits` | org_id, generation_id → bool (refund row; gives held credits back to their grants; false when already settled) | definer, service role | 0067 |
 | `credit_balance` | org_id → (grant_id, kind, credits, used, left_credits, ends_at) for open grants | definer, service role | 0067 |
+| `org_credit_usage_by` | org_id, from, to, by (member/client/canvas) → (key, credits, runs): credits charged in the period per group, runs off a canvas under a null key | definer, service role | 0073 |
 | `admin_set_billing_mode` | org_id, mode, actor, reason → bool (false when missing or unchanged; logs) | definer, service role | 0067 |
 | `admin_grant_credits` | org_id, kind (free/admin), credits, ends_at, actor, reason → grant id (null when the agency is missing; logs) | definer, service role | 0067 |
 | `admin_take_back_credits` | grant_id, credits, actor, reason → text (`ok`/`not_found`/`too_many`; never more than is left; logs) | definer, service role | 0067 |
