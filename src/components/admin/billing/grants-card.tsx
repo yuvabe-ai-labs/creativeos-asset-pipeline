@@ -2,15 +2,14 @@
 
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDay, lastDayOf } from "@/lib/billing/dates";
 import type { OpenGrant } from "@/lib/billing/grants";
-import { GRANT_KIND_LABEL } from "./billing-labels";
+import { CreditGrantList } from "@/components/billing/credit-grant-list";
 import { GrantDialog } from "./grant-dialog";
 import { TakeBackDialog } from "./take-back-dialog";
 import { GrantEndDialog } from "./grant-end-dialog";
 
 const addChip = "border border-dashed border-primary/40 hover:bg-primary/5";
-const n = (v: number) => v.toLocaleString("en-US");
+const n = (v: number) => v.toLocaleString("en-IN");
 
 // A paying agency's open credits, the one ending first at the top (spec §3). The body of the
 // Billing card for a paying agency.
@@ -28,27 +27,16 @@ export function GrantsPanel({ orgId, grants }: { orgId: string; grants: OpenGran
           <GrantDialog orgId={orgId} kind="free" trigger={<Button variant="ghost" size="sm" className={addChip}><Plus className="size-4" strokeWidth={1.5} />Give free credits</Button>} />
         </div>
       </div>
-      {grants.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No credits. AI runs are stopped until credits are added or a plan is bought.</p>
-      ) : (
-        <ul className="flex flex-col divide-y divide-border">
-          {grants.map((g) => (
-            <li key={g.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">{GRANT_KIND_LABEL[g.kind]}</span>
-                <span className="text-xs text-muted-foreground">
-                  {n(g.left)} of {n(g.credits)} left · until {formatDay(lastDayOf(g.endsAt))}
-                </span>
-              </div>
-              <div className="flex gap-1">
-                <TakeBackDialog orgId={orgId} grant={g} trigger={<Button variant="ghost" size="sm" disabled={g.left <= 0}>Take back</Button>} />
-                <GrantEndDialog orgId={orgId} grant={g} trigger={<Button variant="ghost" size="sm">Change end date</Button>} />
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-      {grants.length > 0 && <p className="text-xs text-muted-foreground">Credits that end first are used first.</p>}
+      <CreditGrantList
+        grants={grants}
+        empty="No credits. AI runs are stopped until credits are added or a plan is bought."
+        actions={(g) => (
+          <>
+            <TakeBackDialog orgId={orgId} grant={g} trigger={<Button variant="ghost" size="sm" disabled={g.left <= 0}>Take back</Button>} />
+            <GrantEndDialog orgId={orgId} grant={g} trigger={<Button variant="ghost" size="sm">Change end date</Button>} />
+          </>
+        )}
+      />
     </div>
   );
 }

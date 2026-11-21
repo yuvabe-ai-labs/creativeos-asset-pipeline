@@ -20,7 +20,7 @@ type CreditTransactionRow = { amount: number };
 // Member, and sign out all live in one avatar-triggered popover now. See
 // docs/superpowers/specs/2026-08-09-profile-popover-header-design.md.
 export function ProfilePopover() {
-  const { hydrated, identity, orgId, orgName, isOwner, creditsUsed, monthlyCreditLimit } =
+  const { hydrated, identity, orgId, orgName, isOwner, creditsUsed, monthlyCreditLimit, billing } =
     useIdentity();
   // Null without view_credits: the server sends no figures to anyone but the owner, and nothing
   // listens for them.
@@ -137,7 +137,12 @@ export function ProfilePopover() {
         )}
         {used !== null && (
           <>
-            <ProfileCredits used={used} monthlyCreditLimit={monthlyCreditLimit} />
+            <ProfileCredits
+              used={used}
+              monthlyCreditLimit={monthlyCreditLimit}
+              // A paying agency sees credits left (D523); runs since the page loaded come off live.
+              paying={billing && "state" in billing && billing.mode === "plans" ? { left: billing.left - liveDelta, total: billing.total } : undefined}
+            />
             <div className="h-px bg-border" aria-hidden="true" />
           </>
         )}

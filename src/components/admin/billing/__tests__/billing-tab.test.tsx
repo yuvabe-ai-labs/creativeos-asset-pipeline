@@ -31,9 +31,10 @@ describe("Billing tab", () => {
     const html = renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[free, plan]} />);
     expect(html).toContain("Pays for a plan");
     expect(html).not.toContain("Monthly credit limit");
-    expect(html).toContain("148,800 left");
-    expect(html).toContain("48,800 of 50,000 left · until 3 Dec 2026");
-    expect(html.indexOf("Free credits")).toBeLessThan(html.indexOf("100,000 of 100,000"));
+    expect(html).toContain("1,48,800 left");
+    expect(html).toContain("48,800 of 50,000 left");
+    expect(html).toContain("until 3 Dec 2026");
+    expect(html.indexOf("Free credits")).toBeLessThan(html.indexOf("1,00,000 of 1,00,000"));
     expect(html).toContain("Add credits");
     expect(html).toContain("Give free credits");
   });

@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { setOfferShownAction } from "@/lib/actions/billing-catalog";
 import type { BillingSettings, CatalogPrice, CatalogProduct } from "@/lib/billing/catalog";
-import { GST_PCT, formatRupees, realMarginPct } from "@/lib/billing/pricing";
+import { realMarginPct } from "@/lib/billing/pricing";
+import { PlanCardFace } from "@/components/billing/plan-card-face";
 import { cn } from "@/lib/utils";
 import { OfferDialog } from "./offer-dialog";
 
-const n = (v: number) => v.toLocaleString("en-IN");
 
 /** The price owners can buy now: the newest shown one. */
 export function currentPrice(product: CatalogProduct): CatalogPrice | null {
@@ -37,29 +37,15 @@ export function OfferCard({ product, counts, settings }: { product: CatalogProdu
 
   return (
     <Card className={cn("flex flex-col gap-0 py-0 shadow-card", !product.active && "opacity-60")}>
-      <div className="flex flex-1 flex-col gap-3 p-5">
-        <div className="flex items-start justify-between gap-2">
-          <span className="font-display text-lg font-semibold tracking-tight">{product.name}</span>
-          {!product.active && <Badge variant="outline">Hidden</Badge>}
-        </div>
-        {price ? (
-          <div className="flex flex-col gap-0.5">
-            <span className="flex items-baseline gap-1">
-              <span className="font-display text-2xl font-semibold tracking-tight">{formatRupees(price.amount_minor)}</span>
-              <span className="text-sm text-muted-foreground">{price.interval_months ? "/ month" : "once"}</span>
-            </span>
-            <span className="text-xs text-muted-foreground">+ GST · {formatRupees(Math.round(price.amount_minor * (1 + GST_PCT / 100)))} in all</span>
-          </div>
-        ) : (
-          <span className="text-sm text-muted-foreground">No price yet, so owners can&apos;t buy it.</span>
-        )}
-        {price && (
-          <span className="text-sm">
-            {n(price.credits)} credits {price.interval_months ? "every month" : "until the plan month ends"}
-          </span>
-        )}
-        {product.description && <span className="text-sm text-muted-foreground">{product.description}</span>}
-      </div>
+      {/* What owners see (the shared face), then what only Admin sees below the line. */}
+      <PlanCardFace
+        name={product.name}
+        amountMinor={price?.amount_minor ?? null}
+        credits={price?.credits ?? null}
+        monthly={product.kind === "plan"}
+        description={product.description}
+        badge={!product.active ? <Badge variant="outline">Hidden</Badge> : undefined}
+      />
       <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-2.5">
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
           {margin !== null && (
