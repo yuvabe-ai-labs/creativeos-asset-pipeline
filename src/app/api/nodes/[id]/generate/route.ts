@@ -16,6 +16,7 @@ import {
 } from "@/lib/db/credit-transactions";
 import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
+import { creditLimitError } from "@/lib/billing/credit-limit-error";
 
 // Coerce the request body's controls into a well-shaped ShotControls (unknown values are
 // harmless — renderShotControls ignores anything not in the catalog).
@@ -80,7 +81,7 @@ export async function POST(
       const estimatedCredits = estimatePromptCredits(resolved.upstream.filter(isVisionAttachment).length);
       const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
-        throw new CreditLimitError("Monthly credit limit reached");
+        throw creditLimitError(reservation.reason);
       }
 
       const openai = createOpenAI();

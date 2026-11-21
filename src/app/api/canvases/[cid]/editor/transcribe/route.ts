@@ -1,7 +1,6 @@
 import { tasks } from "@trigger.dev/sdk";
 import * as z from "zod";
 import { apiError, apiOk, withCanvas, withTryCatch } from "@/lib/api/route-helpers";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { CreditLimitError, refundReservation, reserveCredits } from "@/lib/db/credit-transactions";
 import { failGeneration, insertGeneration } from "@/lib/db/generations";
 import { listTranscribedUrls } from "@/lib/db/media-transcripts";
@@ -12,6 +11,7 @@ import { failJob, failStaleJobs, insertJob, setJobRunId } from "@/lib/jobs/db";
 import { JobLockedError } from "@/lib/jobs/types";
 import { transcribeCredits } from "@/lib/transcribe/cost";
 import { TRANSCRIBE_ENGINE } from "@/lib/transcribe/providers";
+import { creditLimitError } from "@/lib/billing/credit-limit-error";
 
 // Starts Auto captions (D411, D399). The files come from the SAVED edit's sources, read fresh here
 // (rules 10, 14). Files already transcribed cost nothing and need no job. One run per Editor; the
@@ -61,7 +61,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       let jobId: string;
       try {
         const reservation = await reserveCredits(orgId, generation.id, transcribeCredits(seconds));
-        if (!reservation.ok) throw new CreditLimitError(CREDIT_LIMIT_TOAST_MESSAGE);
+        if (!reservation.ok) throw creditLimitError(reservation.reason);
         try {
           jobId = (await insert()).id;
         } catch (err) {
@@ -80,8 +80,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
         }
       } catch (err) {
         if (err instanceof CreditLimitError) {
-          await giveBack(CREDIT_LIMIT_TOAST_MESSAGE);
-          return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);
+          await giveBack(err.message);
+          return apiError(err.message, 402);
         }
         if (err instanceof JobLockedError) {
           await giveBack("Already running.");

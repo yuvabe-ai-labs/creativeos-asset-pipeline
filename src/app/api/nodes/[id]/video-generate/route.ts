@@ -46,6 +46,7 @@ import {
 } from "@/lib/nodes/ref-binding";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
+import { creditLimitError } from "@/lib/billing/credit-limit-error";
 
 const ImageRoleSchema = z.enum(["start_frame", "end_frame", "reference", "off"]);
 
@@ -376,7 +377,7 @@ export async function POST(
       const estimatedCredits = usdToFinalCredits(estimate.usd);
       const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
-        throw new CreditLimitError("Monthly credit limit reached");
+        throw creditLimitError(reservation.reason);
       }
 
       // Fire Trigger.dev task (no await — the task runs in the background)

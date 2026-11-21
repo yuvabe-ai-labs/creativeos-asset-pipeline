@@ -10,6 +10,7 @@ import { createBrowserSupabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProfileCredits } from "./profile-credits";
+import { setViewerOwnsAgency } from "@/lib/billing/refusal-copy";
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 type CreditTransactionRow = { amount: number };
@@ -24,6 +25,8 @@ export function ProfilePopover() {
   // Null without view_credits: the server sends no figures to anyone but the owner, and nothing
   // listens for them.
   const showCredits = creditsUsed !== null;
+  // A refused run's message depends on who is viewing (D523); the 402 handlers read this.
+  useEffect(() => setViewerOwnsAgency(isOwner === true), [isOwner]);
   const queryClient = useQueryClient();
   const [liveDelta, setLiveDelta] = useState(0);
 

@@ -4,7 +4,6 @@ import { getAvatar } from "@/lib/db/avatars";
 import { sumAvatarCredits } from "@/lib/db/generations";
 import { loadAvatarGenerations } from "@/lib/avatars/studio-server";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { runAvatarGeneration } from "@/lib/avatars/generate";
 import { buildAvatarFrontPrompt } from "@/lib/avatars/generation";
 import { generationToCandidate } from "@/lib/avatars/rows";
@@ -110,7 +109,7 @@ export async function POST(req: Request, { params }: Ctx) {
         const spentCredits = await sumAvatarCredits(avatarId).catch(() => null);
         return apiOk({ candidate, creditsCharged, spentCredits }, 201);
       } catch (e) {
-        if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);
+        if (e instanceof CreditLimitError) return apiError(e.message, 402);
         return apiError(e instanceof Error ? e.message : "Image generation failed", 500);
       }
     }),

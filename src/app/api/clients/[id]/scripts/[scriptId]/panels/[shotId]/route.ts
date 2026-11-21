@@ -3,7 +3,6 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { getScript } from "@/lib/db/scripts";
 import { failPanelTake, insertPanelTake, setPanelPick, succeedPanelTake } from "@/lib/db/script-panels";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";
 import { isVisualiseStage } from "@/lib/scripts/visualise/cast";
 import { panelAssets, panelInputs, panelReferenceCap } from "@/lib/scripts/visualise/panel-inputs";
@@ -104,7 +103,7 @@ export async function POST(req: Request, { params }: Ctx) {
         if (pickMoved && current) await setPanelPick(script.id, shot.id, current.id).catch(() => null);
         // Nothing was charged: the billed run refunded the reservation (D291).
         const capped = e instanceof CreditLimitError;
-        const message = capped ? CREDIT_LIMIT_TOAST_MESSAGE : e instanceof Error ? e.message : "The panel could not be drawn.";
+        const message = e instanceof Error ? e.message : "The panel could not be drawn.";
         await failPanelTake(take.id, message).catch(() => null);
         return apiError(message, capped ? 402 : 502);
       }

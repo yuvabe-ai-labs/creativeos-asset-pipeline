@@ -20,6 +20,7 @@ import {
   videoEditTooManyReferencesMessage,
   type VideoEditRecord,
 } from "@/lib/video-edit/record";
+import { creditLimitError } from "@/lib/billing/credit-limit-error";
 
 const BodySchema = z.object({
   baseVersionId: z.string().min(1),
@@ -105,7 +106,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       try {
         const reservation = await reserveCredits(effectiveOrgId, generation.id, videoEditEstimateCredits(durationSeconds, resolution, modelId));
-        if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
+        if (!reservation.ok) throw creditLimitError(reservation.reason);
         await tasks.trigger("video-generate", {
           generationId: generation.id,
           modelId,

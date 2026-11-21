@@ -3,7 +3,6 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { getAvatar, updateAvatar } from "@/lib/db/avatars";
 import { sumAvatarCredits } from "@/lib/db/generations";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { removeObject } from "@/lib/storage";
 import { runAvatarGeneration } from "@/lib/avatars/generate";
 import { generationToImage } from "@/lib/avatars/rows";
@@ -55,7 +54,7 @@ export async function POST(
           prompt: buildAvatarSheetPrompt(frontPrompt), referenceUrls: [frontUrl], batchId: null,
         });
       } catch (e) {
-        if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);
+        if (e instanceof CreditLimitError) return apiError(e.message, 402);
         return apiError(e instanceof Error ? e.message : "Image generation failed", 500);
       }
       const sheet = generationToImage(made.generation);

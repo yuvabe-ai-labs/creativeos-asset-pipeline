@@ -6,6 +6,7 @@ import { isCreditRefusal, type CreditRefusal } from "@/lib/billing/grants";
 // 402 response, distinct from a generic generation failure (500).
 export class CreditLimitError extends Error {}
 
+
 // Row-locked check-and-hold via reserve_credits_v2 (migration 0067). A managed agency is checked
 // against its monthly limit as before; a paying agency's hold is taken from its grants, the one
 // ending first, first. Refusals come back with the reason (never thrown); an answer the code

@@ -6,7 +6,7 @@ import { ApiError } from "@/services/read-json";
 import { nodeVersionKeys } from "@/hooks/queries/node-versions";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import type { DubLanguage, DubPace, DubStyle, DubVoiceChoice } from "@/lib/dubbing/types";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { creditRefusalMessage } from "@/lib/billing/refusal-copy";
 
 // D366 — starting a background generation and restoring a version, through TanStack Query
 // (CLAUDE.md, "Data fetching"). Starting does not create a version: that happens when the job
@@ -15,7 +15,7 @@ import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 
 /** The message to show for a failed start: the credit limit by name, else the server's words. */
 export function startErrorMessage(e: unknown, fallback: string): string {
-  if (e instanceof ApiError && e.status === 402) return CREDIT_LIMIT_TOAST_MESSAGE;
+  if (e instanceof ApiError && e.status === 402) return creditRefusalMessage(e.message);
   return e instanceof Error && e.message ? e.message : fallback;
 }
 

@@ -39,7 +39,7 @@ import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
 import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
 import { isVisionAttachment } from "@/lib/nodes/compose-message";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { creditRefusalMessage } from "@/lib/billing/refusal-copy";
 import { GenerateFooter } from "./generate-footer";
 import { useConnectedInputsKey } from "@/hooks/use-connected-inputs-key";
 import { promptGenerateBlocker } from "@/lib/nodes/prompt-generate-blocker";
@@ -483,7 +483,7 @@ export function PromptFocusView({
       });
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(res.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : json.error ?? "Generation failed");
+        throw new Error(res.status === 402 ? creditRefusalMessage(json.error) : json.error ?? "Generation failed");
       }
       onPatch({ parsed: json.output });
       setActiveVersionId(json.versionId ?? null);

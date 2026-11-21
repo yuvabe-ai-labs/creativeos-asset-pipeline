@@ -8,6 +8,9 @@ import { check } from "@/lib/permissions/check";
 import { orderedPermissions } from "@/lib/permissions/model";
 import { accessOf, resolveActingCallerOrNull, type ActingCaller } from "@/lib/permissions/server";
 import type { MePayload } from "./types";
+import { listOpenGrants } from "@/lib/db/credit-grants";
+import { getLiveSubscription } from "@/lib/db/billing-subscriptions";
+import { isPaused, summarizeBilling } from "@/lib/billing/summary";
 
 // One builder for /api/me and the root layout, so the first HTML and every refetch carry the
 // same thing. The reads run in parallel; the credit read runs only for someone who may see it.
@@ -16,12 +19,18 @@ export async function buildMePayload({ caller, effectiveOrgId }: ActingCaller): 
   const org = access.orgs.get(effectiveOrgId);
   const showCredits = check(access, "view_credits", { orgId: effectiveOrgId, clientId: null }) === "allow";
   const showTeam = check(access, "manage_team", { orgId: effectiveOrgId, clientId: null }) === "allow";
-  const [name, orgRow, creditsUsed, signedUpCount] = await Promise.all([
+  // The grants and plan are read for everyone in parallel (two small reads, no round trip waits
+  // on the billing mode); a failed read leaves billing null rather than failing the payload.
+  const [name, orgRow, creditsUsed, signedUpCount, grants, subscription] = await Promise.all([
     getDisplayName(caller.userId),
     getOrgById(effectiveOrgId),
     showCredits ? getOrgCreditUsage(effectiveOrgId) : Promise.resolve(null),
     showTeam ? countSignedUp(effectiveOrgId) : Promise.resolve(null),
+    listOpenGrants(effectiveOrgId).catch(() => null),
+    getLiveSubscription(effectiveOrgId).catch(() => null),
   ]);
+  const summary = orgRow && grants ? summarizeBilling(orgRow.billing_mode, grants, subscription) : null;
+  const billing = summary ? (showCredits ? summary : { mode: summary.mode, paused: isPaused(summary) }) : null;
   return {
     name: name ?? "User",
     platformRole: caller.platformRole,
@@ -38,6 +47,7 @@ export async function buildMePayload({ caller, effectiveOrgId }: ActingCaller): 
     creditsUsed,
     monthlyCreditLimit: showCredits ? (orgRow?.monthly_credit_limit ?? null) : null,
     signedUpCount,
+    billing,
   };
 }
 

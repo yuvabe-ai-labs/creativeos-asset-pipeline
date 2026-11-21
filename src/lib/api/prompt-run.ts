@@ -9,6 +9,7 @@ import {
   CreditLimitError,
 } from "@/lib/db/credit-transactions";
 import type { GenerationRow } from "@/lib/db/types";
+import { creditLimitError } from "@/lib/billing/credit-limit-error";
 
 export { CreditLimitError };
 
@@ -78,7 +79,7 @@ export async function runPromptGeneration<T>(args: {
   try {
     const reservation = await reserveCredits(args.orgId, generation.id, args.estimatedCredits);
     if (!reservation.ok) {
-      throw new CreditLimitError("Monthly credit limit reached");
+      throw creditLimitError(reservation.reason);
     }
 
     const { output, usage } = await args.call();

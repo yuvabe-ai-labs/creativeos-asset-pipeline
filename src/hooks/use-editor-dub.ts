@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useEditorSession } from "@/components/editor/editor-session-context";
 import { useEditorStoreApi } from "@/components/editor/editor-store-provider";
 import { useDubStatus } from "@/hooks/queries/editor";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { creditRefusalMessage } from "@/lib/billing/refusal-copy";
 import { dubLanguageLabel, type DubLanguage, type DubStyle } from "@/lib/dubbing/types";
 import { busyNodes, finishedJobs } from "@/lib/editor/dub-jobs";
 import { setPicture, setSound } from "@/lib/editor/pieces";
@@ -16,7 +16,7 @@ import { ApiError } from "@/services/read-json";
 type Kind = "dub" | "lipsync";
 
 const message = (err: unknown, fallback: string) =>
-  err instanceof ApiError ? (err.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : err.message) : fallback;
+  err instanceof ApiError ? (err.status === 402 ? creditRefusalMessage(err.message) : err.message) : fallback;
 
 /** Dub and lip sync from the editor (D406–D408). One per page (EditorDubProvider). */
 export function useEditorDub() {

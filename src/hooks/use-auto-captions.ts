@@ -7,7 +7,7 @@ import { useStartTranscribe, useTranscribeStatus, useTranscripts } from "@/hooks
 import { autoCaptionCost, captionsFollowSound, fillFromTranscripts, pieceSound, staleAutoPieces, uncaptionedPieces } from "@/lib/editor/auto-captions";
 import { setSound } from "@/lib/editor/pieces";
 import type { Caption, SoundChoice } from "@/lib/editor/types";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { creditRefusalMessage } from "@/lib/billing/refusal-copy";
 import { JOB_LIVE_STATUSES } from "@/lib/jobs/types";
 import type { TranscribeFailureReason, Transcript } from "@/lib/transcribe/types";
 import { ApiError } from "@/services/read-json";
@@ -153,7 +153,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
           onError: (err) => {
             run.current = null;
             setListening(new Set([...listeningRef.current].filter((x) => !wanted.has(x))));
-            toast.error(err instanceof ApiError && err.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : "Couldn't start captions. Try again.");
+            toast.error(err instanceof ApiError && err.status === 402 ? creditRefusalMessage(err.message) : "Couldn't start captions. Try again.");
           },
         },
       );
