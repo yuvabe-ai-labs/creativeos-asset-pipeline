@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const SECTIONS = [
   { href: "/admin", label: "Agencies", active: (p: string) => p === "/admin" || p.startsWith("/admin/orgs") },
   { href: "/admin/plans", label: "Plans and prices", active: (p: string) => p.startsWith("/admin/plans") },
+  { href: "/admin/payments", label: "Payments", active: (p: string) => p.startsWith("/admin/payments") },
 ];
 
 // Admin's sections, at the top of each Admin page. Underlined like the header's Admin link.

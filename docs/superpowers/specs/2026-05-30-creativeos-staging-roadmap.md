@@ -9042,3 +9042,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Decision:** Billing shows credits used this or last month (calendar months, India time) by member, client or canvas, each row opening to its runs, 20 a page. The sums come from `generations.credits_charged` (the settled cost) through `org_credit_usage_by` (migration 0073, with an `(org_id, created_at)` index); runs off a canvas are one row. Read through TanStack Query (`usageKeys`): two calls per view, two per opened row.
 **Why:** Agreed on the 20 November call (owners see usage down to each generation); charged credits match the balance, and grouping in the database keeps the page at a fixed number of calls however many runs there are.
 **Rejected:** Summing ledger rows (they need the same join and include holds still running); estimates; a separate usage page (it belongs beside the credits it explains).
+
+### D525 — Admin › Payments shows money across agencies; the agency's Billing tab is where it is changed *(recorded 2026-11-21; refines D517, D521; originated → `2026-11-21-admin-payments-design.md`)*
+
+**Decision:** A Payments page in the Admin section nav: paid this month (GST included, test payments left out), payments due, plans renewing in 7 days, recent failures; "Needs a look" lists due payments first, then plans renewing or ending soonest; then the last 50 payments. Every agency links to its Billing tab. Three bounded reads in parallel.
+**Why:** Yuvabe needs one place to see which agencies are paused for payment and what came in, without opening each agency.
+**Rejected:** A payment-link button now (Razorpay already retries and asks the owner; a link of our own needs its own reconciliation, later); per-agency usage here (each agency's Generations tab and the owner's Who used what already show it).
