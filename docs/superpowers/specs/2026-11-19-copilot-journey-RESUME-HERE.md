@@ -5,15 +5,15 @@ For the next conversation that picks up the copilot journey. Read this first, th
 ## Where things are
 
 - **Branch:** `feat/copilot-journey`, in the worktree `.claude/worktrees/copilot-journey` (links to its files need that prefix). The whole copilot is built on this one branch and merged once at the end (Cyril, 2026-11-13). **Nothing is pushed or merged without Cyril's say.**
-- **Built and committed:** piece 1 (frame, tabs, guide, gates); piece 2 (brand KB chat, review walk, streaming D502/D503, change cards D505); D504 (images studied on send); D506 (a failed background job is said once in the thread); D507 (the review walk's own buttons are carried out by code). D508–D515 recorded; next free **D516** (the log has two D489s: always write "D489 (second)" for the Visualise one).
-- **Migrations:** 0062, 0063, 0064, 0065 (0065: turn traces). Cyril applies migrations himself; never apply one.
+- **Built and committed:** piece 1 (frame, tabs, guide, gates); piece 2 (brand KB chat, review walk, streaming D514/D515, change cards D517); D516 (images studied on send); D518 (a failed background job is said once in the thread); D519 (the review walk's own buttons are carried out by code). D520–D527 recorded; next free **D528** (the log has two D489s: always write "D489 (second)" for the Visualise one).
+- **Migrations:** 0063, 0064, 0065, 0066 (0066: turn traces). Cyril applies migrations himself; never apply one.
 - **Tests:** full suite passes except two known image-generate failures (`composite-generate` and `image-generate` route tests, "refuses a deprecated model"), plus one known type error in `src/app/api/nodes/[id]/image-generate/route.test.ts`. Not caused by this branch.
 
 ## Next step: piece 5.2 (the copilot at client review): design pass
 
-**Piece 5.1 is built** (the copilot at Visualise, D512–D515). Spec `docs/superpowers/specs/2026-11-20-copilot-visualise-design.md`; plan with Outcome `docs/superpowers/plans/2026-11-20-copilot-visualise.md` (its deferred minors are listed there); QA section 10. No migration. Next is **5.2**: what the copilot says and does once a script is In review (its message box there, what it says once the client has commented, and whether it proposes changes from the comments). Then 3, 6, and 4.2 last. **Cyril parked piece 4.2 (the extra script steps) for the end of the journey (2026-11-20).**
+**Piece 5.1 is built** (the copilot at Visualise, D524–D527). Spec `docs/superpowers/specs/2026-11-20-copilot-visualise-design.md`; plan with Outcome `docs/superpowers/plans/2026-11-20-copilot-visualise.md` (its deferred minors are listed there); QA section 10. No migration. Next is **5.2**: what the copilot says and does once a script is In review (its message box there, what it says once the client has commented, and whether it proposes changes from the comments). Then 3, 6, and 4.2 last. **Cyril parked piece 4.2 (the extra script steps) for the end of the journey (2026-11-20).**
 
-**Piece 4.1 is built** (D511, plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`; QA section 9). One piece at a time, never in parallel (Cyril, 2026-11-20). 4.1's eight deferred minors are in its plan's Outcome; the one most likely to matter grew with 5.1: the panel now starts open at Visualise, so the storyboard is squeezed on a laptop screen by default.
+**Piece 4.1 is built** (D523, plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`; QA section 9). One piece at a time, never in parallel (Cyril, 2026-11-20). 4.1's eight deferred minors are in its plan's Outcome; the one most likely to matter grew with 5.1: the panel now starts open at Visualise, so the storyboard is squeezed on a laptop screen by default.
 
 What 4.1 was, in one line each (built):
 - The Scripts tab's copilot guide offers **"Start a script"** (the same action as the page's "New script"; "Paste a script" while locked).
@@ -42,20 +42,20 @@ Facts the 4.1 build relied on (kept for piece 5, which builds on the same panel)
 ## Built on 2026-11-19 and 2026-11-20 (all committed, nothing pushed)
 
 - `69dc1d3b`: words for an unreviewed field are saved even when the model reaches for a change card (QA 4.16).
-- **Turn traces (D509).** Plan with Outcome: `docs/superpowers/plans/2026-11-19-copilot-turn-traces.md`. A "Turns" switch in the copilot panel. Needs migration **0065** and the `copilot-trace-sweep` Trigger task.
-- **The page shows the copilot's work (D508).** Plan with Outcome: `docs/superpowers/plans/2026-11-19-copilot-page-follows.md`.
-- **Image Analysis through a change card (D510)**, plus the follow-up (summary prompt 1.2.0). Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-image-analysis-card.md`. No migration.
+- **Turn traces (D521).** Plan with Outcome: `docs/superpowers/plans/2026-11-19-copilot-turn-traces.md`. A "Turns" switch in the copilot panel. Needs migration **0066** and the `copilot-trace-sweep` Trigger task.
+- **The page shows the copilot's work (D520).** Plan with Outcome: `docs/superpowers/plans/2026-11-19-copilot-page-follows.md`.
+- **Image Analysis through a change card (D522)**, plus the follow-up (summary prompt 1.2.0). Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-image-analysis-card.md`. No migration.
 - None of it has been run in a browser or against the live model. QA plan sections 6.26–6.36, 7 and 8, and check 4.16.
 - Each plan's Outcome lists the minor review findings left for later.
-- **Piece 4.1, scripting in the panel, part 1 (D511).** Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`. No migration. QA section 9.
-- **Piece 5.1, the copilot at Visualise (D512–D515).** Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-visualise.md`. No migration. QA section 10.
-- **Next free ADR number: D516.**
+- **Piece 4.1, scripting in the panel, part 1 (D523).** Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`. No migration. QA section 9.
+- **Piece 5.1, the copilot at Visualise (D524–D527).** Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-visualise.md`. No migration. QA section 10.
+- **Next free ADR number: D528.**
 
 ## Waiting on Cyril
 
-1. **Apply migration 0065** and **deploy the Trigger.dev tasks** (`kb-propose`, the 5-minute dead-job sweep, the daily `copilot-trace-sweep`). Cyril applies migrations himself; never apply one.
+1. **Apply migration 0066** and **deploy the Trigger.dev tasks** (`kb-propose`, the 5-minute dead-job sweep, the daily `copilot-trace-sweep`). Cyril applies migrations himself; never apply one.
 2. **Browser and live-model testing** of everything built so far (see "Built" above).
-3. **One open part-2 question:** should every "Save changes" write a line in the thread? (Filling a field the copilot did not ask about is built and fixed; a chat answer against an unsaved edit is settled by D508.)
+3. **One open part-2 question:** should every "Save changes" write a line in the thread? (Filling a field the copilot did not ask about is built and fixed; a chat answer against an unsaved edit is settled by D520.)
 4. **Piece 4.2:** Cyril may still supply his own prompt for the extra script steps; the stand-in is approved for now.
 5. **Piece 3:** do internet research findings stay with that script or also go to market research?
 6. **Piece 5.2:** what the panel says once the client has commented, and whether the copilot proposes changes from the comments or only points to them.
@@ -63,7 +63,7 @@ Facts the 4.1 build relied on (kept for piece 5, which builds on the same panel)
 
 ## Owed before the one merge
 
-- **Migration numbers collide:** origin/staging has `0062_client_review_versions.sql`; this branch's 0062–0065 must be renumbered when origin/staging is brought in.
+- **Renumbered 2026-11-22 for the staging merge:** origin/staging took `0062_client_review_versions.sql` and D494–D505, so this branch's migrations became 0063–0066 and its decisions D506–D528 (old D494 = new D506, +12 throughout).
 - Deploy `copilot-trace-sweep` (daily) with the other Trigger.dev tasks.
 
 - Trigger.dev deploy to staging (the `kb-propose` task; the 5-minute dead-job sweep, which now also writes failure lines).

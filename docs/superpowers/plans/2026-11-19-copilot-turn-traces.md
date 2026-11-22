@@ -4,7 +4,7 @@
 
 **Goal:** Every brand KB copilot turn (typed, or a reply button) leaves a trace of exactly what the model was sent, each round of tool calls and answers, and what code did around it, seen in the copilot panel behind a developer switch and kept 30 days.
 
-**Architecture:** The shared agent loop (`runAgent`) takes an optional *trace sink* and reports to it what it sent (instructions, conversation, tool definitions as the adapter sends them) and each round as it happens, so a turn that fails half-way keeps what it did. The KB turn reports its button choices (D507) and its refusals to the same sink. The route writes one row per turn to a new table *after* the stream has closed, catching every error, so tracing never slows or fails a turn. The panel reads only list lines (no trace bodies) while the switch is on, and loads one trace when it is opened. A daily Trigger.dev task removes traces older than 30 days.
+**Architecture:** The shared agent loop (`runAgent`) takes an optional *trace sink* and reports to it what it sent (instructions, conversation, tool definitions as the adapter sends them) and each round as it happens, so a turn that fails half-way keeps what it did. The KB turn reports its button choices (D519) and its refusals to the same sink. The route writes one row per turn to a new table *after* the stream has closed, catching every error, so tracing never slows or fails a turn. The panel reads only list lines (no trace bodies) while the switch is on, and loads one trace when it is opened. A daily Trigger.dev task removes traces older than 30 days.
 
 **Tech Stack:** Next.js 16 route handlers, Supabase Postgres (service-role client, RLS default-deny), zod v4 (`z.toJSONSchema`), TanStack Query v5, Trigger.dev v4 `schedules.task`, shadcn (Base UI) `Switch`, `Tabs`, `Accordion`, `Badge`, Vitest.
 
@@ -24,8 +24,8 @@
 ## Review Focus
 
 1. **A turn that throws inside the model call.** Expected: a trace with the rounds so far, `error` set, mark `failed`, and the person still gets the usual failure reply. Test in Task 3.
-2. **The trace insert itself fails** (table not migrated yet, network). Expected: the turn's stream and stored reply are unchanged; one log line. Test in Task 3. This matters at once: the branch runs before Cyril applies 0065.
-3. **A reply-button turn (D507)**, which never calls the model. Expected: a trace with `sent: null`, no rounds, the `choice` recorded. Test in Task 2.
+2. **The trace insert itself fails** (table not migrated yet, network). Expected: the turn's stream and stored reply are unchanged; one log line. Test in Task 3. This matters at once: the branch runs before Cyril applies 0066.
+3. **A reply-button turn (D519)**, which never calls the model. Expected: a trace with `sent: null`, no rounds, the `choice` recorded. Test in Task 2.
 4. **A refusal returned as a plain sentence** (`REVIEWED_LOCKED` from `answer_field`), not thrown. Expected: still marked `refused`. Test in Task 2.
 5. **A trace id from another client** on the detail route. Expected: 404, nothing returned. Test in Task 4.
 
@@ -135,7 +135,7 @@ it("marks asked again and failed as told", …)
 ### Task 3: Keep a trace for every turn, after the reply is on its way
 
 **Files:**
-- Create: `supabase/migrations/0065_copilot_turn_traces.sql`, `src/lib/db/copilot-traces.ts`
+- Create: `supabase/migrations/0066_copilot_turn_traces.sql`, `src/lib/db/copilot-traces.ts`
 - Modify: `src/lib/db/copilot-messages.ts` (`NewCopilotMessage.id?`), `src/lib/journey/kb-copilot/trace.ts` (`kbTraceRow`), `src/lib/journey/kb-copilot/constants.ts` (`TRACE_KEEP_DAYS`, `TRACE_LIST_LIMIT = 50`, `TRACE_SENT_TEXT_MAX_CHARS = 200`), `src/app/api/clients/[id]/copilot/kb/turn/route.ts`
 - Test: `src/app/api/clients/[id]/copilot/kb/turn/route.test.ts`, `src/lib/journey/kb-copilot/__tests__/trace.test.ts`
 
@@ -191,9 +191,9 @@ it("kbTraceRow: line columns from the trace; sent text cut to 200 characters", �
 ```
 
 - [ ] **Step 2: Fail.** `npx vitest run src/app/api/clients/[id]/copilot/kb/turn src/lib/journey/kb-copilot/__tests__/trace.test.ts`
-- [ ] **Step 3: Implement** the migration (header comment citing the spec, as 0063), the insert, `kbTraceRow`, and the route wiring.
+- [ ] **Step 3: Implement** the migration (header comment citing the spec, as 0064), the insert, `kbTraceRow`, and the route wiring.
 - [ ] **Step 4: Pass, type-check.** Same command; `npx tsc --noEmit` (only the known image-generate error).
-- [ ] **Step 5: Commit** `feat(copilot): keep a trace of every brand KB turn (migration 0065, not applied)`
+- [ ] **Step 5: Commit** `feat(copilot): keep a trace of every brand KB turn (migration 0066, not applied)`
 
 ---
 
@@ -283,7 +283,7 @@ The repo has no component test setup, so the view is verified by the browser che
 ### Task 7: ADR, AGENTS line, QA checks, outcome
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (CRLF): append **D509** (traces: kept for every agent turn, exactly what was sent, in-app, 30 days, the four marks; rejected: LangSmith/LangGraph, a summary of the input (B), marks by tool name). *(D508 stays reserved for page-follows, already written into its plan.)*
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (CRLF): append **D521** (traces: kept for every agent turn, exactly what was sent, in-app, 30 days, the four marks; rejected: LangSmith/LangGraph, a summary of the input (B), marks by tool name). *(D520 stays reserved for page-follows, already written into its plan.)*
 - Modify: `AGENTS.md`, beside "Streaming": **A copilot turn leaves a trace.** An agent on the shared loop passes a `traceRecorder()` to `runAgent` and its route keeps the row after the stream closes; never trace by hand or skip it. Spec: the traces design.
 - Modify: `docs/qa/2026-11-18-copilot-journey-manual-qa.md`: section "Turn traces".
 - Modify: this plan: Outcome after the review.
@@ -298,10 +298,10 @@ QA checks (Do / Expected):
 7. Turn the network off mid-turn on staging (or stop the model key locally): the turn's line is "Failed".
 8. As a second person in the same organisation: the same lines. In another organisation: none (404 on a pasted trace URL).
 9. With the switch off, DevTools Network shows no request to `/copilot/traces` on load or after a turn.
-10. Before 0065 is applied: turns still answer normally; the server logs "could not keep the trace".
+10. Before 0066 is applied: turns still answer normally; the server logs "could not keep the trace".
 
 - [ ] **Step 1: Write the four documents.**
-- [ ] **Step 2: Commit** `docs(copilot): D509, turn traces`
+- [ ] **Step 2: Commit** `docs(copilot): D521, turn traces`
 
 ---
 
@@ -324,4 +324,4 @@ QA checks (Do / Expected):
 
 **Left for later (minor):** the trace still shows the reply when the reply insert itself failed; a partly refused `propose_change` reports its save under "Error:"; the trace does not mark the last round's withdrawn tools; Turns → Chat returns to the top of the thread; Tabs have no panels; `text-[0.7rem]` badge size; "30 days" hard-coded in the list; the 1.5 s refresh is best-effort; ~15–40 KB per trace (store instructions by hash if volume grows).
 
-**Owed:** apply migration 0065 (Cyril); deploy `copilot-trace-sweep` with the other Trigger.dev tasks; run QA section 7, check 7.10 first. **Before merge:** this branch's migrations 0062–0065 collide with origin/staging's `0062_client_review_versions.sql`; renumber when origin/staging is brought in.
+**Owed:** apply migration 0066 (Cyril); deploy `copilot-trace-sweep` with the other Trigger.dev tasks; run QA section 7, check 7.10 first. (Renumbered 2026-11-22: this migration was 0065, D521 was D509.)

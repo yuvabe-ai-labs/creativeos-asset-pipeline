@@ -1,4 +1,4 @@
-// What the brand KB copilot can work on, named as targets (the page shows the copilot's work, D508).
+// What the brand KB copilot can work on, named as targets (the page shows the copilot's work, D520).
 // A page tags each element with its target (`data-copilot-target`), and the copilot reports
 // "working on X" by the same id, so any page that tags it gets the follow, the mark and the landing.
 // Pure: server and browser.

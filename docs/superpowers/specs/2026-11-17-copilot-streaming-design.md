@@ -38,7 +38,7 @@ This is the first surface converted. The others follow the same picture when the
 
 **The reply.** The copilot's words appear as they are written, in the place the finished reply will sit. If it begins to write and then turns to a step instead, those first words are cleared and the step's line shows: only the words of its final reply stay. *(my call)* Reply buttons appear when the reply is complete, not before, so nobody presses one that is about to change. *(my call)*
 
-**A question that follows.** In the review, the next question is still asked by code after the reply (D499). It appears when the reply is complete.
+**A question that follows.** In the review, the next question is still asked by code after the reply (D511). It appears when the reply is complete.
 
 **When it is done.** The thread looks exactly as it would after a reload: what was shown while it worked and what is stored are the same messages in the same order.
 
@@ -74,6 +74,6 @@ This is the first surface converted. The others follow the same picture when the
 
 **Answered by Cyril on 2026-11-17. No stop button.** A reply cannot be stopped part-way.
 
-**Answered by Cyril on 2026-11-17. Plain saves stay as D501 made them.** After the copilot saves a website or a handle the reply is the fixed sentence written by code. With this piece the form fills at the moment of the save and the reply follows almost at once.
+**Answered by Cyril on 2026-11-17. Plain saves stay as D513 made them.** After the copilot saves a website or a handle the reply is the fixed sentence written by code. With this piece the form fills at the moment of the save and the reply follows almost at once.
 
 **Answered by Cyril on 2026-11-17. A reload in the middle of a turn stays as it is today.** The reloaded page shows the person's message and an open message box, like a teammate's view, and the reply appears when the page next checks the thread. Nothing records that a turn is running.

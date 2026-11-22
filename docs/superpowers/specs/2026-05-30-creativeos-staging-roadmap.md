@@ -8671,7 +8671,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-10-video-edit-mode-design.md`.
 
-### D494 — One frame around every client screen: stage tabs and a foldable copilot guide *(recorded 2026-11-12)*
+### D506 — One frame around every client screen: stage tabs and a foldable copilot guide *(recorded 2026-11-12)*
 
 **Decision.** A server layout at `src/app/clients/[id]/layout.tsx` wraps every client screen. It reads the client once and draws five tabs across the top (Brand KB, Market research, Scripts, Avatars, Brand assets); the three stage tabs show approved, in progress or locked. On the Brand KB, Market research and Scripts pages a copilot panel sits on the left and folds to a rail (remembered per client in the browser). In this first piece the panel is a fixed guide worked out from the client's status: what is done, what is waiting for the person, the next approval. It has no chat. The canvas editor and a script's own page (which keeps its script copilot) get no panel; the canvas editor gets no tabs either. The pages themselves are unchanged.
 
@@ -8681,9 +8681,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-12-copilot-journey-design.md`.
 
-### D495 — Stages are gated by a person's approval: brand KB, then market research, then scripts *(recorded 2026-11-12; refines Market Signals V1)*
+### D507 — Stages are gated by a person's approval: brand KB, then market research, then scripts *(recorded 2026-11-12; refines Market Signals V1)*
 
-**Decision.** `clients.market_status` (`pending` or `approved`, migration 0062). Market research opens when the brand KB is ready. A person approves market research with a button on its page; that opens new scripts. Until then a script's copilot refuses to write a new script, and still takes a pasted script. A script already written is never blocked. Every client that existed before the migration is approved, and only an explicit `pending` gates anything, so a database the migration has not reached locks nothing. The copilot never approves.
+**Decision.** `clients.market_status` (`pending` or `approved`, migration 0063). Market research opens when the brand KB is ready. A person approves market research with a button on its page; that opens new scripts. Until then a script's copilot refuses to write a new script, and still takes a pasted script. A script already written is never blocked. Every client that existed before the migration is approved, and only an explicit `pending` gates anything, so a database the migration has not reached locks nothing. The copilot never approves.
 
 **Why.** User, 12 Nov 2026: stages gated by approval; a person always approves for now; existing clients are assumed approved; pasting a script skips the gates.
 
@@ -8691,9 +8691,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-12-copilot-journey-design.md`.
 
-### D496 — One saved onboarding thread per client, in its own table; a script's thread stays where it is *(recorded 2026-11-16; follows D494)*
+### D508 — One saved onboarding thread per client, in its own table; a script's thread stays where it is *(recorded 2026-11-16; follows D506)*
 
-**Decision.** `client_copilot_messages` (migration 0063) holds a client's onboarding thread: the conversation that covers the brand KB, market research and the lead-in to the first script. A script's own conversation stays in `client_script_messages`. Both stores return messages in one shape (`src/lib/journey/thread/schema.ts`: words, an optional card, reply choices, attachments), so the panel, the cards and the composer do not care which store a message came from. The thread has one read for every stage page (`GET /api/clients/:id/copilot/thread`, one query key); a turn is sent to the stage's own agent. The opening line is shown without being stored and is kept on the first message a person sends; a partial unique index lets only one opening in when two turns race.
+**Decision.** `client_copilot_messages` (migration 0064) holds a client's onboarding thread: the conversation that covers the brand KB, market research and the lead-in to the first script. A script's own conversation stays in `client_script_messages`. Both stores return messages in one shape (`src/lib/journey/thread/schema.ts`: words, an optional card, reply choices, attachments), so the panel, the cards and the composer do not care which store a message came from. The thread has one read for every stage page (`GET /api/clients/:id/copilot/thread`, one query key); a turn is sent to the stage's own agent. The opening line is shown without being stored and is kept on the first message a person sends; a partial unique index lets only one opening in when two turns race.
 
 **Why.** User, 13 and 15 Nov 2026: anything missing is asked for in the chat and the thread is saved; the onboarding thread carries only the lead-in to the first script, and every script, the first included, is drafted in its own thread. A script's messages cannot exist before a script does, and the onboarding thread starts before any script.
 
@@ -8701,7 +8701,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §3, `2026-11-15-copilot-journey-map.md` §5.
 
-### D497 — Stage agents share one small tool-calling loop; each stage decides where it runs and how a turn ends *(recorded 2026-11-16; refines D336)*
+### D509 — Stage agents share one small tool-calling loop; each stage decides where it runs and how a turn ends *(recorded 2026-11-16; refines D336)*
 
 **Decision.** `src/lib/journey/agent.ts` is the loop: ask the model, run the tools it asks for, report back, repeat until it answers, at most four rounds, after which the tools are taken away. The model is passed in and the loop imports no SDK; the OpenAI adapter sits beside it and a second provider is a second adapter. The model only says what it wants: the loop acts, and each tool's own code decides whether the action is allowed, so the rules that must hold (no second build, no build without a source) live in the tools and not in the prompt. The brand KB agent runs inside the request, because its tools are quick writes and the long work (the build) stays in Trigger.dev and writes into the thread from its webhook. A stage whose agent does long or paid work, market research, runs the same loop in a background task. A turn ends in plain words, or in a strict structure when the caller asks for one, which is how a script step will use the loop while the code keeps deciding the order of steps.
 
@@ -8711,9 +8711,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.1 and §6, `2026-11-15-copilot-journey-map.md` §5 and §6.
 
-### D498 — The brand KB review keeps its draft and "Save changes"; a save writes only the fields that changed, and says so in the copilot thread *(recorded 2026-11-16; refines D318)*
+### D510 — The brand KB review keeps its draft and "Save changes"; a save writes only the fields that changed, and says so in the copilot thread *(recorded 2026-11-16; refines D318)*
 
-**Decision.** The review screen still buffers approvals, edits and rejections in a draft until "Save changes", and gains "Discard changes" beside it while the draft has unsaved changes. A save no longer writes the whole KB: it sends one patch per changed field (`changedFields`), and `patch_kb_fields` (migration 0064) merges each patch into its own stored field in one statement. The copilot writes its answers the same way. So a save can never write an older draft over a field the copilot or a teammate filled in the meantime. When the stored KB changes under an open screen, the screen takes the stored copy into both its copies and keeps the person's unsaved fields (`adoptServerKb`). After a save the route writes one line into the copilot thread ("Manual edits saved: 3 fields.") and the panel re-reads at once, which is how the copilot learns of it. `saveKBOutputAction` is removed.
+**Decision.** The review screen still buffers approvals, edits and rejections in a draft until "Save changes", and gains "Discard changes" beside it while the draft has unsaved changes. A save no longer writes the whole KB: it sends one patch per changed field (`changedFields`), and `patch_kb_fields` (migration 0065) merges each patch into its own stored field in one statement. The copilot writes its answers the same way. So a save can never write an older draft over a field the copilot or a teammate filled in the meantime. When the stored KB changes under an open screen, the screen takes the stored copy into both its copies and keeps the person's unsaved fields (`adoptServerKb`). After a save the route writes one line into the copilot thread ("Manual edits saved: 3 fields.") and the panel re-reads at once, which is how the copilot learns of it. `saveKBOutputAction` is removed.
 
 **Why.** User, 16 Nov 2026: keep the button, add a discard, and when a save is made tell the agent so it refreshes its understanding. The copilot reads the stored KB, so with a whole-KB save its answers would have been overwritten by any later save from a screen opened before them.
 
@@ -8723,7 +8723,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.3; plan `2026-11-16-copilot-journey-kb-chat-part-2.md` Task 9.
 
-### D499 — In a review walk, code chooses and words each question and decides when the walk stops; the model only reads the answer *(recorded 2026-11-16; refines D497)*
+### D511 — In a review walk, code chooses and words each question and decides when the walk stops; the model only reads the answer *(recorded 2026-11-16; refines D509)*
 
 **Decision.** After a build the copilot asks about the fields it could not settle: still unreviewed, and inferred or empty. Which field comes next (`QUESTION_PRIORITY`, then screen order), the question's words (a template that only repeats what the KB holds), its reply choices ("Yes, that's right", "There is none", "Skip this one") and when to stop (after five, then only on "Keep asking") are all decided in `src/lib/journey/kb-copilot/walk.ts`. The walk keeps no state of its own: what has been asked and what is still waiting are read back from the question cards in the thread, and a new build starts it again. The model's part is to read the person's answer and call `answer_field`, `confirm_field`, `skip_question`, `keep_asking` or `stop_asking`. A tool never writes a field that is already reviewed; that refusal is in the tool's code. An answer is saved as edited, stated and high confidence; an agreement is saved as approved. The build's webhook writes the first question itself, with no model call.
 
@@ -8733,9 +8733,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.3 and §6.
 
-### D500 — "Waiting for you" and the gate card are worked out on every thread read, never stored; approving is one function that records who approved *(recorded 2026-11-16; follows D496)*
+### D512 — "Waiting for you" and the gate card are worked out on every thread read, never stored; approving is one function that records who approved *(recorded 2026-11-16; follows D508)*
 
-**Decision.** `ThreadState` carries `waiting`: a reply the copilot is waiting for, a task on the page with links (how many fields are left, per tab), or a gate (the next approval, what it opens, why the copilot cannot do it). It is computed on each read from the thread and from the list of unreviewed field paths (`kb_unreviewed_fields`, migration 0064: paths only, the KB is never downloaded by the polled read). If that read fails the whole thread read fails, because an unknown count must never look like nothing left, which is the gate. The gate names its approval (`approve-kb`) and only the stage's own component can carry it out; the thread components stay stage-neutral. Approving is `approveKB`, reached by the page header's button and by the gate card alike; it checks the same list, approves once, and writes "<name> approved the brand KB." into the thread with the approver's id. The name is kept as it was that day.
+**Decision.** `ThreadState` carries `waiting`: a reply the copilot is waiting for, a task on the page with links (how many fields are left, per tab), or a gate (the next approval, what it opens, why the copilot cannot do it). It is computed on each read from the thread and from the list of unreviewed field paths (`kb_unreviewed_fields`, migration 0065: paths only, the KB is never downloaded by the polled read). If that read fails the whole thread read fails, because an unknown count must never look like nothing left, which is the gate. The gate names its approval (`approve-kb`) and only the stage's own component can carry it out; the thread components stay stage-neutral. Approving is `approveKB`, reached by the page header's button and by the gate card alike; it checks the same list, approves once, and writes "<name> approved the brand KB." into the thread with the approver's id. The name is kept as it was that day.
 
 **Why.** A stored marker goes stale the moment a field is reviewed by hand. Rule 8 (ask for what you need) and rule 13 (a failure is never "empty"). Spec §2.3: any teammate may approve, and who approved is recorded.
 
@@ -8743,7 +8743,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.3 and §3; `2026-11-15-copilot-journey-map.md` §2.
 
-### D501 — After a plain save the copilot's reply is worded by code, and the form takes the saved value from the turn's answer *(recorded 2026-11-17; refines D497 and D499)*
+### D513 — After a plain save the copilot's reply is worded by code, and the form takes the saved value from the turn's answer *(recorded 2026-11-17; refines D509 and D511)*
 
 **Decision.** A tool of the shared agent loop can be marked `ends`. When every call in a round is such a tool and each ran without error, the loop returns there and the model is not asked a second time. In the brand KB chat the two source saves (`save_website`, `save_socials`) are marked so. The reply is then the tool's own sentence followed by what comes next while sources are being collected (`nextStep`, the same lines the opening ends with), with the usual code-chosen reply choices. A failed call, a round that also holds any other tool, and a turn that owes a structured answer still go back to the model. Separately, the turn's answer carries `saved` (the website or handles as stored, in the form's own shape) and the form beside the chat shows them at once; the page is still re-read after.
 
@@ -8755,7 +8755,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.1; measurements in this session.
 
-### D502 — Every copilot surface shows its work as it happens *(recorded 2026-11-17; decided by Cyril)*
+### D514 — Every copilot surface shows its work as it happens *(recorded 2026-11-17; decided by Cyril)*
 
 **Decision.** Anything a copilot does that a person waits on is shown as it happens, not when it is finished: its words appear as they are written, each thing it does shows on the page at the moment it is done, and a line always says what it is doing now. This holds for every copilot surface (brand KB, market research, scripts, and the stages still to come). A new copilot surface is built this way from the start; the brand KB chat is converted first; an existing surface that does not yet do it moves when it is next substantially changed. Background work that runs for minutes keeps reporting through the live status lines and is not part of this.
 
@@ -8763,21 +8763,21 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.** A faster model: the measured calls used no reasoning and wrote about 25 tokens each. Converting only the brand KB chat: the later stages are not built yet, so building them this way costs nothing extra, and converting them afterwards would. Showing one person's turn live to their teammates: a different feature.
 
-**Refines.** D337 (which rejected streaming for turns and later let the first script draft stream; "everything else stays request and response" no longer holds for a copilot surface once it is converted), D497 (the shared agent loop), D501 (the form takes a saved value from the turn's answer: the same path, delivered at the moment of the save).
+**Refines.** D337 (which rejected streaming for turns and later let the first script draft stream; "everything else stays request and response" no longer holds for a copilot surface once it is converted), D509 (the shared agent loop), D513 (the form takes a saved value from the turn's answer: the same path, delivered at the moment of the save).
 
 **Originated →** `2026-11-17-copilot-streaming-design.md`.
 
-### D503 — A copilot turn sends its work to the browser as event lines over the one request *(recorded 2026-11-18; refines D337, D497, D502)*
+### D515 — A copilot turn sends its work to the browser as event lines over the one request *(recorded 2026-11-18; refines D337, D509, D514)*
 
 **Decision.** A brand KB turn answers as newline-delimited JSON, the format the script copilot's first draft already uses (D337): `step` (the line naming what it is doing), `text` (the next piece of the reply), `reset` (the words so far were not the reply), `saved` (a website or handles as stored), `page` (something else on the page changed), and a last line that is `state` (exactly what the turn used to answer in one piece) or `error`. Bad input is still refused as plain JSON before anything streams. The shared agent loop reports through optional callbacks and stays pure; a tool may carry a `label` (its step line) and may be `quiet` (reply buttons: words written beside it are the reply, so they are not cleared and rewritten). The OpenAI adapter streams only when words are wanted, sends a streamed answer back to the model through the SDK's `toResponseInputItems`, and limits a streamed call over its whole length. The turn runs on its own and is handed to `after()`, so a closed tab never loses a reply. The browser reads lines with one shared reader (`src/services/read-ndjson.ts`, also used by the script copilot).
 
-**Why.** D502 (Cyril, 2026-11-17): every copilot shows its work as it happens. One request with many lines back keeps the turn's existing order of writes and its single answer, so nothing stored changes. Found in review: the SDK's streamed response carries fields the API refuses as input, and its own timeout stops at the first byte.
+**Why.** D514 (Cyril, 2026-11-17): every copilot shows its work as it happens. One request with many lines back keeps the turn's existing order of writes and its single answer, so nothing stored changes. Found in review: the SDK's streamed response carries fields the API refuses as input, and its own timeout stops at the first byte.
 
 **Rejected.** A second request or a realtime channel for progress (two things to keep in step, and a channel per turn). Server-sent events as a second format beside D337's. Recording that a turn is running, so a reload mid-turn could show it (Cyril, 2026-11-17: leave reloads as they are). A stop button (Cyril, 2026-11-17).
 
 **Originated →** `2026-11-17-copilot-streaming-design.md`; plan `2026-11-17-copilot-streaming.md`.
 
-### D504 — An image attached in the copilot chat is studied when its message is sent, not when it is attached *(recorded 2026-11-18; decided by Cyril; refines D312 for the chat only)*
+### D516 — An image attached in the copilot chat is studied when its message is sent, not when it is attached *(recorded 2026-11-18; decided by Cyril; refines D312 for the chat only)*
 
 **Decision.** An image attached in the brand KB chat is uploaded and becomes a source at once, as before, but its image study starts when the message carrying it is sent: the chat's finalize call passes `studyLater`, and the turn starts the study after storing the message. Removing an attachment before sending starts no study. Images uploaded or removed on the form keep starting a study at once (D312).
 
@@ -8787,9 +8787,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Costs.** An image attached and never sent is a source that is not studied until the next study starts (the next upload, or the build when it lands).
 
-### D505 — Changes to a reviewed brand KB field go through a change card that lives in the thread *(recorded 2026-11-19; refines D318, D496, D498)*
+### D517 — Changes to a reviewed brand KB field go through a change card that lives in the thread *(recorded 2026-11-19; refines D318, D508, D510)*
 
-**Decision.** Once a person has reviewed a field (approved, edited or rejected), the copilot changes it only through a change card: a `change` card on a message in the onboarding thread, made against one KB version, listing each field before and after with its source, kept or dropped per field, settled once by a person. A field still `needs_review` may still be filled directly in the first review (D499). A card is settled by a conditional update on its stored status (`card->>status = pending`), so two people deciding at once settle it once; approving writes the kept fields through `patchKBFields` as `approved` / `explicit` / `high`, never one whose stored value differs from the card's "before" (changed by hand since), and never touches `kb_status`. A card made against a version that is no longer active becomes `stale` and writes nothing. A change stated in the chat becomes a card inside the turn (`propose_change`, which throws its refusals back to the model). Documents become a card in the background: a `kb-propose` Trigger.dev task and `background_jobs` kind reads newly added documents, or every remaining document after a removal, against the current values of the 43 review fields, with its own 8-minute limit and no retries, and only proposes values that come from a document that is there. Refusals are read back from settled cards (every field of a discarded card, each dropped field of an approved one, keyed by document and field), so a document never proposes a refused change again. "Save & re-analyze" now asks for a proposal instead of rebuilding; "Refine with AI" is removed. Until Image Analysis gets its own card (piece 2b), a re-study says in the thread which fields it changed.
+**Decision.** Once a person has reviewed a field (approved, edited or rejected), the copilot changes it only through a change card: a `change` card on a message in the onboarding thread, made against one KB version, listing each field before and after with its source, kept or dropped per field, settled once by a person. A field still `needs_review` may still be filled directly in the first review (D511). A card is settled by a conditional update on its stored status (`card->>status = pending`), so two people deciding at once settle it once; approving writes the kept fields through `patchKBFields` as `approved` / `explicit` / `high`, never one whose stored value differs from the card's "before" (changed by hand since), and never touches `kb_status`. A card made against a version that is no longer active becomes `stale` and writes nothing. A change stated in the chat becomes a card inside the turn (`propose_change`, which throws its refusals back to the model). Documents become a card in the background: a `kb-propose` Trigger.dev task and `background_jobs` kind reads newly added documents, or every remaining document after a removal, against the current values of the 43 review fields, with its own 8-minute limit and no retries, and only proposes values that come from a document that is there. Refusals are read back from settled cards (every field of a discarded card, each dropped field of an approved one, keyed by document and field), so a document never proposes a refused change again. "Save & re-analyze" now asks for a proposal instead of rebuilding; "Refine with AI" is removed. Until Image Analysis gets its own card (piece 2b), a re-study says in the thread which fields it changed.
 
 **Why.** Brand KB spec §2.4 and §2.5 (Cyril, 2026-11-13): adding to an approved KB must not wreck it; no review is lost, nothing locks, and the copilot never overwrites a reviewed field without a card. Keeping the card in the thread means pending cards survive a reload and need no new table.
 
@@ -8797,7 +8797,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.4, §2.5; plan `2026-11-18-copilot-journey-kb-change-cards.md`.
 
-### D506 — A failed background job is said once in the thread, when it fails, and never repeated at the bottom of the panel *(recorded 2026-11-19; refines D497, D503, D505)*
+### D518 — A failed background job is said once in the thread, when it fails, and never repeated at the bottom of the panel *(recorded 2026-11-19; refines D509, D515, D517)*
 
 **Decision.** When a collection of images and video (`asset-import`), a study of the images (`image-analysis`) or a reading of documents (`kb-propose`) fails, one stored message is written into the client's onboarding thread at that moment: a status card with a single `failed` line and no words, with the same sentence and red cross the panel used to draw live ("Could not collect images and video from Instagram. You can try again from Brand assets."). `sayJobFailed` in `src/lib/journey/kb-copilot/job-failed.ts` owns the sentence and the write, and it never throws. It is called wherever such a job is marked failed: each failure path of the runs, the "could not start" path of each start, and the 5-minute dead-job sweep, which now hands each job it failed to a callback. The opening is stored first if the thread has none. The live lines at the bottom of the panel now show only what is running, and the model reads a wordless status line as its text. A reading of documents that failed now shows the red line instead of a green-tick note.
 
@@ -8807,19 +8807,19 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** this conversation (2026-11-19); QA plan `docs/qa/2026-11-18-copilot-journey-manual-qa.md` §5.
 
-### D507 — The review walk's own buttons are carried out by code, not read by the model *(recorded 2026-11-19; refines D499, D501)*
+### D519 — The review walk's own buttons are carried out by code, not read by the model *(recorded 2026-11-19; refines D511, D513)*
 
 **Decision.** When the person's message is exactly one of the buttons the review walk offers ("Yes, that's right", "There is none", "Skip this one", "Keep asking", "Ask me the open questions", "I'll review the rest") and carries no file, the brand KB turn runs the matching tool itself (`confirm_field` on the waiting field, `skip_question`, `keep_asking`, `stop_asking`) and the model is not called. The tool's own code runs, so its refusals still apply; the reply is the tool's sentence, or a fixed line for the tools that say nothing. A confirm or a skip needs a waiting question. Anything else, including the same words with more typed after them, still goes to the model. Separately, the model's reply keeps each message it wrote as its own paragraph, instead of the SDK's `output_text`, which glues them together.
 
-**Why.** Cyril, 2026-11-19, on Propalyst: pressing "Yes, that's right" got the reply "Confirmed that field." and the same question again. The model had written the words and called no tool, so nothing was saved and the walk asked again. A rebuild of the exact context showed the model had everything it needed; the button is code's own fixed choice for a field code already knows, so asking the model what it means adds a step that can fail. Same principle as D501 (plain saves end with a reply worded by code).
+**Why.** Cyril, 2026-11-19, on Propalyst: pressing "Yes, that's right" got the reply "Confirmed that field." and the same question again. The model had written the words and called no tool, so nothing was saved and the walk asked again. A rebuild of the exact context showed the model had everything it needed; the button is code's own fixed choice for a field code already knows, so asking the model what it means adds a step that can fail. Same principle as D513 (plain saves end with a reply worded by code).
 
 **Rejected.** Forcing a tool call (`tool_choice: "required"`) whenever a question is waiting: still a model reading a fixed button, and it would force a tool on a question about something else. Prompt changes alone: they lower the odds, they do not remove them.
 
 **Originated →** this conversation (2026-11-19); context rebuild artifact https://claude.ai/artifact/HAt3HzDgp7L1V7YQpARpzN.
 
-### D509 — Every copilot turn leaves a trace of exactly what the model was sent *(recorded 2026-11-19; refines D497, D507)*
+### D521 — Every copilot turn leaves a trace of exactly what the model was sent *(recorded 2026-11-19; refines D509, D519)*
 
-**Decision.** Each brand KB copilot turn (typed, or a reply button) keeps a trace: what came in (the message, attachments, the waiting question, the client's state); what the model was given, exactly (the instructions, the conversation, each tool's name, description and JSON schema, as the adapter sends them); each round of the shared loop as it happened (the words, the tool calls with their arguments, what each returned, how long); a choice carried out by code with no model (D507); the refusals tools said in a sentence; what code did after (fields written, the messages it added, a change card); and how it ended (the stored reply, total time, the error). The shared loop (`runAgent`) reports to an optional trace sink as it runs, so a turn that fails half-way keeps what it did. The route stores one row in `copilot_turn_traces` (migration 0065) once the answer has gone, in its own try/catch, so tracing never adds to the wait and never fails a turn. Each row carries its list columns (sent text, tools, marks, duration) so the Turns list never reads a whole trace. Four marks, about what the turn achieved: Question left unanswered, Asked again, Refused, Failed. A "Turns" switch in the copilot panel (per browser, off by default, not a permission) shows a Chat/Turns view and a Trace button under each reply. Kept 30 days: a daily Trigger.dev task (`copilot-trace-sweep`) deletes older rows, and the list hides them anyway. Everyone who can see the client's thread can see its traces.
+**Decision.** Each brand KB copilot turn (typed, or a reply button) keeps a trace: what came in (the message, attachments, the waiting question, the client's state); what the model was given, exactly (the instructions, the conversation, each tool's name, description and JSON schema, as the adapter sends them); each round of the shared loop as it happened (the words, the tool calls with their arguments, what each returned, how long); a choice carried out by code with no model (D519); the refusals tools said in a sentence; what code did after (fields written, the messages it added, a change card); and how it ended (the stored reply, total time, the error). The shared loop (`runAgent`) reports to an optional trace sink as it runs, so a turn that fails half-way keeps what it did. The route stores one row in `copilot_turn_traces` (migration 0066) once the answer has gone, in its own try/catch, so tracing never adds to the wait and never fails a turn. Each row carries its list columns (sent text, tools, marks, duration) so the Turns list never reads a whole trace. Four marks, about what the turn achieved: Question left unanswered, Asked again, Refused, Failed. A "Turns" switch in the copilot panel (per browser, off by default, not a permission) shows a Chat/Turns view and a Trace button under each reply. Kept 30 days: a daily Trigger.dev task (`copilot-trace-sweep`) deletes older rows, and the list hides them anyway. Everyone who can see the client's thread can see its traces.
 
 **Why.** Two copilot faults on 2026-11-19 ("Confirmed that field." with no tool called; "edit the mission statement" refused instead of saved) were explained only by rebuilding the model's input by hand and guessing. Both turned on a detail of the exact input or a tool's exact sentence, which a summary written in advance would likely have dropped. More agents (market research, scripts, canvas) run on the same loop, so the loop is where tracing belongs.
 
@@ -8827,7 +8827,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md`; plan `docs/superpowers/plans/2026-11-19-copilot-turn-traces.md`.
 
-### D508 — The page shows the copilot's work *(recorded 2026-11-19, after D509; refines D502, D505)*
+### D520 — The page shows the copilot's work *(recorded 2026-11-19, after D521; refines D514, D517)*
 
 **Decision.** Whatever the copilot changes on a page, the page shows it happening: it goes there, marks what the copilot is asking about ("Copilot is asking"), sweeps what is being changed, and highlights the change when it lands. The copilot names what it works on as *targets* (`kb:<review path>`, `kb-form:website|instagram|facebook`, `kb-source:<id>`); the turn stream carries a `target` event per change (writing, then written or unwritten). The panel folds those, plus "the asked target changed" and "a file I attached was saved", into a small activity record in the query cache (never fetched). One shared hook (`useFollowCopilot`) and one shared component (`CopilotTarget`) do the following and the marks for every page; a page only says how to reveal a target (switch tab). The page always follows, even mid-edit (Cyril). The copilot's change wins over an unsaved edit of the same field: the review page takes the stored value for fields the copilot wrote, so a later Save never writes the older draft back (Cyril). Only the browser that sent the turn moves; the "asking" mark comes from the shared thread, so everyone sees it. A person's own approval of a change card highlights the changed fields without moving. A target the page cannot show is skipped; the Source files drawer is never opened for the copilot. First applied to the brand KB: review fields, the pre-build form's website and handles, and the source lists.
 
@@ -8837,19 +8837,19 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md`; plan `docs/superpowers/plans/2026-11-19-copilot-page-follows.md`.
 
-### D510 — A study of the images proposes changes to reviewed Image Analysis fields on a change card *(recorded 2026-11-20; refines D318, D505)*
+### D522 — A study of the images proposes changes to reviewed Image Analysis fields on a change card *(recorded 2026-11-20; refines D318, D517)*
 
 **Decision.** When the client's images are studied again, the study no longer replaces an Image Analysis field a person has approved or rejected. It keeps that field as it is and proposes its new reading on the brand KB's ordinary change card in the copilot thread, sourced to "Image study"; nothing changes until a person approves, and approving goes through the existing change-card route. Fields nobody has reviewed are still written directly. The counted fields (format mix, purpose mix, colours) are still written directly and keep their review: they are the same measure with new numbers. A field rewritten by hand is left alone and is not proposed (Cyril, 2026-11-20). A study that wrote marks any earlier image-study card still waiting as out of date, even when it has nothing new to propose, so an older reading of the images is never approved. A value a person discarded for a field, or dropped from a card they approved, is not proposed for that field again; a different reading is. The thread line "Studied the images again. Changed: …" names only the fields changed directly. A study never fails because the thread could not be written. No migration.
 
-**Why.** Cyril decided on 2026-11-13 that Image Analysis must go through a change card like the rest of the brand KB (D505). Until now a study replaced an approved field whenever it read the images differently and sent it back to "needs review": the one place a reviewed field could still change without a person's say.
+**Why.** Cyril decided on 2026-11-13 that Image Analysis must go through a change card like the rest of the brand KB (D517). Until now a study replaced an approved field whenever it read the images differently and sent it back to "needs review": the one place a reviewed field could still change without a person's say.
 
 **Rejected.** A separate "pending" copy with its own review on the Image Analysis tab: a second approval mechanism to keep in step, and the copilot thread would not show it. Cards for the counted fields: every image upload would produce one. Proposing over a field written by hand: those words were a deliberate choice; the cost is that such a field can go stale without notice.
 
 **Originated →** `docs/superpowers/specs/2026-11-20-copilot-image-analysis-card-design.md`; plan `docs/superpowers/plans/2026-11-20-copilot-image-analysis-card.md`.
 
-**D510, added 2026-11-20 (Cyril, after the review).** The study's summary model is shown the written fields the team approved and told to return them word for word unless the images now show something different (summary prompt 1.2.0). Why: those fields are prose written afresh on every study, so wording drift alone would have raised a card after nearly every upload, and a discard only remembers exact words. Rejected: a separate yes/no model call per reviewed field (an extra call per study); remembering a discard until the image set changes a lot (real changes could be suppressed).
+**D522, added 2026-11-20 (Cyril, after the review).** The study's summary model is shown the written fields the team approved and told to return them word for word unless the images now show something different (summary prompt 1.2.0). Why: those fields are prose written afresh on every study, so wording drift alone would have raised a card after nearly every upload, and a discard only remembers exact words. Rejected: a separate yes/no model call per reviewed field (an extra call per study); remembering a discard until the image set changes a lot (real changes could be suppressed).
 
-### D511 — A script's copilot panel is on its page at every stage, read-only after Generate *(recorded 2026-11-20; refines D494, D500)*
+### D523 — A script's copilot panel is on its page at every stage, read-only after Generate *(recorded 2026-11-20; refines D506, D512)*
 
 **Decision.** The script's copilot panel is shown on the script's page at Generate, Visualise, In review and Approved (the review board, the approved version, and the plain read-only view). It is the same shell as the client's panel (one header, fold, rail), with a link back to the client's Scripts tab and a "Waiting for…" line worked out from the script as stored. After Generate it shows the saved thread with no message box, its cards without buttons, and starts folded; folding is remembered per script in two memories, Generate's (the key it always had, starting open) and one shared by the later stages (starting folded). The Scripts tab's guide offers "Start a script" ("Paste a script" while locked), the same action as the page's "New script".
 
@@ -8859,9 +8859,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `docs/superpowers/specs/2026-11-20-copilot-scripting-panel-design.md`; plan `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`.
 
-### D512 — The script's copilot acts at Visualise, as an extension of the writing copilot *(recorded 2026-11-20; refines D511, D497)*
+### D524 — The script's copilot acts at Visualise, as an extension of the writing copilot *(recorded 2026-11-20; refines D523, D509)*
 
-**Decision.** At Visualise the script's panel gets its message box back, starts open, and its messages go to the same copilot that wrote the script: the same thread, the same message route, the same typed edits and before-and-after cards. The route accepts a script at Visualise (In review and Approved stay read-only, as D511) and saves through a compare-and-set on `updated_at`, the guard every Visualise write uses, only while the script is still at Visualise. At Visualise only, the edit prompt carries the storyboard as the board shows it (each shot's panel, its versions and pick, who has no avatar, what has no picture) and a short set of rules, and the output adds panel picks ("version 2 of S3") and one offered button (draw, send, reopen). One screen-level provider owns the board query, the panel model, the draw queue and the product and location actions; the board and the panel both read it, so every button in the chat is the board's own action.
+**Decision.** At Visualise the script's panel gets its message box back, starts open, and its messages go to the same copilot that wrote the script: the same thread, the same message route, the same typed edits and before-and-after cards. The route accepts a script at Visualise (In review and Approved stay read-only, as D523) and saves through a compare-and-set on `updated_at`, the guard every Visualise write uses, only while the script is still at Visualise. At Visualise only, the edit prompt carries the storyboard as the board shows it (each shot's panel, its versions and pick, who has no avatar, what has no picture) and a short set of rules, and the output adds panel picks ("version 2 of S3") and one offered button (draw, send, reopen). One screen-level provider owns the board query, the panel model, the draw queue and the product and location actions; the board and the panel both read it, so every button in the chat is the board's own action.
 
 **Why.** Cyril, 2026-11-20: the copilot does everything the person can do on the page beside it, and leads them through it. Reusing the writing copilot keeps the instructions tuned over many rounds and one place that changes a script; the Visualise part of the prompt is sent only at Visualise, and a test pins Generate's prompt word for word.
 
@@ -8869,7 +8869,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `docs/superpowers/specs/2026-11-20-copilot-visualise-design.md`; plan `docs/superpowers/plans/2026-11-20-copilot-visualise.md`.
 
-### D513 — At Visualise a request applies at once, comes as a card, or is refused; the copilot's shot cards relax D489 (second) *(recorded 2026-11-20; refines D489 (second), D332)*
+### D525 — At Visualise a request applies at once, comes as a card, or is refused; the copilot's shot cards relax D489 (second) *(recorded 2026-11-20; refines D489 (second), D332)*
 
 **Decision.** At Visualise, casting an avatar, changing the lead, products and locations, and a change to one shot or one field of the script apply at once, as typing on the board does; the page shows them land. A change across several shots, adding, removing, splitting or moving shots, and adding, removing, renaming or redescribing a character come as a before-and-after card accepted right at Visualise, without a reopen; a character's card shows every shot they are in. The reel's notes and open items, and a pasted whole script, are refused with a Reopen button. One request has one outcome: if any part needs a card the whole request is a card, and if any part is refused nothing is applied. Picking a panel version applies at once; drawing, sending and reopening are only ever offered as buttons the person presses.
 
@@ -8877,9 +8877,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.** Every change to the words as a card at Visualise (it needs a new kind of card for a change easy to see and undo on the page). Sending every shot change through a reopen (it takes the script back to writing for one extra shot). The page's own controls are unchanged: adding or removing a shot by hand still needs a reopen.
 
-**Originated →** as D512.
+**Originated →** as D524.
 
-### D514 — The copilot leads at Visualise with a walk worked out from the board *(recorded 2026-11-20; refines D500)*
+### D526 — The copilot leads at Visualise with a walk worked out from the board *(recorded 2026-11-20; refines D512)*
 
 **Decision.** The bottom of the thread at Visualise always shows the current step, written by code from the board each time it is shown and never stored: who plays each character on screen (lead first, with the client's avatars as buttons), an avatar not ready to draw (pointing to its slot), panels being drawn, the locations and products the shots still to draw use that have no picture (each with attach, draw it, or pick on the board, and always "Draw N panels without them"), then "Draw N panels", then the send card. Every draw button in the chat is the board's Generate all, with its credit confirmation. The send card is always offered when asked for, names what is missing (shots with no panel, panels being drawn, characters with no avatar, a waiting change card) and never blocks; its button is the page's Move to In review. The rail's "Waiting for you" line follows the walk.
 
@@ -8887,9 +8887,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.** Speaking only when asked. Holding the send back until everything is drawn (a team may send a half-drawn board on purpose). The draw button first with pictures listed under it (it makes paying twice easy). A one-click draw in the chat without the page's confirmation.
 
-**Originated →** as D512.
+**Originated →** as D524.
 
-### D515 — A picture attached in a script's chat stays with the script *(recorded 2026-11-20; replaces the copilot journey design §8 item 1)*
+### D527 — A picture attached in a script's chat stays with the script *(recorded 2026-11-20; replaces the copilot journey design §8 item 1)*
 
 **Decision.** At Visualise the message box takes a picture. Which product or location it is for is decided in the browser before it uploads: the item whose "Attach a picture" was pressed, else the one item the message names, else the only item still without a picture; otherwise it asks with one button per item. It then uploads exactly as the board does, into the script's own folder, never brand assets, and the thread keeps the picture with its message. A picture with no words is answered by code ("Added it to the café."), with no model call; the route accepts only a picture that is that item's current one in the stored script.
 
@@ -8897,4 +8897,4 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.** Saving every attached picture to brand assets. Letting the model decide the target (code can, from the item pressed or named, and asks otherwise). An "Also add to brand assets" button: maybe later.
 
-**Originated →** as D512.
+**Originated →** as D524.

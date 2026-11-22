@@ -6,7 +6,7 @@ import { fieldsWrittenSince, kbFieldPath, kbTarget } from "@/lib/journey/kb-copi
 import type { ModuleKey } from "@/lib/kb/types";
 import { fieldLocation, getFieldPath } from "@/lib/kb/utils";
 
-/** The brand KB review page following the copilot (D508): a review field is reached by switching to
+/** The brand KB review page following the copilot (D520): a review field is reached by switching to
  *  its tab; Image Analysis and unknown fields cannot be shown. `takeWritten` gives the fields the
  *  copilot wrote since the page last took in the stored KB (spec §3.2), and is called once per take. */
 export function useKbReviewFollow(clientId: string, showModule: (module: ModuleKey) => void) {

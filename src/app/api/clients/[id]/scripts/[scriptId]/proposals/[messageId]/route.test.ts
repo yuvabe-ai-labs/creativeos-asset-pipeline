@@ -111,7 +111,7 @@ describe("POST .../proposals/:messageId — a pasted script's replace card", () 
     expect(vi.mocked(insertScriptMessages).mock.calls[0][3]).toEqual([{ role: "assistant", content: "Kept the current draft.", card: null }]);
   });
 
-  // Piece 5.1 (D513) — a card the copilot made at Visualise is accepted there.
+  // Piece 5.1 (D525) — a card the copilot made at Visualise is accepted there.
   it("accepts a card at Visualise through the Visualise write", async () => {
     const atVisualise = generateScript({ stage: "visualise", doc: reel01Doc(), updatedAt: "t1" });
     vi.mocked(getGenerateScript).mockResolvedValue(atVisualise);

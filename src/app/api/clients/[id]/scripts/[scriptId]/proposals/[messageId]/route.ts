@@ -20,7 +20,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const decision = body?.decision;
       if (decision !== "accept" && decision !== "reject") return apiError("Accept or reject.", 400);
 
-      // Piece 5.1 (D513): a card the copilot made at Visualise is accepted there, through the
+      // Piece 5.1 (D525): a card the copilot made at Visualise is accepted there, through the
       // Visualise write. The stage is read beside the thread (rule 5).
       const [messages, stored] = await Promise.all([listScriptMessages(clientId, scriptId), getGenerateScript(clientId, scriptId)]);
       const change = stored?.stage === "visualise" ? changeVisualiseScript : changeGenerateScript;

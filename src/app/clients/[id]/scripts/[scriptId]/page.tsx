@@ -38,7 +38,7 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
     if (!state) notFound();
     const doc = state.script.doc;
     // D489 — a reopened script the client commented on keeps those comments in a third column. The
-    // page is the board's width either way, so the copilot sits where the stage guide does (D494).
+    // page is the board's width either way, so the copilot sits where the stage guide does (D506).
     const loaded = doc ? await loadTeamReview({ id: scriptId, stage: "generate", doc }) : null;
     const review = loaded?.comments.some((c) => c.parentId === null) ? loaded : null;
     const reel = doc ? reelLabel(doc.header.reelNumber) : null;

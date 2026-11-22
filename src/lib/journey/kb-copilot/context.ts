@@ -28,7 +28,7 @@ export type KbContext = {
   /** Collections of images and video running right now. */
   importing: ImportSource[];
   studyingImages: boolean;
-  /** The line of a proposal reading documents against the KB right now (D505), or null. Optional:
+  /** The line of a proposal reading documents against the KB right now (D517), or null. Optional:
    *  only the stored read sets it. */
   proposing?: string | null;
   /** Sources that have been collected from at least once, however it ended. */
@@ -104,7 +104,7 @@ export function fallbackSuggestions(ctx: KbContext): string[] {
 export const IMPORT_LABEL: Record<ImportSource, string> = { website: "the website", instagram: "Instagram", facebook: "Facebook" };
 
 /** What is running right now, read from the real jobs; empty when nothing is. A step that failed
- *  is not here: it was said once in the thread when it failed (D506, `job-failed.ts`), so it stays
+ *  is not here: it was said once in the thread when it failed (D518, `job-failed.ts`), so it stays
  *  where it happened instead of following every new message. */
 export function liveStatus(ctx: KbContext): StatusLine[] {
   const running = (text: string): StatusLine => ({ text, state: "running" });

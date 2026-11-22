@@ -35,7 +35,7 @@ export async function loadThread(client: ClientRow): Promise<ThreadState> {
   return threadState(ctx, await markOutOfDate(stored));
 }
 
-/** Each pending change card gains the fields changed by hand since it was made (D505). Only the
+/** Each pending change card gains the fields changed by hand since it was made (D517). Only the
  *  paths on pending cards are read, by JSON path; with no pending card nothing more is read. */
 async function markOutOfDate(messages: ThreadMessage[]): Promise<ThreadMessage[]> {
   const pending = messages.filter((m) => m.card?.kind === "change" && m.card.status === "pending");

@@ -7,7 +7,7 @@ import { useVisualiseModel } from "@/hooks/use-visualise-model";
 import { PANEL_MODEL_ID } from "@/lib/scripts/visualise/constants";
 import { ScriptAssetsProvider } from "@/components/scripts/script-assets-context";
 
-// Piece 5.1 (D512) — one owner for the storyboard on the Visualise screen: the board query, the
+// Piece 5.1 (D524) — one owner for the storyboard on the Visualise screen: the board query, the
 // panel model chosen under Advanced, the draw queue and the product and location actions. The board
 // and the copilot's panel both read it, so "Draw 6 panels" in the chat is the board's own Generate
 // all: the same count, credits, model and queue.

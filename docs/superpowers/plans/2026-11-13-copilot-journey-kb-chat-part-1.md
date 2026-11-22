@@ -35,7 +35,7 @@ Until part 3, an attachment on a reviewed KB is saved as a source and the copilo
 - The migration is written, not applied. Cyril applies migrations.
 - Nothing is pushed.
 - One component per file, named export, split at about 200 lines.
-- ADRs go in `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` section 7 only. Next free number: D496.
+- ADRs go in `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` section 7 only. Next free number: D508.
 
 ## Review Focus
 
@@ -50,7 +50,7 @@ Until part 3, an attachment on a reviewed KB is saved as a source and the copilo
 ### Task 1: Thread storage
 
 **Files:**
-- Create: `supabase/migrations/0063_client_copilot_messages.sql`
+- Create: `supabase/migrations/0064_client_copilot_messages.sql`
 - Create: `src/lib/journey/thread/schema.ts`
 - Create: `src/lib/journey/thread/rows.ts`
 - Create: `src/lib/journey/thread/__tests__/rows.test.ts`
@@ -523,12 +523,12 @@ The panel body, top to bottom:
 - [ ] **Step 2: `JourneyGuide` renders `<KbCopilot clientId={client.id} slug={client.slug} />` when `panel === "kb"`, and the guide panel otherwise.**
 - [ ] **Step 3: Both sides show the same sources.** `KBOnboardingUploadStep` gets a `key` made of the website URL, the two handles and the document and image ids, so `router.refresh()` after a chat turn remounts it with the saved values. Check that an upload made in the form does not itself trigger a remount mid-upload.
 - [ ] **Step 4: Append ADRs** in the log's format (Decision / Why / Rejected / Refines / Originated):
-  - **D496: one saved onboarding thread per client, in its own table; a script's thread stays where it is.** Both stores return messages in one shape, so the panel, the cards and the composer do not care which a message came from. Why: a script's messages cannot exist before a script does, and the onboarding thread starts before any script. Rejected: reusing `client_script_messages` (it requires a script); moving every script's conversation into the new table (it would move live data for no change the person can see).
-  - **D497: stage agents share one small tool-calling loop; the model is passed in, and each stage decides where the loop runs and how a turn ends.** The brand KB agent runs inside the request: its tools are quick writes, and the long work (the build) stays in Trigger.dev and reports into the thread from its webhook. A stage whose agent does long or paid work (market research) runs the same loop in a background task. A turn ends in plain words, or in a strict structure when the caller asks for one, which is how a script step will use the loop while the code keeps deciding the order of steps. Rejected: Trigger.dev `chat.agent` for the brand KB (no long-running model work to host); one fixed place for every agent to run; a free tool-calling agent for scripts (Cyril chose code-decided steps with optional tool calls, 2026-11-15). Refines D336.
+  - **D508: one saved onboarding thread per client, in its own table; a script's thread stays where it is.** Both stores return messages in one shape, so the panel, the cards and the composer do not care which a message came from. Why: a script's messages cannot exist before a script does, and the onboarding thread starts before any script. Rejected: reusing `client_script_messages` (it requires a script); moving every script's conversation into the new table (it would move live data for no change the person can see).
+  - **D509: stage agents share one small tool-calling loop; the model is passed in, and each stage decides where the loop runs and how a turn ends.** The brand KB agent runs inside the request: its tools are quick writes, and the long work (the build) stays in Trigger.dev and reports into the thread from its webhook. A stage whose agent does long or paid work (market research) runs the same loop in a background task. A turn ends in plain words, or in a strict structure when the caller asks for one, which is how a script step will use the loop while the code keeps deciding the order of steps. Rejected: Trigger.dev `chat.agent` for the brand KB (no long-running model work to host); one fixed place for every agent to run; a free tool-calling agent for scripts (Cyril chose code-decided steps with optional tool calls, 2026-11-15). Refines D336.
 - [ ] **Step 5: Whole suite.** `npm test > "$TMP/kb-part1.log" 2>&1; tail -15 "$TMP/kb-part1.log"`. Expected: only the 2 known failures in `src/app/api/nodes/{composite,image}-generate/route.test.ts`; `kling-provider.test.ts` may time out once and passes alone. `npx tsc --noEmit -p .` and `npx eslint .` on changed files: clean.
-- [ ] **Step 6: Commit** `feat(journey): the Brand KB page's panel is the brand KB copilot (D496, D497)`.
+- [ ] **Step 6: Commit** `feat(journey): the Brand KB page's panel is the brand KB copilot (D508, D509)`.
 
-## Browser check (Cyril, after migration 0063 on a test database)
+## Browser check (Cyril, after migration 0064 on a test database)
 
 1. New client: the panel asks for the website. Answer; the form on the right shows it after the reply.
 2. Attach a PDF and an image; both appear as chips, then in the form's lists.

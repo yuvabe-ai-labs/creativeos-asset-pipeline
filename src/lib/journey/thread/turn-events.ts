@@ -1,7 +1,7 @@
 import type { KbSaved } from "@/lib/journey/kb-copilot/turn";
 import type { ThreadState } from "./schema";
 
-// What a brand KB turn sends to the browser while it runs (D502, D503): one JSON object per line,
+// What a brand KB turn sends to the browser while it runs (D514, D515): one JSON object per line,
 // the same wire format the script copilot's first draft uses (D337). The last line is always
 // `state` or `error`. `state` carries exactly what the turn used to answer with in one piece, so a
 // reader that ignored every other line would still end up right.
@@ -16,7 +16,7 @@ export type KbTurnEvent =
   | { type: "saved"; saved: KbSaved }
   /** Something else on the page was just written (a field of the KB, a build): re-read it. */
   | { type: "page" }
-  /** What the copilot is changing on the page, by target (D508): being written, then written, or not
+  /** What the copilot is changing on the page, by target (D520): being written, then written, or not
    *  written after all (refused, or the write failed). */
   | { type: "target"; target: string; phase: "writing" | "written" | "unwritten" }
   | { type: "state"; state: ThreadState; changed: boolean; saved: KbSaved }

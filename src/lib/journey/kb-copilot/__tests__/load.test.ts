@@ -68,7 +68,7 @@ describe("loadKbContext", () => {
     ], []);
     const { ctx } = await loadKbContext(client, NOW);
     expect(ctx.importing).toEqual(["website"]);
-    // A failure was said once in the thread when it happened (D506): the bottom of the panel shows
+    // A failure was said once in the thread when it happened (D518): the bottom of the panel shows
     // only what is running, never the failed Instagram collection again.
     expect(liveStatus(ctx)).toEqual([{ text: "Collecting images and video from the website…", state: "running" }]);
     expect(ctx.importedBefore.sort()).toEqual(["instagram", "website"]);

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAskingTarget, useCopilotActivity } from "@/hooks/queries/copilot-thread";
 import type { TargetActivity } from "@/lib/journey/thread/target-activity";
 
-// The page shows the copilot's work (D508): one shared way for any page to follow the copilot. The
+// The page shows the copilot's work (D520): one shared way for any page to follow the copilot. The
 // page names its targets (CopilotTarget) and says how to reveal one (switch tab); this hook moves
 // there, and tells each target whether it is asked about, being written, or has just landed.
 

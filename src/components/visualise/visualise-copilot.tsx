@@ -21,8 +21,8 @@ import { CopilotStepCard } from "./copilot-step-card";
 import { useVisualiseBoardActions } from "./visualise-board-context";
 import { sendMissing } from "@/lib/scripts/copilot/visualise-walk";
 
-/** Piece 5.1 (D512) — the script's copilot beside the storyboard. Live at Visualise (its message
- *  box, its cards' buttons, the walk's line); read-only In review, as D511. */
+/** Piece 5.1 (D524) — the script's copilot beside the storyboard. Live at Visualise (its message
+ *  box, its cards' buttons, the walk's line); read-only In review, as D523. */
 export function VisualiseCopilot({ client, initialState, initialReview }: {
   client: { id: string; name: string; slug: string };
   initialState: GenerateState;

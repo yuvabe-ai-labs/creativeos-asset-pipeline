@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 export type ChangeDecision = { decision: "approve"; keep: string[] } | { decision: "discard" };
 
-/** A proposed change to reviewed fields of the brand KB (brand KB spec §2.4, D505): each field
+/** A proposed change to reviewed fields of the brand KB (brand KB spec §2.4, D517): each field
  *  before and after, where the new value came from, and a box to keep it. Nothing changes until a
  *  person approves. A field changed by hand since the card was made is shown, and cannot be kept. */
 export function ThreadChangeCard({ id, card, outOfDate = [], busy, onDecide }: {

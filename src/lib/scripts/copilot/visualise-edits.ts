@@ -1,7 +1,7 @@
 import type { EditOp } from "./output";
 import { isDocTarget, parseFieldPath } from "./fields";
 
-// Piece 5.1 §3.3 (D513) — what one request to the copilot does at Visualise. Casting, the lead,
+// Piece 5.1 §3.3 (D525) — what one request to the copilot does at Visualise. Casting, the lead,
 // products and locations, and a change to one shot or one field apply at once, as typing on the
 // board does. A change across several shots, or to which shots or characters there are, comes as a
 // before-and-after card (it relaxes D489 (second) for the copilot's cards only). The reel's notes stay

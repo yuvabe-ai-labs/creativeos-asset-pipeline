@@ -59,7 +59,7 @@ describe("finishTurn", () => {
   });
 });
 
-describe("askedAfterTurn (D508)", () => {
+describe("askedAfterTurn (D520)", () => {
   const question = (field: string, id = field) => ({ id, role: "assistant" as const, content: "?", card: { kind: "question" as const, field, label: field }, attachments: [], suggestions: [], createdAt: "" });
   const said = (content: string) => ({ id: content, role: "user" as const, content, card: null, attachments: [], suggestions: [], createdAt: "" });
 

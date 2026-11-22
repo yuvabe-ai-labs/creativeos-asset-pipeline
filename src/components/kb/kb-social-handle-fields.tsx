@@ -14,7 +14,7 @@ type Props = {
   onInstagramChange: (value: string) => void;
   onFacebookChange: (value: string) => void;
   disabled?: boolean;
-  /** When given, each handle is a target the copilot can save to, and shows that happening (D508). */
+  /** When given, each handle is a target the copilot can save to, and shows that happening (D520). */
   stateOf?: (target: string) => TargetState;
 };
 
@@ -49,7 +49,7 @@ export function KBSocialHandleFields({ instagram, facebook, onInstagramChange, o
   );
 }
 
-/** A handle the copilot can save shows its work there (D508); with no `stateOf`, it is just the field. */
+/** A handle the copilot can save shows its work there (D520); with no `stateOf`, it is just the field. */
 function Targeted({ name, stateOf, children }: { name: "instagram" | "facebook"; stateOf?: (target: string) => TargetState; children: ReactNode }) {
   if (!stateOf) return <>{children}</>;
   const id = kbTarget.form(name);

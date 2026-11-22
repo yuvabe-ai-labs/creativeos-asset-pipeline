@@ -1,4 +1,4 @@
-/** Reads a streamed answer made of one JSON object per line (D337, D503) and calls `onLine` with
+/** Reads a streamed answer made of one JSON object per line (D337, D515) and calls `onLine` with
  *  each one, in order. A line or a character cut in two by the network is put back together, blank
  *  lines are skipped, and a last line with no newline after it still counts. If `onLine` throws,
  *  reading stops and the error is the caller's. */

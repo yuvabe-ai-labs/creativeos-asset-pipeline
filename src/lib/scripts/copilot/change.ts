@@ -15,7 +15,7 @@ type ChangeIO = {
 };
 
 /** The stage a change is for. A change for Generate refuses any other stage, as before; piece 5.1
- *  lets the copilot change a script at Visualise too (D512). */
+ *  lets the copilot change a script at Visualise too (D524). */
 export type ChangeOptions = { stage?: "generate" | "visualise" };
 
 /** Read, decide, compare-and-set; on a conflict, read the newer script and decide again. A copilot

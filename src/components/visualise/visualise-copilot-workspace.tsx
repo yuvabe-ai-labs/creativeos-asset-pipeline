@@ -8,7 +8,7 @@ import { VisualiseBoardProvider } from "./visualise-board-context";
 import { VisualiseCopilot } from "./visualise-copilot";
 import { ScriptFollowProvider } from "./script-follow-context";
 
-/** Piece 5.1 (D512) — Visualise and In review: the script's copilot beside the storyboard, both
+/** Piece 5.1 (D524) — Visualise and In review: the script's copilot beside the storyboard, both
  *  under one VisualiseBoardProvider, so what the chat offers is what the board does. */
 export function VisualiseCopilotWorkspace({ client, initialState, initialBoard, initialReview }: {
   client: { id: string; name: string; slug: string };

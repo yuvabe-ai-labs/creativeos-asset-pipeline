@@ -24,7 +24,7 @@ describe("startAssetImports, when a run cannot be queued", () => {
     vi.mocked(insertJob).mockImplementation(async (a) => ({ id: "job-1", client_id: "client-1", kind: "asset-import", input: a.input }) as never);
   });
 
-  it("fails that source's job and says so once in the copilot thread (D506)", async () => {
+  it("fails that source's job and says so once in the copilot thread (D518)", async () => {
     vi.mocked(tasks.trigger).mockRejectedValue(new Error("trigger down"));
     await startAssetImports({ clientId: "client-1", sources: ["instagram"] });
     expect(failJob).toHaveBeenCalledWith("job-1", expect.any(String));

@@ -10,7 +10,7 @@ export type KbTurnBody = { text: string; attachments: Attachment[] };
 /** `saved` is the website or handles the turn stored, for the form beside the chat to show at once. */
 export type KbTurnResult = { state: ThreadState; changed: boolean; saved: KbSaved };
 
-// The copilot's saved onboarding thread (D496). One read for every stage page; a turn is sent to
+// The copilot's saved onboarding thread (D508). One read for every stage page; a turn is sent to
 // the stage's own agent.
 class CopilotThreadService {
   async thread(clientId: string): Promise<ThreadState> {
@@ -19,7 +19,7 @@ class CopilotThreadService {
   }
 
   /** One message to the brand KB copilot. The answer arrives as event lines while the turn runs
-   *  (D502): each goes to `onEvent`, and the last one is the result. `changed` is true when the
+   *  (D514): each goes to `onEvent`, and the last one is the result. `changed` is true when the
    *  turn saved or started something. A refusal is plain JSON and is thrown as its message. */
   async kbTurn(clientId: string, body: KbTurnBody, onEvent?: (event: KbTurnEvent) => void): Promise<KbTurnResult> {
     const res = await fetch(`/api/clients/${clientId}/copilot/kb/turn`, {
@@ -38,7 +38,7 @@ class CopilotThreadService {
     return got.result;
   }
 
-  /** A person approves (keeping the fields in `keep`) or discards a change card (D505). */
+  /** A person approves (keeping the fields in `keep`) or discards a change card (D517). */
   async decideChange(clientId: string, messageId: string, body: { decision: "approve"; keep: string[] } | { decision: "discard" }): Promise<{ state: ThreadState }> {
     const res = await fetch(`/api/clients/${clientId}/copilot/changes/${messageId}`, {
       method: "POST",

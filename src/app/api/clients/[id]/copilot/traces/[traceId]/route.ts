@@ -4,7 +4,7 @@ import { getTurnTrace } from "@/lib/db/copilot-traces";
 
 type Ctx = { params: Promise<{ id: string; traceId: string }> };
 
-// GET /api/clients/:id/copilot/traces/:traceId — one copilot turn's whole trace (D509). Only a trace
+// GET /api/clients/:id/copilot/traces/:traceId — one copilot turn's whole trace (D521). Only a trace
 // of this client: one of another client reads as gone.
 export async function GET(req: Request, { params }: Ctx) {
   const { traceId } = await params;

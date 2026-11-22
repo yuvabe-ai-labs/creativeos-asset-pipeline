@@ -40,7 +40,7 @@ export const SKIP_CHOICE = "Skip this one";
 export const KEEP_ASKING_CHOICE = "Keep asking";
 export const REVIEW_REST_CHOICE = "I'll review the rest";
 
-/** The walk's own buttons, read as the tool each one means (D507). Code offered them, for a field
+/** The walk's own buttons, read as the tool each one means (D519). Code offered them, for a field
  *  code knows, so code carries them out: the model is not asked what a fixed button means. Only the
  *  button's exact words count; anything else the person types is the model's to read. A confirm or
  *  a skip needs a waiting question, and nothing counts outside a review. */

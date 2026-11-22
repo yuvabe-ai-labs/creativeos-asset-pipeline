@@ -27,7 +27,7 @@ export const changeFieldSchema = z.object({
 });
 export type ChangeField = z.infer<typeof changeFieldSchema>;
 
-/** A proposed change to reviewed fields of the brand KB, settled once by a person (D505). Made
+/** A proposed change to reviewed fields of the brand KB, settled once by a person (D517). Made
  *  against one KB version; `stale` once that version is no longer the active one. */
 export const changeCardSchema = z.object({
   kind: z.literal("change"),
@@ -70,7 +70,7 @@ export type ThreadMessage = {
   outOfDate?: string[];
 };
 
-/** Which saved thread of a client. Only the onboarding thread lives in this store (D496). */
+/** Which saved thread of a client. Only the onboarding thread lives in this store (D508). */
 export type CopilotThread = "onboarding";
 export const ONBOARDING: CopilotThread = "onboarding";
 
@@ -87,7 +87,7 @@ export type Waiting =
   | { kind: "reply"; label: string }
   | { kind: "task"; label: string; text: string; links: { label: string; href: string }[] }
   | { kind: "gate"; label: string; title: string; opens: string; why: string; action: string }
-  /** One or more change cards in the thread are waiting for a person's decision (D505). */
+  /** One or more change cards in the thread are waiting for a person's decision (D517). */
   | { kind: "change"; label: string };
 
 /** What the panel shows: the saved messages, what is running right now, the reply choices, and

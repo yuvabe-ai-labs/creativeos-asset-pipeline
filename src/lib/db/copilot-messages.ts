@@ -3,7 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { rowToThreadMessage, type CopilotMessageRow } from "@/lib/journey/thread/rows";
 import { changeCardSchema, ONBOARDING, type Attachment, type ChangeCard, type CopilotThread, type ThreadCard, type ThreadMessage } from "@/lib/journey/thread/schema";
 
-// The saved onboarding thread of a client (D496). Every query filters on client_id AND thread:
+// The saved onboarding thread of a client (D508). Every query filters on client_id AND thread:
 // withClient authorises the CLIENT in the URL, and a client may gain other threads later.
 
 /** The newest messages kept in memory for one thread. Older ones stay stored. */
@@ -13,7 +13,7 @@ const UNIQUE_VIOLATION = "23505";
 const COLUMNS = "id, role, content, card, attachments, suggestions, created_at";
 
 export type NewCopilotMessage = {
-  /** Made by the caller when something else must name this message (a turn's trace, D509). */
+  /** Made by the caller when something else must name this message (a turn's trace, D521). */
   id?: string;
   role: "user" | "assistant"; content: string;
   card?: ThreadCard | null; attachments?: Attachment[]; suggestions?: string[];
@@ -88,7 +88,7 @@ export async function insertOpeningIfEmpty(clientId: string, thread: CopilotThre
   return true;
 }
 
-/** Settles a change card (D505): writes `next` only while the stored card is still pending, so two
+/** Settles a change card (D517): writes `next` only while the stored card is still pending, so two
  *  people deciding at once settle it once. False when someone settled it first. */
 export async function claimChangeCard(clientId: string, messageId: string, next: ChangeCard): Promise<boolean> {
   const supabase = createServerSupabase();

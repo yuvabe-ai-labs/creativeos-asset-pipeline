@@ -62,7 +62,7 @@ export async function runAssetImport(
   // scrape is read again rather than paid for twice. Assets it already saved are skipped below.
   const checkpoint: ImportCheckpoint = { ...job.result?.checkpoint };
   const remember = (patch: ImportCheckpoint) => saveJobCheckpoint(jobId, Object.assign(checkpoint, patch));
-  // Every failure is also said once in the client's copilot thread (D506).
+  // Every failure is also said once in the client's copilot thread (D518).
   const fail = async (reason: string) => {
     await failJob(jobId, reason);
     await sayJobFailed({ client_id: clientId, kind: "asset-import", input: job.input });

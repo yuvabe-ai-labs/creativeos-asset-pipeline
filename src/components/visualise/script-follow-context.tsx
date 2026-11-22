@@ -8,7 +8,7 @@ import type { ScriptStage } from "@/lib/scripts/constants";
 import { showOnBoard } from "./show-on-board";
 import { useVisualiseBoardActions } from "./visualise-board-context";
 
-// Piece 5.1 §3.8 (D508) — the Visualise board follows the script's copilot: the part the walk asks
+// Piece 5.1 §3.8 (D520) — the Visualise board follows the script's copilot: the part the walk asks
 // about is marked "Copilot is asking", and what the copilot just changed lands with a highlight. One
 // provider for the screen; each target's state is a lookup (performance rule 2). There is no sweep
 // while the copilot works: the script copilot does not say what it is changing until it has.

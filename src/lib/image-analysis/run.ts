@@ -136,7 +136,7 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
   } catch (e) {
     console.error("[image-analysis] failed", { jobId, error: describeError(e) });
     await failJob(jobId, imageAnalysisCopy.failed);
-    // Said once in the client's copilot thread (D506).
+    // Said once in the client's copilot thread (D518).
     await sayJobFailed({ client_id: clientId, kind: "image-analysis", input: job.input });
     return null;
   }

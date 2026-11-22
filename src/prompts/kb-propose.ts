@@ -1,4 +1,4 @@
-// Copilot journey piece 2.3 (D505): reading new or remaining brand documents against the brand KB
+// Copilot journey piece 2.3 (D517): reading new or remaining brand documents against the brand KB
 // as it stands, for a change card. Only what changes comes back; nothing is rewritten.
 import { kbExtractPrompt } from "./kb-extract";
 

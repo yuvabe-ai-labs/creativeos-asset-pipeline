@@ -105,7 +105,7 @@ describe("findNextModuleNeedingReview", () => {
   });
 });
 
-describe("fieldLocation (D508)", () => {
+describe("fieldLocation (D520)", () => {
   it("finds the tab and key of a review path", () => {
     expect(fieldLocation("creative_direction.video.pacing")).toEqual({ module: "video_direction", fieldKey: "pacing" });
     expect(fieldLocation("brand_profile.tone_of_voice")).toEqual({ module: "brand_voice", fieldKey: "tone_of_voice" });

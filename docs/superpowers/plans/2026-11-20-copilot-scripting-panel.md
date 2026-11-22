@@ -399,14 +399,14 @@ git commit -m "feat(copilot): the Scripts guide offers Start a script (Paste a s
 - Modify: `docs/superpowers/specs/2026-11-19-copilot-journey-RESUME-HERE.md`
 - Modify: `docs/superpowers/specs/2026-11-20-copilot-scripting-panel-design.md` (status line)
 
-- [ ] **Step 1: ADR D511** "A script's copilot panel is on its page at every stage, read-only after Generate", with Decision / Why / Rejected (a message box nothing answers; one fold memory per script; a client-side query for the thread at later stages) / Refines (D494, D500) / Originated → the 4.1 spec. Next free becomes D512.
+- [ ] **Step 1: ADR D523** "A script's copilot panel is on its page at every stage, read-only after Generate", with Decision / Why / Rejected (a message box nothing answers; one fold memory per script; a client-side query for the thread at later stages) / Refines (D506, D512) / Originated → the 4.1 spec. Next free becomes D524.
 - [ ] **Step 2: QA section 9** with checks for: Start a script (open and locked, and on Avatars/Brand assets); the panel folded at Visualise, In review, Approved and the plain approved view, each with its line; the back link; cards without buttons; reopen brings the message box and Generate's fold back; narrow screen at each stage; no new request on a later-stage load (Network tab).
-- [ ] **Step 3: Update RESUME-HERE** (4.1 built, next is 4.2's spec, D512 free) and the spec's status line; add an Outcome to this plan with any review findings left for later.
+- [ ] **Step 3: Update RESUME-HERE** (4.1 built, next is 4.2's spec, D524 free) and the spec's status line; add an Outcome to this plan with any review findings left for later.
 - [ ] **Step 4: Commit**
 
 ```bash
 git add docs
-git commit -m "docs(copilot): 4.1 built: D511, QA section 9, resume-here"
+git commit -m "docs(copilot): 4.1 built: D523, QA section 9, resume-here"
 ```
 - [ ] **Step 5: Journal entry 30** on the team design journal (https://claude.ai/artifact/7yU5A2TiWyxDLTwgaXpjHC) and republish.
 

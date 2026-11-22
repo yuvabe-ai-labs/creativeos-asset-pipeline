@@ -239,7 +239,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     expect(vi.mocked(runKbTurn).mock.calls[0][0].attachments).toEqual([doc]);
   });
 
-  describe("keeping a trace (D509)", () => {
+  describe("keeping a trace (D521)", () => {
     const traced = () => vi.mocked(insertTurnTrace).mock.calls[0]?.[0];
 
     it("keeps a trace of the turn after the thread has been answered, naming the stored reply", async () => {
@@ -402,7 +402,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       expect(sent.events.slice(0, 4)).toEqual([{ type: "text", delta: "Let me" }, { type: "reset" }, { type: "page" }, { type: "text", delta: "Done." }]);
     });
 
-    it("sends what the copilot is changing, before the page change (D508)", async () => {
+    it("sends what the copilot is changing, before the page change (D520)", async () => {
       vi.mocked(runKbTurn).mockImplementation(async ({ on }: Parameters<typeof runKbTurn>[0]) => {
         on?.target?.("kb:target_audience.age_range", "writing");
         on?.target?.("kb:target_audience.age_range", "written");

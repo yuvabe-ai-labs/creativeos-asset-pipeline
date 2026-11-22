@@ -11,7 +11,7 @@ The copilot works in the panel on the left; what it changes lives on the page on
 
 **Whatever the copilot changes on the page, the page shows it happening.** The page goes to what the copilot is working on, marks it, shows the change being made, and shows it land.
 
-This holds for every stage's copilot, as streaming does (D502). Each stage's page says which of its things the copilot can work on (its *targets*: a field, a source, later a market signal, a script beat, a canvas node). One shared way of following, marking and showing changes serves every page, so a new stage adds its targets instead of building its own.
+This holds for every stage's copilot, as streaming does (D514). Each stage's page says which of its things the copilot can work on (its *targets*: a field, a source, later a market signal, a script beat, a canvas node). One shared way of following, marking and showing changes serves every page, so a new stage adds its targets instead of building its own.
 
 The four things a person sees:
 1. **Go there.** The page brings the target into view: switching tab, scrolling, whatever the page needs.
@@ -31,7 +31,7 @@ Cyril decided 2026-11-19. When the copilot changes something the person has edit
 - **The marks are for everyone; moving is for the person chatting.** "Copilot is asking" reflects what the thread waits on, so everyone looking at the client sees it. The page *moves* only in the browser that sent the turn, and when a page first shows something the copilot is asking about (opening the page, a build landing with its first question). A teammate's conversation never moves anyone else's view.
 - **Moving happens when the target changes.** When the copilot asks the same question again after the person talked about something else, the page stays where it is and the mark stays.
 - **No navigating between pages.** Answering from the panel on another page does not take the person anywhere; the target page lands on what is waiting when they next open it.
-- **A person's own approval does not move the page.** Approving a change card (D505) gives the changed fields the landed highlight where they are on screen, without moving.
+- **A person's own approval does not move the page.** Approving a change card (D517) gives the changed fields the landed highlight where they are on screen, without moving.
 - **Motion:** a calm sweep for "working", not the loud brand-coloured shimmer of the copilot's working line. The house easing only; for people who ask for reduced motion, no shimmer and no animated scroll, but the tint, label and highlight stay.
 - **Something the page cannot show** (a target not on this page, or hidden in a closed drawer) is skipped silently: no move, no error. The Source files drawer is not opened for the copilot.
 

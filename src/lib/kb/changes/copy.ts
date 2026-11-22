@@ -1,7 +1,7 @@
 import type { ChangeCard } from "@/lib/journey/thread/schema";
 import { isImageStudyCard } from "./card";
 
-// What the copilot says about a change worked out from documents (D505), word for word.
+// What the copilot says about a change worked out from documents (D517), word for word.
 
 /** "a.pdf", "a.pdf and b.md", "a.pdf, b.md and c.docx". */
 export function listNames(names: string[]): string {

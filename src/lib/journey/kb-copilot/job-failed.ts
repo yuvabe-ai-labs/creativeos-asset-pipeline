@@ -9,7 +9,7 @@ import { ensureOpening } from "@/lib/journey/thread/opening";
 import { ONBOARDING } from "@/lib/journey/thread/schema";
 import { IMPORT_LABEL, type ImportSource } from "./context";
 
-// A background job the brand KB copilot speaks about failed (D506): it is said once, in the thread,
+// A background job the brand KB copilot speaks about failed (D518): it is said once, in the thread,
 // at the moment it fails, and stays where it happened. Never repeated at the bottom of the panel,
 // where yesterday's failure would read as news under every new message.
 

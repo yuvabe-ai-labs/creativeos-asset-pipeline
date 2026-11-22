@@ -231,7 +231,7 @@ describe("runAgent, reporting as it goes", () => {
   });
 });
 
-// ── Turn traces (D509) ───────────────────────────────────────────────────────
+// ── Turn traces (D521) ───────────────────────────────────────────────────────
 
 describe("runAgent, reporting to a trace", () => {
   it("tells the trace what it sent, once, with the tools as the model sees them", async () => {

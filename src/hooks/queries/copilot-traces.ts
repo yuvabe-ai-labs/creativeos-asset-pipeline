@@ -3,7 +3,7 @@
 import { skipToken, useQuery, type QueryClient } from "@tanstack/react-query";
 import { copilotTracesService } from "@/services/copilot-traces.service";
 
-// Copilot turn traces through TanStack Query (D509). Read only while the developer switch is on, and
+// Copilot turn traces through TanStack Query (D521). Read only while the developer switch is on, and
 // never polled: the list is refreshed once after each turn this browser sends.
 
 export const copilotTraceKeys = {

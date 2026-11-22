@@ -59,7 +59,7 @@ export function changedFields(draft: TraceableBrandKB, saved: TraceableBrandKB):
  *  them too, except the fields the person has changed and not yet saved, which stay as the person
  *  has them (and so still show as unsaved). Image Analysis is left alone in both. A dotted path in
  *  `take` is a field the copilot just wrote: its stored value replaces even an unsaved edit, so a
- *  later Save never writes the older draft back over it (D508, spec §3.2). */
+ *  later Save never writes the older draft back over it (D520, spec §3.2). */
 export function adoptServerKb(
   draft: TraceableBrandKB, saved: TraceableBrandKB, server: TraceableBrandKB,
   take: ReadonlySet<string> = new Set(),

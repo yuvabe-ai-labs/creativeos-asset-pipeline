@@ -4,7 +4,7 @@ import { castReadyForPanels } from "../visualise/panel-inputs";
 import { listSentence } from "@/lib/avatars/generation";
 import type { GenerateAllPlan, PanelView } from "../visualise/state";
 
-// Piece 5.1 §3.2 (D514) — the copilot leads at Visualise. Each step is worked out by code from the
+// Piece 5.1 §3.2 (D526) — the copilot leads at Visualise. Each step is worked out by code from the
 // board as it stands, every time it is shown, and never stored: a step done by hand on the page, or
 // through the copilot, simply is not the next step any more. The order: who plays each character
 // (lead first), avatars that are not ready to draw, panels being drawn, the pictures the shots still

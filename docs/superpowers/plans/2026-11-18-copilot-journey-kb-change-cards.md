@@ -4,11 +4,11 @@
 
 **Goal:** Once a person has reviewed a field, the copilot changes it only through a change card (each field before and after, where the new value came from, keep or drop each, approve or discard), whether the change comes from the chat, a new document, "Save & re-analyze" or a removed source; the KB stays approved throughout.
 
-**Architecture:** A change card is a `change` card on a message in the onboarding thread (D496): the thread is its only store, so pending cards survive a reload and refusals are read back from settled cards. A change stated in the chat is turned into a card inside the turn (a new `propose_change` tool). A change from documents is worked out in the background (a new `kb-propose` Trigger.dev task and `background_jobs` kind), which writes the card into the thread when it is done. Approving claims the card once, skips any field changed by hand since the card was made, and writes the kept fields with the existing per-field merge (`patchKBFields`, D498).
+**Architecture:** A change card is a `change` card on a message in the onboarding thread (D508): the thread is its only store, so pending cards survive a reload and refusals are read back from settled cards. A change stated in the chat is turned into a card inside the turn (a new `propose_change` tool). A change from documents is worked out in the background (a new `kb-propose` Trigger.dev task and `background_jobs` kind), which writes the card into the thread when it is done. Approving claims the card once, skips any field changed by hand since the card was made, and writes the kept fields with the existing per-field merge (`patchKBFields`, D510).
 
 **Tech Stack:** Next.js 16 route handlers, Supabase (PostgREST JSON-path selects, no migration), Trigger.dev v4 task, OpenAI Responses `parse` with `zodTextFormat`, TanStack Query v5, shadcn Base UI, Vitest.
 
-**Spec:** [docs/superpowers/specs/2026-11-12-copilot-journey-brand-kb-design.md](../specs/2026-11-12-copilot-journey-brand-kb-design.md) §2.4, §2.5, §3, §5, §6, §8. Decisions it builds on: D496 (the thread), D497 (the loop), D498 (per-field writes), D499 (code words the walk), D500 (waiting is derived), D502/D503 (streaming), D504 (images studied on send). Next ADR number: D505.
+**Spec:** [docs/superpowers/specs/2026-11-12-copilot-journey-brand-kb-design.md](../specs/2026-11-12-copilot-journey-brand-kb-design.md) §2.4, §2.5, §3, §5, §6, §8. Decisions it builds on: D508 (the thread), D509 (the loop), D510 (per-field writes), D511 (code words the walk), D512 (waiting is derived), D514/D515 (streaming), D516 (images studied on send). Next ADR number: D517.
 
 ## Global Constraints
 
@@ -151,7 +151,7 @@
 - Create: `src/app/api/clients/[id]/copilot/changes/[messageId]/route.ts`, its `route.test.ts`
 
 **Interfaces:**
-- Consumes: Tasks 1 and 2; `patchKBFields` (D498); `resolveDisplayNames` as `approveKB` uses it.
+- Consumes: Tasks 1 and 2; `patchKBFields` (D510); `resolveDisplayNames` as `approveKB` uses it.
 - Produces: `POST /api/clients/:id/copilot/changes/:messageId` with `{ decision: "approve", keep: string[] } | { decision: "discard" }` → `{ state: ThreadState }`.
 
 - [ ] **Step 1: Write the failing tests.**
@@ -340,10 +340,10 @@
 
 ### Task 11: Record it
 
-- [ ] **Step 1:** Append **D505** to the ADR log: change cards live in the thread, are settled once by compare-and-set, never overwrite a field changed by hand since, and refusals are read back from settled cards; documents are proposed on in a background `kb-propose` job; "Save & re-analyze" and "Refine with AI" no longer rebuild or rewrite. Why, rejected (a table for cards or refusals; rebuilding the whole KB and diffing it, which re-words every field), refines D318, D496, D498.
+- [ ] **Step 1:** Append **D517** to the ADR log: change cards live in the thread, are settled once by compare-and-set, never overwrite a field changed by hand since, and refusals are read back from settled cards; documents are proposed on in a background `kb-propose` job; "Save & re-analyze" and "Refine with AI" no longer rebuild or rewrite. Why, rejected (a table for cards or refusals; rebuilding the whole KB and diffing it, which re-words every field), refines D318, D508, D510.
 - [ ] **Step 2:** Append an Outcome section to this plan.
 - [ ] **Step 3:** Add an entry to the team journal (artifact `7yU5A2TiWyxDLTwgaXpjHC`) and set piece 2.3 on its map to Built.
-- [ ] **Step 4: Commit.** `docs(adr): D505, change cards on the brand KB`
+- [ ] **Step 4: Commit.** `docs(adr): D517, change cards on the brand KB`
 
 ## How Cyril tests it
 
@@ -358,7 +358,7 @@ Restart `npm run dev` and `npx trigger dev`. Use a client with an approved brand
 
 ## Outcome (2026-11-19)
 
-Built in ten commits, then one review and one fix pass (`6961cb78..c8924793`, unpushed). Recorded as D505. No migration.
+Built in ten commits, then one review and one fix pass (`6961cb78..c8924793`, unpushed). Recorded as D517. No migration.
 
 **Departures from the plan**
 - Added `getCopilotMessage` to read one message, so approving a card never reads the whole thread.

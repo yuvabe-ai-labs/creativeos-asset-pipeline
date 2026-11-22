@@ -39,7 +39,7 @@ What follows from that, and is built in Task 9: a save writes only the fields th
 - Controls are shadcn primitives from `src/components/ui/*`; links inside buttons use the `render` prop. Icons Lucide, stroke 1.5. Colours through CSS variables only.
 - Browser reads and writes go service → query file → component. Routes use `apiOk/apiError`, `withClient`, `withTryCatch`.
 - User-facing text: plain sentences, no em dashes, "brand KB", "avatar" where a person on screen is meant.
-- Migration 0064 is written, never applied by the agent. Cyril applies migrations.
+- Migration 0065 is written, never applied by the agent. Cyril applies migrations.
 - Nothing is pushed or merged.
 
 ## Review Focus
@@ -56,7 +56,7 @@ What follows from that, and is built in Task 9: a save writes only the fields th
 
 | File | Responsibility |
 |---|---|
-| `supabase/migrations/0064_kb_review_writes.sql` | `patch_kb_fields`, `kb_unreviewed_fields` |
+| `supabase/migrations/0065_kb_review_writes.sql` | `patch_kb_fields`, `kb_unreviewed_fields` |
 | `src/lib/db/kb.ts` (modify) | `patchKBFields`, `listUnreviewedFields` |
 | `src/lib/kb/field-patch.ts` | The shape of a field patch and which paths may be patched (pure) |
 | `src/lib/kb/review-sync.ts` | What a save sends, and taking the server's KB into the screen's two copies (pure) |
@@ -75,7 +75,7 @@ What follows from that, and is built in Task 9: a save writes only the fields th
 
 ### Task 1: Field writes that merge, and a cheap read of what is unreviewed
 
-**Files:** Create `supabase/migrations/0064_kb_review_writes.sql`, `src/lib/kb/field-patch.ts` (the type only). Modify `src/lib/db/kb.ts`. Test `src/lib/db/__tests__/kb-review.test.ts`.
+**Files:** Create `supabase/migrations/0065_kb_review_writes.sql`, `src/lib/kb/field-patch.ts` (the type only). Modify `src/lib/db/kb.ts`. Test `src/lib/db/__tests__/kb-review.test.ts`.
 
 **Interfaces. Produces:**
 - SQL `patch_kb_fields(p_version_id uuid, p_patches jsonb) returns void` (plpgsql). `p_patches` is `[{ "path": ["target_audience","age_range"], "patch": {"status":"approved"} }]`. Locks the row, and for each entry whose current value at `path` is a JSON object sets it to `current || patch`; an entry whose path holds no object is skipped (it never creates a field). One `update`.
@@ -107,7 +107,7 @@ it("throws when the read fails or the version is missing, never an empty list", 
 - [ ] **Step 3:** Write the migration and the two db functions.
 - [ ] **Step 4:** Run the same command. Expected: PASS (3).
 - [ ] **Step 5:** Add to the top of the migration, as a comment, the two statements Cyril can run after applying it to see it work (`select kb_unreviewed_fields('<a version id>')`, and a `patch_kb_fields` call wrapped in `begin; … rollback;`).
-- [ ] **Step 6:** Commit `feat(kb): field writes that merge, and a read of what is unreviewed (migration 0064, unapplied)`.
+- [ ] **Step 6:** Commit `feat(kb): field writes that merge, and a read of what is unreviewed (migration 0065, unapplied)`.
 
 ### Task 2: The reviewable fields and the account
 
@@ -592,14 +592,14 @@ ThreadGateCard({ title, opens, why, busy, onApprove }: { title: string; opens: s
 **Files:** Modify `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` §7, `docs/superpowers/specs/2026-11-12-copilot-journey-brand-kb-design.md` (§2.3 and §7: the 2026-11-16 decision on Save and Discard, and the calls above that Cyril kept).
 
 - [ ] **Step 1:** Append, in the log's format (Decision / Why / Rejected / Refines / Originated):
-  - **D498** The brand KB review screen keeps its draft and "Save changes", and gains "Discard changes"; a save writes only the fields that changed, and tells the copilot. Rejected: saving each review the moment it is made (Cyril, 2026-11-16); saving the whole KB from the draft, which writes old values over the copilot's answers. Refines D318.
-  - **D499** In a review walk, code chooses and words each question and decides when the walk stops; the model reads the answer and calls a tool; a tool never writes a reviewed field. Refines D497.
-  - **D500** "Waiting for you" and the gate card are worked out on each thread read and never stored; an approval is one function for every caller and writes a "who approved" message that keeps the approver's name as it was.
-- [ ] **Step 2:** Commit `docs(adr): D498 to D500, the brand KB review walk`.
+  - **D510** The brand KB review screen keeps its draft and "Save changes", and gains "Discard changes"; a save writes only the fields that changed, and tells the copilot. Rejected: saving each review the moment it is made (Cyril, 2026-11-16); saving the whole KB from the draft, which writes old values over the copilot's answers. Refines D318.
+  - **D511** In a review walk, code chooses and words each question and decides when the walk stops; the model reads the answer and calls a tool; a tool never writes a reviewed field. Refines D509.
+  - **D512** "Waiting for you" and the gate card are worked out on each thread read and never stored; an approval is one function for every caller and writes a "who approved" message that keeps the approver's name as it was.
+- [ ] **Step 2:** Commit `docs(adr): D510 to D512, the brand KB review walk`.
 
 ---
 
-## Browser check (Cyril, after migration 0064 on the test database)
+## Browser check (Cyril, after migration 0065 on the test database)
 
 1. Build a new client's KB. When it lands, the panel says how many fields it filled, inferred and could not find, and asks one question with its field named above it.
 2. Press "Yes, that's right": the field on the right turns approved without a reload, and the next question appears.
@@ -620,7 +620,7 @@ ThreadGateCard({ title, opens, why, busy, onApprove }: { title: string; opens: s
 
 ## Outcome (2026-11-16): built, reviewed once, fixed
 
-All eleven tasks are built on `feat/copilot-journey`. One independent review found no critical issue and three important ones; one fix pass followed. Whole suite after the fixes: 5,610 passed, 2 failed (the two that were failing before this work), 3 skipped. Nothing here has been run in a browser, and migration 0064 has not been run against a database.
+All eleven tasks are built on `feat/copilot-journey`. One independent review found no critical issue and three important ones; one fix pass followed. Whole suite after the fixes: 5,610 passed, 2 failed (the two that were failing before this work), 3 skipped. Nothing here has been run in a browser, and migration 0065 has not been run against a database.
 
 ### Where the build departed from this plan
 

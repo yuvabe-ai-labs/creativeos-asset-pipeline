@@ -5,7 +5,7 @@ import { castReadyForPanels, panelInputs, panelReferenceCap } from "./panel-inpu
 import type { PanelTake, VisualiseBoard } from "./schema";
 import { panelView, type PanelStatus } from "./state";
 
-// Piece 5.1 (D512) — the storyboard as the copilot is told it, from the same pure functions the
+// Piece 5.1 (D524) — the storyboard as the copilot is told it, from the same pure functions the
 // board draws with (panelInputs, panelView), so what the copilot reads is what the page shows.
 
 const STATE: Record<PanelStatus, PanelState> = {

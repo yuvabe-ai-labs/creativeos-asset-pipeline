@@ -98,7 +98,7 @@ export function draftPrompt(base: CopilotBase, i: { brief: Brief; card: Confirma
   };
 }
 
-/** Piece 5.1 (D512) — what the copilot may do once the script is at Visualise. Sent only at Visualise,
+/** Piece 5.1 (D524) — what the copilot may do once the script is at Visualise. Sent only at Visualise,
  *  so the prompt at Generate is exactly as it was. */
 export const VISUALISE_RULES = [
   "The script is final and its storyboard is being drawn. You can still change it: casting, the lead, locations, products and the script's words apply at once; adding, removing, splitting or moving shots, and adding, removing, renaming or redescribing a character, are shown to the person before and after to accept.",

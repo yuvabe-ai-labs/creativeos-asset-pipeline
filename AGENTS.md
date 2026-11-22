@@ -198,7 +198,7 @@ Every resource is split into three layers, and nothing skips one:
 <!-- BEGIN:performance -->
 # Streaming — a copilot shows its work as it happens
 
-**Anything a copilot does that a person waits on is shown as it happens, not when it is finished** (D502).
+**Anything a copilot does that a person waits on is shown as it happens, not when it is finished** (D514).
 This holds for every copilot surface: brand KB, market research, scripts, and the stages still to come.
 Spec: [docs/superpowers/specs/2026-11-17-copilot-streaming-design.md](docs/superpowers/specs/2026-11-17-copilot-streaming-design.md).
 
@@ -211,7 +211,7 @@ Spec: [docs/superpowers/specs/2026-11-17-copilot-streaming-design.md](docs/super
 # Turn traces — every copilot turn leaves a trace
 
 **Every agent turn keeps a trace of exactly what the model was sent, each tool call and what it
-returned, and what code did around it** (D509), seen in the copilot panel behind the "Turns" switch.
+returned, and what code did around it** (D521), seen in the copilot panel behind the "Turns" switch.
 Spec: [docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md](docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md).
 
 - An agent on the shared loop passes a `traceRecorder()` to `runAgent` (`trace:`), reports any
@@ -221,7 +221,7 @@ Spec: [docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md](docs/sup
 
 # The page shows the copilot's work
 
-**Whatever the copilot changes on a page, the page shows it happening** (D508): it goes there, marks
+**Whatever the copilot changes on a page, the page shows it happening** (D520): it goes there, marks
 what is asked about ("Copilot is asking"), shimmers what is being changed, and shows the change land.
 Spec: [docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md](docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md).
 

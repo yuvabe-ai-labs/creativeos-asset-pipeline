@@ -14,7 +14,7 @@ const bodySchema = z.object({
 });
 
 // POST /api/clients/:id/kb/propose { added, removed } — what "Save & re-analyze" in Source files
-// does now (brand KB spec §2.5, D505): the copilot reads the change against the brand KB and
+// does now (brand KB spec §2.5, D517): the copilot reads the change against the brand KB and
 // answers in the thread with a change card. Nothing is rebuilt, no review is wiped and the KB's
 // status is never touched. Images are not read here: they are studied as they are uploaded.
 export async function POST(req: Request, { params }: Ctx) {

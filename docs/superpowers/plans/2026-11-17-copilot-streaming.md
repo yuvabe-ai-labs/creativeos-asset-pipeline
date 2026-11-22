@@ -4,17 +4,17 @@
 
 **Goal:** A brand KB chat turn sends what it does to the browser as it happens: a named step line, each save at the moment it is stored, and the reply's words as they are written.
 
-**Architecture:** The shared agent loop gains optional event callbacks and stays pure. The OpenAI adapter streams when asked for words. The turn route answers as newline-delimited JSON, the same wire format the script copilot's first draft already uses (D337), ending with one `state` line that carries exactly what the route returns today. The browser reads the lines, keeps the in-flight step and words in the turn hook, and applies saves through the path D501 built.
+**Architecture:** The shared agent loop gains optional event callbacks and stays pure. The OpenAI adapter streams when asked for words. The turn route answers as newline-delimited JSON, the same wire format the script copilot's first draft already uses (D337), ending with one `state` line that carries exactly what the route returns today. The browser reads the lines, keeps the in-flight step and words in the turn hook, and applies saves through the path D513 built.
 
 **Tech Stack:** Next.js 16 route handler (`ReadableStream`, `after` from `next/server`), OpenAI SDK 7 (`responses.stream`), TanStack Query v5, Vitest.
 
-**Spec:** [docs/superpowers/specs/2026-11-17-copilot-streaming-design.md](../specs/2026-11-17-copilot-streaming-design.md). Decisions: D502 (the principle), D501 (plain saves), D497 (the loop), D337 (the wire format).
+**Spec:** [docs/superpowers/specs/2026-11-17-copilot-streaming-design.md](../specs/2026-11-17-copilot-streaming-design.md). Decisions: D514 (the principle), D513 (plain saves), D509 (the loop), D337 (the wire format).
 
 ## Global Constraints
 
 - Nothing is pushed or merged. No migration. Work on `feat/copilot-journey` in the worktree.
 - A turn stores the same messages it stores today, in the same order. Events change when things are seen, never what is saved.
-- D501 stays: `save_website` and `save_socials` end the turn with a reply worded by code.
+- D513 stays: `save_website` and `save_socials` end the turn with a reply worded by code.
 - No stop button. A reload in the middle of a turn behaves as it does today (no record that a turn is running).
 - Reply buttons appear only with the final state. Teammates see nothing live.
 - A turn that has started finishes and stores its reply even if the browser goes away.
@@ -299,7 +299,7 @@
 - Test: `src/lib/journey/thread/__tests__/turn-progress.test.ts` (create)
 
 **Interfaces:**
-- Consumes: `KbTurnEvent`, `kbTurn(…, onEvent)` (Tasks 4, 5), `nextSavedEvent` and `copilotThreadKeys.saved` (D501).
+- Consumes: `KbTurnEvent`, `kbTurn(…, onEvent)` (Tasks 4, 5), `nextSavedEvent` and `copilotThreadKeys.saved` (D513).
 - Produces:
   ```ts
   // turn-progress.ts
@@ -353,10 +353,10 @@
 - Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7)
 - Modify: this plan (an Outcome section)
 
-- [ ] **Step 1: Append D503** to the ADR log: a copilot turn answers as newline-delimited JSON event lines ending in one `state` line, the loop reports through optional callbacks and stays pure, and the turn is finished under `after` so a closed tab never loses a reply. Why, rejected (a second request or a realtime channel for progress; server-sent events as a separate format beside D337's), refines D337, D497, D502.
+- [ ] **Step 1: Append D515** to the ADR log: a copilot turn answers as newline-delimited JSON event lines ending in one `state` line, the loop reports through optional callbacks and stays pure, and the turn is finished under `after` so a closed tab never loses a reply. Why, rejected (a second request or a realtime channel for progress; server-sent events as a separate format beside D337's), refines D337, D509, D514.
 - [ ] **Step 2: Append an Outcome section** to this plan: departures from it, what the review changed, what is left for later, and what was not verified (nothing here is run in a browser by the implementer; the streamed OpenAI call is first exercised by Cyril's test).
 - [ ] **Step 3: Add an entry to the team journal** (artifact `7yU5A2TiWyxDLTwgaXpjHC`, "How we got here") and set piece 2.4 on its map to Built.
-- [ ] **Step 4: Commit.** `docs(adr): D503, how a copilot turn sends its work to the browser`
+- [ ] **Step 4: Commit.** `docs(adr): D515, how a copilot turn sends its work to the browser`
 
 ## How Cyril tests it
 
@@ -369,7 +369,7 @@
 
 ## Outcome (2026-11-18)
 
-Built as planned in seven commits, then one review and one fix pass (`8211af86..e3cd5921`, unpushed). Recorded as D503.
+Built as planned in seven commits, then one review and one fix pass (`8211af86..e3cd5921`, unpushed). Recorded as D515.
 
 **Departures from the plan**
 - The route tests read the answer through one `send` helper that waits for the whole stream, in place of rewriting each assertion.

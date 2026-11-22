@@ -143,4 +143,4 @@ Checking the plan against sections 2, 5 and 6 found four things named or shaped 
 1. **The message shape and the thread store's types** were named after the KB. They become the thread's, in their own folder.
 2. **The message, status lines, composer and attachment chip components** were KB components. They become thread components; the KB panel only wires them to the KB agent and the KB upload.
 3. **Reading the thread** had a KB route and a KB cache key. Market research will read the same thread, and the same data must not be cached twice. There will be one thread read and one key. Sending a turn stays per stage, because each stage has its own agent.
-4. **The decision record for the agent (D497)** said stage agents run inside the request. It will say the loop runs wherever the stage puts it, per section 6.
+4. **The decision record for the agent (D509)** said stage agents run inside the request. It will say the loop runs wherever the stage puts it, per section 6.

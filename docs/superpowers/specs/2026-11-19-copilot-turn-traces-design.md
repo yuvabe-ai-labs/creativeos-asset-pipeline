@@ -54,7 +54,7 @@ Cyril decided 2026-11-19: inside the copilot panel, behind a developer switch.
 **Non-goals (this piece)**
 - **Evals:** running fixed test cases against the agent and scoring them. A trace keeps what a test case would need, so "save this turn as a test case" can come later.
 - **The script copilot**, which does not use the shared agent loop today.
-- **Things the copilot writes without the model:** the build's own messages, failed-job lines (D506), "Manual edits saved" notes, approvals. They are already in the thread, and no agent decided them.
+- **Things the copilot writes without the model:** the build's own messages, failed-job lines (D518), "Manual edits saved" notes, approvals. They are already in the thread, and no agent decided them.
 - **Editing or replaying a turn** from its trace.
 - Cost per turn in money. *(Token counts may be shown if the model reports them; left to the builder.)*
 

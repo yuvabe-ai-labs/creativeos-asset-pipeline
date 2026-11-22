@@ -140,7 +140,7 @@ describe("walkMessages", () => {
 });
 
 
-// ── The walk's own buttons, carried out by code (D507) ─────────────────────────
+// ── The walk's own buttons, carried out by code (D519) ─────────────────────────
 
 import { walkChoice } from "../walk";
 

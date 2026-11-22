@@ -1,6 +1,6 @@
 # Scripting in the panel, part 1: the script's copilot stays with the script (piece 4.1)
 
-**Status:** approved by Cyril, 2026-11-20 (the recommended way: the panel on every script page now; the message box and abilities at Visualise arrive with piece 5). **Built 2026-11-20 as D511** (plan `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`); not yet run in a browser.
+**Status:** approved by Cyril, 2026-11-20 (the recommended way: the panel on every script page now; the message box and abilities at Visualise arrive with piece 5). **Built 2026-11-20 as D523** (plan `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`); not yet run in a browser.
 **Part of:** the copilot journey (`2026-11-12-copilot-journey-design.md`), piece 4. Built on the same branch. Piece 4 is built in two parts (Cyril, 2026-11-20): **4.1, this spec**, and **4.2, the extra script steps** (a confirmed one-sentence message, three hooks, an approved outline, checks after the draft), which gets its own spec. A tool for the copilot to bring things in (4.3 in the map) is **not** part of piece 4: the script copilot is already given the client's market signals and brand KB, and internet search arrives with market research (piece 3).
 
 ## 1. Problem
@@ -48,7 +48,7 @@ The script's copilot panel is shown on the script's page at **every** stage, not
 - The page's own trail (Clients › client › Scripts › script) stays as it is.
 
 ### 3.4 "Waiting for you" in a script
-The panel and its folded rail say what the person is waited on, worked out fresh each time from the script as stored, as on the brand KB (D500). *(My calls, the exact lines:)*
+The panel and its folded rail say what the person is waited on, worked out fresh each time from the script as stored, as on the brand KB (D512). *(My calls, the exact lines:)*
 
 | The script is… | The panel and rail say |
 |---|---|
@@ -80,7 +80,7 @@ The script's panel and the client's panel are one panel: the same card, header, 
 - Tools, internet search, turn traces for script turns (they come with the shared loop, with piece 3).
 - Merging the script's before-and-after card with the brand KB change card.
 - A chat on the Scripts tab, or showing the client's thread inside a script.
-- The page following the copilot inside a script (D508 targets for script beats): a later piece.
+- The page following the copilot inside a script (D520 targets for script beats): a later piece.
 - The canvas (piece 6).
 
 **Anti-goals: it fails if…**
@@ -96,7 +96,7 @@ The script's panel and the client's panel are one panel: the same card, header, 
 
 - AGENTS.md: shadcn primitives only; the design system; one look per concept; TanStack Query three layers; performance rules (nothing per item; no new polling).
 - The script's thread stays in its existing store, read through its existing route.
-- Streaming (D502) already holds for the script copilot at Generate and is not changed.
+- Streaming (D514) already holds for the script copilot at Generate and is not changed.
 
 ## 6. Left to the builder
 

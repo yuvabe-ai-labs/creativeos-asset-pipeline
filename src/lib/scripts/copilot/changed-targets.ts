@@ -1,6 +1,6 @@
 import type { ScriptDoc } from "../schema";
 
-// Piece 5.1 §3.8 (D508) — what a copilot change touched on the Visualise board, as the board's
+// Piece 5.1 §3.8 (D520) — what a copilot change touched on the Visualise board, as the board's
 // target ids ("cast:{id}", "location:{id}", "product:{id}", "shot:{id}"), so the page can show each
 // one land. Something removed has nothing left to show.
 

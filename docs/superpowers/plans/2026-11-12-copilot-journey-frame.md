@@ -36,7 +36,7 @@
 ### Task 1: Market research status on the client
 
 **Files:**
-- Create: `supabase/migrations/0062_client_market_status.sql`
+- Create: `supabase/migrations/0063_client_market_status.sql`
 - Modify: `src/lib/db/types.ts` (`ClientRow`)
 - Modify: `src/lib/db/clients.ts`
 
@@ -71,7 +71,7 @@ Expected: no new errors (fix any test fixture that builds a `ClientRow` by addin
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/migrations/0062_client_market_status.sql src/lib/db
+git add supabase/migrations/0063_client_market_status.sql src/lib/db
 git commit -m "feat(journey): clients carry a market research status; existing clients start approved"
 ```
 
@@ -373,7 +373,7 @@ it("changes nothing once market research is approved", …)                     
 - Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7, append)
 - Modify: `docs/superpowers/specs/2026-11-12-copilot-journey-design.md` (§7)
 
-- [ ] **Step 1: Find the next free ADR number** (`grep -o "\bD[0-9]\{3\}\b" docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md | sort -u | tail -1`; it was D493 on 2026-11-12, so D494 and D495 unless taken).
+- [ ] **Step 1: Find the next free ADR number** (`grep -o "\bD[0-9]\{3\}\b" docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md | sort -u | tail -1`; it was D493 on 2026-11-12, so D506 and D507 unless taken).
 - [ ] **Step 2: Append two ADRs** in the log's format (Decision / Why / Rejected / Refines / Originated → spec):
   - **Client frame.** Decision: one server layout wraps every client screen in stage tabs and a foldable left guide panel; the canvas editor is outside it; the panel is deterministic until the stage agents land. Why: one place to show where a client is; pages stay untouched. Rejected: a tab bar repeated in each page; a per-page panel.
   - **Stage gates.** Decision: `clients.market_status`; market research opens on a ready brand KB; new scripts open on approved research; existing clients start approved; a pasted script skips the gate; a person approves. Why and rejected: from the spec, sections 3 and 6. Refines: Market Signals V1 (adds an approval; "no AI" is unchanged in this piece).

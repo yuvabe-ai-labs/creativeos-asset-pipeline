@@ -15,7 +15,7 @@ import { useScriptFollow } from "./script-follow-context";
 
 const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** Piece 5.1 §3.2 (D514) — the walk's current step, at the foot of the thread. Worked out from the
+/** Piece 5.1 §3.2 (D526) — the walk's current step, at the foot of the thread. Worked out from the
  *  board each time it is shown. The send step is the send card, shown by the caller. Drawing is
  *  the board's own Generate all, with its confirmation. */
 export function CopilotStepCard({ clientId, step, avatars, onAttach }: {

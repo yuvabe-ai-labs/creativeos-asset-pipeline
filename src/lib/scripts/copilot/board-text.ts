@@ -1,4 +1,4 @@
-// Piece 5.1 (D512) — the storyboard as the copilot reads it at Visualise: one line per shot with its
+// Piece 5.1 (D524) — the storyboard as the copilot reads it at Visualise: one line per shot with its
 // panel, how many versions it has and which is picked, then who has no avatar and what has no
 // picture. Built from the same pure functions the board shows (board-facts.ts), so the copilot and
 // the page never disagree about what is drawn.

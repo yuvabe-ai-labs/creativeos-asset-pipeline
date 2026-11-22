@@ -4,7 +4,7 @@ import { FIELD_LABELS } from "@/lib/kb/constants";
 import type { KBFieldPatch } from "@/lib/kb/field-patch";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 
-// The rules of a change card (brand KB spec §2.4, D505), apart from where it is stored: which
+// The rules of a change card (brand KB spec §2.4, D517), apart from where it is stored: which
 // proposals make it onto a card, what approving it writes, and what a refusal leaves behind. Pure.
 
 /** One value the copilot would put in one field, and where it came from. */

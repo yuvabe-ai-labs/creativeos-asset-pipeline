@@ -1,13 +1,13 @@
 # Image Analysis through a change card (piece 2b)
 
-**Status:** built 2026-11-20 (D510). Approved by Cyril, 2026-11-20. Plan: `docs/superpowers/plans/2026-11-20-copilot-image-analysis-card.md`. Approach A chosen by Cyril on 2026-11-20.
+**Status:** built 2026-11-20 (D522). Approved by Cyril, 2026-11-20. Plan: `docs/superpowers/plans/2026-11-20-copilot-image-analysis-card.md`. Approach A chosen by Cyril on 2026-11-20.
 **Part of:** the copilot journey (`2026-11-12-copilot-journey-design.md`), piece 2b. Built on the same branch. Follows the brand KB spec (`2026-11-12-copilot-journey-brand-kb-design.md` §2.4, where Cyril decided on 2026-11-13 that Image Analysis must go through a change card too).
 
 ## 1. Problem
 
 The Image Analysis section of the brand KB is rewritten every time the client's images are studied again: when an image is uploaded or removed, when images are brought in from the website or socials, when one is attached in the chat, or when someone presses re-run. The study writes straight into the brand KB.
 
-For most fields that is fine. But when a person has **approved or rejected** a written field and a later study reads the images differently, the field is replaced and sent back to "needs review". The person only sees one line in the thread ("Studied the images again. Changed: …"). Something they reviewed has been changed without their say, which is the one thing the rest of the brand KB no longer allows (D505).
+For most fields that is fine. But when a person has **approved or rejected** a written field and a later study reads the images differently, the field is replaced and sent back to "needs review". The person only sees one line in the thread ("Studied the images again. Changed: …"). Something they reviewed has been changed without their say, which is the one thing the rest of the brand KB no longer allows (D517).
 
 ## 2. What changes
 
@@ -57,7 +57,7 @@ The card is the one the brand KB already uses: each field with its value before 
 
 ## 5. Constraints
 
-- The existing change card and its rules (D505); no second approval mechanism (approach B, a separate pending copy on the Image Analysis tab, was turned down).
+- The existing change card and its rules (D517); no second approval mechanism (approach B, a separate pending copy on the Image Analysis tab, was turned down).
 - A study runs in the background; nothing here adds a wait for the person or a request from the page.
 - AGENTS.md rules: turn traces do not apply (no agent turn is involved: a study is not a copilot turn); streaming does not apply (background work reports through status lines).
 

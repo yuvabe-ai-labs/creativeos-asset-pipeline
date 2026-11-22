@@ -7,7 +7,7 @@
 ## Before you start
 
 - **Environment.** Staging, or a local run against the staging database with both `npm run dev` and `npx trigger dev` running. Background work (the KB build, collecting images, studying images, reading new documents) needs Trigger.dev. If it is not running, those steps never finish.
-- **Database.** Migrations 0062, 0063, 0064 and 0065 must be applied (0065 only for section 7; without it every turn still works).
+- **Database.** Migrations 0063, 0064, 0065 and 0066 must be applied (0066 only for section 7; without it every turn still works).
 - **Trigger.dev deploy (staging only).** The `kb-propose` task, the 5-minute dead-job sweep and the daily `copilot-trace-sweep` must be deployed, or documents are never read and section 6.11 onwards cannot pass.
 - **Clients.** You need three kinds:
   - **New client:** created for the test, no brand KB yet.
@@ -135,7 +135,7 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 6.35 | After any upload, look at the counted fields (format mix, purpose mix, colours). | Their numbers move, a review on them stays, and they are never on a card. |
 | 6.36 | *(approved client with approved written Image Analysis fields)* Upload one more image much like the ones already there. | No card: the study keeps the approved words. (If a card appears whose "after" only rewords the "before", report it as a fail with both texts.) |
 
-## 7. Turn traces (D509) *(client in review unless marked)*
+## 7. Turn traces (D521) *(client in review unless marked)*
 
 | # | Do | Expected |
 |---|---|---|
@@ -148,9 +148,9 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 7.7 | Stop the model locally (an invalid OpenAI key), send a message, restore it. | The turn's line is marked "Failed", and its trace shows the error. The panel showed its usual failure reply. |
 | 7.8 | *(two people)* The second person turns on Turns. Then open a trace URL (`/api/clients/{client of another organisation}/copilot/traces/{id}`). | The second person sees the same lines. The other organisation's trace is refused. |
 | 7.9 | With Turns off, open DevTools → Network, reload, and send a message. | No request to `/copilot/traces`. With Turns on, one request on load and one about 1.5 seconds after each turn; none in between. |
-| 7.10 | Before 0065 is applied (local), send a message. | The turn answers normally. The server log shows "could not keep the trace". |
+| 7.10 | Before 0066 is applied (local), send a message. | The turn answers normally. The server log shows "could not keep the trace". |
 
-## 8. The page shows the copilot's work (D508)
+## 8. The page shows the copilot's work (D520)
 
 | # | Do | Expected |
 |---|---|---|
@@ -166,7 +166,7 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 8.10 | *(approved client)* Approve a change card. | The page does not move. Changed fields that are on screen highlight briefly. |
 | 8.11 | *(client in review)* Stop the model (an invalid key) and type an answer. | No sweep is left running after the failure reply. |
 
-## 9. Scripting in the panel (D511)
+## 9. Scripting in the panel (D523)
 
 | # | Do | Expected |
 |---|---|---|
@@ -182,7 +182,7 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 9.10 | Make the window narrower than the panel's breakpoint at each stage. | At Generate and Visualise the chat stacks above the page. In review and Approved: no panel; the storyboard has the page. |
 | 9.11 | At Visualise, open DevTools → Network and reload. Then send one message. | No request for the script's copilot thread on load (the page brings it). Sending makes one `/turn` request, then the board is read again once. |
 
-## 10. The copilot at Visualise (D512–D515)
+## 10. The copilot at Visualise (D524–D527)
 
 | # | Do | Expected |
 |---|---|---|

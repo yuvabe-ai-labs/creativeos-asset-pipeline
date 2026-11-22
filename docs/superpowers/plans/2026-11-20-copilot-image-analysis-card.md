@@ -4,7 +4,7 @@
 
 **Goal:** A study of the client's images never changes an Image Analysis field a person has reviewed: it proposes the change on the existing change card in the copilot thread, and still updates unreviewed and counted fields directly.
 
-**Architecture:** The study's write step splits its result with one pure function: what it may write (the section to store) and what it proposes (reviewed written fields that would change). The proposals become an ordinary change card (D505) in the client's onboarding thread, built by the existing `buildChangeCard` given the Image Analysis fields. A study that wrote first marks any earlier, still-pending image-study card out of date, and leaves out values a person already turned down for that field. Approving goes through the existing route unchanged (`isPatchablePath` already accepts `image_analysis.*`); the panel then refreshes the Image Analysis tab's own read so the tab shows the approved value at once.
+**Architecture:** The study's write step splits its result with one pure function: what it may write (the section to store) and what it proposes (reviewed written fields that would change). The proposals become an ordinary change card (D517) in the client's onboarding thread, built by the existing `buildChangeCard` given the Image Analysis fields. A study that wrote first marks any earlier, still-pending image-study card out of date, and leaves out values a person already turned down for that field. Approving goes through the existing route unchanged (`isPatchablePath` already accepts `image_analysis.*`); the panel then refreshes the Image Analysis tab's own read so the tab shows the approved value at once.
 
 **Tech Stack:** TypeScript, Vitest, Supabase (service-role client), Trigger.dev background run (`src/lib/image-analysis/run.ts`), TanStack Query v5.
 
@@ -166,7 +166,7 @@ it("lists the pending change cards of the onboarding thread with their ids", …
 
 **Files:**
 - Modify: `src/hooks/queries/copilot-thread.ts` (`useDecideChange` `onSuccess`: `queryClient.invalidateQueries({ queryKey: imageAnalysisKeys.status(clientId) })`, since the Image Analysis tab reads the section through that query, not through the page re-read)
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (CRLF): append the next free ADR (check the log's last number; D510 expected): decision, why, rejected (approach B; cards for counted fields; proposing over hand-written fields).
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (CRLF): append the next free ADR (check the log's last number; D522 expected): decision, why, rejected (approach B; cards for counted fields; proposing over hand-written fields).
 - Modify: `docs/qa/2026-11-18-copilot-journey-manual-qa.md`: rewrite check 6.26 and add the checks below to section 6.
 - Modify: the spec's Status line (built), `2026-11-12-copilot-journey-brand-kb-design.md` line 70 (the exception is now closed, pointing to this spec), this plan (Outcome after the review).
 

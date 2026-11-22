@@ -28,7 +28,7 @@ type Props = {
   onUndoDocRemoval: (id: string) => void;
   onMarkImageForRemoval: (id: string) => void;
   onUndoImageRemoval: (id: string) => void;
-  /** From the page: a source the copilot just saved lands here when the drawer is open (D508). The
+  /** From the page: a source the copilot just saved lands here when the drawer is open (D520). The
    *  drawer is never opened for the copilot. */
   stateOf?: (target: string) => TargetState;
   onDocFiles: (files: File[]) => void;

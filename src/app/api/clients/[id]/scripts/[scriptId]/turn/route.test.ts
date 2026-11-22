@@ -186,7 +186,7 @@ describe("POST .../turn while market research is pending", () => {
   });
 });
 
-// Piece 5.1 (D512) — the copilot answers at Visualise too.
+// Piece 5.1 (D524) — the copilot answers at Visualise too.
 describe("POST .../turn at Visualise", () => {
   const doc = scriptDocSchema.parse(reel01);
   const atVisualise = generateScript({ stage: "visualise", doc, updatedAt: "t1" });

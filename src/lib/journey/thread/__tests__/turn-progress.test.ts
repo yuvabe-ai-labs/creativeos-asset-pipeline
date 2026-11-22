@@ -35,7 +35,7 @@ describe("applyTurnEvent", () => {
   });
 });
 
-describe("applyTurnEvent, targets (D508)", () => {
+describe("applyTurnEvent, targets (D520)", () => {
   it("leaves the progress as it is on a target event", () => {
     const before = after({ type: "step", text: "Saving your answer…" });
     expect(applyTurnEvent(before, { type: "target", target: "kb:a.b", phase: "writing" })).toBe(before);

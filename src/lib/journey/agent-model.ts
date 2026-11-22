@@ -5,7 +5,7 @@ import type { FunctionTool, ResponseInputItem } from "openai/resources/responses
 import { createOpenAI } from "@/lib/openai/server";
 import { toolDefinitions, type AgentModel, type ToolCall } from "./agent";
 
-// The OpenAI adapter for the shared agent loop (D497): Responses API function tools. This is the
+// The OpenAI adapter for the shared agent loop (D509): Responses API function tools. This is the
 // thin edge the loop's tests do not cover; everything that decides anything lives in agent.ts.
 // A second provider is a second adapter beside this file, never a change to the loop.
 
@@ -55,7 +55,7 @@ export function openaiAgentModel(modelId: string): AgentModel {
     }
     roundsSent = rounds.length;
 
-    // The same definitions a turn trace keeps (D509), so what is traced is what is sent.
+    // The same definitions a turn trace keeps (D521), so what is traced is what is sent.
     const functionTools: FunctionTool[] = toolDefinitions(tools).map((t) => ({
       type: "function", ...t,
       // Not strict: strict mode forbids optional arguments, and the loop validates every call anyway.
@@ -74,7 +74,7 @@ export function openaiAgentModel(modelId: string): AgentModel {
     const options = { timeout: CALL_TIMEOUT_MS, maxRetries: 0 };
     const client = createOpenAI();
     // The same request either way. With a listener the reply is streamed and each piece of text is
-    // passed on as it is written (D502); the whole response is still what the rest of this reads.
+    // passed on as it is written (D514); the whole response is still what the rest of this reads.
     let response;
     if (onText) {
       // The SDK's own timeout stops at the first byte of a streamed answer, so a stream that stalls

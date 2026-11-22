@@ -59,7 +59,7 @@ export async function POST(req: Request, { params }: Ctx) {
       // The caller is resolved once and passed down; the context and the thread do not depend on each other.
       // A built KB is read once per turn (never by the polled read). In review the copilot answers
       // about its fields and may fill the ones still unreviewed; a reviewed field it only proposes
-      // to change, on a change card made against this version (D505).
+      // to change, on a change card made against this version (D517).
       const reviewing = client.kb_status === "in_review" && client.active_kb_version_id !== null;
       const [{ userId }, { ctx, sources }, stored, version] = await Promise.all([
         resolveCallerContext(),
@@ -87,7 +87,7 @@ export async function POST(req: Request, { params }: Ctx) {
       // attached. It never holds up the turn, and never fails it.
       const study = attachments.some((a) => a.kind === "image") ? startImageAnalysisQuietly(clientId, userId) : null;
       // A document attached once the KB is built is read against it in the background, and comes
-      // back as a change card (D505). Before a build it is simply a source for the build.
+      // back as a change card (D517). Before a build it is simply a source for the build.
       const documents = attachments.filter((a) => a.kind === "document");
       const proposing = version && documents.length > 0
         ? startKbProposal(clientId, userId, { added: documents.map((d) => ({ id: d.id, name: d.name })), removed: [] }).catch((e) => {
@@ -95,7 +95,7 @@ export async function POST(req: Request, { params }: Ctx) {
           })
         : null;
 
-      // From here the answer is a stream of event lines (D502): what the copilot does is sent as it
+      // From here the answer is a stream of event lines (D514): what the copilot does is sent as it
       // happens, and the last line is the whole thread, as the turn used to answer in one piece.
       // A line that cannot be sent (the browser has gone) is dropped; it never stops the turn.
       const encoder = new TextEncoder();
@@ -108,7 +108,7 @@ export async function POST(req: Request, { params }: Ctx) {
         }
       };
 
-      // What this turn's trace keeps (D509): filled in as the turn runs, stored once it is over.
+      // What this turn's trace keeps (D521): filled in as the turn runs, stored once it is over.
       const recorder = traceRecorder();
       const began = Date.now();
       const kept: {

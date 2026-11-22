@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// The tool-calling loop every stage agent shares (D497). Pure: it imports no SDK, the model is
+// The tool-calling loop every stage agent shares (D509). Pure: it imports no SDK, the model is
 // passed in, and it does not know where it runs. A stage supplies the prompt and the tools.
 //
 // The model only ever says what it wants. This loop is what acts, and each tool's own code decides
@@ -20,7 +20,7 @@ export type AgentTool = {
   quiet?: boolean;
 };
 
-/** What a turn reports while it runs (D502), for whoever is showing it. All optional: a turn with
+/** What a turn reports while it runs (D514), for whoever is showing it. All optional: a turn with
  *  no listener runs exactly the same. `reset` means the words sent so far are not the reply after
  *  all, because the model went on to ask for a tool. */
 export type AgentEvents = { text?: (delta: string) => void; reset?: () => void; step?: (label: string) => void };
@@ -40,7 +40,7 @@ export type AgentModel = (input: {
 }) => Promise<{ text: string; calls: ToolCall[]; answer?: unknown }>;
 
 /** A tool as the model is told about it: its name, description and JSON schema. The adapter sends
- *  exactly these, and a turn's trace keeps exactly these (D509). */
+ *  exactly these, and a turn's trace keeps exactly these (D521). */
 export type ToolDefinition = { name: string; description: string; parameters: Record<string, unknown> };
 
 export function toolDefinitions(tools: Record<string, AgentTool>): ToolDefinition[] {
@@ -49,14 +49,14 @@ export function toolDefinitions(tools: Record<string, AgentTool>): ToolDefinitio
   }));
 }
 
-/** Where a turn reports what it did, as it does it (turn traces, D509). Reported as it happens, so a
+/** Where a turn reports what it did, as it does it (turn traces, D521). Reported as it happens, so a
  *  turn that fails half-way still leaves what it did up to then. */
 export type TraceSink = {
   /** What the model was given, exactly: reported once, before the first call. */
   sent: (s: { system: string; messages: AgentMessage[]; tools: ToolDefinition[] }) => void;
   /** One model answer and the tools it asked for, with what each returned. No calls on the final answer. */
   round: (r: { text: string; calls: ToolCall[]; results: ToolResult[]; ms: number }) => void;
-  /** A choice code carried out with no model call (a reply button, D507). */
+  /** A choice code carried out with no model call (a reply button, D519). */
   choice: (c: { tool: string; args: unknown; output: string }) => void;
   /** A tool refused what the model asked, in a sentence rather than an error. */
   refused: (sentence: string) => void;

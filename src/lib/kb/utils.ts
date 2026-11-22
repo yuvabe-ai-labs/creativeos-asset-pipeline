@@ -124,7 +124,7 @@ export function getFieldPath(module: ModuleKey, fieldKey: string): FieldPath {
   }
 }
 
-/** Where a review field lives on the review page (D508): its tab and its key, from its dotted path.
+/** Where a review field lives on the review page (D520): its tab and its key, from its dotted path.
  *  Null for a path no tab shows (Image Analysis is reviewed on its own tab, not by the copilot). */
 export function fieldLocation(path: string): { module: ModuleKey; fieldKey: string } | null {
   const parts = path.split(".");

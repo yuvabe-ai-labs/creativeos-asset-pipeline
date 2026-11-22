@@ -2,7 +2,7 @@ import { walkOf } from "@/lib/journey/kb-copilot/walk";
 import type { ThreadState } from "./schema";
 
 // What the copilot is doing to the page right now, by target (the page shows the copilot's work,
-// D508). Kept by the panel in the query cache and read by the page beside it. Stage-neutral and pure:
+// D520). Kept by the panel in the query cache and read by the page beside it. Stage-neutral and pure:
 // a target is an opaque id the page tagged.
 
 export type TargetActivity = {

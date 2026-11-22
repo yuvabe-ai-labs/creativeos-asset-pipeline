@@ -1,7 +1,7 @@
 import type { AgentMessage, ToolCall, ToolDefinition, ToolResult, TraceSink } from "../agent";
 
 // A trace sink that keeps what a turn reports, in order, for the route to store once the turn is
-// over (turn traces, D509). Pure: it stores nothing itself.
+// over (turn traces, D521). Pure: it stores nothing itself.
 
 export type TraceRecord = {
   sent: { system: string; messages: AgentMessage[]; tools: ToolDefinition[] } | null;

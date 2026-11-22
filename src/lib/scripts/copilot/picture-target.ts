@@ -1,9 +1,9 @@
 import type { ScriptDoc } from "../schema";
 
-// Piece 5.1 §3.7 (D515) — which product or location a picture attached in the chat is for, decided
+// Piece 5.1 §3.7 (D527) — which product or location a picture attached in the chat is for, decided
 // in the browser before it uploads, by code: the item the person pressed "Attach a picture" on, else
 // the one item the message names, else the only item still without a picture; otherwise ask. Targets
-// are "product:{id}" and "location:{id}", the board's own ids for them (D508).
+// are "product:{id}" and "location:{id}", the board's own ids for them (D520).
 
 export type PictureTarget = { target: string } | { ask: { id: string; name: string }[] } | { none: true };
 

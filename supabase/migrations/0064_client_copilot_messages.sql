@@ -1,6 +1,6 @@
 -- Copilot journey, piece 2 part 1. Spec:
 -- docs/superpowers/specs/2026-11-12-copilot-journey-brand-kb-design.md §3; map
--- docs/superpowers/specs/2026-11-15-copilot-journey-map.md §5 (D496).
+-- docs/superpowers/specs/2026-11-15-copilot-journey-map.md §5 (D508).
 --
 -- The client's saved onboarding thread: one conversation per client that starts before any script
 -- exists, so it cannot live in client_script_messages (which requires a script). A script's own

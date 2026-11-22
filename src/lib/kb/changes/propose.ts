@@ -1,4 +1,4 @@
-// One kb-propose run (D505): read new or remaining documents against the brand KB as it stands and
+// One kb-propose run (D517): read new or remaining documents against the brand KB as it stands and
 // answer in the client's thread with a change card, or a line saying nothing changes. Called by
 // the kb-propose task. State always moves: the job ends succeeded or failed with a plain reason.
 import "server-only";
@@ -126,7 +126,7 @@ export async function runKbProposal(jobId: string, deps: { model?: ProposeModel 
     } catch (failError) {
       console.error("[kb-propose] could not mark the job failed", { jobId, error: describeError(failError) });
     }
-    // The red failed line every job failure gets (D506); it never throws.
+    // The red failed line every job failure gets (D518); it never throws.
     await sayJobFailed({ client_id: clientId, kind: "kb-propose", input });
   }
 }

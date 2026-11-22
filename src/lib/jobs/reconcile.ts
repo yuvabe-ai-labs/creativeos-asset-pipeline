@@ -25,7 +25,7 @@ export type RunStatusLookup = (runId: string) => Promise<string | null>;
 
 type LiveJob = { id: string; client_id: string | null; kind: JobKind; input: unknown; trigger_run_id: string; created_at: string };
 
-/** Told about each job the sweep failed, so its feature can say so (D506). */
+/** Told about each job the sweep failed, so its feature can say so (D518). */
 export type OnJobFailed = (job: Pick<LiveJob, "client_id" | "kind" | "input">) => Promise<void>;
 
 export async function reconcileDeadJobs(

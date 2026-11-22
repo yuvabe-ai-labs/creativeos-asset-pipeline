@@ -1,4 +1,4 @@
--- Copilot turn traces (D509). Spec: docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md.
+-- Copilot turn traces (D521). Spec: docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md.
 --
 -- One row per agent turn of a client's copilot: what came in, exactly what the model was sent, each
 -- round of tool calls and what they returned, what code did around the model, and how it ended. Kept
@@ -30,5 +30,5 @@ create index copilot_turn_traces_age_idx on copilot_turn_traces (created_at);
 -- Opening the trace of one reply.
 create index copilot_turn_traces_message_idx on copilot_turn_traces (message_id);
 
--- Default-deny RLS with zero policies, as 0063: the app goes through the service-role client.
+-- Default-deny RLS with zero policies, as 0064: the app goes through the service-role client.
 alter table copilot_turn_traces enable row level security;

@@ -462,7 +462,7 @@
   }
 }
 
-/* The page shows the copilot's work (D508). A calm sweep while a target is being changed (not
+/* The page shows the copilot's work (D520). A calm sweep while a target is being changed (not
    the brand shimmer of the copilot's working line), and a highlight that holds, then fades, when the
    change lands. Reduced motion: no sweep; the highlight stays still until it is removed. */
 @keyframes target-sweep {

@@ -25,7 +25,7 @@ describe("journeyState", () => {
 });
 
 describe("before the market_status column exists", () => {
-  // Code can reach a database before migration 0062 does. A row without the column must read as
+  // Code can reach a database before migration 0063 does. A row without the column must read as
   // approved, or every client's scripts would lock.
   const row = { kb_status: "ready" } as unknown as Parameters<typeof journeyState>[0];
   it("reads as approved and unlocked", () => {

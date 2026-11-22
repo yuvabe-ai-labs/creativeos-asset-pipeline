@@ -1,7 +1,7 @@
 import type { TraceRecord } from "@/lib/journey/trace/recorder";
 import { TRACE_SENT_TEXT_MAX_CHARS } from "./constants";
 
-// What a brand KB turn's trace is marked with (turn traces spec §3.2, D509). The marks are about what
+// What a brand KB turn's trace is marked with (turn traces spec §3.2, D521). The marks are about what
 // the turn achieved, not which tools it touched: many right turns call no tool, so "called no tool"
 // would mark them all. Pure.
 

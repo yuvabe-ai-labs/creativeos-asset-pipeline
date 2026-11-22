@@ -24,7 +24,7 @@ function uploadTarget(target: string): UploadTarget | null {
   return null;
 }
 
-/** Piece 5.1 §3.7 (D515) — the message box at Visualise, with a picture. Which product or location
+/** Piece 5.1 §3.7 (D527) — the message box at Visualise, with a picture. Which product or location
  *  it is for is decided here, before anything uploads (picture-target.ts); when nothing makes it
  *  clear, it asks. It then uploads exactly as the board does, into the script's own folder (never
  *  brand assets), and sends the message with the picture. */

@@ -3,7 +3,7 @@ import { castStillAsked } from "./suggestions";
 import type { VisualiseStep } from "./visualise-walk";
 
 // What a script's copilot panel and its folded rail say the person is waited on (scripting-panel
-// spec §3.4), worked out fresh from the script as stored, as on the brand KB (D500).
+// spec §3.4), worked out fresh from the script as stored, as on the brand KB (D512).
 
 /** `line` is the whole sentence shown. `reply` and `change` are only on the rail: the question or
  *  the card is already the last thing in the thread. `task` and `client` are also said at its foot. */

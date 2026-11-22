@@ -45,7 +45,7 @@ export async function POST(req: Request, { params }: Ctx) {
 
       const script = await getGenerateScript(clientId, scriptId);
       if (!script) return apiError("Script not found.", 404);
-      // Piece 5.1 (D512): the copilot also answers at Visualise. In review and Approved stay read-only.
+      // Piece 5.1 (D524): the copilot also answers at Visualise. In review and Approved stay read-only.
       if (script.stage !== "generate" && script.stage !== "visualise") return apiError("This script is final. Reopen it from Visualise to change it.", 409);
       const atVisualise = script.stage === "visualise";
       // Rule 14: the picture must be one this script holds, on the item it names.

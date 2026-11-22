@@ -383,7 +383,7 @@ export async function getActiveKBVersion(
 type KBFieldPatch = import("@/lib/kb/field-patch").KBFieldPatch;
 
 /** Merges each patch into its own field, all in one statement, and touches nothing else: a review
- *  saved from one place never undoes a field filled from another (migration 0064).
+ *  saved from one place never undoes a field filled from another (migration 0065).
  *
  *  `onlyUnreviewed` is for the copilot: a field somebody has reviewed since is left alone, checked
  *  in the database at the moment of the write. Returns how many fields were written. */
@@ -406,7 +406,7 @@ export async function listUnreviewedFields(versionId: string): Promise<string[]>
   return data as string[];
 }
 
-/** The stored values at these dotted field paths of one KB version (D505), read by JSON path so the
+/** The stored values at these dotted field paths of one KB version (D517), read by JSON path so the
  *  KB itself is never downloaded. Each path is checked to name a KB field before it reaches the
  *  query. Throws when the read fails or the version is gone: an unknown value is never "empty". */
 export async function readKBFieldValues(versionId: string, paths: string[]): Promise<Record<string, unknown>> {

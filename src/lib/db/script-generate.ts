@@ -67,7 +67,7 @@ export function changeGenerateScript<T>(clientId: string, scriptId: string, chan
   );
 }
 
-/** Piece 5.1 (D512) — the copilot's write at Visualise: compare-and-set on `updated_at`, the guard
+/** Piece 5.1 (D524) — the copilot's write at Visualise: compare-and-set on `updated_at`, the guard
  *  every Visualise write uses (script-visualise.ts), so a field typed on the board meanwhile is
  *  never overwritten, and only while the script is still at Visualise. Null when either moved on. */
 async function saveVisualiseScript(clientId: string, scriptId: string, expectedUpdatedAt: string, patch: ScriptPatch): Promise<GenerateScript | null> {

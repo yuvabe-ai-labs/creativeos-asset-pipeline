@@ -4,7 +4,7 @@
 
 **Goal:** Whatever the copilot changes on the page, the page shows it happening (go there, "Copilot is asking", working shimmer, landed highlight), built once as a shared mechanism and applied first to the brand KB: review fields, the pre-build form's website and handles, and the source list.
 
-**Architecture:** The copilot names what it works on as *targets* (strings such as `kb:target_audience.age_range`). The turn stream gains a `target` event per change (`writing`, then `written` or `unwritten`). The panel folds those events, plus "the asked target changed after my turn" and "a file I attached was saved", into a small *activity* record in the TanStack Query cache (the no-fetch channel D501 uses for saved websites). A shared hook on the page reads the activity and the waiting question (from the thread already in the cache, via `skipToken`, so no second poll), asks the page to reveal a target (switch tab), scrolls it into view, and gives each target its state; a shared `CopilotTarget` component draws the mark, sweep and highlight. The review page also adopts the server's value over the draft for the targets the copilot wrote (spec §3.2).
+**Architecture:** The copilot names what it works on as *targets* (strings such as `kb:target_audience.age_range`). The turn stream gains a `target` event per change (`writing`, then `written` or `unwritten`). The panel folds those events, plus "the asked target changed after my turn" and "a file I attached was saved", into a small *activity* record in the TanStack Query cache (the no-fetch channel D513 uses for saved websites). A shared hook on the page reads the activity and the waiting question (from the thread already in the cache, via `skipToken`, so no second poll), asks the page to reveal a target (switch tab), scrolls it into view, and gives each target its state; a shared `CopilotTarget` component draws the mark, sweep and highlight. The review page also adopts the server's value over the draft for the targets the copilot wrote (spec §3.2).
 
 **Tech Stack:** Next.js 16 App Router, React 19, TanStack Query v5 (`skipToken`, `select`), Tailwind v4, Vitest.
 
@@ -272,7 +272,7 @@ The repo has no component test setup (no Testing Library), so Tasks 6 and 7 are 
 
 **Files:**
 - Modify: `AGENTS.md`: a rule beside "Streaming", in this wording: **The page shows the copilot's work.** Whatever the copilot changes on a page, the page shows it happening: it goes there, marks what is asked about ("Copilot is asking"), shimmers what is being changed, and shows the change land. A page names what the copilot can work on as targets (`CopilotTarget`, `useFollowCopilot`); never build a separate follow mechanism per page. The copilot's change wins over an unsaved edit of the same thing. Spec: `docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md`.
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`: append **D508** (the principle and its mechanism; rejected: per-page follow code, staying put while editing, asking which value to keep).
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`: append **D520** (the principle and its mechanism; rejected: per-page follow code, staying put while editing, asking which value to keep).
 - Modify: `docs/qa/2026-11-18-copilot-journey-manual-qa.md`: new section "The page shows the copilot's work" with the checks below.
 - Modify: this plan: Outcome section after the review.
 
@@ -289,7 +289,7 @@ QA checks (Do / Expected):
 10. Approve a change card: the page does not move; changed fields on screen briefly highlight.
 
 - [ ] **Step 1: Write the four documents.**
-- [ ] **Step 2: Commit** `docs(copilot): D508, the page shows the copilot's work`
+- [ ] **Step 2: Commit** `docs(copilot): D520, the page shows the copilot's work`
 
 ---
 

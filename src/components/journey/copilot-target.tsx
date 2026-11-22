@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { TargetState } from "@/hooks/use-follow-copilot";
 import { cn } from "@/lib/utils";
 
-/** Something on a page the copilot can work on (D508). Tagged with its target id, so the page can be
+/** Something on a page the copilot can work on (D520). Tagged with its target id, so the page can be
  *  brought to it; marked while the copilot asks about it, swept while it is being changed, and
  *  highlighted when the change lands. Purple only at low opacity: the loud brand shimmer belongs to
  *  the copilot's own working line. */

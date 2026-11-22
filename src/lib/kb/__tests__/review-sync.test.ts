@@ -63,7 +63,7 @@ describe("adoptServerKb", () => {
   });
 });
 
-describe("adoptServerKb, a field the copilot wrote (D508, spec §3.2)", () => {
+describe("adoptServerKb, a field the copilot wrote (D520, spec §3.2)", () => {
   const saved = kbWith({});
   const draft = kbWith({
     "brand_profile.tagline": { value: "my unsaved line", status: "edited" },

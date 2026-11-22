@@ -1,6 +1,6 @@
 # Copilot journey, piece 5 (visualise and client review): resume here
 
-> **Status 2026-11-20: 5.1 (the copilot at Visualise) is BUILT** as D512–D515: spec `2026-11-20-copilot-visualise-design.md`, plan with Outcome `../plans/2026-11-20-copilot-visualise.md`, QA section 10. Open items 1–4, 6 and 7 below are settled there (7: both leftovers stay off this piece). **What remains is 5.2, the copilot at client review:** item 5 below (what the panel says once the client has commented; whether the copilot proposes changes from comments or only points to them), plus whether it gets a message box In review and Approved and what it can do there (5.1 left both read-only, as D511). Start 5.2 with a design pass: questions one at a time.
+> **Status 2026-11-20: 5.1 (the copilot at Visualise) is BUILT** as D524–D527: spec `2026-11-20-copilot-visualise-design.md`, plan with Outcome `../plans/2026-11-20-copilot-visualise.md`, QA section 10. Open items 1–4, 6 and 7 below are settled there (7: both leftovers stay off this piece). **What remains is 5.2, the copilot at client review:** item 5 below (what the panel says once the client has commented; whether the copilot proposes changes from comments or only points to them), plus whether it gets a message box In review and Approved and what it can do there (5.1 left both read-only, as D523). Start 5.2 with a design pass: questions one at a time.
 
 For the conversation that picks up piece 5. Read this, then `2026-11-19-copilot-journey-RESUME-HERE.md` (the whole branch), then the documents named below. **Nothing here is a spec yet.** The next step is a design pass with Cyril, then a spec, then a plan, then the build.
 
@@ -50,14 +50,14 @@ That is all that is written. What "guidance" means on this screen, turn by turn,
 ## What piece 5 stands on
 
 - **Piece 4** (`2026-11-19-copilot-piece-4-scripting-RESUME-HERE.md`): the script's thread shown in the shared panel. Without it there is no panel on the visualise screen to guide from. **Piece 4 is not built.**
-- **From piece 2, already built:** the thread composer with attachments (`thread-composer.tsx`, `use-thread-attachments.ts`), the gate card (`thread-gate-card.tsx`, with "Waiting for you" worked out fresh each read, D500), status lines, change cards (D505).
-- **Turn traces (D509):** any agent turn here is traced. The traces table and marks are brand-KB shaped today, so a script turn needs them widened (piece 4 may do this first).
-- **The page shows the copilot's work (D508):** name the visualise screen's targets (a cast slot, a location, a product, a storyboard panel), wrap them in `CopilotTarget`, call `useFollowCopilot` once on the page, and report changes by target id. This piece is a natural fit: "the copilot is drawing panel 4" is exactly a target being written.
-- **Streaming (D502)** and background work: drawing panels is long and paid, so it runs in Trigger.dev and reports through status lines, never inside the request (AGENTS.md performance rule 12).
+- **From piece 2, already built:** the thread composer with attachments (`thread-composer.tsx`, `use-thread-attachments.ts`), the gate card (`thread-gate-card.tsx`, with "Waiting for you" worked out fresh each read, D512), status lines, change cards (D517).
+- **Turn traces (D521):** any agent turn here is traced. The traces table and marks are brand-KB shaped today, so a script turn needs them widened (piece 4 may do this first).
+- **The page shows the copilot's work (D520):** name the visualise screen's targets (a cast slot, a location, a product, a storyboard panel), wrap them in `CopilotTarget`, call `useFollowCopilot` once on the page, and report changes by target id. This piece is a natural fit: "the copilot is drawing panel 4" is exactly a target being written.
+- **Streaming (D514)** and background work: drawing panels is long and paid, so it runs in Trigger.dev and reports through status lines, never inside the request (AGENTS.md performance rule 12).
 
 ## Working in parallel with piece 4
 
-Two conversations building in the same worktree will overwrite each other, and this piece needs piece 4's panel. The design pass and the spec for piece 5 can be done now, in parallel. The build should wait for piece 4's panel work to land, or run in its own worktree branched from this branch after that. Each piece takes its own ADR numbers: check the log's last number first (D509 was the last recorded; D508 is also taken).
+Two conversations building in the same worktree will overwrite each other, and this piece needs piece 4's panel. The design pass and the spec for piece 5 can be done now, in parallel. The build should wait for piece 4's panel work to land, or run in its own worktree branched from this branch after that. Each piece takes its own ADR numbers: check the log's last number first (D521 was the last recorded; D520 is also taken).
 
 ## How Cyril likes to work
 

@@ -36,7 +36,7 @@ export function JourneyPanelShell({
   narrow?: "hidden" | "stacked";
   /** The body under the header. */
   children: ReactNode;
-  /** Controls in the header, before the fold (the developer switch, D509). */
+  /** Controls in the header, before the fold (the developer switch, D521). */
   actions?: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useCopilotCollapsed(foldKey, foldedByDefault);

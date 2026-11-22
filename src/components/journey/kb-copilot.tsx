@@ -66,7 +66,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
     upload: useCallback(async (file: File) => {
       const attachment = await uploadSourceFile(clientId, file);
       sourcesChanged();
-      // The file lands in the form's source list (D508).
+      // The file lands in the form's source list (D520).
       recordActivity({ type: "written", target: kbTarget.source(attachment.id), move: true });
       return attachment;
     }, [clientId, sourcesChanged, recordActivity]),
@@ -80,7 +80,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
   const state = thread.data;
   const busy = turn.isPending;
 
-  // The developer switch (turn traces, D509). Off, nothing below is read or shown. On, one read of
+  // The developer switch (turn traces, D521). Off, nothing below is read or shown. On, one read of
   // the lines, and each reply finds its own by id in a map built once per list.
   const [developer, setDeveloper] = useCopilotDeveloper();
   const [view, setView] = useState<"chat" | "turns">("chat");
@@ -157,7 +157,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
           <>
             <ol className="flex flex-col gap-4 p-4" aria-live="polite">
               {state.messages.map((m) => <ThreadMessageItem key={m.id} message={m} change={change} footer={traceOf(m.id)} />)}
-              {/* While a turn runs (D502): the reply as it is being written, in the place the stored
+              {/* While a turn runs (D514): the reply as it is being written, in the place the stored
                   message will take, or else a line naming what the copilot is doing. The words are
                   not read out piece by piece; the stored message is announced once it lands. */}
               {busy && draft && (

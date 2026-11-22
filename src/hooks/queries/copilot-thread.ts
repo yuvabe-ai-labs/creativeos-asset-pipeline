@@ -20,11 +20,11 @@ export const copilotThreadKeys = {
   all: (clientId: string) => ["copilot-thread", clientId] as const,
   thread: (clientId: string) => [...copilotThreadKeys.all(clientId), "thread"] as const,
   saved: (clientId: string) => [...copilotThreadKeys.all(clientId), "saved"] as const,
-  /** What the copilot is doing to the page right now (D508). Kept here by the panel; never fetched. */
+  /** What the copilot is doing to the page right now (D520). Kept here by the panel; never fetched. */
   activity: (clientId: string) => [...copilotThreadKeys.all(clientId), "activity"] as const,
 };
 
-// ── The page shows the copilot's work (D508) ────────────────────────────────
+// ── The page shows the copilot's work (D520) ────────────────────────────────
 
 /** Folds one event into the activity the page beside the panel follows. */
 export function recordActivity(queryClient: QueryClient, clientId: string, event: TargetEvent): void {
@@ -150,7 +150,7 @@ export async function finishTurn(queryClient: QueryClient, key: readonly unknown
   queryClient.setQueryData(key, state);
 }
 
-/** A person approves or discards a change card (D505). The thread comes back settled, and the page
+/** A person approves or discards a change card (D517). The thread comes back settled, and the page
  *  on the right is re-read, since an approval changed fields on it. */
 export function useDecideChange(clientId: string) {
   const queryClient = useQueryClient();
@@ -179,7 +179,7 @@ export function useDecideChange(clientId: string) {
 /** One message to the brand KB copilot. Shown at once; rolled back if the request fails. While the
  *  turn runs, what the copilot is doing comes back as `progress`, each save reaches the form the
  *  moment it is stored, and the page on the right is re-read when something else on it changed
- *  (D502). */
+ *  (D514). */
 export function useSendKbTurn(clientId: string) {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -191,7 +191,7 @@ export function useSendKbTurn(clientId: string) {
       queryClient.setQueryData<KbSavedEvent | null>(copilotThreadKeys.saved(clientId), (previous: KbSavedEvent | null | undefined) => nextSavedEvent(previous, event.saved));
     }
     if (event.type === "page") router.refresh();
-    // The page beside the panel follows what this browser's turn changes (D508).
+    // The page beside the panel follows what this browser's turn changes (D520).
     if (event.type === "target") recordActivity(queryClient, clientId, { type: event.phase, target: event.target, move: true });
   };
   const mutation = useMutation({
@@ -222,7 +222,7 @@ export function useSendKbTurn(clientId: string) {
       setProgress(NO_PROGRESS);
       // However the turn ended, nothing is being written any more: no shimmer outlives it.
       recordActivity(queryClient, clientId, { type: "endTurn" });
-      // The turn's trace (D509), for the Turns list when it is on screen.
+      // The turn's trace (D521), for the Turns list when it is on screen.
       refreshTurnLinesSoon(queryClient, clientId);
     },
   });

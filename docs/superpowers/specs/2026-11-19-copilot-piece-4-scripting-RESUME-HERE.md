@@ -44,10 +44,10 @@ The script copilot moves into the shared copilot panel, so a person goes from th
 
 - **The panel shell and rail:** `src/components/journey/journey-panel-shell.tsx`, and the thread parts beside it (`thread-message.tsx`, `thread-composer.tsx`, `thread-status-lines.tsx`).
 - **The agent loop** with tools, a strict final answer, streaming, and a trace sink: `src/lib/journey/agent.ts`.
-- **Turn traces (D509):** pass a `traceRecorder()` to `runAgent` and store the row after the answer has gone. The traces table and marks are brand-KB shaped today (`thread in ('onboarding')`, `kb-copilot/trace.ts`), so a script turn needs the table and the marks widened. AGENTS.md "Turn traces".
-- **The page shows the copilot's work (D508):** name the script's targets (a beat, a field, a cast slot), wrap them in `CopilotTarget`, call `useFollowCopilot` once on the page, and report changes by target id. AGENTS.md "The page shows the copilot's work".
-- **Change cards (D505):** `src/components/journey/thread-change-card.tsx`, `src/lib/kb/changes/`.
-- **Streaming rule (D502)** and the rule that code, not the model, carries out fixed choices (D501, D507, and the 2026-11-19 `propose_change` fix): a tool that knows the right action does it, and never asks the model to try again.
+- **Turn traces (D521):** pass a `traceRecorder()` to `runAgent` and store the row after the answer has gone. The traces table and marks are brand-KB shaped today (`thread in ('onboarding')`, `kb-copilot/trace.ts`), so a script turn needs the table and the marks widened. AGENTS.md "Turn traces".
+- **The page shows the copilot's work (D520):** name the script's targets (a beat, a field, a cast slot), wrap them in `CopilotTarget`, call `useFollowCopilot` once on the page, and report changes by target id. AGENTS.md "The page shows the copilot's work".
+- **Change cards (D517):** `src/components/journey/thread-change-card.tsx`, `src/lib/kb/changes/`.
+- **Streaming rule (D514)** and the rule that code, not the model, carries out fixed choices (D513, D519, and the 2026-11-19 `propose_change` fix): a tool that knows the right action does it, and never asks the model to try again.
 
 ## Constraints from the map
 
@@ -57,7 +57,7 @@ The script copilot moves into the shared copilot panel, so a person goes from th
 
 ## Working in parallel with piece 5
 
-Piece 5 (visualise and review guidance) stands on this piece: it needs the script's thread in the shared panel. Two conversations building in the same worktree will overwrite each other. Either build piece 4 first, or give piece 5 its own worktree branched from this branch once piece 4's panel work has landed. Each piece takes its own ADR numbers: check the log's last number first (D509 was the last recorded; D508 is also taken).
+Piece 5 (visualise and review guidance) stands on this piece: it needs the script's thread in the shared panel. Two conversations building in the same worktree will overwrite each other. Either build piece 4 first, or give piece 5 its own worktree branched from this branch once piece 4's panel work has landed. Each piece takes its own ADR numbers: check the log's last number first (D521 was the last recorded; D520 is also taken).
 
 ## How Cyril likes to work
 

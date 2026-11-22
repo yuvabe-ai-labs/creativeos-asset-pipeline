@@ -1,5 +1,5 @@
 // trigger/copilot-trace-sweep.ts
-// Copilot turn traces are kept 30 days (D509, spec §3.3). Once a day, everything older goes. The
+// Copilot turn traces are kept 30 days (D521, spec §3.3). Once a day, everything older goes. The
 // Turns list also hides anything older, so a sweep that runs late never shows a stale trace.
 //
 // Every @/lib import is dynamic: those modules carry `import "server-only"`, which Trigger.dev's

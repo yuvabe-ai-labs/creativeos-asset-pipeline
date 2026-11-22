@@ -137,7 +137,7 @@ export function KBOnboardingReviewStep({
     setSeenLink(linkedModule);
     if (linkedModule) setSelectedModule(linkedModule);
   }
-  // The page follows the copilot (D508): to the field it asks about or writes, on its own tab.
+  // The page follows the copilot (D520): to the field it asks about or writes, on its own tab.
   const follow = useKbReviewFollow(clientId, setSelectedModule);
   // The stored KB changed under the screen: take it into both copies, keeping what the person has
   // changed and not saved yet. Adjusting state during render, on a change of the prop. A field the
@@ -340,7 +340,7 @@ export function KBOnboardingReviewStep({
   // ── Re-extract ────────────────────────────────────────────────────────────
 
   /** The copilot reads what was just added and removed against the brand KB and answers with a
-   *  change card (D505). Nothing is rebuilt and no review is lost. */
+   *  change card (D517). Nothing is rebuilt and no review is lost. */
   async function proposeChanges(added: string[], removed: string[]) {
     try {
       const { started } = await kbService.propose(clientId, { added, removed });

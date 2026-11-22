@@ -25,7 +25,7 @@ export const REVIEW_QUESTIONS_FIRST = 5;
 export const QUESTION_VALUE_MAX_CHARS = 280;
 /** The most of a field's value the model is shown in its list of fields. */
 export const PROMPT_VALUE_MAX_CHARS = 300;
-/** How long a turn's trace is kept (turn traces spec §3.3, D509). */
+/** How long a turn's trace is kept (turn traces spec §3.3, D521). */
 export const TRACE_KEEP_DAYS = 30;
 /** The most lines the Turns list shows. */
 export const TRACE_LIST_LIMIT = 50;

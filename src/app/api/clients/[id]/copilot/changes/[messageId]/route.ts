@@ -19,7 +19,7 @@ const bodySchema = z.discriminatedUnion("decision", [
 const SETTLED = "That change was already settled.";
 
 // POST /api/clients/:id/copilot/changes/:messageId { decision, keep? } — a person approves or
-// discards a change card on the brand KB (brand KB spec §2.4, D505). The card is claimed first, so
+// discards a change card on the brand KB (brand KB spec §2.4, D517). The card is claimed first, so
 // two people deciding at once settle it once. Approving writes the kept fields as approved by the
 // person, never one changed by hand since the card was made, and never touches kb_status: the KB
 // stays approved. Who decided is kept on the card.

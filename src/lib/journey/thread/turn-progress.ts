@@ -1,6 +1,6 @@
 import type { KbTurnEvent } from "./turn-events";
 
-// What the panel shows while a turn is running (D502), worked out from the events as they arrive.
+// What the panel shows while a turn is running (D514), worked out from the events as they arrive.
 // It is only ever on screen during a turn: the thread itself comes from the final `state` event.
 
 /** `step` is the line under the person's message ("Saving the website…"; null means the general

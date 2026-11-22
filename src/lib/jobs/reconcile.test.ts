@@ -99,7 +99,7 @@ describe("reconcileDeadJobs", () => {
     expect(result.failed).toEqual(["died"]);
   });
 
-  it("hands each job it failed, and only those, to be said in the thread (D506)", async () => {
+  it("hands each job it failed, and only those, to be said in the thread (D518)", async () => {
     db.live = [job("crashed", 20), job("running", 20), job("just-finished", 20)];
     db.stillLive = new Set(["crashed", "running"]);
     const status: Record<string, string> = { "run-crashed": "CRASHED", "run-running": "EXECUTING", "run-just-finished": "COMPLETED" };

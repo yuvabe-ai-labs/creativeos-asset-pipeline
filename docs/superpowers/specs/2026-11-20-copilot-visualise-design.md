@@ -1,7 +1,7 @@
 # The copilot at Visualise (piece 5.1)
 
-**Status:** approved by Cyril, 2026-11-20 ("go ahead", with both builder-check answers as recommended). **Built 2026-11-20 as D512–D515** (plan `docs/superpowers/plans/2026-11-20-copilot-visualise.md`); not yet run in a browser.
-**Part of:** the copilot journey (`2026-11-12-copilot-journey-design.md`), piece 5, on the same branch, merged once with the rest. Piece 5 is built in two parts *(my call)*: **5.1, this spec: the copilot at Visualise**, and **5.2: the copilot at client review** (what it says while the client reviews, and what it does with the client's comments), which gets its own spec. Stands on 4.1 (D511): the script's panel is already on the Visualise page, read-only.
+**Status:** approved by Cyril, 2026-11-20 ("go ahead", with both builder-check answers as recommended). **Built 2026-11-20 as D524–D527** (plan `docs/superpowers/plans/2026-11-20-copilot-visualise.md`); not yet run in a browser.
+**Part of:** the copilot journey (`2026-11-12-copilot-journey-design.md`), piece 5, on the same branch, merged once with the rest. Piece 5 is built in two parts *(my call)*: **5.1, this spec: the copilot at Visualise**, and **5.2: the copilot at client review** (what it says while the client reviews, and what it does with the client's comments), which gets its own spec. Stands on 4.1 (D523): the script's panel is already on the Visualise page, read-only.
 
 ## 1. Problem
 
@@ -23,7 +23,7 @@ Once a script is marked final, the storyboard needs work in a set order: an avat
 - **The send card is always available** (2026-11-20, option B). When something is missing it names it ("2 shots have no panel; the client will see them as text only"). Pressing it does what the page's Share does. The page's Share is unchanged.
 - **A picture attached in the chat goes where the page would put it** (2026-11-20, option A): onto the product or location it is for, kept with this script, not added to brand assets. This replaces the earlier plan (parent spec §8 item 1), which was never confirmed. An "Also add to brand assets" button may come later; not in this piece.
 - **Built as an extension of the writing copilot** (2026-11-20, approach A in §4): the same thread, the same message route, the same edits and the same before-and-after cards, now allowed at Visualise.
-- Standing: nothing is approved, sent to a client or generated without a person's click (parent spec §9). A script's steps stay Write, Visualise, Client review, Canvas. The page shows the copilot's work (D508). Every copilot shows its work as it happens (D502).
+- Standing: nothing is approved, sent to a client or generated without a person's click (parent spec §9). A script's steps stay Write, Visualise, Client review, Canvas. The page shows the copilot's work (D520). Every copilot shows its work as it happens (D514).
 
 ## 3. What changes
 
@@ -115,7 +115,7 @@ At Visualise the message box takes pictures, like the brand KB's composer. A pic
 - *(My call)* A picture of a person is not turned into an avatar; making an avatar stays on the cast slot.
 
 ### 3.8 The page shows the copilot's work
-Per D508: the cast slots, location and product chips and storyboard panels are what the copilot can work on. When it asks about one (the walk's "Who plays Meenakshi?"), the page shows that slot. When it changes one, the change lands with a highlight, as on the brand KB. *(My call)* While the turn runs, the line under the message is the one Generate shows today ("Working on it…" and its sequence); naming the exact action ("Casting Meenakshi…") would mean streaming the copilot's decisions as they are made, which the script copilot does not do yet.
+Per D520: the cast slots, location and product chips and storyboard panels are what the copilot can work on. When it asks about one (the walk's "Who plays Meenakshi?"), the page shows that slot. When it changes one, the change lands with a highlight, as on the brand KB. *(My call)* While the turn runs, the line under the message is the one Generate shows today ("Working on it…" and its sequence); naming the exact action ("Casting Meenakshi…") would mean streaming the copilot's decisions as they are made, which the script copilot does not do yet.
 
 ## 4. Approaches
 

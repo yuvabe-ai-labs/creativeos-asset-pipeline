@@ -185,7 +185,7 @@ describe("runKbTurn", () => {
     expect(seen[0].messages[0].content).toBe("message 5");
   });
 
-  it("shows the model a stored status line that has no words, as its lines (D506)", async () => {
+  it("shows the model a stored status line that has no words, as its lines (D518)", async () => {
     const history: ThreadMessage[] = [{
       id: "m1", role: "assistant", content: "", attachments: [], suggestions: [], createdAt: "",
       card: { kind: "status", lines: [{ text: "Could not collect images and video from Instagram. You can try again from Brand assets.", state: "failed" }] },
@@ -306,7 +306,7 @@ describe("runKbTurn in review", () => {
     expect(seen).toHaveLength(2);
   });
 
-  it("carries out 'Yes, that's right' on the waiting field itself, without asking the model (D507)", async () => {
+  it("carries out 'Yes, that's right' on the waiting field itself, without asking the model (D519)", async () => {
     const { setField, a } = withField();
     const model = vi.fn(async () => { throw new Error("the model must not be asked"); });
     const result = await turn({ ctx: inReview, review: reviewOf(), actions: a, model, text: "Yes, that's right" });
@@ -360,7 +360,7 @@ describe("runKbTurn in review", () => {
   });
 });
 
-// ── Showing work as it happens (D502) ────────────────────────────────────────
+// ── Showing work as it happens (D514) ────────────────────────────────────────
 
 describe("runKbTurn, reporting as it goes", () => {
   const inReview: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "in_review", unreviewed: [] };
@@ -441,7 +441,7 @@ describe("runKbTurn, reporting as it goes", () => {
   });
 });
 
-// ── Change cards (piece 2.3, D505) ───────────────────────────────────────────
+// ── Change cards (piece 2.3, D517) ───────────────────────────────────────────
 
 describe("runKbTurn, changing reviewed fields", () => {
   const V1 = "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c11";
@@ -595,7 +595,7 @@ describe("runKbTurn, a change that is only partly allowed (review fix)", () => {
 });
 });
 
-// ── Turn traces (D509) ───────────────────────────────────────────────────────
+// ── Turn traces (D521) ───────────────────────────────────────────────────────
 
 describe("runKbTurn, reporting to a trace", () => {
   const AGE = "target_audience.age_range";
@@ -630,7 +630,7 @@ describe("runKbTurn, reporting to a trace", () => {
   });
 });
 
-// ── Review fixes (D509 whole-branch review) ──────────────────────────────────
+// ── Review fixes (D521 whole-branch review) ──────────────────────────────────
 
 describe("runKbTurn, review fixes", () => {
   const AGE = "target_audience.age_range";
@@ -667,7 +667,7 @@ describe("runKbTurn, review fixes", () => {
   });
 });
 
-// ── The page shows the copilot's work (D508) ────────────────────────────────
+// ── The page shows the copilot's work (D520) ────────────────────────────────
 
 describe("runKbTurn, naming what it changes", () => {
   const AGE = "target_audience.age_range";

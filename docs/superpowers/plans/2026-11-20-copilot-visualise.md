@@ -15,12 +15,12 @@
 - Drawing panels, making an avatar or its views, drawing a location's picture, sending for client review and reopening are only ever started by the person's click. The copilot's output has no way to start any of them.
 - Generate is untouched: the edit prompt and its output schema at Generate are byte-for-byte what they are today; every existing Generate test passes unchanged.
 - At Visualise: cast an avatar / set the lead / products and locations / one shot or one field of words → at once. Several shots, any `insert_shot` `remove_shot` `split_shot` `move_shot`, any `add_cast` `remove_cast` `update_cast` → a before-and-after card. `confirm_item` and notes `set_field` → refused with a Reopen offer. A pasted whole script → refused with a Reopen offer. A request mixing at-once and card edits → one card.
-- In review and Approved stay read-only (no message box, cards without buttons), as D511.
+- In review and Approved stay read-only (no message box, cards without buttons), as D523.
 - At Visualise the panel starts open; In review and Approved start folded; a stored fold choice wins.
 - Pictures attached in the chat go to the script's own folder through the same upload the board uses; never to brand assets.
 - AGENTS.md: shadcn primitives only (Button, InputGroup…, never native controls); Lucide icons 1.5 stroke; TanStack Query three layers, keys from the factories; nothing per item on load (no request or channel per shot, character or chip); no new polling.
 - Copy uses "avatar", never "presenter". Plain sentences.
-- New ADRs start at **D512**; the log has two D489s, so never write "D489" without "(second)".
+- New ADRs start at **D524**; the log has two D489s, so never write "D489" without "(second)".
 - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Add files by name; never `git add docs` (the untracked `2026-11-12-copilot-journey-problem-solution.md` must stay untracked).
 
 ## Review Focus
@@ -251,15 +251,15 @@
 **Files:**
 - Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7, CRLF, append), `docs/qa/2026-11-18-copilot-journey-manual-qa.md` (section 10 before "Known limits"), `docs/superpowers/specs/2026-11-20-copilot-visualise-design.md` (status line), `docs/superpowers/specs/2026-11-19-copilot-journey-RESUME-HERE.md`, this plan (Outcome section)
 
-- [ ] **Step 1:** Append ADRs: **D512** the copilot acts at Visualise as an extension of the writing copilot (Rejected: a separate Visualise agent); **D513** at once / card / refused at Visualise, and the copilot's shot cards relax D489 (second) for its cards only; **D514** the walk is code, read fresh, pictures before drawing, send always offered with what is missing; **D515** pictures attached in a script's chat stay with the script (Refines parent spec §8 item 1).
+- [ ] **Step 1:** Append ADRs: **D524** the copilot acts at Visualise as an extension of the writing copilot (Rejected: a separate Visualise agent); **D525** at once / card / refused at Visualise, and the copilot's shot cards relax D489 (second) for its cards only; **D526** the walk is code, read fresh, pictures before drawing, send always offered with what is missing; **D527** pictures attached in a script's chat stay with the script (Refines parent spec §8 item 1).
 - [ ] **Step 2:** QA section 10: one check per success-story beat (spec §8) plus each Review Focus line.
 - [ ] **Step 3:** Run the full suite `npx vitest run > .superpowers/sdd/full.txt 2>&1; tail -n 30 .superpowers/sdd/full.txt` and `npx tsc --noEmit` — Expected: only the known failures (the `composite-generate` and `image-generate` "refuses a deprecated model" tests; tsc at `image-generate/route.test.ts(56,12)`).
-- [ ] **Step 4: Commit** `docs(copilot): 5.1 built: D512–D515, QA section 10, resume-here`.
+- [ ] **Step 4: Commit** `docs(copilot): 5.1 built: D524–D527, QA section 10, resume-here`.
 
 
 ## Outcome (built 2026-11-20)
 
-Built as D512–D515 in ten tasks, `580fc112..0ae343b9`, inline, test first. No migration. Full suite after the fix pass: 6039 passed, only the two known deprecated-model tests fail (before it, five files had timed out under the full parallel run and passed alone: the known flake). tsc: only the known `image-generate/route.test.ts(56,12)`.
+Built as D524–D527 in ten tasks, `580fc112..0ae343b9`, inline, test first. No migration. Full suite after the fix pass: 6039 passed, only the two known deprecated-model tests fail (before it, five files had timed out under the full parallel run and passed alone: the known flake). tsc: only the known `image-generate/route.test.ts(56,12)`.
 
 **Final review** (one fresh reviewer): no Critical, five Important; all five Review Focus lines held. One minor was re-graded Important (an old Generate card could change the notes at Visualise). All six fixed in one pass, each with a test that failed first:
 
@@ -286,11 +286,11 @@ Built as D512–D515 in ten tasks, `580fc112..0ae343b9`, inline, test first. No 
 - at Visualise suggestionsFor returns the copilot's own chips from its last reply (existing "offers nothing once the script has left Generate" test updated) — the message box is back and its chips are part of it — cost if wrong: a chip the model writes at Visualise shows
 - the board-refresh-after-turn logic is an exported pure helper landGenerateState (tested), used by useSendTurn and every useStateWrite — cost if wrong: one extra board read after a Generate→… write past Generate (none at Generate)
 - TeamReviewBoard now needs VisualiseBoardProvider; its test wraps it — the only other mount is the page, which provides it — cost if wrong: none
-- the stage shown by the Visualise panel is the board query's (fresher after a move to review), not the thread cache's (same stale-cache lesson as D511's review fix) — cost if wrong: none
+- the stage shown by the Visualise panel is the board query's (fresher after a move to review), not the thread cache's (same stale-cache lesson as D523's review fix) — cost if wrong: none
 - every draw button in the chat is the board's GenerateAllDialog (new optional label/size props), so drawing from the chat asks the same credit confirmation as the page — a chat button must not be a quicker way to spend — cost if wrong: one extra click
 - the send card's button is the page's ShareDialog trigger, reading "Move to In review" as on the page (not "Send for client review") — same action, same words; the card's eyebrow says "Send for client review" — cost if wrong: wording
 - "Draw it" for a location shows no credits — the board's own location button shows none either — cost if wrong: a missing price on one paid button (as on the page)
-- an offer card after Visualise (no renderOffer) is a one-line note ("Offered to draw the panels") — read-only, as D511's cards — cost if wrong: none
+- an offer card after Visualise (no renderOffer) is a one-line note ("Offered to draw the panels") — read-only, as D523's cards — cost if wrong: none
 - pictureTarget checks the item the message names before "the only item without a picture" (plan listed the opposite order) — an explicit name ("this is the bottle") should win over a guess from the board — cost if wrong: none; both are the spec's "the message or the board makes it clear"
 - the route checks the picture's url is the item's current picture in the stored doc (rule 14), so a body cannot attach a foreign url; "refuses a picture that is not on the script" passed before the change too (an empty text was already a 400) — it pins the guard, not a RED — cost if wrong: none
 - the composer uploads with useUploadScriptImage directly (not ScriptAssets.upload, which swallows errors and returns nothing) so it can read the new picture's url from the written doc — same service, same folder — cost if wrong: none

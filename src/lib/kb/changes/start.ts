@@ -5,7 +5,7 @@ import { failJob, insertJob, setJobRunId } from "@/lib/jobs/db";
 import { describeError } from "@/lib/describe-error";
 import { proposalCopy, readingWhat } from "./copy";
 
-/** What one proposal reads (D505): documents just added, and the names of documents just removed. */
+/** What one proposal reads (D517): documents just added, and the names of documents just removed. */
 export type KbProposeInput = { added: { id: string; name: string }[]; removed: string[] };
 
 /** Queues one proposal and returns at once. No lock: two sets of documents give two cards, each

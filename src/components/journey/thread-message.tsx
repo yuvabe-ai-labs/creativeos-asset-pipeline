@@ -14,7 +14,7 @@ export function ThreadMessageItem({ message, change, footer }: {
   message: ThreadMessage;
   /** How a change card in this thread is settled; a stage with no change cards leaves it out. */
   change?: { busy: boolean; onDecide: (messageId: string, decision: ChangeDecision) => void };
-  /** Under the message: the trace of the turn that wrote it, with the developer switch on (D509). */
+  /** Under the message: the trace of the turn that wrote it, with the developer switch on (D521). */
   footer?: ReactNode;
 }) {
   const mine = message.role === "user";

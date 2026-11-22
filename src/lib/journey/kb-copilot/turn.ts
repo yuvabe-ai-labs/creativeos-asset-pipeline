@@ -33,13 +33,13 @@ export type KbActions = {
   setField: (path: string, patch: KBFieldPatch["patch"]) => Promise<boolean>;
 };
 
-/** What a brand KB turn reports while it runs (D502), on top of what every agent turn reports. */
+/** What a brand KB turn reports while it runs (D514), on top of what every agent turn reports. */
 export type KbTurnEvents = AgentEvents & {
   /** A website or handles were just stored. */
   saved?: (saved: KbSaved) => void;
   /** Something on the page that `saved` cannot carry was just written: a field of the KB, a build. */
   page?: () => void;
-  /** What is being changed on the page, by target (D508): "writing" before the save, then "written"
+  /** What is being changed on the page, by target (D520): "writing" before the save, then "written"
    *  (before `page`) or "unwritten" when it was refused or failed. */
   target?: (target: string, phase: "writing" | "written" | "unwritten") => void;
 };
@@ -76,7 +76,7 @@ const NO_QUESTION = "No question is waiting.";
 const fieldArg = z.enum(REVIEW_FIELD_PATHS as [string, ...string[]]);
 
 
-/** A stored message's words for the model. A status line stored on its own (a failed job, D506) has
+/** A stored message's words for the model. A status line stored on its own (a failed job, D518) has
  *  no words, so the model reads its lines instead. */
 function storedWords(m: ThreadMessage): string {
   if (m.content || m.card?.kind !== "status") return m.content;
@@ -97,7 +97,7 @@ export async function runKbTurn(input: {
   /** The client's brand KB as stored, when one has been built: what a change card is made against. */
   kb?: { versionId: string; output: TraceableBrandKB } | null;
   on?: KbTurnEvents;
-  /** Where the turn reports what it did, for its trace (D509). */
+  /** Where the turn reports what it did, for its trace (D521). */
   trace?: TraceSink;
 }): Promise<{ reply: string; suggestions: string[]; changed: boolean; saved: KbSaved; walk: TurnWalk; card: ChangeCard | null }> {
   const { actions, model } = input;
@@ -112,7 +112,7 @@ export async function runKbTurn(input: {
     said.push(sentence);
     return sentence;
   };
-  /** A refusal said in a sentence rather than thrown: the trace marks the turn as refused (D509). */
+  /** A refusal said in a sentence rather than thrown: the trace marks the turn as refused (D521). */
   const refuse = (sentence: string) => {
     input.trace?.refused(sentence);
     return tell(sentence);
@@ -360,7 +360,7 @@ export async function runKbTurn(input: {
     },
   };
 
-  // A button the walk offered is carried out here, with no model call (D507): the model once
+  // A button the walk offered is carried out here, with no model call (D519): the model once
   // answered "Yes, that's right" with words and no tool, so nothing was saved and the question came
   // back. The tool's own code runs, so its refusals still apply, and its sentence is the reply.
   const choice = input.attachments.length === 0 ? walkChoice(input.text, review) : null;

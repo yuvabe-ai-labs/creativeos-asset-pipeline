@@ -56,7 +56,7 @@ export type TurnInput = {
   /** New scripts wait for market research approval (copilot journey spec §5.3): only a whole pasted
    *  script goes on for a script that is not written yet. */
   locked?: boolean;
-  /** Piece 5.1 (D512) — the stage the turn is for, and at Visualise the storyboard as it stands. */
+  /** Piece 5.1 (D524) — the stage the turn is for, and at Visualise the storyboard as it stands. */
   stage?: "generate" | "visualise";
   board?: BoardFacts;
 };
@@ -256,7 +256,7 @@ function shownShots(ops: EditOp[], doc: ScriptDoc, touched: string[]): string[] 
   return [...ids];
 }
 
-/** Piece 5.1 §3.3 (D512, D513) — a message at Visualise. The same edits as at Generate, routed by
+/** Piece 5.1 §3.3 (D524, D525) — a message at Visualise. The same edits as at Generate, routed by
  *  routeVisualiseOps: at once, on a card, or refused with a Reopen button. The model may also pick
  *  panel versions and offer one button (draw, send, reopen) that the person presses. */
 async function prepareVisualiseEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, doc: ScriptDoc, board: BoardFacts): Promise<Apply> {

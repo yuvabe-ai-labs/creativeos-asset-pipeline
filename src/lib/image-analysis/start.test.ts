@@ -21,7 +21,7 @@ describe("startImageAnalysis, when the run cannot be queued", () => {
     vi.mocked(insertJob).mockResolvedValue({ id: "job-1" } as never);
   });
 
-  it("fails the job and says so once in the copilot thread (D506)", async () => {
+  it("fails the job and says so once in the copilot thread (D518)", async () => {
     vi.mocked(tasks.trigger).mockRejectedValue(new Error("trigger down"));
     await startImageAnalysis("client-1", null, { force: true } as never);
     expect(failJob).toHaveBeenCalledWith("job-1", expect.any(String));

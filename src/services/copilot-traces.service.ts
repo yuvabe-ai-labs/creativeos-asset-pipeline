@@ -1,7 +1,7 @@
 import type { TurnLine, TurnTrace } from "@/lib/journey/kb-copilot/trace";
 import { readJson } from "./read-json";
 
-// Copilot turn traces (D509): the lines of a client's recent turns, and one turn's whole trace.
+// Copilot turn traces (D521): the lines of a client's recent turns, and one turn's whole trace.
 class CopilotTracesService {
   async lines(clientId: string): Promise<TurnLine[]> {
     const res = await fetch(`/api/clients/${clientId}/copilot/traces`);

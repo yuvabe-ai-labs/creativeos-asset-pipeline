@@ -118,7 +118,7 @@ export function KBOnboardingUploadStep({
   // A website or handle the copilot has just saved is shown at once, before the page is re-read.
   // Only the fields it saved are touched, and each save is taken once.
   const copilotSaved = useKbCopilotSaved(clientId);
-  // The form shows the copilot's saves and attached files land (D508).
+  // The form shows the copilot's saves and attached files land (D520).
   const { stateOf } = useFollowCopilot(clientId, ON_THIS_PAGE);
   const [shownSave, setShownSave] = useState(copilotSaved?.n ?? 0);
   if (copilotSaved && copilotSaved.n !== shownSave) {
