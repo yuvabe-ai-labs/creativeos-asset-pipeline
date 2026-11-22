@@ -4,13 +4,17 @@ vi.mock("server-only", () => ({}));
 
 const tables: Record<string, { data: unknown[] | null; error: unknown }> = {};
 const selects: string[] = [];
+// When set, every read waits on it after taking its rows (so a test can hold a load open).
+let gate: Promise<void> | null = null;
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: () => ({
     from: (table: string) => ({
       select: () => ({
         order: async () => {
+          const result = tables[table];
           selects.push(table);
-          return tables[table];
+          if (gate) await gate;
+          return result;
         },
       }),
     }),
@@ -33,6 +37,7 @@ const PRICE = (id: string, from: string) => ({
 
 beforeEach(() => {
   clearAiCatalogCache();
+  gate = null;
   selects.length = 0;
   tables.ai_models = { data: [MODEL], error: null };
   tables.ai_model_prices = { data: [PRICE("p1", "2026-11-01T00:00:00Z")], error: null };
@@ -77,6 +82,21 @@ describe("getAiCatalog", () => {
     await expect(getAiCatalog()).rejects.toThrow("down");
     tables.ai_models = { data: [MODEL], error: null };
     await expect(getAiCatalog()).resolves.toMatchObject({ models: [{ id: MODEL.id }] });
+  });
+
+  it("a cache clear during a load is not undone by that load", async () => {
+    let release!: () => void;
+    gate = new Promise<void>((resolve) => { release = resolve; });
+    const first = getAiCatalog(); // the old load reads its rows now, then waits on the gate
+    clearAiCatalogCache();
+    tables.ai_models = { data: [{ ...MODEL, label: "Kling 3.0 Omni (new)" }], error: null };
+    gate = null;
+    const after = getAiCatalog(); // arrives after the clear: must load fresh, not join the old load
+    release();
+    await first;
+    expect((await after).models[0].label).toBe("Kling 3.0 Omni (new)");
+    // The old load finished after the clear and must not have written its rows into the cache.
+    expect((await getAiCatalog()).models[0].label).toBe("Kling 3.0 Omni (new)");
   });
 });
 

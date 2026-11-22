@@ -11,23 +11,29 @@ export const CATALOG_CACHE_MS = 60_000;
 
 let cached: { at: number; catalog: AiCatalog } | null = null;
 let inflight: Promise<AiCatalog> | null = null;
+// Bumped by every clear, so a load that started before a clear cannot write the old catalog back.
+let generation = 0;
 
 export function clearAiCatalogCache(): void {
+  generation += 1;
   cached = null;
+  inflight = null;
 }
 
 export async function getAiCatalog(): Promise<AiCatalog> {
   if (cached && Date.now() - cached.at < CATALOG_CACHE_MS) return cached.catalog;
   if (inflight) return inflight;
-  inflight = loadAiCatalog()
+  const startedAt = generation;
+  const load: Promise<AiCatalog> = loadAiCatalog()
     .then((catalog) => {
-      cached = { at: Date.now(), catalog };
+      if (generation === startedAt) cached = { at: Date.now(), catalog };
       return catalog;
     })
     .finally(() => {
-      inflight = null;
+      if (inflight === load) inflight = null;
     });
-  return inflight;
+  inflight = load;
+  return load;
 }
 
 async function loadAiCatalog(): Promise<AiCatalog> {
