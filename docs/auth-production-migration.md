@@ -950,3 +950,27 @@ select relrowsecurity from pg_class where relname = 'media_transcripts';
 select count(*) from generations
 where type = 'transcribe' and status = 'running' and created_at < now() - interval '20 minutes';
 ```
+## Migrations 0076 + 0077 — AI model catalog (D529–D533, 2026-11-21)
+
+`supabase/migrations/0076_ai_model_catalog.sql` (the `ai_models` and `ai_model_prices` tables, the
+price guard, three `generations` columns) and `supabase/migrations/0077_ai_models_seed.sql` (today's
+image and video models as rows). Paste each into the Supabase SQL editor → Run, in order.
+
+Nothing reads the catalog yet (Plan 1b switches the readers), so no deploy order applies.
+
+**Safe to re-run:** 0076 uses `if not exists` / `create or replace` / `drop trigger if exists`;
+0077 inserts with `on conflict (id) do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect both true
+select relrowsecurity from pg_class where relname in ('ai_models', 'ai_model_prices');
+-- expect the three new columns
+select column_name from information_schema.columns
+where table_name = 'generations' and column_name in ('model_price_id', 'provider_bill', 'record_only');
+-- expect 23 rows: 19 live, 4 retired (gpt-image-1 and the three Veo models)
+select status, count(*) from ai_models group by status;
+-- expect an error: "ai_model_prices rows are never edited"
+-- (only once Plan 2 has seeded prices) update ai_model_prices set note = note;
+```
