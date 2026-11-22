@@ -47,6 +47,8 @@ export async function insertGeneration(input: {
   modelUsed?: string;
   paramsSnapshot?: Record<string, unknown>;
   inputsSnapshot?: Record<string, unknown>;
+  /** D534 — the price row the run is reserved and charged with. */
+  modelPriceId?: string;
 }): Promise<GenerationRow> {
   if (!input.nodeId && !input.avatarId && !input.scriptId) {
     throw new Error("A generation must belong to a node or an avatar, or a script.");
@@ -71,6 +73,8 @@ export async function insertGeneration(input: {
       model_used: input.modelUsed ?? null,
       params_snapshot: input.paramsSnapshot ?? {},
       inputs_snapshot: input.inputsSnapshot ?? {},
+      // Only when set, like script_id: a database without migration 0076 still takes every insert.
+      ...(input.modelPriceId ? { model_price_id: input.modelPriceId } : {}),
     })
     .select()
     .single();

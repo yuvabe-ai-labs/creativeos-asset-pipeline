@@ -140,6 +140,8 @@ export type GenerationRow = {
   tokens_used: Record<string, unknown> | null;
   cost_usd: number | null;
   credits_charged: number | null;
+  // D534 — the ai_model_prices row the run was reserved and is charged with (migration 0076).
+  model_price_id?: string | null;
   version_id: string | null;
   user_id: string | null;
   error: string | null;
