@@ -50,6 +50,7 @@ export async function reservedAmountForUnpriced(
     generationId,
     model: generation.model_used,
   });
+  // No reservation row means nothing was reserved, so nothing is owed.
   return (await getReservationAmounts([generationId])).get(generationId) ?? 0;
 }
 
@@ -89,12 +90,20 @@ async function completeImageGeneration(
   const charge = price
     ? imageChargeUsd(price, { tokens: input.tokensUsed ?? null, billedImages: input.billedImages ?? null })
     : null;
-  const cost = charge ? { usd: charge.usd } : null;
+  if (charge && charge.unpriced.length > 0) {
+    console.error(
+      `[completeGeneration] image ${input.generationId} (${generation.model_used}) has meters with no price: ${charge.unpriced.join(", ")}`,
+    );
+  }
+  // Partial pricing: the provider billed something but nothing priced, so charge the reservation, never 0.
+  const nothingPriced =
+    !!charge && charge.unpriced.length > 0 && charge.usd === 0 && Object.values(charge.meters).some((q) => (q ?? 0) > 0);
+  const cost = charge && !nothingPriced ? { usd: charge.usd } : null;
   // A paid image with a missing price settles at what was reserved. A provider that reported
   // neither tokens nor billed images still settles at 0 (unchanged).
   const actualCredits = cost
     ? usdToFinalCredits(cost.usd)
-    : price
+    : price && !nothingPriced
       ? 0
       : await reservedAmountForUnpriced(input.generationId, generation, "image");
 

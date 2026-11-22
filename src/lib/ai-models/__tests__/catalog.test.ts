@@ -77,6 +77,15 @@ describe("getAiCatalog", () => {
     err.mockRestore();
   });
 
+  it("logs a plain line when the read succeeds but there are no price rows", async () => {
+    tables.ai_model_prices = { data: [], error: null };
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const catalog = await getAiCatalog();
+    expect(catalog.prices).toEqual([]);
+    expect(err).toHaveBeenCalledWith(expect.stringContaining("no model prices loaded"));
+    err.mockRestore();
+  });
+
   it("throws on a failed read and caches nothing", async () => {
     tables.ai_models = { data: null, error: new Error("down") };
     await expect(getAiCatalog()).rejects.toThrow("down");

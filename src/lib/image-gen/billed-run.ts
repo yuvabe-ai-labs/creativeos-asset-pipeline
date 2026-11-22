@@ -65,7 +65,8 @@ export async function runBilledImageGeneration(
       modelId: args.modelId, aspect: args.aspect, referenceCount: args.referenceUrls.length,
     });
     if (estimateUsd === null) throw new Error(`No cost estimate available for ${args.modelId}.`);
-    const reservation = await reserveCredits(args.orgId, generation.id, usdToFinalCredits(estimateUsd));
+    const reservedCredits = usdToFinalCredits(estimateUsd);
+    const reservation = await reserveCredits(args.orgId, generation.id, reservedCredits);
     if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
 
     const result = await config.generate({
@@ -87,8 +88,16 @@ export async function runBilledImageGeneration(
     }
 
     const charge = imageChargeUsd(price, { tokens: result.tokensUsed ?? null, billedImages: result.billedImages ?? null });
-    const cost = charge ? { usd: charge.usd } : null;
-    const creditsCharged = cost ? usdToFinalCredits(cost.usd) : 0;
+    if (charge && charge.unpriced.length > 0) {
+      console.error(
+        `[billedImageRun] image ${generation.id} (${args.modelId}) has meters with no price: ${charge.unpriced.join(", ")}`,
+      );
+    }
+    // Partial pricing: the provider billed something but nothing priced, so charge the reservation, never 0.
+    const nothingPriced =
+      !!charge && charge.unpriced.length > 0 && charge.usd === 0 && Object.values(charge.meters).some((q) => (q ?? 0) > 0);
+    const cost = charge && !nothingPriced ? { usd: charge.usd } : null;
+    const creditsCharged = cost ? usdToFinalCredits(cost.usd) : nothingPriced ? reservedCredits : 0;
     const meta = { ...(args.userEmail ? { email: args.userEmail } : {}), width, height, sizeBytes: bytes.length };
 
     await settleGeneration({ orgId: args.orgId, generationId: generation.id, actualAmount: creditsCharged });

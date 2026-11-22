@@ -46,6 +46,16 @@ describe("priceMeters", () => {
   });
 });
 
+describe("priceMeters — quantities that are not a positive number", () => {
+  const price = { lines: [{ meter: "input_token", unit_usd: 0.001 }] } as unknown as AiModelPrice;
+
+  it("adds nothing and reports nothing for NaN or a negative quantity", () => {
+    const r = priceMeters(price, { input_token: Number.NaN, output_token: -5 } as never);
+    expect(r).toEqual({ usd: 0, unpriced: [] });
+    expect(priceMeters(price, { input_token: -3 }).usd).toBe(0);
+  });
+});
+
 describe("currentPrice / priceById", () => {
   const catalog: AiCatalog = {
     models: [],

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 const generate = vi.fn();
+// "seed" = the model's seeded row; "none" = no row; an object = that row.
+const priceState = vi.hoisted(() => ({ mode: "seed" as "seed" | "none" | Record<string, unknown> }));
 vi.mock("@/lib/image-gen/registry", () => ({
   imageGenRegistry: {
     "gemini:gemini-3.1-flash-image": {
@@ -20,6 +22,8 @@ vi.mock("@/lib/ai-models/run-price", async () => {
   return {
     NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
     priceForNewRun: async (modelId: string) => {
+      if (priceState.mode === "none") return null;
+      if (typeof priceState.mode === "object") return priceState.mode;
       try { return seededPrice(modelId); } catch { return null; }
     },
   };
@@ -27,8 +31,8 @@ vi.mock("@/lib/ai-models/run-price", async () => {
 vi.mock("sharp", () => ({ default: () => ({ metadata: async () => ({ width: 768, height: 1365 }) }) }));
 
 import { runBilledImageGeneration } from "../billed-run";
-import { insertGeneration, failGeneration } from "@/lib/db/generations";
-import { reserveCredits, refundReservation } from "@/lib/db/credit-transactions";
+import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
+import { reserveCredits, settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
 
 const BYTES = Buffer.from("png");
 const store = vi.fn();
@@ -40,6 +44,7 @@ const args = () => ({
 
 beforeEach(() => {
   vi.resetAllMocks();
+  priceState.mode = "seed";
   vi.mocked(failGeneration).mockResolvedValue(undefined);
   vi.mocked(refundReservation).mockResolvedValue(undefined);
   vi.mocked(insertGeneration).mockResolvedValue({ id: "g1", created_at: "x", status: "running" } as never);
@@ -58,6 +63,28 @@ describe("runBilledImageGeneration", () => {
     expect(store.mock.calls[0][1]).toBe("image/png");
     expect(out.generation).toMatchObject({ status: "succeeded", output_snapshot: "https://storage.googleapis.com/b/panel.png" });
     expect(out.generation.meta).toMatchObject({ width: 768, height: 1365 });
+  });
+
+  it("refuses a model with no price before recording or reserving anything", async () => {
+    priceState.mode = "none";
+    await expect(runBilledImageGeneration(args())).rejects.toThrow("This model has no price set, so it can't run right now.");
+    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it("settles at the reserved estimate, never 0, when the provider billed meters with no price", async () => {
+    const { seededPrice } = await import("@/lib/ai-models/test-prices");
+    const seeded = seededPrice("gemini:gemini-3.1-flash-image");
+    // Keep the image line (so an estimate exists) but drop every token line the provider reports.
+    const price = { ...seeded, lines: seeded.lines.filter((l) => l.meter === "output_image") };
+    priceState.mode = price;
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    await runBilledImageGeneration(args());
+    const reserved = vi.mocked(reserveCredits).mock.calls[0][2];
+    expect(vi.mocked(settleGeneration)).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: reserved }));
+    expect(vi.mocked(succeedGeneration)).toHaveBeenCalledWith(expect.objectContaining({ creditsCharged: reserved, costUsd: undefined }));
+    expect(err).toHaveBeenCalledWith(expect.stringContaining("meters with no price"));
+    err.mockRestore();
   });
 
   it("fails and refunds when the store throws", async () => {

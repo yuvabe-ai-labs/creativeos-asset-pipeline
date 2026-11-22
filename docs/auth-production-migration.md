@@ -972,8 +972,6 @@ select column_name from information_schema.columns
 where table_name = 'generations' and column_name in ('model_price_id', 'provider_bill', 'record_only');
 -- expect two rows: live 16, retired 4 (20 models; retired are gpt-image-1 and the three Veo models)
 select status, count(*) from ai_models group by status;
--- expect an error: "ai_model_prices rows are never edited"
--- (only once Plan 2 has seeded prices) update ai_model_prices set note = note;
 ```
 
 ## Migration 0078 — model prices (D534, 2026-11-22)

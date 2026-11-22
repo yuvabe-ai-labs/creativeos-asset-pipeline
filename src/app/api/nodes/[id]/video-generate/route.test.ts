@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { checkLadder, multishotCapabilityFor } from "@/lib/nodes/multishot-models";
+import { seededPrice } from "@/lib/ai-models/test-prices";
 import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID, GEMINI_OMNI_11_MODEL_ID } from "@/lib/video-gen/client-models";
 
 vi.mock("server-only", () => ({}));
@@ -294,6 +295,7 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     });
 
     expect(res.status).toBe(202);
+    expect((mocks.insertGeneration.mock.calls[0] as unknown as [object])[0]).toMatchObject({ modelPriceId: seededPrice(GEMINI_OMNI_MODEL_ID).id });
     const [, payload] = mocks.triggerTask.mock.calls[0] as [
       string,
       { params: Record<string, unknown>; prompt: string },

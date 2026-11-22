@@ -73,7 +73,7 @@ export async function insertGeneration(input: {
       model_used: input.modelUsed ?? null,
       params_snapshot: input.paramsSnapshot ?? {},
       inputs_snapshot: input.inputsSnapshot ?? {},
-      // Only when set, like script_id: a database without migration 0076 still takes every insert.
+      // Migration 0076 (generations.model_price_id) must be applied before this code runs: every caller sets the field.
       ...(input.modelPriceId ? { model_price_id: input.modelPriceId } : {}),
     })
     .select()

@@ -533,6 +533,17 @@ describe("completeGeneration — image (D366)", () => {
     spy.mockRestore();
   });
 
+  it("settles at the reserved amount, never 0, when the provider billed meters with no price line", async () => {
+    const { priceForGeneration } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForGeneration).mockResolvedValueOnce({ ...seededPrice("openai:gpt-image-2"), lines: [] });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await completeGeneration(succeeded);
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: 77 }));
+    expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ creditsCharged: 77, costUsd: undefined }));
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("meters with no price"));
+    spy.mockRestore();
+  });
+
   it("fails closed when an image result arrives for a non-image generation", async () => {
     mocks.generation = { ...mocks.generation, type: "video" };
     await completeGeneration(succeeded);

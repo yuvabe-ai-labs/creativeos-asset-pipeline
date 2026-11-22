@@ -50,11 +50,13 @@ async function estimateFor(avatar: Avatar): Promise<number | null> {
   const mode = voicePreviewMode(avatar);
   const engine = voicePreviewEngine(avatar);
   if (!mode || !engine) return null;
-  const price = await priceForNewRun(VOICE_PREVIEW_ENGINE[engine].modelId);
-  if (mode === "native") return estimateVoicePreviewCredits(price, "native", engine);
-  const voice = avatar.voice?.mode === "named"
-    ? await getVoiceCached(avatar.voice.voiceId).catch(() => null)
-    : null;
+  const modelId = VOICE_PREVIEW_ENGINE[engine].modelId;
+  if (mode === "native") return estimateVoicePreviewCredits(await priceForNewRun(modelId), "native", engine);
+  // The price and the voice do not depend on each other: one round trip, not two.
+  const [price, voice] = await Promise.all([
+    priceForNewRun(modelId),
+    avatar.voice?.mode === "named" ? getVoiceCached(avatar.voice.voiceId).catch(() => null) : Promise.resolve(null),
+  ]);
   return estimateVoicePreviewCredits(price, "named", engine, voice?.priceMultiplier ?? 1);
 }
 

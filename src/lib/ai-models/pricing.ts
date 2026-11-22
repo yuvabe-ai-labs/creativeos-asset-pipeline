@@ -23,7 +23,7 @@ export function priceMeters(
   let usd = 0;
   const unpriced: Meter[] = [];
   for (const [meter, quantity] of Object.entries(meters) as [Meter, number | undefined][]) {
-    if (!quantity) continue;
+    if (quantity === undefined || !(Number.isFinite(quantity) && quantity > 0)) continue;
     const line = lineFor(price, meter, dims);
     if (!line) {
       unpriced.push(meter);

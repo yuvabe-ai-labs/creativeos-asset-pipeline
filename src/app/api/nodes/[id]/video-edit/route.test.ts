@@ -70,7 +70,7 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ generationId: "gen-7" });
     const call = (mocks.insertGeneration.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
-    expect(call).toMatchObject({ nodeId: "n1", orgId: "org-1", type: "edit", modelUsed: "gemini:gemini-omni-1.2-flash", paramsSnapshot: { resolution: "720p", durationSeconds: 6 } });
+    expect(call).toMatchObject({ nodeId: "n1", orgId: "org-1", type: "edit", modelUsed: "gemini:gemini-omni-1.2-flash", modelPriceId: seededPrice("gemini:gemini-omni-1.2-flash").id, paramsSnapshot: { resolution: "720p", durationSeconds: 6 } });
     const snapshot = call.inputsSnapshot as Record<string, unknown>;
     expect(snapshot.referenceUrls).toEqual([PACK.imageUrl]);
     expect(snapshot.videoEdit).toMatchObject({ baseVersionId: "v3", rootVersionId: "v3", instruction: "Make the flour beige", referenceNodeIds: ["n-pack"], referenceUrls: [PACK.imageUrl], resolution: "720p" });

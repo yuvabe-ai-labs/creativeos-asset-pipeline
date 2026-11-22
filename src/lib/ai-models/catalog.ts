@@ -61,5 +61,8 @@ async function loadAiCatalog(): Promise<AiCatalog> {
     if (price) prices.push(price);
     else console.error("[ai-models] price row failed its check — left out", { id: (row as { id?: unknown }).id });
   }
+  if (prices.length === 0) {
+    console.error("[ai-models] no model prices loaded — every paid run will be refused; is migration 0078 applied?");
+  }
   return { models, prices };
 }
