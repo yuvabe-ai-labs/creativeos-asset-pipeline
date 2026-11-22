@@ -5,7 +5,6 @@ import { seededPrice } from "@/lib/ai-models/test-prices";
 import { dubUsd, lipSyncUsd } from "@/lib/ai-models/service-price";
 import { DUB_MODEL_ID, LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { dubCredits, lipSyncCredits } from "../cost";
 
 const OWN = (p: string) => `https://storage.googleapis.com/bucket/${p}`;
 const DUB = { sourceNodeId: "vg", sourceVersionId: "sv", sourceUrl: OWN("src.mp4"), srcLang: "en-IN", targetLang: "hi-IN", durationSeconds: 8, provider: "sarvam", model: "sarvam-dub" };
@@ -52,17 +51,6 @@ describe("completeDubGeneration", () => {
     const call = (deps.succeedGeneration as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.costUsd).toBeUndefined();
     expect(call.creditsCharged).toBe(77);
-  });
-
-  it("charges the same credits as the code prices did: INR 40 a minute per whole second, $5 a minute lip sync", () => {
-    // 7.2s of lip sync is exactly 600 credits; the old float math read it as 600.0000000000001 and
-    // rounded up to 605, the row's own unit price does not, so that one value is left out.
-    for (const s of [1, 7.2, 8, 30, 61.5, 600]) {
-      expect(usdToFinalCredits(dubUsd(seededPrice(DUB_MODEL_ID), s)!)).toBe(dubCredits(s));
-    }
-    for (const s of [1, 8, 30, 61.5, 600]) {
-      expect(usdToFinalCredits(lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), s)!)).toBe(lipSyncCredits(s));
-    }
   });
 
   it("fails and refunds a result stored outside our bucket or a missing record", async () => {

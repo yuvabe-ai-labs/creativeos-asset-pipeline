@@ -198,8 +198,8 @@ export function VideoPromptFocusView({
     ? selectedInputPreview(preview.connected, upstream, selected)
     : null;
 
-  // Mirrors the image Prompt node's Generate button (prompt-focus-view.tsx) — same
-  // estimatePromptCredits heuristic, folded into the button label below.
+  // Mirrors the image Prompt node's Generate button (prompt-focus-view.tsx) — the
+  // flat price, folded into the button label below.
   // D536 - the flat price comes from the catalog row; the button waits for it.
   const { price: promptPrice, loading: promptPriceLoading } = useModelPrice(PROMPT_MODEL_ID);
   const estimatedCredits = promptPrice ? promptFlatCredits(promptPrice, upstream.filter(isVisionAttachment).length) : null;

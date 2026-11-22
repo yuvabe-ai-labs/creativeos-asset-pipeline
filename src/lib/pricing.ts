@@ -6,7 +6,6 @@ export type TokenUsage = {
 
 // Per-model pricing in USD per 1M tokens.
 export const MODEL_PRICING: Record<string, { inputPerM: number; outputPerM: number }> = {
-  "gpt-5.4-mini": { inputPerM: 0.75,  outputPerM: 4.50  },
   "gpt-4.1-mini": { inputPerM: 0.40,  outputPerM: 1.60  },
   "gpt-4o-mini":  { inputPerM: 0.15,  outputPerM: 0.60  },
   "gpt-4o":       { inputPerM: 2.50,  outputPerM: 10.00 },

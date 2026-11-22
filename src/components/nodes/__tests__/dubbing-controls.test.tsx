@@ -3,7 +3,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { DubbingControls } from "../dubbing-controls";
 import { DubbingDubPanel } from "../dubbing-dub-panel";
 import { DubbingLipSyncPanel } from "../dubbing-lip-sync-panel";
-import { dubCredits, lipSyncCredits } from "@/lib/dubbing/cost";
+import { dubUsd, lipSyncUsd } from "@/lib/ai-models/service-price";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { DUB_MODEL_ID, LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
+import { usdToFinalCredits } from "@/lib/credits/units";
+
+const dubCredits = (s: number) => usdToFinalCredits(dubUsd(seededPrice(DUB_MODEL_ID), s)!);
+const lipSyncCredits = (s: number) => usdToFinalCredits(lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), s)!);
 // D535 - the panels price from the price row; this stands in for the catalog read.
 const priceState = vi.hoisted(() => ({ loading: false, missing: false }));
 vi.mock("@/hooks/queries/ai-models", async () => {
