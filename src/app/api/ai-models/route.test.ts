@@ -39,4 +39,11 @@ describe("GET /api/ai-models", () => {
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "Could not load the models." });
   });
+
+  it("answers plainly when the caller lookup fails", async () => {
+    caller.mockRejectedValue(new Error("membership read failed"));
+    const res = await GET();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "Could not load the models." });
+  });
 });

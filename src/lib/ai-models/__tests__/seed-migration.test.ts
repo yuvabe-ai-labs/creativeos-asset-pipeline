@@ -17,5 +17,6 @@ describe("migration 0077 (ai_models seed)", () => {
     const sql = readFileSync(FILE, "utf8");
     const json = sql.slice(sql.indexOf(SEED_JSON_TAG) + SEED_JSON_TAG.length, sql.lastIndexOf(SEED_JSON_TAG));
     expect(JSON.parse(json)).toEqual(JSON.parse(JSON.stringify(rows)));
+    expect(sql.replace(/\r\n/g, "\n")).toBe(seedSql(rows));
   });
 });

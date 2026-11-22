@@ -950,6 +950,7 @@ select relrowsecurity from pg_class where relname = 'media_transcripts';
 select count(*) from generations
 where type = 'transcribe' and status = 'running' and created_at < now() - interval '20 minutes';
 ```
+
 ## Migrations 0076 + 0077 — AI model catalog (D529–D533, 2026-11-21)
 
 `supabase/migrations/0076_ai_model_catalog.sql` (the `ai_models` and `ai_model_prices` tables, the
@@ -965,7 +966,7 @@ Nothing reads the catalog yet (Plan 1b switches the readers), so no deploy order
 
 ```sql
 -- expect both true
-select relrowsecurity from pg_class where relname in ('ai_models', 'ai_model_prices');
+select relname, relrowsecurity from pg_class where relname in ('ai_models', 'ai_model_prices');
 -- expect the three new columns
 select column_name from information_schema.columns
 where table_name = 'generations' and column_name in ('model_price_id', 'provider_bill', 'record_only');

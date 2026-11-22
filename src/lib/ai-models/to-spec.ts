@@ -16,13 +16,13 @@ type VideoCapabilities = Omit<
 
 export function toImageClientSpec(model: AiModel): ClientModelSpec {
   return {
+    ...(model.capabilities as ImageCapabilities),
     id: model.id,
     provider: model.provider,
     mediaType: "image",
     label: model.label,
     providerLabel: model.providerLabel,
     ...(model.status === "retired" ? { deprecated: true } : {}),
-    ...(model.capabilities as ImageCapabilities),
     params: model.params,
     schema: buildZodFromParams(model.params),
   };
@@ -30,13 +30,13 @@ export function toImageClientSpec(model: AiModel): ClientModelSpec {
 
 export function toVideoClientSpec(model: AiModel): VideoGenClientModelSpec {
   return {
+    ...(model.capabilities as VideoCapabilities),
     id: model.id,
     provider: model.provider as VideoGenClientModelSpec["provider"],
     label: model.label,
     ...(model.pickerLabel ? { pickerLabel: model.pickerLabel } : {}),
     providerLabel: model.providerLabel,
     ...(model.status === "retired" ? { deprecated: true } : {}),
-    ...(model.capabilities as VideoCapabilities),
     params: model.params,
     rules: model.rules,
   };

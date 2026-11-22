@@ -1,4 +1,4 @@
-// D529 â€” today's image and video registries as ai_models rows, for migration 0077. Lives until
+// D529 — today's image and video registries as ai_models rows, for migration 0077. Lives until
 // Plan 1b deletes the registries; the drift test (seed-migration.test.ts) keeps 0077 equal to it.
 import type { ParamSpec } from "@/lib/image-gen/types";
 import type { ConstraintRule } from "@/lib/video-gen/types";
