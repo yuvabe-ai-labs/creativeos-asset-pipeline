@@ -5,6 +5,16 @@ import { checkLadder, multishotCapabilityFor } from "@/lib/nodes/multishot-model
 import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID, GEMINI_OMNI_11_MODEL_ID } from "@/lib/video-gen/client-models";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: vi.fn(async (modelId: string) => {
+      try { return seededPrice(modelId); } catch { return null; }
+    }),
+    priceForGeneration: vi.fn(async (g: { model_used: string | null }) => (g.model_used ? seededPrice(g.model_used) : null)),
+  };
+});
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
 vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 
@@ -292,6 +302,20 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     expect(payload.prompt).toContain("[0-3s]");
     expect(payload.prompt).not.toContain("shot 1, ");
     expect(payload.params.multi_shot).toBeUndefined();
+  });
+
+  it("refuses a model with no price before anything is recorded (D534)", async () => {
+    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    mocks.graph = buildGraph(
+      [{ id: "c1", text: "keys", seconds: 3 }, { id: "c2", text: "cab", seconds: 5 }],
+      GEMINI_OMNI_MODEL_ID,
+      PLAN,
+    );
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: { duration: 5 }, imageRoles: { ig: "reference" } });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This model has no price set, so it can't run right now." });
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
   });
 
   // D486 — Omni 1.1 and 1.2 read the same plan, so a 1.2 plan generates on 1.1 without a rewrite,

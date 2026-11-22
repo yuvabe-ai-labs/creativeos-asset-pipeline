@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
+import { priceFromCodeTables } from "@/lib/ai-models/price-seed";
 import { durationOfParams } from "@/lib/voice-change/record";
 import { mentionedImageIds } from "@/lib/video-edit/prompt";
 import {
@@ -77,7 +78,7 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
   const start = useStartVideoEdit(nodeId);
 
   const duration = durationOfParams(source?.paramsUsed ?? {});
-  const credits = duration > 0 ? videoEditEstimateCredits(duration, resolution, modelId, selectedIds.length) : null;
+  const credits = duration > 0 ? videoEditEstimateCredits(priceFromCodeTables(modelId), duration, resolution, selectedIds.length) : null;
   const gate = videoEditGate({
     sourceId,
     instruction: draft,

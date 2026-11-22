@@ -5,6 +5,7 @@ import { apiError, apiOk, withNode, withTryCatch } from "@/lib/api/route-helpers
 import { getVersionById } from "@/lib/db/versions";
 import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db/generations";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
+import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { isOwnStoredUrl } from "@/lib/storage";
 import { durationOfParams } from "@/lib/voice-change/record";
 import { collectConnectedUpstream } from "@/lib/video-gen/connected-images";
@@ -91,6 +92,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         modelId,
       };
       const editParams = { resolution, durationSeconds };
+      const price = await priceForNewRun(modelId);
+      if (!price) return apiError(NO_PRICE_MESSAGE, 409);
       const generation = await insertGeneration({
         nodeId,
         orgId: effectiveOrgId,
@@ -99,12 +102,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         userEmail: caller.email,
         type: "edit",
         modelUsed: modelId,
+        modelPriceId: price.id,
         paramsSnapshot: editParams,
         inputsSnapshot: { prompt: editPrompt, referenceUrls, videoEdit },
       });
 
       try {
-        const reservation = await reserveCredits(effectiveOrgId, generation.id, videoEditEstimateCredits(durationSeconds, resolution, modelId, referenceUrls.length));
+        const credits = videoEditEstimateCredits(price, durationSeconds, resolution, referenceUrls.length);
+        if (credits === null) throw new Error(`No price for ${modelId} at ${resolution}.`);
+        const reservation = await reserveCredits(effectiveOrgId, generation.id, credits);
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
         await tasks.trigger("video-generate", {
           generationId: generation.id,

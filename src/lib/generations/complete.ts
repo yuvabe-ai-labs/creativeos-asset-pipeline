@@ -1,8 +1,10 @@
 import "server-only";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
-import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
-import { computeVideoCostFromUsage, readVideoUsage, type VideoProviderUsage } from "@/lib/video-gen/provider-usage";
+import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { readVideoUsage, type VideoProviderUsage } from "@/lib/video-gen/provider-usage";
+import { priceForGeneration } from "@/lib/ai-models/run-price";
+import { videoChargeUsd } from "@/lib/ai-models/video-price";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -323,17 +325,18 @@ export async function completeGeneration(
   const audioEnabled = isVideoAudioEnabled(generation.params_snapshot?.audio);
   const resolution = asResolutionString(generation.params_snapshot?.resolution);
 
-  // D528 — the provider's reported usage when it sent one (Omni, Seedance); otherwise the
-  // per-second price. A voice change is ElevenLabs' work, priced by its voice, never by usage.
+  // D528/D534 — the provider's reported usage when it sent one, else the seconds, both priced
+  // with the row this run was reserved with. A voice change is ElevenLabs' work, priced by its voice.
   const usage = voiceChange ? null : readVideoUsage(input.usage);
-  const usageCost = usage && generation.model_used
-    ? computeVideoCostFromUsage(generation.model_used, usage, resolution)
+  const price = voiceChange ? null : await priceForGeneration(generation);
+  const charge = price
+    ? videoChargeUsd(price, { usage, durationSeconds: input.durationSeconds, audioEnabled, resolution })
     : null;
   const cost = voiceChange
     ? computeVoiceChangeCost(input.durationSeconds, voiceChange.priceMultiplier)
-    : usageCost ?? (generation.model_used
-      ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
-      : null);
+    : charge
+      ? { usd: charge.usd }
+      : null;
   // cost is only ever null when model_used is unset (shouldn't happen — every video
   // generation records a model at insertGeneration) — an actual cost of 0 credits in that
   // case, not a reason to skip settlement.
@@ -349,7 +352,7 @@ export async function completeGeneration(
     versionId: version.id,
     costUsd: cost?.usd,
     creditsCharged: actualCredits,
-    ...(usageCost && usage ? { tokensUsed: usage } : {}),
+    ...(charge?.source === "provider_usage" && usage ? { tokensUsed: usage } : {}),
     outputSnapshot: storedVideoUrl,
     meta: input.meta,
   });

@@ -4,7 +4,8 @@ import { tasks } from "@trigger.dev/sdk/v3";
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
 import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
-import { estimateVideoCostUsd } from "@/lib/video-gen/provider-usage";
+import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { videoEstimateUsd } from "@/lib/ai-models/video-price";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { videoGenRegistry, DEFAULT_VIDEO_MODEL_ID } from "@/lib/video-gen/registry";
@@ -341,6 +342,10 @@ export async function POST(
     const requestPrompt = presenterVoice?.text ? `${prompt}\n\n${presenterVoice.text}` : prompt;
     const referenceAudioUrl = presenterVoice?.referenceAudioUrl ?? undefined;
 
+    // D534 — the price row this run is reserved and charged with; no row, no run.
+    const price = await priceForNewRun(modelId);
+    if (!price) return apiError(NO_PRICE_MESSAGE, 409);
+
     // Insert generation record (status: 'running')
     const generation = await insertGeneration({
       nodeId,
@@ -350,6 +355,7 @@ export async function POST(
       userEmail: caller.email,
       type: "video",
       modelUsed: modelId,
+      modelPriceId: price.id,
       paramsSnapshot: resolvedParams,
       inputsSnapshot: {
         promptNodeId: promptNode.nodeId,
@@ -372,7 +378,7 @@ export async function POST(
       const resolution = asResolutionString(resolvedParams.resolution);
       // D528 — Omni also bills every image it is sent, and its thinking.
       const images = (startFrameUrl ? 1 : 0) + (endFrameUrl ? 1 : 0) + referenceUrls.length;
-      const estimateUsd = estimateVideoCostUsd(modelId, durationSeconds, audioEnabled, resolution, { images });
+      const estimateUsd = videoEstimateUsd(price, { durationSeconds, audioEnabled, resolution, images });
       if (estimateUsd === null) {
         throw new Error(`No cost estimate available for ${modelId} at these params.`);
       }

@@ -14,6 +14,16 @@ const mocks = vi.hoisted(() => ({
   keepAutoVoice: vi.fn(async (): Promise<string | null> => "auto1"),
 }));
 
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: vi.fn(async (modelId: string) => {
+      try { return seededPrice(modelId); } catch { return null; }
+    }),
+    priceForGeneration: vi.fn(async (g: { model_used: string | null }) => (g.model_used ? seededPrice(g.model_used) : null)),
+  };
+});
 vi.mock("@/lib/db/versions", () => ({
   insertVersion: mocks.insertVersion,
   setActiveVersion: mocks.setActiveVersion,

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeVideoCost } from "@/lib/video-gen/cost";
 import { omniEstimateExtrasUsd } from "@/lib/video-gen/provider-usage";
+import { seededPrice } from "@/lib/ai-models/test-prices";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/video-gen/client-models";
 import {
@@ -33,14 +34,18 @@ describe("videoEditEstimateCredits", () => {
   it("prices the take at the chosen model's rate for the resolution, plus the take sent as input (D528)", () => {
     for (const m of [GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_11_MODEL_ID] as const) {
       const usd = computeVideoCost(m, 6, true, "720p")!.usd + omniEstimateExtrasUsd(m, { images: 0, resolution: "720p", editInputSeconds: 6 });
-      expect(videoEditEstimateCredits(6, "720p", m)).toBe(usdToFinalCredits(usd));
-      expect(videoEditEstimateCredits(6, "4k", m)).toBeGreaterThan(videoEditEstimateCredits(6, "720p", m));
+      expect(videoEditEstimateCredits(seededPrice(m), 6, "720p")).toBe(usdToFinalCredits(usd));
+      expect(videoEditEstimateCredits(seededPrice(m), 6, "4k")).toBeGreaterThan(videoEditEstimateCredits(seededPrice(m), 6, "720p")!);
     }
   });
 
   it("counts reference images as input", () => {
-    expect(videoEditEstimateCredits(6, "720p", GEMINI_OMNI_12_MODEL_ID, 3))
-      .toBeGreaterThan(videoEditEstimateCredits(6, "720p", GEMINI_OMNI_12_MODEL_ID));
+    expect(videoEditEstimateCredits(seededPrice(GEMINI_OMNI_12_MODEL_ID), 6, "720p", 3))
+      .toBeGreaterThan(videoEditEstimateCredits(seededPrice(GEMINI_OMNI_12_MODEL_ID), 6, "720p")!);
+  });
+
+  it("is null before a price is known", () => {
+    expect(videoEditEstimateCredits(null, 6, "720p")).toBeNull();
   });
 });
 

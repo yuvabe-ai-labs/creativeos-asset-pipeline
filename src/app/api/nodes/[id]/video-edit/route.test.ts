@@ -1,9 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { videoEditEstimateCredits } from "@/lib/video-edit/record";
+import { seededPrice } from "@/lib/ai-models/test-prices";
 import { GEMINI_OMNI_12_IMAGE_INPUTS } from "@/lib/video-gen/gemini-omni-shape";
 import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/video-gen/client-models";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: vi.fn(async (modelId: string) => {
+      try { return seededPrice(modelId); } catch { return null; }
+    }),
+    priceForGeneration: vi.fn(async (g: { model_used: string | null }) => (g.model_used ? seededPrice(g.model_used) : null)),
+  };
+});
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
 vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 const mocks = vi.hoisted(() => ({
@@ -46,6 +57,14 @@ beforeEach(() => {
 });
 
 describe("POST /api/nodes/[id]/video-edit", () => {
+  it("refuses a model with no price before anything is recorded (D534)", async () => {
+    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const res = await post(BODY);
+    expect(res.status).toBe(409);
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+  });
+
   it("records a video generation with the edit, reserves Omni credits and triggers video-generate", async () => {
     const res = await post(BODY);
     expect(res.status).toBe(202);
@@ -57,7 +76,7 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     expect(snapshot.videoEdit).toMatchObject({ baseVersionId: "v3", rootVersionId: "v3", instruction: "Make the flour beige", referenceNodeIds: ["n-pack"], referenceUrls: [PACK.imageUrl], resolution: "720p" });
     expect(snapshot.prompt).toContain("Reference images, in the order attached: 1. Jackfruit 365 pack.");
     expect(snapshot.prompt).not.toContain("IMAGE_REF");
-    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(6, "720p", GEMINI_OMNI_12_MODEL_ID, 1));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(seededPrice(GEMINI_OMNI_12_MODEL_ID), 6, "720p", 1));
     expect(mocks.trigger).toHaveBeenCalledWith("video-generate", expect.objectContaining({
       generationId: "gen-7", modelId: "gemini:gemini-omni-1.2-flash", editVideoUrl: TAKE,
       referenceUrls: [PACK.imageUrl], params: { resolution: "720p", durationSeconds: 6 }, mockMode: false,
@@ -96,7 +115,7 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     const call = (mocks.insertGeneration.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
     expect(call).toMatchObject({ type: "edit", modelUsed: GEMINI_OMNI_11_MODEL_ID });
     expect((call.inputsSnapshot as { videoEdit: { modelId: string } }).videoEdit.modelId).toBe(GEMINI_OMNI_11_MODEL_ID);
-    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(6, "720p", GEMINI_OMNI_11_MODEL_ID, 1));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(seededPrice(GEMINI_OMNI_11_MODEL_ID), 6, "720p", 1));
     expect(mocks.trigger).toHaveBeenCalledWith("video-generate", expect.objectContaining({ modelId: GEMINI_OMNI_11_MODEL_ID }));
     // 1.1 takes up to 10 s; 1.2 up to 15 s.
     mocks.insertGeneration.mockClear();

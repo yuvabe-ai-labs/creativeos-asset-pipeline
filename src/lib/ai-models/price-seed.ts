@@ -200,3 +200,17 @@ export function seedRowToPrice(row: AiModelPriceSeedRow): AiModelPrice {
   if (!price) throw new Error(`Seed price row for ${row.model_id} fails the catalog's check`);
   return price;
 }
+
+let codeTablePrices: AiModelPrice[] | null = null;
+
+/** Transitional (removed in Plan 2a-ii): the row the seed holds for a model now, from the code
+ *  tables. Built once per page load; callers run in render. */
+export function priceFromCodeTables(modelId: string, at: Date = new Date()): AiModelPrice | null {
+  codeTablePrices ??= priceRowsFromCodeTables().map(seedRowToPrice);
+  let best: AiModelPrice | null = null;
+  for (const p of codeTablePrices) {
+    if (p.modelId !== modelId || new Date(p.effectiveFrom) > at) continue;
+    if (!best || p.effectiveFrom > best.effectiveFrom) best = p;
+  }
+  return best;
+}
