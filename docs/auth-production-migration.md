@@ -975,3 +975,26 @@ select status, count(*) from ai_models group by status;
 -- expect an error: "ai_model_prices rows are never edited"
 -- (only once Plan 2 has seeded prices) update ai_model_prices set note = note;
 ```
+
+## Migration 0078 — model prices (D534, 2026-11-22)
+
+`supabase/migrations/0078_ai_model_prices_seed.sql`: one price row per image and video model from
+1 Jan 2026, and a second row for Omni 1.1 at 1.2 rates from 3 Dec 2026 08:00 UTC. Paste into the
+Supabase SQL editor → Run.
+
+**Ordering:** 0076, 0077 and 0078 must all be on an environment **before** the Plan 2a code is
+deployed there. That code refuses to start a video or image run whose model has no price row, so
+deploying it first stops every video and image generation.
+
+**Safe to re-run:** `on conflict (model_id, effective_from) do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect 21
+select count(*) from ai_model_prices;
+-- expect two rows for Omni 1.1: 2026-01-01 and 2026-12-03 08:00
+select effective_from from ai_model_prices where model_id = 'gemini:gemini-omni-1.1-flash' order by 1;
+-- expect an error: "ai_model_prices rows are never edited"
+update ai_model_prices set note = note where model_id = 'gemini:gemini-omni-1.2-flash';
+```

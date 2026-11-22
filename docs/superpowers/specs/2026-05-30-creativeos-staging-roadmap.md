@@ -8879,3 +8879,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Empty access, limit and markup tables created now. A per-run margin replacing the credit-price margin.
 
 **Originated →** [2026-11-21-model-catalog-design.md](2026-11-21-model-catalog-design.md).
+
+### D534 — Video and image runs are priced from the dated price row they start on *(recorded 2026-11-22; implements D530, D531)*
+
+**Decision.** `ai_model_prices` holds one row per video and image model (migration 0078), seeded from the code tables through their own functions at every value a model can take. A row's lines price both the estimate (`video_second` per resolution, and audio for Kling; `output_image` per quality and size; Seedream's `input_image` after the first) and the charge (Omni's input, video, text and thinking tokens; Seedance's video tokens, with a 1080p line; image text, image and output tokens). Its `estimate` holds the allowances the request cannot show: Omni's 1,100 input tokens per image, 1,500 thinking tokens and the edit's source tokens per second; image input tokens as a base plus per reference; Gemini's 1,000 text and thinking tokens. Omni 1.1's move to 1.2 rates is its second row from 3 Dec 2026 08:00 UTC. One engine (`priceMeters`) prices quantities against the matching line. A new run reads the row valid now from the cached catalog and records it as `generations.model_price_id`; its completion is charged with that same row. A model with no row is refused before anything is recorded: "This model has no price set, so it can't run right now." Seedream reports the images it billed instead of a dollar figure.
+
+**Why.** User, 22 Nov 2026: prices come from the database, and the charge is what the provider billed. An equivalence test over every model and parameter shows the rows reproduce today's prices, so moving to them changes no charge.
+
+**Rejected.** Hand-entering the seed rows (a typo would change a price silently). Pricing a completion at the row valid when it finishes (a run straddling a price change would be reserved at one price and charged at another). Charging 0 for a model with no price.
+
+**Originated →** [2026-11-22-model-catalog-2a-prices.md](../plans/2026-11-22-model-catalog-2a-prices.md).
