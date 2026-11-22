@@ -41,8 +41,9 @@ export const videoVoiceChangeTask = task({
     assertWebhookConfig();
     logger.info("Changing voice", { generationId: payload.generationId, voiceId: payload.voiceId });
     let driftMs: number;
+    let characterCost: number | null = null;
     try {
-      ({ driftMs } = await revoiceVideo(payload, {
+      ({ driftMs, characterCost } = await revoiceVideo(payload, {
         fetchBytes: (url) => fetchBytes(url),
         extractAudio,
         speechToSpeech: (args) => speechToSpeech(args),
@@ -55,6 +56,8 @@ export const videoVoiceChangeTask = task({
       if (e instanceof NonRetryableRevoiceError) throw new AbortTaskRunError(e.message);
       throw e;
     }
+    // Logged so a failed delivery below can be completed by hand at what ElevenLabs billed.
+    logger.info("Voice changed", { generationId: payload.generationId, characterCost });
     try {
       await postGenerationWebhook({
         generationId: payload.generationId,
@@ -62,7 +65,7 @@ export const videoVoiceChangeTask = task({
         stored: true,
         videoUrl: payload.revoicedUrl,
         durationSeconds: payload.durationSeconds,
-        meta: { voiceChange: { driftMs } },
+        meta: { voiceChange: { driftMs, characterCost } },
       });
     } catch (e) {
       // The re-voiced video is stored; retrying would only pay ElevenLabs again.

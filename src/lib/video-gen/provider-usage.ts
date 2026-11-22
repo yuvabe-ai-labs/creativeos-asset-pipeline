@@ -13,7 +13,8 @@ export type OmniUsage = {
   thoughtTokens: number;
 };
 export type SeedanceUsage = { kind: "seedance"; completionTokens: number };
-export type VideoProviderUsage = OmniUsage | SeedanceUsage;
+export type KlingUsage = { kind: "kling"; units: number };
+export type VideoProviderUsage = OmniUsage | SeedanceUsage | KlingUsage;
 
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 
@@ -42,6 +43,19 @@ export function normalizeSeedanceUsage(raw: unknown): SeedanceUsage | null {
   return isCount(tokens) ? { kind: "seedance", completionTokens: tokens } : null;
 }
 
+/** D535 — Kling's task `billing` list: the units deducted for this task. */
+export function normalizeKlingBilling(raw: unknown): KlingUsage | null {
+  if (!Array.isArray(raw)) return null;
+  let units = 0;
+  for (const entry of raw) {
+    const e = (entry ?? {}) as { charge_type?: unknown; amount?: unknown };
+    if (e.charge_type !== "unit") continue;
+    const n = Number(e.amount);
+    if (Number.isFinite(n) && n > 0) units += n;
+  }
+  return units > 0 ? { kind: "kling", units } : null;
+}
+
 /** A usage that arrived in a webhook body: accepted only in exactly the shape we send. */
 export function readVideoUsage(value: unknown): VideoProviderUsage | null {
   if (!value || typeof value !== "object") return null;
@@ -60,5 +74,6 @@ export function readVideoUsage(value: unknown): VideoProviderUsage | null {
   if (v.kind === "seedance" && isCount(v.completionTokens)) {
     return { kind: "seedance", completionTokens: v.completionTokens };
   }
+  if (v.kind === "kling" && isCount(v.units)) return { kind: "kling", units: v.units };
   return null;
 }

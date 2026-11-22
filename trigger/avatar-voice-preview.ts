@@ -79,7 +79,7 @@ export const avatarVoicePreviewTask = task({
         });
         ({ durationSeconds } = result);
         clipUrl = payload.revoicedUrl;
-        meta = { voiceChange: { driftMs: result.driftMs } };
+        meta = { voiceChange: { driftMs: result.driftMs, characterCost: result.characterCost } };
       }
     } catch (e) {
       const error = e instanceof Error ? e.message : "Voice preview failed";

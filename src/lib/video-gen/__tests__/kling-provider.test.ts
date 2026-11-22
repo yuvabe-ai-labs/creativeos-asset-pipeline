@@ -260,6 +260,37 @@ describe("kling30.generate — poll flow", () => {
     expect(pollCall[0]).toBe("https://api-singapore.klingai.com/tasks?task_ids=task123");
   });
 
+  const succeededWith = (extra: Record<string, unknown>) => {
+    mockKlingApi(
+      { ok: true, json: async () => ({ code: 0, message: "", data: { id: "task123", status: "submitted" } }) },
+      {
+        ok: true,
+        json: async () => ({
+          code: 0,
+          message: "",
+          data: [{ id: "task123", status: "succeeded", outputs: [{ type: "video", url: "https://cdn.test/video.mp4", duration: "8" }], ...extra }],
+        }),
+      },
+    );
+  };
+
+  it("returns the units Kling billed for the task", async () => {
+    succeededWith({ billing: [{ charge_type: "unit", amount: "6.4", package_type: "video" }] });
+    const { kling30 } = await import("../providers/kling");
+    const p = kling30.generate({ prompt: "p", startFrameUrl: "https://x.test/s.png", referenceUrls: [], params: { resolution: "720p", duration: "8" } });
+    await vi.advanceTimersByTimeAsync(5000);
+    const result = await p;
+    expect(result.usage).toEqual({ kind: "kling", units: 6.4 });
+  });
+
+  it("returns no usage when the task reports no billing", async () => {
+    succeededWith({});
+    const { kling30 } = await import("../providers/kling");
+    const p = kling30.generate({ prompt: "p", startFrameUrl: "https://x.test/s.png", referenceUrls: [], params: { resolution: "720p", duration: "8" } });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect("usage" in (await p)).toBe(false);
+  });
+
   it("throws with the failure message when task status is failed", async () => {
     mockKlingApi(
       {

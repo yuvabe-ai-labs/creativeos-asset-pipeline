@@ -19,6 +19,22 @@ describe("runTranscription", () => {
     expect(r.secondsDone).toBe(17);
   });
 
+  it("sums the provider's credits and dollars, and says null when any finished file lacked them", async () => {
+    const two = { ...input, files: [input.files[0], input.files[1]] };
+    const costs: Record<string, { characterCost: number | null; providerUsd: number | null }> = {
+      a: { characterCost: 3, providerUsd: 0.01 }, b: { characterCost: 4, providerUsd: 0.02 },
+    };
+    const r = await runTranscription(two, { transcribe: async (u) => ({ language: "eng", words, ...costs[u] }), save: async () => {} });
+    expect(r.characterCost).toBe(7);
+    expect(r.providerUsd).toBeCloseTo(0.03, 10);
+    costs.b = { characterCost: null, providerUsd: null };
+    const r2 = await runTranscription(two, { transcribe: async (u) => ({ language: "eng", words, ...costs[u] }), save: async () => {} });
+    expect(r2.characterCost).toBeNull();
+    expect(r2.providerUsd).toBeNull();
+    const none = await runTranscription(two, { transcribe: async () => { throw new TranscribeError("failed", true, "x"); }, save: async () => {} });
+    expect(none.providerUsd).toBeNull();
+  });
+
   it("tries a network error once more, never a call the engine answered", async () => {
     let calls = 0;
     const flaky = vi.fn(async () => {

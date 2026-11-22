@@ -1,4 +1,5 @@
 import "server-only";
+import { normalizeKlingBilling } from "../provider-usage";
 import { logger } from "@trigger.dev/sdk/v3";
 import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
 import { kling30Params, klingO1Params, kling30OmniParams } from "../params/kling";
@@ -219,6 +220,8 @@ type KlingTask = {
   status: "submitted" | "processing" | "succeeded" | "failed";
   message?: string;
   outputs?: KlingTaskOutput[];
+  /** D535 — what Kling deducted for the task: units for a resource package. */
+  billing?: unknown;
 };
 type KlingQueryResponse = { code: number; message: string; data: KlingTask[] };
 
@@ -301,9 +304,11 @@ async function pollKlingTask(taskId: string): Promise<VideoGenResult> {
     if (kTask?.status === "succeeded") {
       const video = kTask.outputs?.find((o) => o.type === "video");
       if (!video) throw new Error("Kling task succeeded but returned no video output");
+      const usage = normalizeKlingBilling(kTask.billing);
       return {
         videoUrl: video.url,
         durationSeconds: Number(video.duration ?? 0),
+        ...(usage ? { usage } : {}),
       };
     }
     if (kTask?.status === "failed") {

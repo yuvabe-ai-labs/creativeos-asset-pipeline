@@ -23,6 +23,13 @@ const VEO: AiModelPrice = {
   estimate: {}, lines: [{ meter: "video_second", unit_usd: 0.1, when: { resolution: "720p" } }],
 };
 
+it("prices Kling's billed units on provider_unit", () => {
+  const p: AiModelPrice = { id: "k", modelId: "kling:kling-3-0", effectiveFrom: "2026-11-23T00:00:00Z", estimate: {}, sourceUrl: null, note: null,
+    lines: [{ meter: "video_second", unit_usd: 0.084, when: { resolution: "720p", audio: false } }, { meter: "provider_unit", unit_usd: 0.1508 }] };
+  const c = videoChargeUsd(p, { usage: { kind: "kling", units: 6.4 }, durationSeconds: 8, audioEnabled: false, resolution: "720p" })!;
+  expect(c).toEqual({ usd: 6.4 * 0.1508, source: "provider_usage", meters: { provider_unit: 6.4 } });
+});
+
 describe("videoSecondsUsd", () => {
   it("prices seconds at the resolution's line, 720p when unset", () => {
     expect(videoSecondsUsd(VEO, 8, false, undefined)).toBeCloseTo(0.8, 10);

@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { GenerationRow } from "./types";
+import type { ProviderBill } from "@/lib/ai-models/types";
 import { getReservationAmounts } from "./credit-transactions";
 import type { GenerationRow as ImpersonationGenerationRow } from "@/lib/auth/impersonation-audit-view";
 import { isUuid } from "@/lib/avatars/utils";
@@ -90,6 +91,8 @@ export async function succeedGeneration(input: {
   tokensUsed?: Record<string, unknown> | null;
   outputSnapshot?: string;
   meta?: Record<string, unknown>;
+  /** D535 — what the provider reported for the run. Untouched when omitted. */
+  providerBill?: ProviderBill | null;
 }): Promise<void> {
   const supabase = createServerSupabase();
   const update: Record<string, unknown> = {
@@ -109,6 +112,7 @@ export async function succeedGeneration(input: {
   // (e.g. the creator's email) and an unconditional overwrite here would silently wipe
   // that out on every completion, since most callers never pass meta.
   if (input.meta !== undefined) update.meta = input.meta;
+  if (input.providerBill !== undefined) update.provider_bill = input.providerBill;
 
   const { error } = await supabase
     .from("generations")

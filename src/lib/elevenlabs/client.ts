@@ -25,10 +25,16 @@ export function elevenLabsKey(): string {
   return key;
 }
 
+/** D535 — ElevenLabs' `character-cost` header: the credits this request deducted. */
+function readCharacterCost(res: Response): number | null {
+  const n = Number(res.headers.get("character-cost"));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export async function speechToSpeech(
   args: { audio: Buffer; voiceId: string; settings?: VoiceChangeSettings },
   fetchImpl: typeof fetch = fetch,
-): Promise<Buffer> {
+): Promise<{ audio: Buffer; characterCost: number | null }> {
   const form = new FormData();
   form.append("audio", new Blob([new Uint8Array(args.audio)], { type: "audio/mpeg" }), "audio.mp3");
   form.append("model_id", args.settings?.modelId ?? VOICE_CHANGE_MODEL_ID);
@@ -45,7 +51,7 @@ export async function speechToSpeech(
     const detail = await res.text().catch(() => "");
     throw new ElevenLabsHttpError(res.status, detail);
   }
-  return Buffer.from(await res.arrayBuffer());
+  return { audio: Buffer.from(await res.arrayBuffer()), characterCost: readCharacterCost(res) };
 }
 
 /** D299 — the model a short text-to-speech sample is read with: ElevenLabs' multilingual model,

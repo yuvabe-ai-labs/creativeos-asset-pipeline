@@ -40,14 +40,16 @@ export function videoEstimateUsd(
 }
 
 export function videoUsageMeters(usage: VideoProviderUsage): MeterQuantities {
-  return usage.kind === "omni"
-    ? {
-        input_token: usage.inputTokens,
-        video_output_token: usage.videoOutputTokens,
-        text_output_token: usage.textOutputTokens,
-        thought_token: usage.thoughtTokens,
-      }
-    : { video_output_token: usage.completionTokens };
+  if (usage.kind === "omni") {
+    return {
+      input_token: usage.inputTokens,
+      video_output_token: usage.videoOutputTokens,
+      text_output_token: usage.textOutputTokens,
+      thought_token: usage.thoughtTokens,
+    };
+  }
+  if (usage.kind === "kling") return { provider_unit: usage.units };
+  return { video_output_token: usage.completionTokens };
 }
 
 export type VideoCharge = { usd: number; source: "provider_usage" | "request"; meters: MeterQuantities };

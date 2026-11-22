@@ -21,7 +21,7 @@ export function parseScribeResponse(json: unknown): { language: string; words: T
   return { language: body.language_code ?? "und", words };
 }
 
-export async function transcribeUrl(url: string, deps: { fetch: typeof fetch; apiKey: string }): Promise<{ language: string; words: TranscriptWord[] }> {
+export async function transcribeUrl(url: string, deps: { fetch: typeof fetch; apiKey: string }): Promise<{ language: string; words: TranscriptWord[]; characterCost: number | null; providerUsd: number | null }> {
   const form = new FormData();
   form.set("model_id", TRANSCRIBE_ENGINE.model);
   form.set("source_url", url);
@@ -42,5 +42,13 @@ export async function transcribeUrl(url: string, deps: { fetch: typeof fetch; ap
     throw new TranscribeError("failed", true, `unreadable response: ${text.slice(0, 200)}`);
   }
   if (parsed.words.length === 0) throw new TranscribeError("no-speech", true, "no words");
-  return parsed;
+  // D535 — the credits are what is charged (`character-cost`); the fiat header is a list rate,
+  // kept in the bill's raw only.
+  const credits = Number(res.headers.get("character-cost"));
+  const fiat = Number(res.headers.get("fiat-cost-before-overages"));
+  return {
+    ...parsed,
+    characterCost: Number.isFinite(credits) && credits > 0 ? credits : null,
+    providerUsd: Number.isFinite(fiat) && fiat > 0 ? fiat : null,
+  };
 }

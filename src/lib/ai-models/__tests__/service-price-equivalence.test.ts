@@ -9,6 +9,7 @@ import {
   dubUsd, lipSyncUsd, voiceChangeEstimateUsd, voiceChangeCharge, transcribeEstimateUsd, promptFlatCredits, promptCharge,
 } from "../service-price";
 import { seededPrice } from "../test-prices";
+import { videoChargeUsd } from "../video-price";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { computeDubCost, computeLipSyncCost } from "@/lib/dubbing/cost";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
@@ -62,8 +63,22 @@ describe("seeded service rows price exactly what the code does", () => {
     expect(c.recordedUsd).toBeCloseTo(computeCost(PROMPT_MODEL_ID, usage)!.usd, 10);
     expect(promptFlatCredits(asPrice(PROMPT_MODEL_ID), 1)).toBe(7.5);
   });
-  // Restored with the full case in Task 4 (needs the { kind: "kling", units } usage).
-  it.todo("Kling unit rows keep 0078's per-second lines and add $0.1508 a unit");
+  it("Kling unit rows keep 0078's per-second lines and add $0.1508 a unit", () => {
+    const before = new Date("2026-11-22T12:00:00Z");
+    for (const id of ["kling:kling-3-0", "kling:kling-o1", "kling:kling-3-0-omni"]) {
+      const old = seededPrice(id, before);
+      const next = asPrice(id, KLING_UNIT_FROM);
+      for (const resolution of ["720p", "1080p"]) for (const audioEnabled of [false, true]) for (const durationSeconds of [3, 5, 8, 15]) {
+        const a = { usage: null, durationSeconds, audioEnabled, resolution };
+        // Without units reported, the new row charges exactly what the old row did.
+        expect(videoChargeUsd(next, a)?.usd).toBe(videoChargeUsd(old, a)?.usd);
+      }
+      const c = videoChargeUsd(next, { usage: { kind: "kling", units: 6.4 }, durationSeconds: 8, audioEnabled: false, resolution: "720p" })!;
+      expect(c.source).toBe("provider_usage");
+      expect(c.usd).toBeCloseTo(6.4 * 0.1508, 10);
+      expect(c.meters).toEqual({ provider_unit: 6.4 });
+    }
+  });
   it("Kling rows carry the provider_unit line at $0.1508", () => {
     for (const id of ["kling:kling-3-0", "kling:kling-o1", "kling:kling-3-0-omni"]) {
       const p = asPrice(id, KLING_UNIT_FROM);

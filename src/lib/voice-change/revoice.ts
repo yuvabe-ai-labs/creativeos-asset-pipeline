@@ -8,7 +8,7 @@ export const SYNC_DRIFT_MESSAGE = "The new voice came back out of sync, so nothi
 export type RevoiceDeps = {
   fetchBytes: (url: string) => Promise<Buffer>;
   extractAudio: (video: Buffer) => Promise<Buffer>;
-  speechToSpeech: (args: { audio: Buffer; voiceId: string; settings: VoiceChangeSettings }) => Promise<Buffer>;
+  speechToSpeech: (args: { audio: Buffer; voiceId: string; settings: VoiceChangeSettings }) => Promise<{ audio: Buffer; characterCost: number | null }>;
   probeDurationSeconds: (media: Buffer, ext: string) => Promise<number>;
   replaceAudio: (video: Buffer, audio: Buffer) => Promise<Buffer>;
   putBytes: (url: string, body: Buffer, contentType: string) => Promise<void>;
@@ -33,7 +33,7 @@ export class NonRetryableRevoiceError extends Error {
  * D282 — the video-voice-change task's steps. Throws on any failure: the task's own retry policy
  * re-runs just this, never the paid video generation.
  */
-export async function revoiceVideo(payload: RevoicePayload, deps: RevoiceDeps): Promise<{ driftMs: number }> {
+export async function revoiceVideo(payload: RevoicePayload, deps: RevoiceDeps): Promise<{ driftMs: number; characterCost: number | null }> {
   const video = await deps.fetchBytes(payload.sourceUrl);
 
   let audio: Buffer;
@@ -49,8 +49,9 @@ export async function revoiceVideo(payload: RevoicePayload, deps: RevoiceDeps): 
   }
 
   let voiced: Buffer;
+  let characterCost: number | null;
   try {
-    voiced = await deps.speechToSpeech({ audio, voiceId: payload.voiceId, settings: payload.settings });
+    ({ audio: voiced, characterCost } = await deps.speechToSpeech({ audio, voiceId: payload.voiceId, settings: payload.settings }));
   } catch (e) {
     if (e instanceof ElevenLabsHttpError && e.status !== 429 && e.status >= 400 && e.status < 500) {
       throw new NonRetryableRevoiceError(e.message, { cause: e });
@@ -79,5 +80,5 @@ export async function revoiceVideo(payload: RevoicePayload, deps: RevoiceDeps): 
 
   const final = await deps.replaceAudio(video, voiced);
   await deps.putBytes(payload.revoicedPutUrl, final, "video/mp4");
-  return { driftMs: Math.round(drift * 1000) };
+  return { driftMs: Math.round(drift * 1000), characterCost };
 }
