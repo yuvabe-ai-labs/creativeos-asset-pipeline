@@ -2,6 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { aiModelsService } from "@/services/ai-models.service";
+import { currentPrice } from "@/lib/ai-models/pricing";
+import type { AiModelPrice } from "@/lib/ai-models/types";
 
 // D529 — the model catalog, through TanStack Query. One request per session: pickers and focus
 // views select from this cache, never fetch per node (performance rule 1).
@@ -18,4 +20,13 @@ export function useAiCatalog() {
     queryFn: () => aiModelsService.catalog(),
     staleTime: CATALOG_STALE_MS,
   });
+}
+
+/** D534 — a model's price row valid now, selected from the session's one catalog query. */
+export function useModelPrice(modelId: string): { price: AiModelPrice | null; loading: boolean } {
+  const catalog = useAiCatalog();
+  return {
+    price: catalog.data ? currentPrice(catalog.data, modelId, new Date()) : null,
+    loading: catalog.isPending,
+  };
 }
