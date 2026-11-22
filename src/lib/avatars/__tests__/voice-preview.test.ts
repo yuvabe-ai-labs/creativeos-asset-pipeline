@@ -10,7 +10,7 @@ import { AVATAR_VOICE_PREVIEW_SLOT, AVATAR_VOICE_SAMPLE_SECONDS } from "../const
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
 import type { AvatarVoice } from "../schema";
 import type { GenerationRow } from "@/lib/db/types";
-import { computeVideoCost } from "@/lib/video-gen/cost";
+import { videoSecondsUsd } from "@/lib/ai-models/video-price";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -135,12 +135,12 @@ describe("voicePreviewParams", () => {
 describe("cost", () => {
   const P = { omni: seededPrice(GEMINI_OMNI_MODEL_ID), seedance: seededPrice(SEEDANCE_MODEL_ID) };
   it("a named preview is the Omni clip plus the voice change, at the voice's rate", () => {
-    const video = computeVideoCost(GEMINI_OMNI_MODEL_ID, 6, false, "720p")!.usd;
+    const video = videoSecondsUsd(seededPrice(GEMINI_OMNI_MODEL_ID), 6, false, "720p")!;
     expect(voicePreviewCostUsd(P.omni, "named", "omni", 6, "720p", 2)).toBeCloseTo(video + computeVoiceChangeCost(6, 2).usd);
   });
   it("a native preview is the Seedance clip alone — its voice arrives with it", () => {
     expect(voicePreviewCostUsd(P.seedance, "native", "seedance", 5, "480p", 1))
-      .toBeCloseTo(computeVideoCost(SEEDANCE_MODEL_ID, 5, false, "480p")!.usd);
+      .toBeCloseTo(videoSecondsUsd(seededPrice(SEEDANCE_MODEL_ID), 5, false, "480p")!);
   });
   it("a voice's price multiplier never touches a native preview", () => {
     expect(voicePreviewCostUsd(P.seedance, "native", "seedance", 5, "480p", 3)).toBe(voicePreviewCostUsd(P.seedance, "native", "seedance", 5, "480p", 1));
@@ -155,7 +155,7 @@ describe("cost", () => {
   });
   it("an engine's own voice on Omni is the Omni clip alone — nothing is re-voiced", () => {
     expect(voicePreviewCostUsd(P.omni, "native", "omni", 6, "720p", 2))
-      .toBeCloseTo(computeVideoCost(GEMINI_OMNI_MODEL_ID, 6, false, "720p")!.usd);
+      .toBeCloseTo(videoSecondsUsd(seededPrice(GEMINI_OMNI_MODEL_ID), 6, false, "720p")!);
   });
   it("is null before the clip's price is known", () => {
     expect(estimateVoicePreviewCredits(null, "native", "omni")).toBeNull();

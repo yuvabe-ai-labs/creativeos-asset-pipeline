@@ -2,12 +2,13 @@ import { describe, it, expect } from "vitest";
 import { videoGenRegistry } from "../registry";
 import { videoGenClientModelMap, GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "../client-models";
 import { validateAgainstRules } from "../constraints";
-import { computeVideoCost, OMNI_11_REROUTE_AT, pricedVideoModelId } from "../cost";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { videoSecondsUsd } from "@/lib/ai-models/video-price";
 
 const OMNI_11 = GEMINI_OMNI_11_MODEL_ID;
 const OMNI_12 = GEMINI_OMNI_12_MODEL_ID;
 const BEFORE_REROUTE = new Date("2026-11-10T00:00:00Z");
-const AFTER_REROUTE = new Date("2026-12-04T00:00:00Z");
+const REROUTE_AT = new Date("2026-12-03T08:00:00Z");
 
 describe.each([OMNI_11, OMNI_12])("Gemini Omni registration — %s", (OMNI) => {
   it("is present in both the server registry and the client map", () => {
@@ -41,14 +42,14 @@ describe.each([OMNI_11, OMNI_12])("Gemini Omni registration — %s", (OMNI) => {
   // Omni generates audio on every request and the rate already includes it, so unlike Kling the
   // audio flag must not move the price in either direction.
   it("charges the same whether audio is flagged on or off", () => {
-    expect(computeVideoCost(OMNI, 8, true, "720p")?.usd)
-      .toBe(computeVideoCost(OMNI, 8, false, "720p")?.usd);
+    expect(videoSecondsUsd(seededPrice(OMNI), 8, true, "720p"))
+      .toBe(videoSecondsUsd(seededPrice(OMNI), 8, false, "720p"));
   });
 
   // Strict lookup, no cross-key fallback — an unreachable resolution must not silently bill at
   // the 720p rate.
   it("returns null for a resolution this model does not offer", () => {
-    expect(computeVideoCost(OMNI, 8, true, "8k")).toBeNull();
+    expect(videoSecondsUsd(seededPrice(OMNI), 8, true, "8k")).toBeNull();
   });
 });
 
@@ -87,32 +88,29 @@ describe("Gemini Omni versions (D484)", () => {
   });
 });
 
-describe("computeVideoCost — Gemini Omni", () => {
+describe("Gemini Omni prices (migration 0078)", () => {
   // Google bills output tokens per second of video: 1,931 / 5,792 / 8,688 / 17,376 tokens/s.
   it("prices 1.1 at $17.50 per 1M video tokens before the reroute", () => {
-    expect(computeVideoCost(OMNI_11, 1, true, "360p", BEFORE_REROUTE)?.usd).toBeCloseTo(0.0337925, 7);
-    expect(computeVideoCost(OMNI_11, 1, true, "720p", BEFORE_REROUTE)?.usd).toBeCloseTo(0.10136, 7);
-    expect(computeVideoCost(OMNI_11, 1, true, "1080p", BEFORE_REROUTE)?.usd).toBeCloseTo(0.15204, 7);
-    expect(computeVideoCost(OMNI_11, 1, true, "4k", BEFORE_REROUTE)?.usd).toBeCloseTo(0.30408, 7);
+    expect(videoSecondsUsd(seededPrice(OMNI_11, BEFORE_REROUTE), 1, true, "360p")).toBeCloseTo(0.0337925, 7);
+    expect(videoSecondsUsd(seededPrice(OMNI_11, BEFORE_REROUTE), 1, true, "720p")).toBeCloseTo(0.10136, 7);
+    expect(videoSecondsUsd(seededPrice(OMNI_11, BEFORE_REROUTE), 1, true, "1080p")).toBeCloseTo(0.15204, 7);
+    expect(videoSecondsUsd(seededPrice(OMNI_11, BEFORE_REROUTE), 1, true, "4k")).toBeCloseTo(0.30408, 7);
   });
 
   it("prices 1.2 at $12 per 1M video tokens", () => {
-    expect(computeVideoCost(OMNI_12, 1, true, "360p")?.usd).toBeCloseTo(0.023172, 7);
-    expect(computeVideoCost(OMNI_12, 1, true, "720p")?.usd).toBeCloseTo(0.069504, 7);
-    expect(computeVideoCost(OMNI_12, 1, true, "1080p")?.usd).toBeCloseTo(0.104256, 7);
-    expect(computeVideoCost(OMNI_12, 1, true, "4k")?.usd).toBeCloseTo(0.208512, 7);
+    expect(videoSecondsUsd(seededPrice(OMNI_12), 1, true, "360p")).toBeCloseTo(0.023172, 7);
+    expect(videoSecondsUsd(seededPrice(OMNI_12), 1, true, "720p")).toBeCloseTo(0.069504, 7);
+    expect(videoSecondsUsd(seededPrice(OMNI_12), 1, true, "1080p")).toBeCloseTo(0.104256, 7);
+    expect(videoSecondsUsd(seededPrice(OMNI_12), 1, true, "4k")).toBeCloseTo(0.208512, 7);
   });
 
   it("defaults to the 720p rate when no resolution is given", () => {
-    expect(computeVideoCost(OMNI_12, 10, true)?.usd).toBeCloseTo(0.69504, 7);
+    expect(videoSecondsUsd(seededPrice(OMNI_12), 10, true, undefined)).toBeCloseTo(0.69504, 7);
   });
 
   // From 2026-12-03 Google serves and bills every 1.1 request as 1.2.
   it("prices 1.1 at 1.2 rates from the reroute date", () => {
-    expect(pricedVideoModelId(OMNI_11, BEFORE_REROUTE)).toBe(OMNI_11);
-    expect(pricedVideoModelId(OMNI_11, OMNI_11_REROUTE_AT)).toBe(OMNI_12);
-    expect(computeVideoCost(OMNI_11, 8, true, "720p", AFTER_REROUTE)?.usd)
-      .toBe(computeVideoCost(OMNI_12, 8, true, "720p")?.usd);
-    expect(pricedVideoModelId("kling:kling-3-0-omni", AFTER_REROUTE)).toBe("kling:kling-3-0-omni");
+    expect(seededPrice(OMNI_11, REROUTE_AT).lines).toEqual(seededPrice(OMNI_12).lines);
+    expect(seededPrice(OMNI_11, BEFORE_REROUTE).lines).not.toEqual(seededPrice(OMNI_12).lines);
   });
 });

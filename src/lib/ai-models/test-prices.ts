@@ -1,13 +1,25 @@
-// D534 — the seeded price rows, for tests anywhere in the app that need a model's real price.
+// D534 — the price rows migration 0078 seeded (frozen history), for tests anywhere in the app.
 // Not imported by app code.
-import { priceRowsFromCodeTables, seedRowToPrice } from "./price-seed";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { SEED_JSON_TAG } from "./seed";
+import { parseAiModelPriceRow } from "./schema";
 import { currentPrice } from "./pricing";
 import type { AiCatalog, AiModelPrice } from "./types";
 
 let catalog: AiCatalog | null = null;
 
 export function seededCatalog(): AiCatalog {
-  catalog ??= { models: [], prices: priceRowsFromCodeTables().map(seedRowToPrice) };
+  if (catalog) return catalog;
+  const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/0078_ai_model_prices_seed.sql"), "utf8");
+  const rows = JSON.parse(sql.slice(sql.indexOf(SEED_JSON_TAG) + SEED_JSON_TAG.length, sql.lastIndexOf(SEED_JSON_TAG))) as
+    Array<{ model_id: string; effective_from: string }>;
+  const prices = rows.map((row) => {
+    const price = parseAiModelPriceRow({ id: `${row.model_id}@${row.effective_from}`, ...row });
+    if (!price) throw new Error(`0078 row for ${row.model_id} fails the catalog's check`);
+    return price;
+  });
+  catalog = { models: [], prices };
   return catalog;
 }
 

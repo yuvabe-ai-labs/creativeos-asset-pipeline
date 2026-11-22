@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { videoGenRegistry } from "../registry";
 import { videoGenClientModelMap, videoGenClientModelGroups, KLING_OMNI_MODEL_ID } from "../client-models";
 import { validateAgainstRules } from "../constraints";
-import { computeVideoCost } from "../cost";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { videoSecondsUsd } from "@/lib/ai-models/video-price";
 import { buildO1Settings, build30OmniSettings } from "../providers/kling";
 
 const OMNI = KLING_OMNI_MODEL_ID;
@@ -142,14 +143,14 @@ describe("build30OmniSettings — duration policy", () => {
   });
 });
 
-describe("computeVideoCost — Kling 3.0 Omni", () => {
-  // Without a row here computeVideoCost returns null and video-generate throws "No cost estimate
+describe("Kling 3.0 Omni prices (migration 0078)", () => {
+  // Without a price row videoSecondsUsd returns null and video-generate throws "No cost estimate
   // available" before ever reaching the provider — an unpriced model looks registered and cannot
   // generate.
   it("prices every resolution the model offers, with and without audio", () => {
     for (const resolution of ["720p", "1080p", "4k"]) {
-      expect(computeVideoCost(OMNI, 5, false, resolution)).not.toBeNull();
-      expect(computeVideoCost(OMNI, 5, true, resolution)).not.toBeNull();
+      expect(videoSecondsUsd(seededPrice(OMNI), 5, false, resolution)).not.toBeNull();
+      expect(videoSecondsUsd(seededPrice(OMNI), 5, true, resolution)).not.toBeNull();
     }
   });
 
@@ -161,26 +162,26 @@ describe("computeVideoCost — Kling 3.0 Omni", () => {
   // overcharging: 0.126 where the real figure is 0.112, and 0.168 where it is 0.14. A test that
   // only asks whether a price exists cannot catch a price that is wrong.
   it("matches the published per-second rates exactly", () => {
-    expect(computeVideoCost(OMNI, 1, false, "720p")?.usd).toBeCloseTo(0.084, 5);
-    expect(computeVideoCost(OMNI, 1, true, "720p")?.usd).toBeCloseTo(0.112, 5);
-    expect(computeVideoCost(OMNI, 1, false, "1080p")?.usd).toBeCloseTo(0.112, 5);
-    expect(computeVideoCost(OMNI, 1, true, "1080p")?.usd).toBeCloseTo(0.14, 5);
-    expect(computeVideoCost(OMNI, 1, false, "4k")?.usd).toBeCloseTo(0.42, 5);
-    expect(computeVideoCost(OMNI, 1, true, "4k")?.usd).toBeCloseTo(0.42, 5);
+    expect(videoSecondsUsd(seededPrice(OMNI), 1, false, "720p")).toBeCloseTo(0.084, 5);
+    expect(videoSecondsUsd(seededPrice(OMNI), 1, true, "720p")).toBeCloseTo(0.112, 5);
+    expect(videoSecondsUsd(seededPrice(OMNI), 1, false, "1080p")).toBeCloseTo(0.112, 5);
+    expect(videoSecondsUsd(seededPrice(OMNI), 1, true, "1080p")).toBeCloseTo(0.14, 5);
+    expect(videoSecondsUsd(seededPrice(OMNI), 1, false, "4k")).toBeCloseTo(0.42, 5);
+    expect(videoSecondsUsd(seededPrice(OMNI), 1, true, "4k")).toBeCloseTo(0.42, 5);
   });
 
   // The audio delta is +33% at 720p and +25% at 1080p — NOT the +50% Kling 3.0 carries, which is
   // what the provisional row assumed. Stated as its own case because that assumption is the one
   // that was wrong, and a future edit that "restores consistency" with 3.0 would reintroduce it.
   it("does not charge Kling 3.0's +50% audio delta", () => {
-    const off720 = computeVideoCost(OMNI, 1, false, "720p")!.usd;
-    const on720 = computeVideoCost(OMNI, 1, true, "720p")!.usd;
+    const off720 = videoSecondsUsd(seededPrice(OMNI), 1, false, "720p")!;
+    const on720 = videoSecondsUsd(seededPrice(OMNI), 1, true, "720p")!;
     expect(on720).toBeLessThan(off720 * 1.5);
     expect(on720 / off720).toBeCloseTo(4 / 3, 3);
   });
 
   it("scales linearly with duration", () => {
-    const one = computeVideoCost(OMNI, 1, false, "720p")!.usd;
-    expect(computeVideoCost(OMNI, 10, false, "720p")!.usd).toBeCloseTo(one * 10, 5);
+    const one = videoSecondsUsd(seededPrice(OMNI), 1, false, "720p")!;
+    expect(videoSecondsUsd(seededPrice(OMNI), 10, false, "720p")!).toBeCloseTo(one * 10, 5);
   });
 });

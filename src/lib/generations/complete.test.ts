@@ -63,10 +63,9 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { completeGeneration, isVideoSucceeded, type CompleteGenerationInput } from "./complete";
 import { IMAGE_GENERATION_FAILED_MESSAGE, IMAGE_PROMPT_DECLINED_MESSAGE } from "@/lib/image-gen/failure-copy";
-import { computeImageCost } from "@/lib/image-gen/cost";
+import { imageChargeUsd } from "@/lib/ai-models/image-price";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
-import { computeVideoCost } from "@/lib/video-gen/cost";
-import { computeVideoCostFromUsage } from "@/lib/video-gen/provider-usage";
+import { videoSecondsUsd, videoChargeUsd } from "@/lib/ai-models/video-price";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -102,7 +101,7 @@ beforeEach(() => {
   };
 });
 
-const videoUsd = () => computeVideoCost(GEMINI_OMNI_MODEL_ID, 8, false, undefined)!.usd;
+const videoUsd = () => videoSecondsUsd(seededPrice(GEMINI_OMNI_MODEL_ID), 8, false, undefined)!;
 
 describe("completeGeneration — stored video (D282)", () => {
   it("ignores a legacy meta.voice on a video generation — video cost only, no voice in params", async () => {
@@ -173,8 +172,8 @@ describe("completeGeneration — billed from the provider's usage (D528)", () =>
     await completeGeneration({
       generationId: "g1", status: "succeeded", stored: true, videoUrl: ORIGINAL, durationSeconds: 3, usage,
     });
-    const credits = usdToFinalCredits(computeVideoCostFromUsage(GEMINI_OMNI_MODEL_ID, usage, "360p")!.usd);
-    expect(credits).toBeGreaterThan(usdToFinalCredits(computeVideoCost(GEMINI_OMNI_MODEL_ID, 3, false, "360p")!.usd));
+    const credits = usdToFinalCredits(videoChargeUsd(seededPrice(GEMINI_OMNI_MODEL_ID), { usage, durationSeconds: 0, audioEnabled: false, resolution: "360p" })!.usd);
+    expect(credits).toBeGreaterThan(usdToFinalCredits(videoSecondsUsd(seededPrice(GEMINI_OMNI_MODEL_ID), 3, false, "360p")!));
     expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: credits }));
     expect(mocks.succeedGeneration).toHaveBeenCalledWith(
       expect.objectContaining({ creditsCharged: credits, tokensUsed: usage }),
@@ -508,7 +507,7 @@ describe("completeGeneration — image (D366)", () => {
       total_tokens: 5200,
     };
     await completeGeneration({ ...tokenBilled, tokensUsed: tokens });
-    const usd = computeImageCost("openai:gpt-image-2", tokens)!.usd;
+    const usd = imageChargeUsd(seededPrice("openai:gpt-image-2"), { tokens, billedImages: null })!.usd;
     const credits = usdToFinalCredits(usd);
     expect(credits).toBeGreaterThan(0);
     expect(mocks.settleGeneration).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1", actualAmount: credits });

@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { videoGenRegistry } from "../registry";
 import { videoGenClientModelMap, videoGenClientModelGroups, SEEDANCE_MODEL_ID } from "../client-models";
 import { validateAgainstRules } from "../constraints";
-import { computeVideoCost } from "../cost";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { videoSecondsUsd } from "@/lib/ai-models/video-price";
 
 const SD = SEEDANCE_MODEL_ID;
 
@@ -54,13 +55,13 @@ describe("Seedance 2.5 registration", () => {
   // Pinned as VALUES, not "not null". A not-null assertion is exactly what let a wrong Kling
   // rate sit in this table overcharging (see the 2026-09-09 correction in cost.ts).
   it("prices every resolution exactly", () => {
-    expect(computeVideoCost(SD, 1, false, "480p")?.usd).toBeCloseTo(0.103, 5);
-    expect(computeVideoCost(SD, 1, false, "720p")?.usd).toBeCloseTo(0.231, 5);
-    expect(computeVideoCost(SD, 1, false, "1080p")?.usd).toBeCloseTo(0.569, 5);
+    expect(videoSecondsUsd(seededPrice(SD), 1, false, "480p")).toBeCloseTo(0.103, 5);
+    expect(videoSecondsUsd(seededPrice(SD), 1, false, "720p")).toBeCloseTo(0.231, 5);
+    expect(videoSecondsUsd(seededPrice(SD), 1, false, "1080p")).toBeCloseTo(0.569, 5);
   });
 
   it("prices a 30s clip, the model's own ceiling", () => {
-    expect(computeVideoCost(SD, 30, false, "720p")?.usd).toBeCloseTo(6.93, 2);
+    expect(videoSecondsUsd(seededPrice(SD), 30, false, "720p")).toBeCloseTo(6.93, 2);
   });
 
   // The vendor's dated model string must not leak into our id — a BytePlus revision would

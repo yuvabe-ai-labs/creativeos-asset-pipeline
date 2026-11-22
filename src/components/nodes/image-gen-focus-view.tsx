@@ -456,7 +456,7 @@ export function ImageGenFocusView({
   // own API route. The previous fetch-based version still paid a real DB+auth round trip on
   // every param change (withNode's node/canvas/client lookup in the now-deleted
   // image-generate/estimate route) even after D92 removed the live vendor token-counting
-  // call — this eliminates that hop entirely, matching video-gen's computeVideoCost (called
+  // call — this eliminates that hop entirely, matching video-gen's price lookup (called
   // directly in render, no fetch at all). Only meaningful on the Generate tab (Edit has its
   // own action button, out of scope per this plan) and once there's a prompt to estimate from.
   // D534 — priced from the model's row in the session's catalog.
