@@ -1,5 +1,6 @@
 import type { GenerationRow } from "@/lib/db/types";
-import { computeVideoCost } from "@/lib/video-gen/cost";
+import { videoSecondsUsd } from "@/lib/ai-models/video-price";
+import type { AiModelPrice } from "@/lib/ai-models/types";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
@@ -108,27 +109,30 @@ export function voicePreviewParams(engine: VoicePreviewEngine): Record<string, u
 
 /** What a preview costs. A named preview pays for the clip and the voice change over the same
  *  seconds; a native one pays for the clip alone, because the engine's voice arrives with it.
- *  Null when the engine has no price at that resolution — no estimate, no preview. */
+ *  D534 — the clip is priced from its model's price row. Null without a price. */
 export function voicePreviewCostUsd(
+  price: AiModelPrice | null,
   mode: VoicePreviewMode,
   engine: VoicePreviewEngine,
   durationSeconds: number,
   resolution: string | undefined,
   priceMultiplier: number,
 ): number | null {
-  const video = computeVideoCost(VOICE_PREVIEW_ENGINE[engine].modelId, durationSeconds, false, resolution);
-  if (!video) return null;
-  if (mode === "native") return video.usd;
-  return video.usd + computeVoiceChangeCost(durationSeconds, priceMultiplier).usd;
+  if (!price) return null;
+  const video = videoSecondsUsd(price, durationSeconds, false, resolution);
+  if (video === null) return null;
+  if (mode === "native") return video;
+  return video + computeVoiceChangeCost(durationSeconds, priceMultiplier).usd;
 }
 
 export function estimateVoicePreviewCredits(
+  price: AiModelPrice | null,
   mode: VoicePreviewMode,
   engine: VoicePreviewEngine,
   priceMultiplier = 1,
 ): number | null {
   const spec = VOICE_PREVIEW_ENGINE[engine];
-  const usd = voicePreviewCostUsd(mode, engine, spec.seconds, spec.resolution, priceMultiplier);
+  const usd = voicePreviewCostUsd(price, mode, engine, spec.seconds, spec.resolution, priceMultiplier);
   return usd === null ? null : usdToFinalCredits(usd);
 }
 

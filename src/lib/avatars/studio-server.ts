@@ -1,10 +1,11 @@
 import "server-only";
 import { failGeneration, getLatestAvatarVoicePreview, listAvatarGenerations, sumAvatarCredits } from "@/lib/db/generations";
 import { refundReservation } from "@/lib/db/credit-transactions";
+import { priceForNewRun } from "@/lib/ai-models/run-price";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
 import { generationToCandidate } from "./rows";
 import {
-  estimateVoicePreviewCredits, generationToVoicePreview, isVoicePreviewAbandoned, voicePreviewEngine, voicePreviewMode,
+  estimateVoicePreviewCredits, generationToVoicePreview, isVoicePreviewAbandoned, voicePreviewEngine, voicePreviewMode, VOICE_PREVIEW_ENGINE,
   VOICE_PREVIEW_TIMED_OUT_MESSAGE,
 } from "./voice-preview";
 import type { Avatar, AvatarCandidate, VoicePreview } from "./schema";
@@ -49,11 +50,12 @@ async function estimateFor(avatar: Avatar): Promise<number | null> {
   const mode = voicePreviewMode(avatar);
   const engine = voicePreviewEngine(avatar);
   if (!mode || !engine) return null;
-  if (mode === "native") return estimateVoicePreviewCredits("native", engine);
+  const price = await priceForNewRun(VOICE_PREVIEW_ENGINE[engine].modelId);
+  if (mode === "native") return estimateVoicePreviewCredits(price, "native", engine);
   const voice = avatar.voice?.mode === "named"
     ? await getVoiceCached(avatar.voice.voiceId).catch(() => null)
     : null;
-  return estimateVoicePreviewCredits("named", engine, voice?.priceMultiplier ?? 1);
+  return estimateVoicePreviewCredits(price, "named", engine, voice?.priceMultiplier ?? 1);
 }
 
 /** The latest preview in whatever state it is in, and what the next one would cost. */

@@ -41,7 +41,7 @@ function videoFailureText(generation: GenerationRow, generationId: string, raw: 
 
 // D534 — a finished paid run is never charged 0 because its price is missing: the provider has
 // billed us and the output is kept, so settle at what was reserved and record no dollar cost.
-async function reservedAmountForUnpriced(
+export async function reservedAmountForUnpriced(
   generationId: string,
   generation: GenerationRow,
   kind: "image" | "video",

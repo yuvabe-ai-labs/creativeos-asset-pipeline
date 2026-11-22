@@ -7,7 +7,8 @@ import { usdToFinalCredits } from "@/lib/credits/units";
 import { isOwnStoredUrl } from "@/lib/storage";
 import { asResolutionString } from "@/lib/video-gen/cost";
 import type { GenerationRow } from "@/lib/db/types";
-import { isVideoSucceeded, type CompleteGenerationInput } from "@/lib/generations/complete";
+import { priceForGeneration } from "@/lib/ai-models/run-price";
+import { isVideoSucceeded, reservedAmountForUnpriced, type CompleteGenerationInput } from "@/lib/generations/complete";
 import { keepAutoVoice } from "./auto-voice";
 import { voicePreviewCostUsd, voicePreviewKeepsSample, voicePreviewRowEngine, voicePreviewRowMode } from "./voice-preview";
 
@@ -62,13 +63,18 @@ export async function completeAvatarVoicePreview(
   const mode = voicePreviewRowMode(generation);
   const multiplier = Number((generation.inputs_snapshot as { priceMultiplier?: unknown } | null)?.priceMultiplier);
   const usd = voicePreviewCostUsd(
+    await priceForGeneration(generation),
     mode,
     voicePreviewRowEngine(generation),
     input.durationSeconds,
     asResolutionString(generation.params_snapshot?.resolution),
     Number.isFinite(multiplier) && multiplier >= 1 ? multiplier : 1,
   );
-  const credits = usd === null ? 0 : usdToFinalCredits(usd);
+  // D534 — a delivered preview is never charged 0 because its price is missing: settle at what
+  // was reserved and record no dollar cost.
+  const credits = usd === null
+    ? await reservedAmountForUnpriced(generation.id, generation, "video")
+    : usdToFinalCredits(usd);
 
   await settleGeneration({ orgId: generation.org_id, generationId: generation.id, actualAmount: credits });
   // The voice the clip was generated with, kept as what every later generation sends (§6.7) and

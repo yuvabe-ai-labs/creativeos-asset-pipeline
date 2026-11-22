@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
+import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar } from "@/lib/db/avatars";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
@@ -82,6 +83,8 @@ export async function POST(req: Request, { params }: Ctx) {
       const line = parsed.data.line;
       const prompt = buildVoicePreviewPrompt(line, mode);
       const paramsSnapshot = voicePreviewParams(engine);
+      const price = await priceForNewRun(VOICE_PREVIEW_ENGINE[engine].modelId);
+      if (!price) return apiError(NO_PRICE_MESSAGE, 409);
       const generation = await insertGeneration({
         avatarId,
         orgId: client.org_id,
@@ -90,6 +93,7 @@ export async function POST(req: Request, { params }: Ctx) {
         userEmail: caller.email,
         type: "video",
         modelUsed: VOICE_PREVIEW_ENGINE[engine].modelId,
+        modelPriceId: price.id,
         paramsSnapshot,
         inputsSnapshot: {
           slot: AVATAR_VOICE_PREVIEW_SLOT,
@@ -105,7 +109,7 @@ export async function POST(req: Request, { params }: Ctx) {
       });
 
       try {
-        const credits = estimateVoicePreviewCredits(mode, engine, voice?.priceMultiplier ?? 1);
+        const credits = estimateVoicePreviewCredits(price, mode, engine, voice?.priceMultiplier ?? 1);
         if (credits === null) throw new Error("No cost estimate available for the voice preview.");
         const reservation = await reserveCredits(client.org_id, generation.id, credits);
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
