@@ -841,7 +841,7 @@ export function VideoGenFocusView({
   // model change runs. Patching `modelId` alone left the params behind: an Omni node at
   // `resolution: "360p"` (Omni's draft tier) coerced to Kling — 720p/1080p/4k only — kept the
   // 360p, rendered a select holding an unlisted value, left Generate enabled, and posted it. The
-  // route then rebuilt params from Kling's specs, took "360p" from the body, the code price table
+  // route then rebuilt params from Kling's specs, took "360p" from the body, the price lookup
   // returned null, and the request died as a 500 AFTER inserting a generation row.
   //
   // D486 — "the model" is any model that reads the plan as written (Omni 1.1 and 1.2 share one), so
@@ -1509,12 +1509,15 @@ export function VideoGenFocusView({
   const disableGenerate =
     Boolean(lockReason) ||
     loadingConnected ||
+    priceLoading ||
     Boolean(promptGap) ||
     constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
   const disableGenerateReason = lockReason
     ? lockReason
     : loadingConnected
     ? "Loading connected inputs…"
+    : priceLoading
+    ? "Working out the cost…"
     : promptGap
     ? promptGap
     : constraints.disableGenerate

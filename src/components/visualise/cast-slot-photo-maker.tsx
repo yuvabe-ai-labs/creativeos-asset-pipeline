@@ -28,6 +28,7 @@ export function CastSlotPhotoMaker({ name, castId, modelId, avatar, uploading, c
   const { price } = useModelPrice(modelId);
   const photo = avatar?.front?.source.kind === "upload" ? avatar.front : null;
   const next = avatar && photo ? nextMakerStep(avatar) : null;
+  const sheetCredits = estimateSheetCredits(price, modelId);
   return (
     <div className="flex flex-wrap items-start gap-4">
       <div className="w-full max-w-[9rem]">
@@ -48,9 +49,9 @@ export function CastSlotPhotoMaker({ name, castId, modelId, avatar, uploading, c
           <AvatarLikenessConsent id={`likeness-consent-${castId}`} avatar={avatar} confirming={confirming} onConfirm={onConfirm} />
         )}
         {next && (
-          <Button className="self-start" disabled={busy} onClick={onFinish}>
+          <Button className="self-start" disabled={busy || (next === "views" && sheetCredits === null)} onClick={onFinish}>
             {next === "save" ? "Save to Avatars" : "Make the four views"}
-            {next === "views" && <AvatarCreditCost credits={estimateSheetCredits(price, modelId)} />}
+            {next === "views" && <AvatarCreditCost credits={sheetCredits} />}
           </Button>
         )}
       </div>

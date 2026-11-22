@@ -14,8 +14,8 @@
 //
 // Blind spots — spend this probe CANNOT see, because those routes call an LLM without
 // writing a generations row: copilot (/api/copilot*), compose, parse, file/extract.
-// Runs whose model is missing from the pricing tables (src/lib/pricing.ts,
-// src/lib/image-gen/cost.ts, video pricing) settle with cost_usd = null; they are
+// Runs whose model has no price settle with cost_usd = null (text prices are in
+// src/lib/pricing.ts; video and image prices come from ai_model_prices); they are
 // listed under "UNPRICED" rather than silently counted as $0.
 import { readFileSync, writeFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";

@@ -1,4 +1,4 @@
-// D534 — video prices live in ai_model_prices; this file keeps the two param readers.
+// D534 â€” video prices live in ai_model_prices; this file keeps the two param readers.
 
 /**
  * Determines whether audio is enabled for a video generation.

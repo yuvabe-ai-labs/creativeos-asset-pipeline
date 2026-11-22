@@ -85,18 +85,9 @@ const gptImageNewSchema = z.object({
 },
 ```
 
-**Step 4 — Add pricing to `src/lib/image-gen/cost.ts`**
+**Step 4 — Add a price row**
 
-The key must exactly match `ImageGenModelConfig.id`:
-
-```typescript
-const IMAGE_MODEL_PRICING = {
-  // ... existing entries ...
-  "openai:gpt-image-new": { textIn: 5.00, imgIn: 10.00, imgOut: 40.00 },
-};
-```
-
-Fields are USD per 1M tokens. Gemini models only need `imgOut`; OpenAI models use all three.
+A model needs a row in the `ai_model_prices` table before anyone can run it. Today that is a new migration; an admin price screen will replace it later. The row's `model_id` must exactly match the model's `id`. See `docs/superpowers/specs/2026-11-21-model-catalog-design.md` for the row's shape and how prices are read.
 
 **Step 5 — Verify**
 
@@ -181,7 +172,7 @@ export const imageGenModelGroups = [
 
 **Step 4 — Mirror in `client-models.ts`** (same as adding a model, repeated for every model in the new provider)
 
-**Step 5 — Add pricing in `cost.ts`**
+**Step 5 — Add a price row for each model** (an `ai_model_prices` row, as in Step 4 of adding a model)
 
 **Step 6 — Add env var for the new API key**
 
@@ -209,34 +200,11 @@ type ImageTokenUsage = {
 };
 ```
 
-This is written once at generation time and **never mutated**. Cost is computed at read time, not stored.
+This is written once at generation time and **never mutated**. The charge for a run is worked out from these tokens and the model's price row.
 
-### Cost formula (`src/lib/image-gen/cost.ts`)
+### Prices
 
-```typescript
-const IMAGE_MODEL_PRICING = {
-  // USD per 1M tokens
-  "openai:gpt-image-2":                    { textIn: 5.00, imgIn: 8.00,  imgOut: 30.00 },
-  "openai:gpt-image-1":                    { textIn: 5.00, imgIn: 10.00, imgOut: 40.00 },
-  "openai:gpt-image-1-mini":               { textIn: 2.00, imgIn: 2.50,  imgOut: 8.00  },
-  "gemini:gemini-3.1-flash-image-preview": { imgOut: 60.00 },
-  "gemini:gemini-3-pro-image-preview":     { imgOut: 80.00 }, // estimated
-};
-
-function computeImageCost(modelId, tokens) {
-  const p = IMAGE_MODEL_PRICING[modelId];
-  if (!p) return null;
-  const usd =
-    (tokens.text_input_tokens  / 1_000_000) * (p.textIn ?? 0) +
-    (tokens.image_input_tokens / 1_000_000) * (p.imgIn  ?? 0) +
-    (tokens.image_output_tokens / 1_000_000) * p.imgOut;
-  return { usd, inr: usd * USD_TO_INR };
-}
-```
-
-### INR conversion
-
-`USD_TO_INR = 95.77` is defined in `src/lib/pricing.ts` (updated 2026-06-12). Updating this single constant refreshes all historical cost displays retroactively — because costs are never persisted.
+What a model costs lives in the `ai_model_prices` table, one dated row per model, and a price change is a new row, so past runs keep the price they were billed at. A model with no row cannot run. Adding or changing a price is described in `docs/superpowers/specs/2026-11-21-model-catalog-design.md`.
 
 ### Gemini output token reference
 

@@ -24,4 +24,11 @@ describe("GenerateFooter", () => {
     expect(text(html)).not.toContain("Est.");
     expect(html).toMatch(/<button[^>]*disabled=""/);
   });
+
+  it("while the price loads: a disabled button with a spinner and no estimate", () => {
+    const html = render({ estimating: true, disabled: true, credits: null });
+    expect(html).toMatch(/<button[^>]*disabled=""/);
+    expect(html).toContain("animate-spin");
+    expect(text(html)).not.toContain("Est.");
+  });
 });

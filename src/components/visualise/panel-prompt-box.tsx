@@ -40,11 +40,11 @@ export function PanelPromptBox({ prompt, builtPrompt, credits, busy, onRegenerat
         For how the frame is drawn. A change to what happens belongs in the shot&apos;s action.
       </p>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={busy || empty} onClick={() => onRegenerate(draft)}>
+        <Button size="sm" disabled={busy || empty || credits === null} onClick={() => onRegenerate(draft)}>
           Regenerate with this prompt <AvatarCreditCost credits={credits} />
         </Button>
         {(draft.trim() !== builtPrompt || prompt !== builtPrompt) && (
-          <Button size="sm" variant="outline" disabled={busy} onClick={onReset}>
+          <Button size="sm" variant="outline" disabled={busy || credits === null} onClick={onReset}>
             Reset to the script&apos;s prompt <AvatarCreditCost credits={credits} />
           </Button>
         )}

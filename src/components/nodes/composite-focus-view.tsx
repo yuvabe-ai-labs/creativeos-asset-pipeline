@@ -228,7 +228,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                     onClick={() =>
                       void (editing ? edit.runEdit() : generate({ instruction: draft, modelId: model.id, params: values }))
                     }
-                    disabled={imageGenerateDisabled(compositeBlocker, generating || viewing.isViewingOther, false)}
+                    disabled={imageGenerateDisabled(compositeBlocker, generating || viewing.isViewingOther, priceLoading)}
                     disabledReason={compositeBlocker}
                     credits={actionUsd === null ? null : usdToFinalCredits(actionUsd)}
                     estimating={priceLoading}

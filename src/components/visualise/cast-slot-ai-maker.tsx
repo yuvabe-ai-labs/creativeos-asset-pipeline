@@ -25,6 +25,8 @@ export function CastSlotAiMaker({ avatar, modelId, busy, onMake }: {
   const id = useId();
   const next = nextMakerStep(avatar);
   const hasFace = Boolean(avatar?.front);
+  const makeCredits = estimateMakeCredits(price, modelId);
+  const sheetCredits = estimateSheetCredits(price, modelId);
 
   return (
     <div className="flex flex-col gap-2">
@@ -44,21 +46,21 @@ export function CastSlotAiMaker({ avatar, modelId, busy, onMake }: {
         </InputGroup>
         <div className="flex shrink-0 flex-wrap gap-2">
           {!hasFace ? (
-            <Button disabled={busy} onClick={() => onMake(instructions, false)}>
-              Make avatar <AvatarCreditCost credits={estimateMakeCredits(price, modelId)} />
+            <Button disabled={busy || makeCredits === null} onClick={() => onMake(instructions, false)}>
+              Make avatar <AvatarCreditCost credits={makeCredits} />
             </Button>
           ) : (
             <>
               {next === "views" && (
-                <Button disabled={busy} onClick={() => onMake("", false)}>
-                  Make the four views <AvatarCreditCost credits={estimateSheetCredits(price, modelId)} />
+                <Button disabled={busy || sheetCredits === null} onClick={() => onMake("", false)}>
+                  Make the four views <AvatarCreditCost credits={sheetCredits} />
                 </Button>
               )}
               {next === "save" && <Button disabled={busy} onClick={() => onMake("", false)}>Save to Avatars</Button>}
               {/* D465 — primary is the next step to make the avatar; once it is made, Regenerate is
                   secondary (the next step is then its voice and preview). */}
-              <Button variant="secondary" disabled={busy} onClick={() => onMake(instructions, true)}>
-                Regenerate avatar <AvatarCreditCost credits={estimateMakeCredits(price, modelId)} />
+              <Button variant="secondary" disabled={busy || makeCredits === null} onClick={() => onMake(instructions, true)}>
+                Regenerate avatar <AvatarCreditCost credits={makeCredits} />
               </Button>
             </>
           )}

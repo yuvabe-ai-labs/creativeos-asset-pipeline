@@ -20,7 +20,7 @@ export function GenerateAllDialog({ plan, busy, onConfirm }: {
   const none = plan.shotIds.length === 0;
   return (
     <>
-      <Button disabled={none || busy} onClick={() => setOpen(true)}>
+      <Button disabled={none || busy || plan.credits === null} onClick={() => setOpen(true)}>
         <Sparkles className="size-4" strokeWidth={1.5} />
         {busy ? "Drawing…" : "Generate all"}
       </Button>
@@ -35,7 +35,7 @@ export function GenerateAllDialog({ plan, busy, onConfirm }: {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setOpen(false); onConfirm(); }}>
+            <AlertDialogAction disabled={plan.credits === null} onClick={() => { setOpen(false); onConfirm(); }}>
               {plan.redraw ? "Redraw" : "Generate"}
             </AlertDialogAction>
           </AlertDialogFooter>

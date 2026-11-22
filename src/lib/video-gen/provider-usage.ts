@@ -2,7 +2,7 @@
 //
 // Probed 2026-11-19 (real Omni 1.2 generations, 3s 360p): Google's `usage` block reports input
 // tokens (a reference image ~1,100; an edit's source video as many tokens as the output),
-// thinking tokens (330–1,530 per call) and the video output. the video output alone was priced, so it charged 7–18% below Google's bill. BytePlus reports
+// thinking tokens (330–1,530 per call) and the video output. Only the video output was priced, so it charged 7–18% below Google's bill. BytePlus reports
 // `usage.completion_tokens`, the exact tokens it bills (its minimum included).
 
 export type OmniUsage = {

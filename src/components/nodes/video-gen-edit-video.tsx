@@ -167,7 +167,7 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
           busy={busy}
           busyLabel="Editing…"
           onClick={submit}
-          disabled={busy || !gate.ok}
+          disabled={busy || !gate.ok || priceLoading}
           disabledReason={gate.ok ? null : gate.reason}
           credits={credits}
           estimating={priceLoading}
