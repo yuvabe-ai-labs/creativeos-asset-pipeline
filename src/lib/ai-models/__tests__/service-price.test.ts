@@ -96,9 +96,9 @@ describe("prompt", () => {
     expect(promptFlatUsd(p, 3)).toBeCloseTo(0.0125, 10);
   });
   it("converts the flat amount to credits without rounding", () => {
-    expect(promptFlatCredits(p, 0)).toBeCloseTo(5, 8);
-    expect(promptFlatCredits(p, 1)).toBeCloseTo(7.5, 8);
-    expect(promptFlatCredits(p, 3)).toBeCloseTo(12.5, 8);
+    expect(promptFlatCredits(p, 0)).toBe(5);
+    expect(promptFlatCredits(p, 1)).toBe(7.5);
+    expect(promptFlatCredits(p, 3)).toBe(12.5);
   });
   it("is null without the flat lines", () => {
     expect(promptFlatUsd(row([]), 1)).toBeNull();

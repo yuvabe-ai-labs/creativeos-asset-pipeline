@@ -78,10 +78,10 @@ export function promptFlatUsd(price: AiModelPrice, attachmentCount: number): num
   return priced(price, { request: 1, input_image: attachmentCount });
 }
 
-/** The flat price in credits: USD x 1000, deliberately not rounded (usdToFinalCredits would round to 5). */
+/** The flat price in credits: USD x 1000 to 6 decimals (no float noise), deliberately not rounded to 5 like usdToFinalCredits. */
 export function promptFlatCredits(price: AiModelPrice, attachmentCount: number): number | null {
   const usd = promptFlatUsd(price, attachmentCount);
-  return usd === null ? null : usd * 1000;
+  return usd === null ? null : Math.round(usd * 1e9) / 1e6;
 }
 
 type PromptUsage = {

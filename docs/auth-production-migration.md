@@ -997,7 +997,7 @@ select effective_from from ai_model_prices where model_id = 'gemini:gemini-omni-
 update ai_model_prices set note = note where model_id = 'gemini:gemini-omni-1.2-flash';
 ```
 
-## Migrations 0079 + 0080 — service prices and provider bills (D535–D536, 2026-11-23)
+## Migrations 0079 + 0080 — service prices and provider bills (D535–D536, 2026-11-22)
 
 `supabase/migrations/0079_ai_service_models.sql` (five service models in `ai_models`) and
 `supabase/migrations/0080_ai_service_prices.sql` (their prices, plus a dated row per Kling model
@@ -1015,6 +1015,10 @@ set, so it can't run right now."
 ```sql
 -- expect 5
 select count(*) from ai_models where kind in ('dub','lipsync','voice','transcribe','text');
--- expect 8 (5 services + 3 Kling unit rows)
-select count(*) from ai_model_prices where effective_from > '2026-01-01';
+-- expect 8 (5 service rows + 3 Kling unit rows)
+select count(*) from ai_model_prices where model_id in (
+  'sarvam:dub', 'fal:lipsync-2-pro', 'elevenlabs:eleven_multilingual_sts_v2',
+  'elevenlabs:scribe_v2', 'openai:gpt-5.4-mini',
+  'kling:kling-3-0', 'kling:kling-o1', 'kling:kling-3-0-omni'
+) and effective_from in ('2026-01-01', '2026-11-23');
 ```
