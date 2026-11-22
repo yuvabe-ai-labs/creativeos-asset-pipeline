@@ -68,7 +68,11 @@ describe("videoChargeUsd", () => {
   it("falls back to the duration when there is no usage or a meter has no line", () => {
     expect(videoChargeUsd(VEO, { usage: null, durationSeconds: 8, audioEnabled: false, resolution: "720p" }))
       .toEqual({ usd: expect.closeTo(0.8, 10), source: "request", meters: { video_second: 8 } });
-    expect(videoChargeUsd(VEO, { usage, durationSeconds: 8, audioEnabled: false, resolution: "720p" })?.source).toBe("request");
+    const c = videoChargeUsd(VEO, { usage, durationSeconds: 8, audioEnabled: false, resolution: "720p" });
+    expect(c?.usd).toBeCloseTo(0.8, 10);
+    expect(c?.source).toBe("provider_charge");
+    expect(c?.meters).toEqual(videoUsageMeters(usage));
+    expect(c?.unpriced?.length).toBeGreaterThan(0);
   });
   it("is null when neither the usage nor the duration can be priced", () => {
     expect(videoChargeUsd(VEO, { usage: null, durationSeconds: 8, audioEnabled: false, resolution: "4k" })).toBeNull();

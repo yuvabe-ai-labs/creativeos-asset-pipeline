@@ -1,7 +1,7 @@
 // D534 — a video run's estimate and charge, from its model's price row. Client-safe.
 import type { VideoProviderUsage } from "@/lib/video-gen/provider-usage";
 import { lineFor, priceMeters, type MeterQuantities, type PriceDims } from "./pricing";
-import type { AiModelPrice } from "./types";
+import type { AiModelPrice, Meter } from "./types";
 
 export function videoDims(resolution: string | undefined, audioEnabled: boolean): PriceDims {
   return { resolution: resolution ?? "720p", audio: audioEnabled };
@@ -52,7 +52,13 @@ export function videoUsageMeters(usage: VideoProviderUsage): MeterQuantities {
   return { video_output_token: usage.completionTokens };
 }
 
-export type VideoCharge = { usd: number; source: "provider_usage" | "request"; meters: MeterQuantities };
+export type VideoCharge = {
+  usd: number;
+  source: "provider_usage" | "provider_charge" | "request";
+  meters: MeterQuantities;
+  /** Provider-reported meters the price row has no line for; set only when the charge fell back to seconds. */
+  unpriced?: Meter[];
+};
 
 /** What the run costs: the provider's usage when every meter of it is priced, else the seconds. */
 export function videoChargeUsd(
@@ -63,6 +69,9 @@ export function videoChargeUsd(
     const meters = videoUsageMeters(a.usage);
     const priced = priceMeters(price, meters, videoDims(a.resolution, a.audioEnabled));
     if (priced.unpriced.length === 0) return { usd: priced.usd, source: "provider_usage", meters };
+    // The provider reported meters this row cannot price: charge the seconds, but keep what it sent.
+    const usd = videoSecondsUsd(price, a.durationSeconds, a.audioEnabled, a.resolution);
+    return usd === null ? null : { usd, source: "provider_charge", meters, unpriced: priced.unpriced };
   }
   const usd = videoSecondsUsd(price, a.durationSeconds, a.audioEnabled, a.resolution);
   return usd === null ? null : { usd, source: "request", meters: { video_second: a.durationSeconds } };

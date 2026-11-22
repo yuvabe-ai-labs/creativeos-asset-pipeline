@@ -25,6 +25,14 @@ describe("priceForGeneration", () => {
     const p = await priceForGeneration({ model_used: "gemini:gemini-omni-1.1-flash", created_at: "2026-12-10T00:00:00Z", model_price_id: old.id });
     expect(p?.id).toBe(old.id);
   });
+  it("keeps the older Kling row over the newer unit row that its created_at falls under", async () => {
+    const old = seededPrice("kling:kling-3-0", new Date("2026-11-22T00:00:00Z"));
+    const newer = seededPrice("kling:kling-3-0", new Date("2026-11-24T00:00:00Z"));
+    expect(newer.id).not.toBe(old.id);
+    const p = await priceForGeneration({ model_used: "kling:kling-3-0", created_at: "2026-11-24T00:00:00Z", model_price_id: old.id });
+    expect(p?.id).toBe(old.id);
+    expect(await priceForGeneration({ model_used: "kling:kling-3-0", created_at: "2026-11-24T00:00:00Z" })).toMatchObject({ id: newer.id });
+  });
   it("falls back to the row valid when the run started", async () => {
     const p = await priceForGeneration({ model_used: "gemini:gemini-omni-1.1-flash", created_at: "2026-12-10T00:00:00Z" });
     expect(p?.effectiveFrom).toBe("2026-12-03T08:00:00.000Z");

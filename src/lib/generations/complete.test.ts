@@ -241,14 +241,24 @@ describe("completeGeneration — Kling billed by its units (D535)", () => {
   });
 
   it("keeps a run that started before the unit row on the row it reserved with, never charging 0", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     kling("2026-11-22T00:00:00Z");
     await run({ usage: { kind: "kling", units: 6.4 } });
     const expected = videoSecondsUsd(seededPrice("kling:kling-3-0", new Date("2026-11-22T00:00:00Z")), 5, false, "720p")!;
     expect(expected).toBeGreaterThan(0);
     expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(expected) }));
-    expect((mocks.succeedGeneration.mock.calls[0] as unknown as [Record<string, unknown>])[0].providerBill).toEqual(
-      expect.objectContaining({ source: "request" }),
-    );
+    const bill = (mocks.succeedGeneration.mock.calls[0] as unknown as [Record<string, unknown>])[0].providerBill;
+    expect(bill).toEqual({ source: "provider_charge", meters: { provider_unit: 6.4 }, unpriced: ["provider_unit"] });
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("provider_unit"));
+    spy.mockRestore();
+  });
+
+  it("writes Kling's raw blocks verbatim on the bill", async () => {
+    kling("2026-11-24T00:00:00Z");
+    const raw = [{ task_id: "t1", final_unit_deduction: "6.4" }];
+    await run({ usage: { kind: "kling", units: 6.4, raw } });
+    const bill = (mocks.succeedGeneration.mock.calls[0] as unknown as [Record<string, unknown>])[0].providerBill as { raw?: unknown };
+    expect(bill.raw).toEqual(raw);
   });
 });
 

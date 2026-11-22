@@ -118,6 +118,9 @@ async function completeImageGeneration(
     costUsd: cost?.usd,
     creditsCharged: actualCredits,
     tokensUsed: input.tokensUsed ? { ...input.tokensUsed } : null,
+    ...(charge && charge.unpriced.length > 0
+      ? { providerBill: { source: "provider_charge" as const, meters: charge.meters, unpriced: charge.unpriced } }
+      : {}),
     outputSnapshot: input.imageUrl,
   });
 }
@@ -361,6 +364,11 @@ export async function completeGeneration(
   const charge = price
     ? videoChargeUsd(price, { usage, durationSeconds: input.durationSeconds, audioEnabled, resolution })
     : null;
+  if (charge?.unpriced) {
+    console.error(
+      `[completeGeneration] video ${input.generationId} (${generation.model_used}) has meters with no price: ${charge.unpriced.join(", ")}`,
+    );
+  }
   // D535 — a voice change is charged by the credits ElevenLabs reported (the last attempt's only:
   // an earlier paid attempt that failed later is not counted), else by seconds x the voice's
   // multiplier. The reported credits already reflect the voice's real charge, so the multiplier
@@ -404,7 +412,12 @@ export async function completeGeneration(
     providerBill: voiceChange
       ? voiceCharge?.bill ?? null
       : charge
-        ? { source: charge.source, meters: charge.meters, ...(charge.source === "provider_usage" && usage?.kind === "kling" && usage.raw ? { raw: usage.raw } : {}) }
+        ? {
+            source: charge.source,
+            meters: charge.meters,
+            ...(charge.unpriced ? { unpriced: charge.unpriced } : {}),
+            ...(charge.source !== "request" && usage?.kind === "kling" && usage.raw ? { raw: usage.raw } : {}),
+          }
         : null,
     outputSnapshot: storedVideoUrl,
     meta: input.meta,
