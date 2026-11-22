@@ -6,7 +6,9 @@ import { getVersionById } from "@/lib/db/versions";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
+import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { VoiceChangeSettingsSchema } from "@/lib/elevenlabs/voice-settings";
 import { VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
@@ -51,6 +53,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       priceMultiplier: voice.priceMultiplier,
       settings,
     };
+    // D535 - ElevenLabs' row prices the voice change; the generation still records the video's model.
+    const price = await priceForNewRun(VOICE_CHANGE_PRICE_MODEL_ID);
+    if (!price) return apiError(NO_PRICE_MESSAGE, 409);
+    const usd = voiceChangeEstimateUsd(price, source.durationSeconds, voice.priceMultiplier);
+    if (usd === null) return apiError(NO_PRICE_MESSAGE, 409);
+
     const generation = await insertGeneration({
       nodeId,
       orgId: effectiveOrgId,
@@ -59,12 +67,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       userEmail: caller.email,
       type: "voice",
       modelUsed: source.root.model_used ?? undefined,
+      modelPriceId: price.id,
       paramsSnapshot: source.root.params_used ?? {},
       inputsSnapshot: { ...(source.root.inputs_used ?? {}), voiceChange },
     });
 
     try {
-      const credits = usdToFinalCredits(computeVoiceChangeCost(source.durationSeconds, voice.priceMultiplier).usd);
+      const credits = usdToFinalCredits(usd);
       const reservation = await reserveCredits(effectiveOrgId, generation.id, credits);
       if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
       const upload = await signRevoicedVideoUrl({ nodeId, generationId: generation.id });

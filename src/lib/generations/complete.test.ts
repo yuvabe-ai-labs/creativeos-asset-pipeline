@@ -66,7 +66,8 @@ import { IMAGE_GENERATION_FAILED_MESSAGE, IMAGE_PROMPT_DECLINED_MESSAGE } from "
 import { imageChargeUsd } from "@/lib/ai-models/image-price";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import { videoSecondsUsd, videoChargeUsd } from "@/lib/ai-models/video-price";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
+import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
@@ -101,6 +102,7 @@ beforeEach(() => {
   };
 });
 
+const voiceUsd = (seconds: number, m: number) => voiceChangeEstimateUsd(seededPrice(VOICE_CHANGE_PRICE_MODEL_ID), seconds, m)!;
 const videoUsd = () => videoSecondsUsd(seededPrice(GEMINI_OMNI_MODEL_ID), 8, false, undefined)!;
 
 describe("completeGeneration — stored video (D282)", () => {
@@ -201,7 +203,7 @@ describe("completeGeneration — billed from the provider's usage (D528)", () =>
       generationId: "g1", status: "succeeded", stored: true, videoUrl: REVOICED, durationSeconds: 8, usage,
     });
     expect(mocks.settleGeneration).toHaveBeenCalledWith(
-      expect.objectContaining({ actualAmount: usdToFinalCredits(computeVoiceChangeCost(8, 2).usd) }),
+      expect.objectContaining({ actualAmount: usdToFinalCredits(voiceUsd(8, 2)) }),
     );
   });
 });
@@ -265,7 +267,44 @@ describe("completeGeneration — voice change (D284)", () => {
       paramsUsed: { durationSeconds: 8 },
       inputsUsed: { prompt: "p", voiceChange: { ...VC, driftMs: 40 } },
     }));
-    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(computeVoiceChangeCost(8, 2).usd) }));
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(voiceUsd(8, 2)) }));
+  });
+
+  it("charges the credits ElevenLabs reported, at the credit price, and records the bill", async () => {
+    mocks.generation = { ...mocks.generation, type: "voice", params_snapshot: { durationSeconds: 8 }, inputs_snapshot: { prompt: "p", voiceChange: VC } };
+    await completeGeneration({ generationId: "g1", status: "succeeded", stored: true, videoUrl: REVOICED, durationSeconds: 8, meta: { voiceChange: { driftMs: 40, characterCost: 30 } } });
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(30 * 0.000182) }));
+    expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({
+      costUsd: expect.closeTo(0.00546, 8),
+      providerBill: { source: "provider_charge", meters: { provider_credit: 30 } },
+    }));
+  });
+
+  it("without reported credits it charges seconds x the voice's multiplier, as a request bill", async () => {
+    mocks.generation = { ...mocks.generation, type: "voice", params_snapshot: { durationSeconds: 8 }, inputs_snapshot: { prompt: "p", voiceChange: VC } };
+    await completeGeneration({ generationId: "g1", status: "succeeded", stored: true, videoUrl: REVOICED, durationSeconds: 8 });
+    expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({
+      providerBill: { source: "request", meters: { audio_second: 16 } },
+    }));
+  });
+
+  it("finds a recorded voice row by the ElevenLabs id, not the video's model", async () => {
+    const { priceForGeneration } = await import("@/lib/ai-models/run-price");
+    mocks.generation = { ...mocks.generation, model_price_id: "p-1", type: "voice", inputs_snapshot: { voiceChange: VC } };
+    await completeGeneration({ generationId: "g1", status: "succeeded", stored: true, videoUrl: REVOICED, durationSeconds: 8 });
+    expect(priceForGeneration).toHaveBeenCalledWith(expect.objectContaining({ model_used: VOICE_CHANGE_PRICE_MODEL_ID, model_price_id: "p-1" }));
+  });
+
+  it("settles the reserved amount, keeping the version, when the voice change has no price row", async () => {
+    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.generation = { ...mocks.generation, type: "voice", inputs_snapshot: { prompt: "p", voiceChange: VC } };
+    await completeGeneration({ generationId: "g1", status: "succeeded", stored: true, videoUrl: REVOICED, durationSeconds: 8 });
+    expect(mocks.insertVersion).toHaveBeenCalled();
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: 77 }));
+    expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ creditsCharged: 77, costUsd: undefined, providerBill: null }));
+    spy.mockRestore();
   });
 
   it("a failed voice change creates no version and refunds", async () => {
@@ -292,13 +331,19 @@ describe("completeGeneration — an avatar's voice preview (D294)", () => {
 
   it("settles the clip plus the voice change and records the stored clip, with no version", async () => {
     await completeGeneration({ generationId: "g1", status: "succeeded", stored: true, videoUrl: PREVIEW, durationSeconds: 6, meta: { voiceChange: { driftMs: 30 } } });
-    const credits = usdToFinalCredits(voicePreviewCostUsd(seededPrice(GEMINI_OMNI_MODEL_ID), "named", "omni", 6, "720p", 2)!);
+    const credits = usdToFinalCredits(voicePreviewCostUsd(seededPrice(GEMINI_OMNI_MODEL_ID), seededPrice(VOICE_CHANGE_PRICE_MODEL_ID), "named", "omni", 6, "720p", 2)!);
     expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ generationId: "g1", actualAmount: credits }));
     expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({
       generationId: "g1", outputSnapshot: PREVIEW, creditsCharged: credits, meta: { voiceChange: { driftMs: 30 } },
     }));
     expect(mocks.insertVersion).not.toHaveBeenCalled();
     expect(mocks.refundReservation).not.toHaveBeenCalled();
+  });
+
+  it("charges the voice part by the credits ElevenLabs reported", async () => {
+    await completeGeneration({ generationId: "g1", status: "succeeded", stored: true, videoUrl: PREVIEW, durationSeconds: 6, meta: { voiceChange: { driftMs: 30, characterCost: 20 } } });
+    const clip = voicePreviewCostUsd(seededPrice(GEMINI_OMNI_MODEL_ID), null, "native", "omni", 6, "720p", 2)!;
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(clip + 20 * 0.000182) }));
   });
 
   it("settles at the reserved amount, never 0, when the clip's price cannot be found (D534)", async () => {
@@ -367,7 +412,7 @@ describe("completeGeneration — a native voice preview keeps its voice (D296)",
 
   it("settles the Seedance clip alone and records the extracted voice on the avatar", async () => {
     await succeed({ voiceSample: { url: SAMPLE, durationSeconds: 4.8 } });
-    const credits = usdToFinalCredits(voicePreviewCostUsd(seededPrice(SEEDANCE_MODEL_ID), "native", "seedance", 5, "480p", 1)!);
+    const credits = usdToFinalCredits(voicePreviewCostUsd(seededPrice(SEEDANCE_MODEL_ID), null, "native", "seedance", 5, "480p", 1)!);
     expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ generationId: "g1", actualAmount: credits }));
     expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ outputSnapshot: CLIP, creditsCharged: credits }));
     expect(mocks.updateAvatar).toHaveBeenCalledWith("c1", "a1", {
@@ -388,7 +433,7 @@ describe("completeGeneration — a native voice preview keeps its voice (D296)",
     mocks.generation = { ...mocks.generation, inputs_snapshot: { ...(mocks.generation.inputs_snapshot as object), priceMultiplier: 3 } };
     await succeed({ voiceSample: { url: SAMPLE, durationSeconds: 4.8 } });
     expect(mocks.settleGeneration).toHaveBeenCalledWith(
-      expect.objectContaining({ actualAmount: usdToFinalCredits(voicePreviewCostUsd(seededPrice(SEEDANCE_MODEL_ID), "native", "seedance", 5, "480p", 1)!) }),
+      expect.objectContaining({ actualAmount: usdToFinalCredits(voicePreviewCostUsd(seededPrice(SEEDANCE_MODEL_ID), null, "native", "seedance", 5, "480p", 1)!) }),
     );
   });
 

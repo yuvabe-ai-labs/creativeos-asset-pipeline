@@ -9,6 +9,8 @@ import { durationOfParams } from "@/lib/voice-change/record";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import { useVoiceChoice } from "@/hooks/use-voice-choice";
 import { useChangeVoice } from "@/hooks/use-change-voice";
+import { useModelPrice } from "@/hooks/queries/ai-models";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { useVoicePreview } from "@/hooks/use-voice-preview";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
 import { LeftSection } from "./focus-left-section";
@@ -56,7 +58,8 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, locke
   }, [choice.voice?.voiceId]);
 
   const duration = durationOfParams(sourceVersion?.paramsUsed ?? {});
-  const estimatedCredits = choice.voice && duration > 0 ? voiceChangeEstimateCredits(duration, choice.voice.priceMultiplier) : null;
+  const { price: voicePrice, loading: voicePriceLoading } = useModelPrice(VOICE_CHANGE_PRICE_MODEL_ID);
+  const estimatedCredits = choice.voice && duration > 0 ? voiceChangeEstimateCredits(voicePrice, duration, choice.voice.priceMultiplier) : null;
   const gate = canApplyVoiceChange({ sourceId, voice: Boolean(choice.voice), saving: choice.saving, running, locked });
 
   async function onApply() {
@@ -124,9 +127,10 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, locke
         busyLabel="Changing voice…"
         icon={AudioLines}
         onClick={() => void onApply()}
-        disabled={busy || !gate.ok}
+        disabled={busy || !gate.ok || voicePriceLoading || estimatedCredits === null}
         disabledReason={gate.ok ? null : gate.reason ?? null}
         credits={estimatedCredits}
+        estimating={voicePriceLoading && Boolean(choice.voice) && duration > 0}
         />
       </VideoGenChangeVoiceSettings>
     </div>

@@ -1,9 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
+import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { usdToFinalCredits } from "@/lib/credits/units";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: vi.fn(async (modelId: string) => {
+      try { return seededPrice(modelId); } catch { return null; }
+    }),
+  };
+});
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
 vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 const mocks = vi.hoisted(() => ({
@@ -48,7 +59,7 @@ describe("POST /api/nodes/[id]/voice-change", () => {
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ generationId: "gen-9" });
     expect(mocks.insertGeneration).toHaveBeenCalledWith(expect.objectContaining({
-      nodeId: "n1", orgId: "org-1", type: "voice", modelUsed: "gemini:omni",
+      nodeId: "n1", orgId: "org-1", type: "voice", modelUsed: "gemini:omni", modelPriceId: seededPrice(VOICE_CHANGE_PRICE_MODEL_ID).id,
       paramsSnapshot: { durationSeconds: 8, resolution: "720p" },
       inputsSnapshot: {
         prompt: "p",
@@ -58,7 +69,7 @@ describe("POST /api/nodes/[id]/voice-change", () => {
         },
       },
     }));
-    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-9", usdToFinalCredits(computeVoiceChangeCost(8, 2).usd));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-9", usdToFinalCredits(voiceChangeEstimateUsd(seededPrice(VOICE_CHANGE_PRICE_MODEL_ID), 8, 2)!));
     expect(mocks.trigger).toHaveBeenCalledWith("video-voice-change", {
       generationId: "gen-9", sourceUrl: "https://storage.googleapis.com/b/v2.mp4", voiceId: "a1",
       settings: DEFAULT_VOICE_CHANGE_SETTINGS, revoicedPutUrl: "https://put/r",
@@ -74,6 +85,16 @@ describe("POST /api/nodes/[id]/voice-change", () => {
     expect((await post({ ...BODY, settings: { ...DEFAULT_VOICE_CHANGE_SETTINGS, stability: 500 } })).status).toBe(400);
     delete process.env.ELEVEN_LABS_API_KEY;
     expect((await post(BODY)).status).toBe(400);
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it("refuses with no voice-change price before anything is recorded or reserved (D535)", async () => {
+    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const res = await post(BODY);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This model has no price set, so it can't run right now." });
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
     expect(mocks.reserveCredits).not.toHaveBeenCalled();
   });

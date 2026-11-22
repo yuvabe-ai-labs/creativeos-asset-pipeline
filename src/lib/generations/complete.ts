@@ -3,9 +3,10 @@ import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { readVideoUsage, type VideoProviderUsage } from "@/lib/video-gen/provider-usage";
-import { priceForGeneration } from "@/lib/ai-models/run-price";
+import { priceForGeneration, priceForNewRun } from "@/lib/ai-models/run-price";
+import { voiceChangeCharge } from "@/lib/ai-models/service-price";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { videoChargeUsd } from "@/lib/ai-models/video-price";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { settleGeneration, refundReservation, getReservationAmounts } from "@/lib/db/credit-transactions";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
@@ -360,8 +361,26 @@ export async function completeGeneration(
   const charge = price
     ? videoChargeUsd(price, { usage, durationSeconds: input.durationSeconds, audioEnabled, resolution })
     : null;
+  // D535 — a voice change is charged by the credits ElevenLabs reported (the last attempt's only:
+  // an earlier paid attempt that failed later is not counted), else by seconds x the voice's
+  // multiplier. The reported credits already reflect the voice's real charge, so the multiplier
+  // applies to the fallback alone. The generation records the VIDEO's model, so its row is found by
+  // the ElevenLabs id; an older voice job (no recorded row) uses the row valid when it started.
+  const reported = Number((input.meta?.voiceChange as { characterCost?: unknown } | undefined)?.characterCost);
+  const voicePrice = voiceChange
+    ? generation.model_price_id
+      ? await priceForGeneration({ ...generation, model_used: VOICE_CHANGE_PRICE_MODEL_ID })
+      : await priceForNewRun(VOICE_CHANGE_PRICE_MODEL_ID, new Date(generation.created_at))
+    : null;
+  const voiceCharge = voiceChange && voicePrice
+    ? voiceChangeCharge(voicePrice, {
+        characterCost: Number.isFinite(reported) && reported > 0 ? reported : null,
+        seconds: input.durationSeconds,
+        priceMultiplier: voiceChange.priceMultiplier,
+      })
+    : null;
   const cost = voiceChange
-    ? computeVoiceChangeCost(input.durationSeconds, voiceChange.priceMultiplier)
+    ? voiceCharge ? { usd: voiceCharge.usd } : null
     : charge
       ? { usd: charge.usd }
       : null;
@@ -369,7 +388,7 @@ export async function completeGeneration(
   // billed us and the video is kept, so settle at what was reserved and record no dollar cost.
   const actualCredits = cost
     ? usdToFinalCredits(cost.usd)
-    : await reservedAmountForUnpriced(input.generationId, generation, "video");
+    : await reservedAmountForUnpriced(input.generationId, generation, voiceChange ? "voice" : "video");
 
   await settleGeneration({
     orgId: generation.org_id,
@@ -382,6 +401,7 @@ export async function completeGeneration(
     costUsd: cost?.usd,
     creditsCharged: actualCredits,
     ...(charge?.source === "provider_usage" && usage ? { tokensUsed: usage } : {}),
+    providerBill: voiceChange ? voiceCharge?.bill ?? null : charge ? { source: charge.source, meters: charge.meters } : null,
     outputSnapshot: storedVideoUrl,
     meta: input.meta,
   });

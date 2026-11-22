@@ -7,7 +7,9 @@ import { usdToFinalCredits } from "@/lib/credits/units";
 import { isOwnStoredUrl } from "@/lib/storage";
 import { asResolutionString } from "@/lib/video-gen/cost";
 import type { GenerationRow } from "@/lib/db/types";
-import { priceForGeneration } from "@/lib/ai-models/run-price";
+import { priceForGeneration, priceForNewRun } from "@/lib/ai-models/run-price";
+import { voiceChangeCharge } from "@/lib/ai-models/service-price";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { isVideoSucceeded, reservedAmountForUnpriced, type CompleteGenerationInput } from "@/lib/generations/complete";
 import { keepAutoVoice } from "./auto-voice";
 import { voicePreviewCostUsd, voicePreviewKeepsSample, voicePreviewRowEngine, voicePreviewRowMode } from "./voice-preview";
@@ -62,14 +64,32 @@ export async function completeAvatarVoicePreview(
 
   const mode = voicePreviewRowMode(generation);
   const multiplier = Number((generation.inputs_snapshot as { priceMultiplier?: unknown } | null)?.priceMultiplier);
-  const usd = voicePreviewCostUsd(
+  const priceMultiplier = Number.isFinite(multiplier) && multiplier >= 1 ? multiplier : 1;
+  // D535 - the clip is priced from its own row; a named preview's voice change from ElevenLabs'
+  // row (valid when the preview started), charged by the credits ElevenLabs reported when it sent
+  // them (the last attempt's only), else by seconds x the voice's multiplier.
+  const clipUsd = voicePreviewCostUsd(
     await priceForGeneration(generation),
-    mode,
+    null,
+    "native",
     voicePreviewRowEngine(generation),
     input.durationSeconds,
     asResolutionString(generation.params_snapshot?.resolution),
-    Number.isFinite(multiplier) && multiplier >= 1 ? multiplier : 1,
+    priceMultiplier,
   );
+  let usd = clipUsd;
+  if (clipUsd !== null && mode === "named") {
+    const reported = Number((input.meta?.voiceChange as { characterCost?: unknown } | undefined)?.characterCost);
+    const voicePrice = await priceForNewRun(VOICE_CHANGE_PRICE_MODEL_ID, new Date(generation.created_at));
+    const voice = voicePrice
+      ? voiceChangeCharge(voicePrice, {
+          characterCost: Number.isFinite(reported) && reported > 0 ? reported : null,
+          seconds: input.durationSeconds,
+          priceMultiplier,
+        })
+      : null;
+    usd = voice ? clipUsd + voice.usd : null;
+  }
   // D534 — a delivered preview is never charged 0 because its price is missing: settle at what
   // was reserved and record no dollar cost.
   const credits = usd === null
