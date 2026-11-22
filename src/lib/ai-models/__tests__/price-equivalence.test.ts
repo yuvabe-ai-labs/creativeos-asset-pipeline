@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import { seededPrice } from "../test-prices";
+import { seededPrice, seededCatalog } from "../test-prices";
 import { videoSecondsUsd, videoEstimateUsd, videoChargeUsd } from "../video-price";
 import { imageEstimateUsd, imageChargeUsd } from "../image-price";
 import { computeVideoCost } from "@/lib/video-gen/cost";
@@ -8,7 +8,6 @@ import { computeImageCost, seedreamImageCostUsd } from "@/lib/image-gen/cost";
 import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { currentPrice } from "../pricing";
-import { seededCatalog } from "../test-prices";
 import { imageGenClientModels } from "@/lib/image-gen/client-models";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import type { ParamSpec } from "@/lib/image-gen/types";
@@ -62,6 +61,7 @@ describe("video", () => {
       normalizeOmniUsage({ total_input_tokens: 1104, output_tokens_by_modality: [{ modality: "video", tokens: 5793 }], total_output_tokens: 5793, total_thought_tokens: 1526 })!,
       normalizeOmniUsage({ total_input_tokens: 5798, output_tokens_by_modality: [{ modality: "video", tokens: 5793 }], total_output_tokens: 5793, total_thought_tokens: 334 })!,
       { kind: "omni" as const, inputTokens: 4718, videoOutputTokens: 11586, textOutputTokens: 0, thoughtTokens: 113 },
+      { kind: "omni" as const, inputTokens: 1000, videoOutputTokens: 5793, textOutputTokens: 800, thoughtTokens: 100 },
     ];
     for (const id of ["gemini:gemini-omni-1.1-flash", "gemini:gemini-omni-1.2-flash"]) {
       for (const at of [BEFORE, AFTER]) {
