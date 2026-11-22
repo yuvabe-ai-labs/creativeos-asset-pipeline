@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Sparkles } from "lucide-react";
+import { Check, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAutoCaptionsContext } from "./auto-captions-context";
@@ -15,13 +15,14 @@ export function EditorAutoCaptionsButton({ pieceIds, label = "Auto captions", si
   size?: "sm" | "default";
   className?: string;
 }) {
-  const { cost, start, listening, todo } = useAutoCaptionsContext();
+  const { cost, priceLoading, start, listening, todo } = useAutoCaptionsContext();
   const editable = useEditorStore((s) => s.editable);
   const hasPieces = useEditorStore((s) => s.doc.pieces.length > 0);
   const ids = pieceIds ?? todo;
   const busy = pieceIds ? pieceIds.some((id) => listening.has(id)) : listening.size > 0;
   const allDone = !pieceIds && hasPieces && !busy && todo.length === 0;
   const c = cost(ids);
+  const pricing = c.credits === null;
   const why = !editable ? "Someone else is editing this reel." : !hasPieces ? "Add a clip to the timeline first." : busy ? "Listening to the clips…" : undefined;
   if (allDone) {
     return (
@@ -42,7 +43,8 @@ export function EditorAutoCaptionsButton({ pieceIds, label = "Auto captions", si
     >
       <Sparkles className="size-3.5" strokeWidth={1.5} />
       {label}
-      {c.credits > 0 && <span className="font-normal opacity-70">· {c.credits} credits</span>}
+      {priceLoading && ids.length > 0 && <Loader2 className="size-3.5 animate-spin" strokeWidth={1.5} />}
+      {c.credits !== null && c.credits > 0 && <span className="font-normal opacity-70">· {c.credits} credits</span>}
     </Button>
   );
 }

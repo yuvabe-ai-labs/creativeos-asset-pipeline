@@ -1,6 +1,8 @@
 // The browser side of Auto captions (D399, D401): what the button costs, which clips can be
 // filled from stored transcripts, and which clips have a new take. Pure.
-import { transcribeCredits } from "@/lib/transcribe/cost";
+import { transcribeEstimateUsd } from "@/lib/ai-models/service-price";
+import type { AiModelPrice } from "@/lib/ai-models/types";
+import { usdToFinalCredits } from "@/lib/credits/units";
 import type { Transcript } from "@/lib/transcribe/types";
 import { normalizeWords, replaceAutoCaptions } from "./caption-words";
 import { pieceSoundFile } from "./playback";
@@ -19,8 +21,9 @@ export function pieceSound(doc: EditDoc, sources: SourceView[], pieceId: string)
   return { url: f.url, seconds: f.facts?.durationSeconds ?? 0, hasSound: Boolean(f.facts?.audio), fps: s.files.original.facts?.video?.fps ?? FALLBACK_FPS };
 }
 
-/** What the button shows: credits for each file not yet transcribed, once each. */
-export function autoCaptionCost(doc: EditDoc, sources: SourceView[], transcribed: ReadonlySet<string>, pieceIds?: string[]): { credits: number; free: boolean } {
+/** What the button shows: credits for each file not yet transcribed, once each, from the model's
+ *  price row (D535). `credits` is null while there is work to price but no row to price it with. */
+export function autoCaptionCost(price: AiModelPrice | null, doc: EditDoc, sources: SourceView[], transcribed: ReadonlySet<string>, pieceIds?: string[]): { credits: number | null; free: boolean } {
   const ids = pieceIds ?? doc.pieces.map((p) => p.id);
   const fresh = new Map<string, number>();
   for (const id of ids) {
@@ -28,7 +31,9 @@ export function autoCaptionCost(doc: EditDoc, sources: SourceView[], transcribed
     if (s && s.hasSound && !transcribed.has(s.url)) fresh.set(s.url, s.seconds);
   }
   const seconds = [...fresh.values()].reduce((x, y) => x + y, 0);
-  return { credits: transcribeCredits(seconds), free: fresh.size === 0 };
+  if (seconds <= 0) return { credits: 0, free: fresh.size === 0 };
+  const usd = price ? transcribeEstimateUsd(price, seconds) : null;
+  return { credits: usd === null ? null : usdToFinalCredits(usd), free: false };
 }
 
 /** Writes auto captions for each requested piece whose transcript is stored. */

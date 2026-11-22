@@ -13,6 +13,15 @@ vi.mock("@/lib/supabase/server", () => ({
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: "cv1", client_id: "cl1", clients: { org_id: "org-1" } }, error: null }) }) }) }),
   }),
 }));
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: vi.fn(async (modelId: string) => {
+      try { return seededPrice(modelId); } catch { return null; }
+    }),
+  };
+});
 vi.mock("@/lib/editor/load-state", () => ({ loadEditorState: vi.fn() }));
 vi.mock("@/lib/editor/transcribe-plan", () => ({ planTranscription: vi.fn(), playableSoundUrls: vi.fn(() => ["https://s/a.mp4", "https://s/b.mp4"]) }));
 vi.mock("@/lib/db/media-transcripts", () => ({ listTranscribedUrls: vi.fn(), listTranscripts: vi.fn() }));
@@ -25,6 +34,11 @@ vi.mock("@/lib/db/credit-transactions", () => ({
 vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() }, runs: { retrieve: vi.fn() } }));
 vi.mock("@/lib/jobs/db", () => ({ insertJob: vi.fn(), failStaleJobs: vi.fn(), setJobRunId: vi.fn(), failJob: vi.fn(async () => {}), getJob: vi.fn(), listRecentJobs: vi.fn(async () => []) }));
 
+import { priceForNewRun } from "@/lib/ai-models/run-price";
+import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
+import { transcribeEstimateUsd } from "@/lib/ai-models/service-price";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { usdToFinalCredits } from "@/lib/credits/units";
 import { runs, tasks } from "@trigger.dev/sdk";
 import { refundReservation, reserveCredits } from "@/lib/db/credit-transactions";
 import { insertGeneration } from "@/lib/db/generations";
@@ -75,6 +89,22 @@ describe("POST /api/canvases/[cid]/editor/transcribe", () => {
       input: { canvasId: "cv1", nodeId: NODE, generationId: "gen1", orgId: "org-1", files: [{ url: "https://s/b.mp4", seconds: 9 }] },
     });
     expect(tasks.trigger).toHaveBeenCalledWith("editor-transcribe", { jobId: "job1" });
+  });
+
+  it("records the price row and reserves its estimate (D535)", async () => {
+    await post({ nodeId: NODE });
+    const row = seededPrice(TRANSCRIBE_MODEL_ID);
+    expect(vi.mocked(insertGeneration).mock.calls[0][0]).toMatchObject({ modelPriceId: row.id });
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "gen1", usdToFinalCredits(transcribeEstimateUsd(row, 17)!));
+  });
+
+  it("409s before anything is recorded when the model has no price", async () => {
+    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const res = await post({ nodeId: NODE });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("This model has no price set, so it can't run right now.");
+    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(reserveCredits).not.toHaveBeenCalled();
   });
 
   it("402s at the credit limit and gives the reservation back", async () => {

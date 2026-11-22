@@ -10,6 +10,7 @@ import { AbortTaskRunError, logger, task } from "@trigger.dev/sdk";
 
 const STOPPED = "Captions stopped before they finished. Your credits were returned.";
 
+type GenerationRow = import("@/lib/db/types").GenerationRow;
 type Input = import("@/lib/editor/transcribe-plan").TranscribeJobInput;
 
 export const editorTranscribeTask = task({
@@ -18,14 +19,16 @@ export const editorTranscribeTask = task({
   retry: { maxAttempts: 1 },
   queue: { concurrencyLimit: 4 },
   run: async (payload: { jobId: string }) => {
-    const [jobs, { runTranscription }, { transcribeUrl }, { saveTranscript }, gens, credits, cost] = await Promise.all([
+    const [jobs, { runTranscription }, { transcribeUrl }, { saveTranscript }, gens, credits, settle, runPrice, complete] = await Promise.all([
       import("@/lib/jobs/db"),
       import("@/lib/transcribe/run"),
       import("@/lib/transcribe/elevenlabs"),
       import("@/lib/db/media-transcripts"),
       import("@/lib/db/generations"),
       import("@/lib/db/credit-transactions"),
-      import("@/lib/transcribe/cost"),
+      import("@/lib/transcribe/settle"),
+      import("@/lib/ai-models/run-price"),
+      import("@/lib/generations/complete"),
     ]);
     const job = await jobs.getJob<Input>(payload.jobId);
     if (!job) throw new AbortTaskRunError(`No transcribe job ${payload.jobId}`);
@@ -44,7 +47,7 @@ export const editorTranscribeTask = task({
       throw new AbortTaskRunError("ELEVEN_LABS_API_KEY is not set");
     }
 
-    const { result, secondsDone } = await runTranscription(input, {
+    const { result, secondsDone, characterCost, providerUsd } = await runTranscription(input, {
       transcribe: (url) => transcribeUrl(url, { fetch, apiKey }),
       save: saveTranscript,
       log: (message, data) => logger.info(message, data),
@@ -54,9 +57,17 @@ export const editorTranscribeTask = task({
     if (secondsDone === 0) {
       await giveBack("no file transcribed");
     } else {
-      const charged = cost.transcribeCredits(secondsDone);
+      // D535 — charged by the credits ElevenLabs reported, at the row the run recorded.
+      const generation = await gens.getGeneration(input.generationId);
+      const { credits: charged, usd, bill } = await settle.settleTranscribe(
+        { generation, secondsDone, providerCredits: characterCost, providerUsd },
+        {
+          priceFor: (g) => runPrice.priceForGeneration(g),
+          reservedFor: (id, g) => complete.reservedAmountForUnpriced(id, g as GenerationRow, "transcribe"),
+        },
+      );
       await credits.settleGeneration({ orgId: input.orgId, generationId: input.generationId, actualAmount: charged });
-      await gens.succeedGeneration({ generationId: input.generationId, creditsCharged: charged, costUsd: cost.transcribeCostUsd(secondsDone) });
+      await gens.succeedGeneration({ generationId: input.generationId, creditsCharged: charged, costUsd: usd ?? undefined, providerBill: bill });
     }
     await jobs.succeedJob(job.id, result, result.failed.length ? "Done, some clips not captioned" : "Done");
     return result;

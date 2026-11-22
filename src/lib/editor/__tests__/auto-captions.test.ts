@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { transcribeCredits } from "@/lib/transcribe/cost";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
+import { transcribeEstimateUsd } from "@/lib/ai-models/service-price";
+import { seededPrice } from "@/lib/ai-models/test-prices";
 import { autoCaptionCost, captionsFollowSound, fillFromTranscripts, staleAutoPieces, uncaptionedPieces, unsureWordIndexes } from "../auto-captions";
 import { setSound } from "../pieces";
 import type { Piece } from "../types";
@@ -12,10 +15,16 @@ const doc = emptyDoc({ pieces: [piece("1", "a"), piece("2", "b"), piece("3", "a"
 const transcript = (url: string, words = [{ t: "hello", s: 0.5, e: 0.9, p: 1 }, { t: "there.", s: 1, e: 1.4, p: 0.6 }]) => ({ url, language: "eng", words, engine: "e", model: "m", durationSeconds: 5 });
 
 describe("autoCaptionCost", () => {
-  it("prices each new file once and is free when all are transcribed", () => {
-    expect(autoCaptionCost(doc, [a, b], new Set())).toEqual({ credits: transcribeCredits(2 * (121 / 24)), free: false });
-    expect(autoCaptionCost(doc, [a, b], new Set([a.files.original.url, b.files.original.url]))).toEqual({ credits: 0, free: true });
-    expect(autoCaptionCost(doc, [a, b], new Set([a.files.original.url]), ["1", "3"])).toEqual({ credits: 0, free: true });
+  const row = seededPrice(TRANSCRIBE_MODEL_ID);
+  it("prices each new file once from the row and is free when all are transcribed", () => {
+    const seconds = 2 * (121 / 24);
+    expect(autoCaptionCost(row, doc, [a, b], new Set())).toEqual({ credits: usdToFinalCredits(transcribeEstimateUsd(row, seconds)!), free: false });
+    expect(autoCaptionCost(row, doc, [a, b], new Set([a.files.original.url, b.files.original.url]))).toEqual({ credits: 0, free: true });
+    expect(autoCaptionCost(row, doc, [a, b], new Set([a.files.original.url]), ["1", "3"])).toEqual({ credits: 0, free: true });
+  });
+  it("has no price while the row is unknown", () => {
+    expect(autoCaptionCost(null, doc, [a, b], new Set())).toEqual({ credits: null, free: false });
+    expect(autoCaptionCost(null, doc, [a, b], new Set([a.files.original.url, b.files.original.url]))).toEqual({ credits: 0, free: true });
   });
 });
 

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useEditorStore, useEditorStoreApi } from "@/components/editor/editor-store-provider";
+import { useModelPrice } from "@/hooks/queries/ai-models";
+import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { useStartTranscribe, useTranscribeStatus, useTranscripts } from "@/hooks/queries/editor";
 import { autoCaptionCost, captionsFollowSound, fillFromTranscripts, pieceSound, staleAutoPieces, uncaptionedPieces } from "@/lib/editor/auto-captions";
 import { setSound } from "@/lib/editor/pieces";
@@ -30,6 +32,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
   const store = useEditorStoreApi();
   const doc = useEditorStore((s) => s.doc);
   const sources = useEditorStore((s) => s.sources);
+  const { price, loading: priceLoading } = useModelPrice(TRANSCRIBE_MODEL_ID);
   const transcripts = useTranscripts(canvasId);
   const startMutation = useStartTranscribe(canvasId);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -45,7 +48,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
   }, []);
 
   const transcribed = useMemo(() => new Set(transcripts.data?.keys() ?? []), [transcripts.data]);
-  const cost = useCallback((pieceIds?: string[]) => autoCaptionCost(doc, sources, transcribed, pieceIds), [doc, sources, transcribed]);
+  const cost = useCallback((pieceIds?: string[]) => autoCaptionCost(price, doc, sources, transcribed, pieceIds), [price, doc, sources, transcribed]);
   const stale = useMemo(() => staleAutoPieces(doc, sources), [doc, sources]);
   const todo = useMemo(() => uncaptionedPieces(doc, sources, transcripts.data ?? NO_TRANSCRIPTS), [doc, sources, transcripts.data]);
 
@@ -161,7 +164,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
     [store, startMutation, nodeId, transcripts, setListening],
   );
 
-  return { cost, start, switchSound, listening, failed, stale, todo, transcripts: transcripts.data, busy: listening.size > 0 };
+  return { cost, priceLoading, start, switchSound, listening, failed, stale, todo, transcripts: transcripts.data, busy: listening.size > 0 };
 }
 
 export type AutoCaptions = ReturnType<typeof useAutoCaptions>;

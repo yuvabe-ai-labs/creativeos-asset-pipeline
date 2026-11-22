@@ -1,7 +1,10 @@
 import { tasks } from "@trigger.dev/sdk";
 import * as z from "zod";
 import { apiError, apiOk, withCanvas, withTryCatch } from "@/lib/api/route-helpers";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { NO_PRICE_MESSAGE, priceForNewRun } from "@/lib/ai-models/run-price";
+import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
+import { transcribeEstimateUsd } from "@/lib/ai-models/service-price";
+import { CREDIT_LIMIT_TOAST_MESSAGE, usdToFinalCredits } from "@/lib/credits/units";
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { CreditLimitError, refundReservation, reserveCredits } from "@/lib/db/credit-transactions";
 import { failGeneration, insertGeneration } from "@/lib/db/generations";
@@ -11,7 +14,6 @@ import { planTranscription, type TranscribeJobInput } from "@/lib/editor/transcr
 import { findLiveTranscribeJob, settleIfRunDead } from "@/lib/editor/transcribe-recovery-server";
 import { failJob, failStaleJobs, insertJob, setJobRunId } from "@/lib/jobs/db";
 import { JobLockedError } from "@/lib/jobs/types";
-import { transcribeCredits } from "@/lib/transcribe/cost";
 import { TRANSCRIBE_ENGINE } from "@/lib/transcribe/providers";
 
 // Starts Auto captions (D411, D399). The files come from the SAVED edit's sources, read fresh here
@@ -39,6 +41,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       if (fresh.length === 0) return apiOk({ jobId: null, noSound });
 
       const seconds = fresh.reduce((s, f) => s + f.seconds, 0);
+      // D535 — the row prices the run: its estimate is the reservation, and the run records it.
+      const price = await priceForNewRun(TRANSCRIBE_MODEL_ID);
+      const usd = price ? transcribeEstimateUsd(price, seconds) : null;
+      if (!price || usd === null) return apiError(NO_PRICE_MESSAGE, 409);
       const clientId = canvas.client_id;
       await failStaleJobs(clientId, "editor-transcribe", STALE_MS);
       const generation = await insertGeneration({
@@ -49,6 +55,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
         userEmail: caller.email,
         type: "transcribe",
         modelUsed: TRANSCRIBE_ENGINE.modelUsed,
+        modelPriceId: price.id,
         paramsSnapshot: { seconds },
         inputsSnapshot: { files: fresh },
       });
@@ -61,7 +68,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       const insert = () => insertJob({ orgId, clientId, kind: "editor-transcribe", input, lockKey: `editor-transcribe:${nodeId}`, phaseMessage: "Listeningâ€¦" });
       let jobId: string;
       try {
-        const reservation = await reserveCredits(orgId, generation.id, transcribeCredits(seconds));
+        const reservation = await reserveCredits(orgId, generation.id, usdToFinalCredits(usd));
         if (!reservation.ok) throw new CreditLimitError(CREDIT_LIMIT_TOAST_MESSAGE);
         try {
           jobId = (await insert()).id;
