@@ -29,6 +29,14 @@ describe("priceForGeneration", () => {
     const p = await priceForGeneration({ model_used: "gemini:gemini-omni-1.1-flash", created_at: "2026-12-10T00:00:00Z" });
     expect(p?.effectiveFrom).toBe("2026-12-03T08:00:00.000Z");
   });
+  it("prices a run whose recorded row is not in the catalog with the row valid when it started", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const p = await priceForGeneration({ id: "g9", model_used: "gemini:gemini-omni-1.1-flash", created_at: "2026-11-01T00:00:00Z", model_price_id: "00000000-0000-0000-0000-000000000000" });
+    expect(p?.effectiveFrom).not.toBe("2026-12-03T08:00:00.000Z");
+    expect(p).not.toBeNull();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
   it("is null without a model", async () => {
     expect(await priceForGeneration({ model_used: null, created_at: "2026-11-22T00:00:00Z" })).toBeNull();
   });

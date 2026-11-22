@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   failGeneration: vi.fn(async () => undefined),
   settleGeneration: vi.fn(async () => undefined),
   refundReservation: vi.fn(async () => undefined),
+  getReservationAmounts: vi.fn(async () => new Map<string, number>([["g1", 77]])),
   uploadVideoGen: vi.fn(async () => ({ url: "https://storage.googleapis.com/b/uploaded.mp4" })),
   getClientById: vi.fn(async (): Promise<{ id: string; org_id: string } | null> => ({ id: "c1", org_id: "org-1" })),
   updateAvatar: vi.fn(async () => null),
@@ -36,6 +37,7 @@ vi.mock("@/lib/db/generations", () => ({
 vi.mock("@/lib/db/credit-transactions", () => ({
   settleGeneration: mocks.settleGeneration,
   refundReservation: mocks.refundReservation,
+  getReservationAmounts: mocks.getReservationAmounts,
 }));
 vi.mock("@/lib/storage", () => ({
   uploadVideoGen: mocks.uploadVideoGen,
@@ -201,6 +203,19 @@ describe("completeGeneration — billed from the provider's usage (D528)", () =>
     expect(mocks.settleGeneration).toHaveBeenCalledWith(
       expect.objectContaining({ actualAmount: usdToFinalCredits(computeVoiceChangeCost(8, 2).usd) }),
     );
+  });
+});
+
+describe("completeGeneration — a price that cannot be found (D534)", () => {
+  it("settles at the reserved amount, never 0, and still succeeds", async () => {
+    const { priceForGeneration } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForGeneration).mockResolvedValueOnce(null);
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await completeGeneration({ generationId: "g1", status: "succeeded", stored: true, videoUrl: ORIGINAL, durationSeconds: 8 });
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: 77 }));
+    expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ creditsCharged: 77, costUsd: undefined }));
+    expect(mocks.failGeneration).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

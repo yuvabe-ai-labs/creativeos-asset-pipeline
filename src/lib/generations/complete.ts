@@ -6,7 +6,7 @@ import { readVideoUsage, type VideoProviderUsage } from "@/lib/video-gen/provide
 import { priceForGeneration } from "@/lib/ai-models/run-price";
 import { videoChargeUsd } from "@/lib/ai-models/video-price";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
-import { settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
+import { settleGeneration, refundReservation, getReservationAmounts } from "@/lib/db/credit-transactions";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -337,10 +337,18 @@ export async function completeGeneration(
     : charge
       ? { usd: charge.usd }
       : null;
-  // cost is only ever null when model_used is unset (shouldn't happen — every video
-  // generation records a model at insertGeneration) — an actual cost of 0 credits in that
-  // case, not a reason to skip settlement.
-  const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+  // D534 — a finished video is never charged 0 because its price is missing: the provider has
+  // billed us and the video is kept, so settle at what was reserved and record no dollar cost.
+  let actualCredits: number;
+  if (cost) {
+    actualCredits = usdToFinalCredits(cost.usd);
+  } else {
+    actualCredits = (await getReservationAmounts([input.generationId])).get(input.generationId) ?? 0;
+    console.error("[completeGeneration] no price for a finished video; settled at the reserved amount", {
+      generationId: input.generationId,
+      model: generation.model_used,
+    });
+  }
 
   await settleGeneration({
     orgId: generation.org_id,
