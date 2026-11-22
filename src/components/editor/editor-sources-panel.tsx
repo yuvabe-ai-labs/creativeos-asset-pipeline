@@ -2,18 +2,18 @@
 
 import { addSourceAgain } from "@/lib/editor/pieces";
 import { useEditorStore } from "./editor-store-provider";
-import { EditorPanel } from "./editor-panel";
 import { EditorSourceRow } from "./editor-source-row";
 
-/** The clips connected to this Editor on the canvas, at their current version (spec §4). */
-export function EditorSourcesPanel({ onCollapse }: { onCollapse(): void }) {
+/** The clips connected to this Editor on the canvas, at their current version (spec §4). Shown on
+ *  the side panel's Sources side. */
+export function EditorSourcesList() {
   const sources = useEditorStore((s) => s.sources);
   const editable = useEditorStore((s) => s.editable);
   const apply = useEditorStore((s) => s.apply);
   const select = useEditorStore((s) => s.select);
 
   return (
-    <EditorPanel label="Sources" aside={sources.length} side="left" shortcut="Ctrl 1" onCollapse={onCollapse}>
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         {sources.map((source) => (
           <EditorSourceRow
@@ -29,6 +29,6 @@ export function EditorSourcesPanel({ onCollapse }: { onCollapse(): void }) {
         ))}
       </div>
       <p className="m-0 text-xs leading-relaxed text-muted-foreground">Clips connected to this Editor on the canvas. Press + to add one to the end.</p>
-    </EditorPanel>
+    </div>
   );
 }

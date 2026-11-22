@@ -1,5 +1,6 @@
 "use client";
 
+import { selectedInputPreview } from "@/lib/nodes/canvas-picture";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -233,7 +234,7 @@ export function MultishotPromptFocusView({
 
   const isNodeSelected = !RESERVED_RAIL_KEYS.includes(selected as (typeof RESERVED_RAIL_KEYS)[number]);
   const selectedNode = isNodeSelected
-    ? preview.connected.find((c) => c.nodeId === selected) ?? null
+    ? selectedInputPreview(preview.connected, upstream, selected)
     : null;
 
   // The attached images in `<IMAGE_REF_N>` order — shared by every chip editor on this node
@@ -711,27 +712,23 @@ export function MultishotPromptFocusView({
       // edits they have not saved yet (D242).
       restoring={restoring || !!refining || dirty}
       onRestoreVersion={handleRestoreVersion}
-      // Both buttons stay MOUNTED and disable together rather than appearing with the first
-      // keystroke — a row that grows a button under the pointer moves Save out from under it at
-      // the exact moment it is wanted. Only a plan on screen can be dirty, so `!dirty` also
-      // covers the compose state and viewing an older version.
+      // Cancel / Save are always shown and enable only while the plan has unsaved edits. Only a
+      // plan on screen can be dirty, so `!dirty` also covers the compose state and viewing an
+      // older version.
       headerActions={
         !isReadOnly && (
           <>
-            {dirty && (
-              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.65rem] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                Unsaved changes
-              </span>
-            )}
-            <Button variant="outline" size="lg" onClick={handleDiscardEdits} disabled={!dirty}>
+            <Button variant="outline" size="sm" onClick={handleDiscardEdits} disabled={!dirty}>
               Cancel
             </Button>
-            <Button variant="outline-primary" size="lg" onClick={handleSavePlan} disabled={!dirty}>
+            <Button variant="outline-primary" size="sm" onClick={handleSavePlan} disabled={!dirty}>
               Save
             </Button>
           </>
         )
       }
+      // Cancel, Save, then the guided next step — all three the same size, as in Multishot.
+      guidedInHeader
       upstream={upstream}
       targetType="multishot-prompt"
       primaryRailIcon={<ListVideo className="size-4 text-primary" />}

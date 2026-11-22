@@ -7,26 +7,33 @@ import { Slider } from "@/components/ui/slider";
 import { useTimelineActions } from "@/hooks/use-timeline-actions";
 import { MAX_ZOOM, MIN_ZOOM } from "@/lib/editor/timeline-view";
 import { useEditorStore } from "./editor-store-provider";
+import { EditorTrimMenu } from "./editor-trim-menu";
+import { useEditorUi } from "./editor-ui-context";
 import { useEditorView } from "./editor-view-context";
 
-/** The timeline's header (spec A3): caption tools, split and delete, zoom and fit. */
+/** The timeline's header (spec A3): caption tools, Trim (task-menu design), split and delete, zoom
+ *  and Fit, which toggles back to the view before it (D504). Work on every clip starts from the
+ *  Inspector's task list with no clip selected. Deleting a clip asks first; deleting a caption doesn't (undo covers both). */
 export function EditorTimelineToolbar({ tools }: { tools?: ReactNode }) {
   const editable = useEditorStore((s) => s.editable);
   const selection = useEditorStore((s) => s.selection);
   const hasPieces = useEditorStore((s) => s.doc.pieces.length > 0);
   const { split, deleteSelection } = useTimelineActions();
-  const { zoom, setZoom, zoomBy, fit } = useEditorView();
+  const { zoom, setZoom, zoomBy, fit, fitted } = useEditorView();
+  const ui = useEditorUi();
+  const onDelete = () => (selection?.kind === "piece" ? ui.askDeletePiece(selection.id) : deleteSelection());
 
   return (
     <div className="flex flex-none flex-wrap items-center gap-2 border-b border-border px-3 py-2">
       <span className="text-eyebrow-sm">Timeline</span>
       <span className="flex-1" />
       {tools}
+      <EditorTrimMenu />
       <Button variant="outline" size="sm" onClick={split} disabled={!editable || !hasPieces} title="Split at the playhead (S)" className="gap-1.5">
         <Scissors className="size-3.5" strokeWidth={1.5} />
         Split
       </Button>
-      <Button variant="outline" size="sm" onClick={deleteSelection} disabled={!editable || !selection} title="Delete the selection (Del)">
+      <Button variant="outline" size="sm" onClick={onDelete} disabled={!editable || !selection} title="Delete the selection (Del)">
         Delete
       </Button>
       <div className="flex items-center gap-1.5">
@@ -38,7 +45,15 @@ export function EditorTimelineToolbar({ tools }: { tools?: ReactNode }) {
           <Plus className="size-3.5" strokeWidth={1.5} />
         </Button>
       </div>
-      <Button variant="outline" size="sm" onClick={fit} disabled={!hasPieces} title="Fit the reel (Shift Z)">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={fit}
+        disabled={!hasPieces}
+        aria-pressed={fitted}
+        title={fitted ? "Back to the zoom before Fit (Shift Z)" : "Fit the reel (Shift Z)"}
+        className={fitted ? "border-primary/40 bg-primary/5 text-primary" : undefined}
+      >
         Fit
       </Button>
     </div>

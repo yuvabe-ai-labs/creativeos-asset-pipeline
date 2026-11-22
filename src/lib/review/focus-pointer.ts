@@ -40,6 +40,26 @@ export function urlWithoutParams(url: string, params: string[]): string | null {
 }
 
 /**
+ * What a canvas should do about the URL's `?node=` pointer (D473):
+ *
+ *   - "open"    — a link names a node: open it. Only when NO focus view is open.
+ *   - "correct" — a view IS open and the URL names another node. That URL is stale, not a link:
+ *                 the page wrote it for a view since replaced, and Next.js put it back when a
+ *                 router action queued ahead of our replaceState (a server action, e.g. the
+ *                 autosave flush a newly opened view starts) finished. Opening it reopened the
+ *                 view the user had just left (Multishot Prompt → Open video generation). While a
+ *                 view is open it is the truth: point the URL back at it.
+ *   - "none"    — nothing to do.
+ *
+ * A real link cannot arrive while a view is open: the views are modal sheets over the page.
+ */
+export function pointerAction(pointer: string | null, handled: string | null, openId: string | null): "open" | "correct" | "none" {
+  if (!pointer) return "none";
+  if (openId) return pointer === openId ? "none" : "correct";
+  return isUnhandledPointer(pointer, handled) ? "open" : "none";
+}
+
+/**
  * D473 — the same URL with one param set to `value`, or removed when `value` is null, as a
  * path+query+hash string for `history.replaceState`. Null when the URL already says that.
  */

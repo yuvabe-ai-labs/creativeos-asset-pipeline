@@ -48,7 +48,7 @@ back on Edit video. The canvas card reads "Editing…".
 Edit video's centre column:
 
 1. **Model.** The generate settings' own model picker, offering Omni 1.2 (default) and Omni 1.1
-   only. Each model's limits apply: 1.2 takes up to 15 s and 6 references, 1.1 up to 10 s and
+   only. Each model's limits apply: 1.2 takes up to 15 s and 24 references (D494), 1.1 up to 10 s and
    12 references.
 2. **References for this edit.** Thumbnails of the connected image inputs, each with a check.
    The images the take was generated with start checked. A reference must be a connected node.
@@ -105,7 +105,7 @@ No migration.
   Omni provider sees it and sends an edit request instead of a generation. Waiting for the file,
   downloading it, storing it, appending the version and settling credits all stay on the existing
   path (`completeGeneration`). The task runs once and never retries (rule 12).
-- **Length and reference caps:** the chosen model's own (1.2: 15 s, 6 references; 1.1: 10 s, 12
+- **Length and reference caps:** the chosen model's own (1.2: 15 s, 24 references (D494); 1.1: 10 s, 12
   references), read off its client spec. Our tests edited 3 to 6 second takes on 1.1; longer
   edits are untested.
 - **Version:** appended with `insertVersion`, set active. `inputs_used.videoEdit`:

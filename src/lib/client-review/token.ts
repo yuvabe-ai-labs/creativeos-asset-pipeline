@@ -26,3 +26,23 @@ export function toCanonicalShareToken(raw: string): string | null {
   const m = TITLED_CODE.exec(raw.toLowerCase());
   return m ? m[1] : null;
 }
+
+const VERSION_SUFFIX = /-v([1-9][0-9]{0,3})$/i;
+const LEGACY_LENGTH = 43;
+
+/** D496 — a cut review link names a version: `<title-slug>-<code>-v<n>`. A link with no
+ *  suffix is v1, so every link sent before versions keeps opening the cut it showed. A legacy
+ *  43-character token takes the same suffix. Script reviews keep `toCanonicalShareToken`. */
+export function parseReviewLink(raw: string): { token: string; versionNo: number } | null {
+  const m = VERSION_SUFFIX.exec(raw);
+  const base = m ? raw.slice(0, m.index) : raw;
+  const versionNo = m ? Number(m[1]) : 1;
+  // A titled link first: one can be 43 characters long by chance (a 35-character slug, a
+  // 4-character code and "-v2"), and must not be read as a legacy token.
+  const titled = TITLED_CODE.exec(base.toLowerCase());
+  if (titled) return { token: titled[1], versionNo };
+  // A bare legacy token can itself end in "-v<digit>"; it is exactly 43 characters.
+  if (raw.length === LEGACY_LENGTH && LEGACY_TOKEN.test(raw)) return { token: raw, versionNo: 1 };
+  const token = toCanonicalShareToken(base);
+  return token ? { token, versionNo } : null;
+}

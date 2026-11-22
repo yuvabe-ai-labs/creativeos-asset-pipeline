@@ -1,4 +1,5 @@
-// The reel's captions as an ASS subtitle file, burned into the MP4 (D417). Pure. It reads the
+// The reel's captions as an ASS subtitle file, burned into the MP4 (D417), one style per caption
+// look (D505). Pure. It reads the
 // same per-word titles as the Premiere export (D398), so both show the same words at the same
 // frames. Sizes are px at the plan's frame, scaled to the output; libass sizes text by the font's
 // full line height, so each font's ratio turns the preview's em size into the ASS size.
@@ -64,33 +65,48 @@ function override(run: TextRun, look: PlanTitle): string {
   return `{\\1c&H${assColor(run.color).slice(4)}&}`; // assColor gives "&H00BBGGRR"; the tag takes "&HBBGGRR&"
 }
 
+/** What makes two titles need different ASS styles. */
+const lookKey = (t: PlanTitle) => JSON.stringify([t.fontKey, t.sizePx, t.color, t.stroke ?? null, t.box ?? null]);
+
 export function buildAss(plan: SequencePlan, out: { width: number; height: number }): string | null {
   if (plan.titles.length === 0) return null;
-  const look = plan.titles[0];
   const scale = out.width / plan.width;
-  const font = captionFont(look.fontKey);
-  const face = ASS_FACE[font.key];
-  const shadow = !look.stroke && !look.box;
-  const outline = look.box ? 0 : look.stroke ? (look.stroke.widthPx * scale) / 2 : 0;
-  const outlineColour = assColor(look.stroke?.color ?? "#000000");
   const margin = Math.round(out.width * SIDE_MARGIN);
-  const size = num(look.sizePx * scale * font.assLineHeight);
-  const mk = (name: string, primary: string, outlineColor: string, borderStyle: number, outlineWidth: number, shadowWidth: number) =>
-    [
-      name, face.family, size, primary, primary, outlineColor, assColor("#000000", SHADOW_ALPHA),
-      face.bold, 0, 0, 0, 100, 100, 0, 0, borderStyle, num(outlineWidth), num(shadowWidth),
-      5, margin, margin, 0, 1,
-    ].join(",");
-  // A box is its own style and event: libass draws a BorderStyle 3 box per override segment, and
-  // neighbouring segments' padded boxes would overlap and double its opacity. One event with no
-  // overrides gives one even box per line, under the words (layer track*2, words at track*2+1).
-  const styles = [`Style: ${mk("Caption", assColor(look.color), outlineColour, 1, outline, shadow ? look.sizePx * scale * SHADOW_EM : 0)}`];
-  if (look.box) {
-    const boxColour = assColor(look.box.color, 255 * (1 - look.box.opacity / 100));
-    styles.unshift(`Style: ${mk("Box", assColor(look.color, 255), boxColour, 3, look.box.sizePx * scale, 0)}`);
+
+  // One Caption (and, for a boxed look, one Box) style per look the reel uses (D505). The first
+  // look keeps the plain names "Caption" / "Box"; later ones are numbered.
+  const names = new Map<string, { caption: string; box: string }>();
+  const styles: string[] = [];
+  for (const look of plan.titles) {
+    const key = lookKey(look);
+    if (names.has(key)) continue;
+    const n = names.size;
+    const name = { caption: n === 0 ? "Caption" : `Caption${n + 1}`, box: n === 0 ? "Box" : `Box${n + 1}` };
+    names.set(key, name);
+    const font = captionFont(look.fontKey);
+    const face = ASS_FACE[font.key];
+    const shadow = !look.stroke && !look.box;
+    const outline = look.box ? 0 : look.stroke ? (look.stroke.widthPx * scale) / 2 : 0;
+    const outlineColour = assColor(look.stroke?.color ?? "#000000");
+    const size = num(look.sizePx * scale * font.assLineHeight);
+    const mk = (styleName: string, primary: string, outlineColor: string, borderStyle: number, outlineWidth: number, shadowWidth: number) =>
+      [
+        styleName, face.family, size, primary, primary, outlineColor, assColor("#000000", SHADOW_ALPHA),
+        face.bold, 0, 0, 0, 100, 100, 0, 0, borderStyle, num(outlineWidth), num(shadowWidth),
+        5, margin, margin, 0, 1,
+      ].join(",");
+    // A box is its own style and event: libass draws a BorderStyle 3 box per override segment, and
+    // neighbouring segments' padded boxes would overlap and double its opacity. One event with no
+    // overrides gives one even box per line, under the words (layer track*2, words at track*2+1).
+    if (look.box) {
+      const boxColour = assColor(look.box.color, 255 * (1 - look.box.opacity / 100));
+      styles.push(`Style: ${mk(name.box, assColor(look.color, 255), boxColour, 3, look.box.sizePx * scale, 0)}`);
+    }
+    styles.push(`Style: ${mk(name.caption, assColor(look.color), outlineColour, 1, outline, shadow ? look.sizePx * scale * SHADOW_EM : 0)}`);
   }
 
   const lines = plan.titles.flatMap((t) => {
+    const name = names.get(lookKey(t))!;
     const pos = `{\\pos(${Math.round(t.x * out.width)},${Math.round(t.y * out.height)})}`;
     const when = `${assTime(t.start / plan.fps)},${assTime(t.end / plan.fps)}`;
     const body = segments(t)
@@ -99,8 +115,8 @@ export function buildAss(plan: SequencePlan, out: { width: number; height: numbe
         return tag ? `${tag}${escapeText(s.text)}{\\r}` : escapeText(s.text);
       })
       .join("");
-    const event = [`Dialogue: ${t.track * 2 + 1},${when},Caption,,0,0,0,,${pos}${body}`];
-    if (t.box) event.unshift(`Dialogue: ${t.track * 2},${when},Box,,0,0,0,,${pos}${escapeText(t.text)}`);
+    const event = [`Dialogue: ${t.track * 2 + 1},${when},${name.caption},,0,0,0,,${pos}${body}`];
+    if (t.box) event.unshift(`Dialogue: ${t.track * 2},${when},${name.box},,0,0,0,,${pos}${escapeText(t.text)}`);
     return event;
   });
 

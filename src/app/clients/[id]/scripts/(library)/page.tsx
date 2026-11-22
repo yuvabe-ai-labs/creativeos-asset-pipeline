@@ -5,6 +5,7 @@ import { listUnwrittenScripts } from "@/lib/db/script-generate";
 import { listFeedbackCounts } from "@/lib/db/script-reviews";
 import { resolveOrgId } from "@/lib/dal";
 import { scriptsLocked } from "@/lib/journey/stages";
+import { redirectUnlessKbReady } from "@/lib/clients/kb-gate";
 import { ScriptsLibrary } from "@/components/scripts/scripts-library";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ export default async function ScriptsPage({ params }: { params: Promise<{ id: st
   const effectiveOrgId = await resolveOrgId();
   // Org isolation, as the Avatars page: a client outside the caller's org redirects like a missing one.
   if (!client || client.org_id !== effectiveOrgId) redirect("/");
+  // D503: no scripts or avatars until the Brand KB is set up, the same rule as the canvases page.
+  redirectUnlessKbReady(client);
 
   const [scripts, unwritten, feedback, deleteBlocks] = await Promise.all([
     listScripts(client.id), listUnwrittenScripts(client.id), listFeedbackCounts(client.id), listScriptDeleteBlocks(client.id),

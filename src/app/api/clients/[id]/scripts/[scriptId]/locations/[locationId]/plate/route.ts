@@ -83,7 +83,9 @@ export async function POST(req: Request, { params }: Ctx) {
       }
 
       const result = await changeScriptAssets(clientId, scriptId, () => ({
+        // D489 — kept among the location's versions with how it was drawn.
         op: "set_location_image", locationId, image: { url, source: "plate" },
+        mode: body.data.mode, note: body.data.note || undefined,
       }));
       if (!result.ok) return apiError(result.error, result.status);
       return apiOk({ doc: result.doc, stage: result.stage });

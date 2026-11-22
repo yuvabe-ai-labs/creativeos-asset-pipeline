@@ -2,6 +2,7 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { listScripts } from "@/lib/db/scripts";
 import { isScriptStage } from "@/lib/scripts/constants";
 import { resolveCallerContext } from "@/lib/dal";
+import { isKbReady, KB_NOT_READY_MESSAGE } from "@/lib/clients/kb-gate";
 import { createGenerateScript } from "@/lib/db/script-generate";
 import { loadCopilotContext } from "@/lib/scripts/copilot/context";
 import { SCRIPT_FORMATS } from "@/lib/scripts/copilot/formats";
@@ -26,6 +27,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withClient(req, params, async (clientId, client) =>
     withTryCatch("Could not start a new script.", async () => {
+      if (!isKbReady(client)) return apiError(KB_NOT_READY_MESSAGE, 409); // D503
       const { userId } = await resolveCallerContext();
       const ctx = await loadCopilotContext(client);
       const opening = openingMessage({ clientName: client.name, formats: SCRIPT_FORMATS.map((f) => f.name), hasKb: ctx.hasKb, locked: scriptsLocked(client) });

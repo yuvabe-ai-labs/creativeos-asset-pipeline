@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { clampTimelineHeight, DEFAULT_LAYOUT, readLayout, type EditorLayout } from "@/lib/editor/layout";
+import { clampPanelShare, clampTimelineHeight, DEFAULT_LAYOUT, readLayout, type EditorLayout, type PanelDock } from "@/lib/editor/layout";
 
 const KEY = "creativeos.editor.layout.v1";
 
@@ -39,8 +39,10 @@ export function useEditorLayout() {
   const setTimelineHeight = useCallback((h: number) => update(() => ({ timelineHeight: clampTimelineHeight(h, window.innerHeight) })), [update]);
   const toggleSources = useCallback(() => update((l) => ({ sources: !l.sources })), [update]);
   const toggleInspector = useCallback(() => update((l) => ({ inspector: !l.inspector })), [update]);
+  const setPanelShare = useCallback((share: number) => update(() => ({ panelShare: clampPanelShare(share) })), [update]);
+  const setPanelDock = useCallback((panelDock: PanelDock) => update(() => ({ panelDock })), [update]);
 
-  return { layout, setTimelineHeight, toggleSources, toggleInspector };
+  return { layout, setTimelineHeight, toggleSources, toggleInspector, setPanelShare, setPanelDock };
 }
 
 export type EditorLayoutApi = ReturnType<typeof useEditorLayout>;

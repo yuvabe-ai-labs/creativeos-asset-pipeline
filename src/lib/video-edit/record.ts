@@ -40,7 +40,7 @@ export function isVideoEditModelId(v: unknown): v is VideoEditModelId {
 
 /**
  * What a model allows for an edit, read off its client spec so it can't drift from generation:
- * the longest take (1.2: 15 s, 1.1: 10 s) and the most references (1.2: 6, 1.1: 12). Edits were
+ * the longest take (1.2: 15 s, 1.1: 10 s) and the most references (1.2: 24, 1.1: 12). Edits were
  * tested on 3–6 s takes on 1.1; longer ones are untested.
  */
 export function videoEditLimitsFor(modelId: VideoEditModelId): { label: string; maxSeconds: number; maxReferences: number } {

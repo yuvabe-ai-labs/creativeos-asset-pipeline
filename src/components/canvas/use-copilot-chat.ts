@@ -17,6 +17,8 @@ import type { AppNode } from "@/lib/canvas-nodes";
 import { CURRENT_GROUPING_VERSION } from "@/lib/nodes/group-shots";
 import { parseScriptNode } from "@/lib/nodes/parse-script-node";
 import { usePlaybookRunner } from "./use-playbook-runner";
+import { addNodeRefusal } from "@/lib/editor/rules";
+import { soleClientReviewId } from "@/lib/client-review/rules";
 import { normalizeSlots } from "@/lib/copilot/runner";
 
 // A node the copilot referenced — arrives as STRUCTURED data (not text), so we can
@@ -155,7 +157,19 @@ export function useCopilotChat(canvasId: string) {
   // like create_script_node / parse_script — no proposal gate. The real HITL gate is owed
   // later at the GENERATION step, where cost + irreversibility earn it.
   function addNodeAndOpen(args: { type: string; title?: string }) {
-    const { addNode, updateNodeData } = storeApi.getState();
+    const { addNode, updateNodeData, nodes } = storeApi.getState();
+    // D495 — the canvas's one Client review node opens instead of a second one.
+    const existingReview = args.type === "client-review" ? soleClientReviewId(nodes) : null;
+    if (existingReview) {
+      openNode(nodeHandle({ id: existingReview, type: "client-review" }));
+      return;
+    }
+    // D388 / D495 — one Editor and one Client review node per canvas, as from the add menu.
+    const refusal = addNodeRefusal(args.type, nodes);
+    if (refusal) {
+      setMessages((m) => [...m, { role: "assistant", content: refusal }]);
+      return;
+    }
     const id = crypto.randomUUID();
     const position = viewportCenterPosition();
     addNode(args.type, position, id);

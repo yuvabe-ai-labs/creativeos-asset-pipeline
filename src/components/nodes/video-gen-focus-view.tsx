@@ -2244,7 +2244,7 @@ export function VideoGenFocusView({
                   older take plays, a quiet tag names it beside the heading. */}
               <div
                 className="flex h-8 min-w-0 max-w-full shrink-0 items-center gap-3"
-                style={playerBoxWidth && mode === "result" && !viewing.isViewingOther ? { width: playerBoxWidth } : undefined}
+                style={playerBoxWidth && mode !== "empty" && !viewing.isViewingOther ? { width: playerBoxWidth } : undefined}
               >
                 <div className="flex shrink-0 items-center gap-1.5">
                   <Clapperboard className="size-3.5 text-primary" strokeWidth={1.5} />
@@ -2303,7 +2303,9 @@ export function VideoGenFocusView({
                 <>
                 {mode === "skeleton" && (
                   // the chosen shape, flush left — the same footprint the result frame will occupy.
-                  <div className="h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" style={{ aspectRatio: parseAspectRatio(params.aspect_ratio) ?? 9 / 16 }} />
+                  // Measured like the player, so the header (and its Edit menu) keeps the frame's
+                  // width while a new take generates instead of jumping to the column's far edge.
+                  <div ref={measurePlayerBox} className="h-full max-w-full animate-pulse rounded-xl bg-muted-foreground/15" style={{ aspectRatio: parseAspectRatio(params.aspect_ratio) ?? 9 / 16 }} />
                 )}
                 {mode === "empty" && (
                   <div className="flex size-full items-center justify-center rounded-xl border border-dashed border-border">

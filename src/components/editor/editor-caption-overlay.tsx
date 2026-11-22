@@ -1,12 +1,12 @@
 "use client";
 // The selected caption on the stage: click it to type over its words (D412), drag inside it to
-// move every caption, drag a corner to resize (D396). Snaps to both centre lines; a label says what is changing. A drag is one undo
+// move it, drag a corner to resize it: this caption alone (D505). Snaps to both centre lines; a label says what is changing. A drag is one undo
 // step (D400).
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { editCaption } from "@/lib/editor/captions";
-import { applyCaptionStyle } from "@/lib/editor/caption-style";
+import { applyCaptionLook, captionLook } from "@/lib/editor/caption-style";
 import type { Caption } from "@/lib/editor/types";
 import { captionBoxStyle } from "./caption-look-css";
 import { SPREAD_NOTE } from "./editor-caption-line";
@@ -30,8 +30,7 @@ const CLICK_PX = 3;
 export function EditorCaptionOverlay({ caption, editable }: { caption: Caption; editable: boolean }) {
   const store = useEditorStoreApi();
   const doc = useEditorStore((s) => s.doc);
-  const style = doc.captionStyle;
-  const count = doc.captions.length;
+  const style = captionLook(doc, caption);
   const { time, fps, pause } = usePlayback();
   const drag = useRef<Drag | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
@@ -39,7 +38,6 @@ export function EditorCaptionOverlay({ caption, editable }: { caption: Caption; 
   const [label, setLabel] = useState<string | null>(null);
   const frameOf = (el: HTMLElement) => el.closest("[data-stage-frame]")!.getBoundingClientRect();
   const clamp = (v: number) => Math.min(1 - EDGE, Math.max(EDGE, v));
-  const all = `all ${count} caption${count === 1 ? "" : "s"}`;
 
   const save = () => {
     if (draft === null) return;
@@ -116,12 +114,14 @@ export function EditorCaptionOverlay({ caption, editable }: { caption: Caption; 
       if (v) x = 0.5;
       if (h) y = 0.5;
       setGuides({ v, h });
-      setLabel(`Moving · ${all}${v && h ? " · Centred" : v ? " · Centred across" : h ? " · Centred down" : ""}`);
-      store.getState().apply((cur) => applyCaptionStyle(cur, { x, y }));
+      setLabel(`Moving this caption${v && h ? " · Centred" : v ? " · Centred across" : h ? " · Centred down" : ""}`);
+      store.getState().apply((cur) => applyCaptionLook(cur, caption.id, { x, y }));
     } else {
       const size = d.size0 * (Math.hypot(e.clientX - d.cx, e.clientY - d.cy) / d.dist0);
-      store.getState().apply((cur) => applyCaptionStyle(cur, { size }));
-      setLabel(`Size ${store.getState().doc.captionStyle.size} px · ${all}`);
+      // A corner drag sizes this caption alone, like a move (D505).
+      store.getState().apply((cur) => applyCaptionLook(cur, caption.id, { size }));
+      const c = store.getState().doc.captions.find((x) => x.id === caption.id);
+      setLabel(`Size ${c ? captionLook(store.getState().doc, c).size : Math.round(size)} px · this caption`);
     }
   };
 
@@ -152,7 +152,7 @@ export function EditorCaptionOverlay({ caption, editable }: { caption: Caption; 
       <div
         role="presentation"
         data-keep-selection=""
-        title={editable ? "Click to edit the words · drag to move every caption · drag a corner to resize" : undefined}
+        title={editable ? "Click to edit the words · drag to move this caption · drag a corner to resize it" : undefined}
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}

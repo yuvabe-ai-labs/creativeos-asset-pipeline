@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { scriptDocSchema, type ScriptDoc } from "../schema";
-import { applyAssetOp, type AssetOp } from "../assets";
+import { MAX_LOCATION_VERSIONS } from "../schema";
+import { applyAssetOp, docImageUrls, locationVersions, withoutLocationVersions, type AssetOp } from "../assets";
 import reel01 from "../fixtures/reel-01.json";
 
 // D446 — every change to a script's products, locations and per-shot picks.
@@ -92,6 +93,60 @@ describe("applyAssetOp", () => {
     expect(doc.locations[0]).toEqual({
       id: "kitchen", name: "Home kitchen", description: "Teal walls, wooden counter.",
       image: { url: "https://x/plate.png", source: "plate" },
+      versions: [{ url: "https://x/plate.png", source: "plate" }],
+    });
+  });
+
+  describe("location versions (D489)", () => {
+    const plate = (n: number) => ({ url: `https://x/plate-${n}.png`, source: "plate" as const });
+    const kitchen = () => run(base(), { op: "add_location", name: "Kitchen", description: "" });
+    const setPlate = (n: number, extra: Partial<Extract<AssetOp, { op: "set_location_image" }>> = {}): AssetOp =>
+      ({ op: "set_location_image", locationId: "kitchen", image: plate(n), ...extra });
+
+    it("keeps every new plate, oldest first, with how a drawn one was drawn", () => {
+      const doc = run(kitchen(), setPlate(1, { mode: "fresh" }), setPlate(2, { mode: "change", note: "warmer light" }));
+      expect(doc.locations[0].image).toEqual(plate(2));
+      expect(doc.locations[0].versions).toEqual([
+        { ...plate(1), mode: "fresh" },
+        { ...plate(2), mode: "change", note: "warmer light" },
+      ]);
+    });
+
+    it("puts an earlier plate back without adding a version", () => {
+      const doc = run(kitchen(), setPlate(1), setPlate(2), setPlate(1));
+      expect(doc.locations[0].image).toEqual(plate(1));
+      expect(doc.locations[0].versions?.map((v) => v.url)).toEqual([plate(1).url, plate(2).url]);
+    });
+
+    it("keeps the versions when the plate is cleared", () => {
+      const doc = run(kitchen(), setPlate(1), { op: "set_location_image", locationId: "kitchen", image: null });
+      expect(doc.locations[0].image).toBeNull();
+      expect(doc.locations[0].versions).toHaveLength(1);
+    });
+
+    it("drops the oldest past the cap", () => {
+      let doc = kitchen();
+      for (let i = 1; i <= MAX_LOCATION_VERSIONS + 1; i++) doc = run(doc, setPlate(i));
+      const urls = doc.locations[0].versions!.map((v) => v.url);
+      expect(urls).toHaveLength(MAX_LOCATION_VERSIONS);
+      expect(urls[0]).toBe(plate(2).url);
+      expect(urls.at(-1)).toBe(plate(MAX_LOCATION_VERSIONS + 1).url);
+    });
+
+    it("starts a location stored before versions from its current plate, so that one is kept", () => {
+      const old = kitchen();
+      old.locations[0] = { ...old.locations[0], image: plate(1) };
+      delete old.locations[0].versions;
+      expect(locationVersions(old.locations[0])).toEqual([plate(1)]);
+      const doc = run(old, setPlate(2));
+      expect(doc.locations[0].versions?.map((v) => v.url)).toEqual([plate(1).url, plate(2).url]);
+    });
+
+    it("counts past plates as the doc's own pictures, and leaves them out where history is not wanted", () => {
+      const doc = run(kitchen(), setPlate(1), setPlate(2));
+      expect(docImageUrls(doc).has(plate(1).url)).toBe(true);
+      expect(withoutLocationVersions(doc).locations[0].versions).toBeUndefined();
+      expect(JSON.stringify(withoutLocationVersions(doc))).not.toContain(plate(1).url);
     });
   });
 

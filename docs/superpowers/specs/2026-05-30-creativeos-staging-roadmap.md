@@ -8534,6 +8534,15 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** conversation in this session.
 
+### D489 — A location keeps its past plates in the script doc, and any can be put back *(recorded 2026-11-12; refines D446, D448, D449)*
+
+**Decision.** Each location in the script doc gains an optional `versions` list next to `image`. It holds up to 10 plates the location has had (`{ url, source, mode?, note? }`), oldest first. `image` stays the current plate, so panel prompts, the shot fingerprint, Fan out and shares read it as before. `set_location_image` (the one write, `applyAssetOp`) adds a picture the location never held to the end of the list, dropping the oldest past 10. A picture it already holds, as on a restore, adds nothing. Clear keeps the list. A location stored before versions starts from its current plate, so that plate is not lost. The plate route records Redraw's mode and note on the version. The location card shows "v2 of 3" with previous and next, which only preview, and **Use this version**, which sets `image` back through the same op. Past plates count as the doc's own pictures for the client-picture check (rule 14). They stay out of the copilot's prompt, the share version line and the assets frozen onto the canvas (`withoutLocationVersions`). Products keep no versions.
+
+**Why.** User, 12 Nov 2026: Redraw and "Change this picture" overwrote the plate, so a change that made it worse could not be undone. Storyboard panels already keep every take.
+
+**Rejected.** (1) A takes table like `script_panel_takes`: a migration, two routes and a query for what is at most 10 small entries already loaded with the doc. (2) A separate picks table: the doc's `image` already is the pick. (3) Versions for products: a product is a set of angles, and per-picture history did not make sense to the user. (4) Seeding the canvas Composite with every past plate: versions stay on the script page; Fan out still sends the current plate as v1 (D456).
+
+**Originated →** conversation in this session.
 ### D483 — Video Gen gets an Edit toggle beside Edit voice; an edit is a new version of the whole take *(recorded 2026-11-10; follows D284, D37)*
 
 **Decision.** The Video Gen focus view has two switches beside the VIDEO heading, **Edit voice** (D284) and **Edit**, and only one can be on. Edit shows the connected images as checkable references, an instruction box, a resolution choice (360p to 4k, default 720p) and an Edit video button with its credit estimate. It sends the whole active take (up to 10 seconds) to Gemini Omni with `task: "edit"`, as a `video` generation run by the existing `video-generate` task with an `editVideoUrl`, billed at Omni's rate for the chosen resolution. The result is appended as a new version with `inputs_used.videoEdit` (base and root version, instruction, literal prompt, references, resolution). A refusal or a failure refunds and makes no version.
@@ -8670,6 +8679,146 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Tabs (D492): they made the edits look as important as Generate.
 
 **Originated →** `2026-11-10-video-edit-mode-design.md`.
+
+### D492 — The @ menu opens where there is room and scrolls inside itself *(recorded 2026-11-11)*
+
+**Decision.** The mention editor's @ menu opens below the caret when there is more room below (or a full menu fits), otherwise above, and its height is capped to that room (at most 320px) so a long list scrolls inside the menu. It never leaves the screen sideways, and arrow keys keep the highlighted item in view. When the caret has no measurable box (start of a line, right after a chip), the menu anchors to the editor instead of not opening.
+
+**Why.** User, 11 Nov 2026: with many references the menu always opened upward with no height limit, ran off the top of the screen, and the first items could only be reached by zooming the browser out; sometimes @ opened nothing at all (the empty caret box).
+
+**Rejected.** Moving the menu onto a Popover primitive (a larger change for a positioning bug; the portal and keyboard handling already work).
+
+**Originated →** this session.
+
+### D493 — A script's Product and Location show their picture in every input preview *(recorded 2026-11-11; refines D450)*
+
+**Decision.** One helper, `canvasPicture` (`src/lib/nodes/canvas-picture.ts`), gives the picture a canvas node shows (upload, generated image, product packshot, location plate), and every node that lists its inputs uses it instead of its own copy. The shared `ConnectedDetailView` shows any input that carries an image, whatever its node type. The Prompt, Motion Prompt and Multishot Prompt views fall back to the canvas picture when the server's preview has no row for the input (`selectedInputPreview`).
+
+**Why.** User, 11 Nov 2026: a background or product from the script read "no preview" in node previews. Four node files each had their own picture lookup covering only files, sketches and generated images, and the detail view only treated a fixed list of types as pictures, so a product with its URL in hand still read "No content yet".
+
+**Rejected.** Adding `product` / `location` to each copy (the next new type would miss them again).
+
+**Originated →** this session.
+
+### D494 — Omni 1.2 takes 24 references alone and 9 images in all with frames, as measured *(recorded 2026-11-11; amends D484, follows D428)*
+
+**Decision.** `GEMINI_OMNI_12_IMAGE_INPUTS` becomes `maxReferenceImages: 24`, `maxImagesWithFrames: 9` (was Google's documented 6, and 1.1's measured 7 with frames). Video edits read the same cap, as before (D483).
+
+**Why.** User, 11 Nov 2026: 1.1 turned out to take more than its documented limit; check 1.2. Probed live against `gemini-omni-1.2-flash` the D428 way (numbered, coloured cards, 360p / 4s, `reference_to_video`, frames read back). References alone: 6, 8, 12, 16 and 24 rendered every card's number and colour; 32 kept the numbers but two cards' colours drifted. With frames: start + 8, start + end + 6 and start + end + 7 held both frames and every card; start + end + 8 misnumbered a card; start + 10 and start + 12 dropped the start frame (it became a card on the table); start + end + 12 turned both frames into cards. One run per case, so the cutoffs are a guide.
+
+**Rejected.** Keeping Google's 6 (well under what renders correctly). 32 (the API accepts it, but colours drift). A separate, lower cap for edits (edits were not probed; they keep reading the generation cap so the two can't drift, and edit references are ticked by hand).
+
+**Originated →** this session; probe script and frames kept outside the repo.
+
+### D495 — One Client review node per canvas; a new cut is a new version *(recorded 2026-11-12; supersedes D309's "a new cut is a new node")*
+
+**Decision.** A canvas has at most one Client review node. Uploading a cut into it adds the next version (v1, v2, …) in `canvas_review_versions`; versions are never removed. Comments belong to a version (`canvas_review_comments.version_id`) and stay there: no Done marks, no client approval for now. The limit is enforced in the add menu, `addNode`, duplicate (like `kb`), the copilot's `add_node` (opens the existing node), the canvas save (a new second node is dropped and the client removes it) and a `before insert` trigger on `nodes`.
+
+**Why.** User, 11–12 Nov 2026: every feedback round meant a new node, upload and link, and the canvas filled with review nodes.
+
+**Rejected.** A unique index on (canvas, type) (older canvases already have several). Combining older nodes into one (the user asked for no combine logic; D499).
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D496 — Each version has its own link; a link without a suffix means v1 *(recorded 2026-11-12; refines D311)*
+
+**Decision.** A version's link is `/r/<title-slug>-<code>-v<n>` (`parseReviewLink`). The client sees only that version and its comments, with no mention of newer versions, and comments on it. A link with no suffix resolves to v1, so links sent before versions keep working; a migrated v1 (`legacy_link`) is shown to the team with its original link.
+
+**Why.** User, 11 Nov 2026: a client should review exactly the cut they were sent.
+
+**Rejected.** One rolling link that always shows the latest (a client mid-review would see the cut change under them). An old link pointing to the newer version.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D497 — Allow download is per version, on by default, enforced on the server *(recorded 2026-11-12; refines D478)*
+
+**Decision.** Each version has `allow_download` (default on, for new uploads and migrated versions alike), set in the upload dialog and by a download toggle in the focus view's header, beside the link's Copy and Open buttons (moved from under the video, 13 Nov 2026). Off: the client page has no Download button and `/api/r/:token/download` answers 404. A page already open keeps its button until it reloads; a click on it is refused.
+
+**Why.** User, 11–12 Nov 2026: the team decides per cut whether the client may download it.
+
+**Rejected.** Off by default (old links would lose their button; the user chose on). Updating open pages live (costs more to build; reload is fine).
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D498 — The Client review node opens as a focus view, not the side drawer *(recorded 2026-11-12; supersedes D309/D310's feedback drawer)*
+
+**Decision.** Clicking the node (or the header's Client feedback chip) opens a focus view like other nodes: Upload first/new version in the header; the shared `VersionList` on the left; the link row (link, Copy vN link, Open vN as client) above the video in the centre, then "vN · uploaded <date>" and the Allow download switch; the version's comments on the right.
+
+**Why.** User, 11 Nov 2026: versions need room, and the node should open like every other node.
+
+**Rejected.** Keeping the right-side drawer (no room for a version list and comments side by side).
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D499 — Older canvases keep every review node, each as a single-version node *(recorded 2026-11-12; follows D495)*
+
+**Decision.** Migration 0062 turns each existing review into v1 (its cut, download on, all its comments, `legacy_link`). Every node stays, works like a new review node and can take new versions. A canvas with any review node can't get another: the add menu greys Client review out with a note when there are several.
+
+**Why.** User, 11 Nov 2026: handle existing canvases without deleting nodes, and without combine logic.
+
+**Rejected.** Merging a canvas's review nodes into one (combine logic). Deleting or hiding the extra nodes.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D500 — The Client feedback chip lists versions; a row opens that version *(recorded 2026-11-13; refines D310, D495)*
+
+**Decision.** The header's Client feedback chip always opens a list. It shows each version newest first, with its name and its own comment count. Older canvases with several review nodes (D499) group the versions under each node's name. A row opens the review's focus view on that version. The chip's one canvas query returns the per-version counts: comments are embedded under each version.
+
+**Why.** User, 13 Nov 2026: client feedback should be listed by version, since comments stay on their version (D495).
+
+**Rejected.** Opening the newest version straight from the chip when there is only one node, as before. A request per node or per version.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D501 — Uploading a version skips the dialog; the node's right-click menu uploads and copies the link *(recorded 2026-11-16; refines D497, D498)*
+
+**Decision.** "Upload new version" opens the file picker straight away and the chosen cut uploads at once. A new version allows download; the focus view's header turns it off with a labelled **Allow download** switch. The header no longer has "Open as client"; it keeps Copy link. Right-clicking a Client review node offers **Upload new version** and **Copy vN link** (the newest version). While a cut uploads, the Upload button and the node card read "Uploading…"; once it is saved, the node's focus view opens on the new version (from the menu too, so the canvas stays put during the upload). One upload hook per node (`useClientReviewUpload`) feeds both the menu and the focus view's button.
+
+**Why.** User, 16 Nov 2026: no popover between clicking Upload and the file picker; a toggle for Allow download; drop Open as client; upload and copy-link from the canvas.
+
+**Rejected.** Keeping the upload dialog for its per-upload download switch (the switch on the version does the same job after the upload). The icon-only download toggle with a slash. Separate upload state for the menu and the focus view.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D502 — A new version starts with download off; uploading stays on the canvas with a skeleton *(recorded 2026-11-16; refines D497, D501)*
+
+**Decision.** A newly uploaded version has **Allow download off**; the focus view's switch turns it on (the finalize route also defaults to off when the body omits it). Uploading from the node card or its right-click menu no longer opens the focus view: the card's media area shows a skeleton (at the current cut's shape, or 16:9 for the first) and the footer reads "Uploading…" until the version is saved. A focus view that is already open, or the next one opened, shows the new version.
+
+**Why.** User, 16 Nov 2026: don't open the focus view after an upload; download off by default; show a loading skeleton in the node while uploading.
+
+**Rejected.** Keeping download on by default (D497): a cut should not be downloadable until someone chooses that.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D503 — Scripts and Avatars wait for the Brand KB, like canvases *(recorded 2026-11-18)*
+
+**Decision.** A client's Scripts and Avatars open only once its Brand KB is ready (`kb_status = 'ready'`), the same rule the client's canvas page already had. One helper, `src/lib/clients/kb-gate.ts`, decides it for every entry point: the Scripts and Avatars pages (library, script, new avatar, avatar) redirect to `/clients/<slug>/kb?kb=required`, and the KB page then shows an info toast, "Set up the Brand KB first.", and drops the flag from the URL; `POST /api/clients/:id/scripts` and `POST /api/clients/:id/avatars` refuse with 409. The home tile keeps its Scripts and Avatars buttons unchanged. The client's own page still redirects to the KB with no toast, since opening a new client's KB is the expected first step. Brand KB, Brand assets and Market stay open, since they are part of setting a client up.
+
+**Why.** User, 18 Nov 2026: a new client's tile sent its main link to KB setup, but its Scripts and Avatars buttons skipped it and let scripts and avatars be made with no brand behind them. The gate lived only on the canvases page, so each newer surface had to remember it and these two did not.
+
+**Rejected.** Swapping the tile's Scripts and Avatars buttons for one **Set up Brand KB** button (tried, and turned down by the user on 18 Nov 2026: the tile should look the same for every client). Hiding the buttons alone (a typed or bookmarked URL, and the create routes, would still get through). Letting the script copilot run without a KB (it can, with `hasKb: false`, but a script written with no brand context is what the KB step exists to prevent).
+
+**Originated →** this log.
+
+### D504 — The timeline loses its ⋯ clip button, All clips and Quiet stretches; Fit toggles back *(recorded 2026-11-20; refines D405, D410, the task-menu design)*
+
+**Decision.** A clip's menu opens on right-click only: the ⋯ button the selected clip showed on the Video lane is gone. The timeline header no longer has an **All clips** menu; work on every clip starts from the Inspector's task list with no clip selected. The Inspector no longer lists a selected clip's **Quiet stretches** (they stay shaded on the Audio lane, with their right-click menu). **Fit** is a toggle: the first press fits the reel to the screen, a second press (while the view is still the one Fit made) goes back to the zoom and scroll from before; any other zoom ends the fitted state. The header button shows the pressed state, and the ruler and View menus read "Back to the previous zoom" while fitted.
+
+**Why.** User, 20 Nov 2026: the ⋯ button and right-click did the same job; All clips repeated the Inspector; the quiet stretches section wasn't wanted; pressing Fit again did nothing.
+
+**Rejected.** Keeping the ⋯ button as a discoverability aid (right-click is the editor's pattern for every lane). A separate "Restore zoom" button.
+
+**Originated →** this log.
+
+### D505 — Each caption keeps its own style and position *(recorded 2026-11-20; refines D396, D398)*
+
+**Decision.** A caption styled or moved on its own carries `look`: its whole style (font, size, colour, word by word, active colour, upcoming, outline, box, box colour, caps) **and** its position (x, y). From then on the reel's `captionStyle` never reaches it; the reel's style is only the default for captions that have no `look` (new ones, and ones never touched). What a caption shows with is `captionLook(doc, caption)`. `applyCaptionLook` copies the caption's current style, applies the patch and stores all of it; `resetCaptionLook` puts the caption back on the default. Selecting a caption anywhere (its line in a clip's Captions task, the preview, the Captions lane, the default Text tab) opens its clip's Captions task in the Inspector with that line picked, and the same style controls as the default's (`EditorCaptionsStyle` / `EditorCaptionPresets` with a `captionId`) open right under the line, with **Use default style** to reset. On the preview, dragging the selected caption moves it alone and a corner drag resizes it alone. The default Style panel shows only for the Captions task with nothing selected. The stage, the Captions lane, the Premiere titles and the MP4's ASS (one style per distinct look, each line positioned on its own) render each caption's own style; the export lists and font-checks every font used. Redoing a clip's auto captions replaces its unedited lines, their own style included.
+
+**Why.** User, 20 Nov 2026: editing or moving one caption changed every caption; each must be kept separately. Two earlier cuts the same day fell short: a caption that kept only the keys changed on it still followed the default for the rest, moving stayed reel-wide, and selecting a caption on the preview opened the reel-wide panel.
+
+**Rejected.** Storing only the keys that differ from the default (the caption kept changing with it). Keeping position reel-wide (D396's drag moved every caption, which the user did not want).
+
+**Originated →** this log.
 
 ### D506 — One frame around every client screen: stage tabs and a foldable copilot guide *(recorded 2026-11-12)*
 

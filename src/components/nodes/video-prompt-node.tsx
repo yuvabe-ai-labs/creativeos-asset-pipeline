@@ -22,7 +22,7 @@ import type { ApprovalStatus } from "@/lib/approval";
 import { useNodeCost } from "@/hooks/use-node-cost";
 import { NodeCreditsFooter } from "./node-credits-footer";
 import { PresenterFace } from "./presenter-face";
-import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
+import { canvasNodeName, canvasPicture } from "@/lib/nodes/canvas-picture";
 
 const TYPE_LABEL: Record<string, string> = {
   script: "Script", text: "Note", prompt: "Prompt", kb: "Brand KB",
@@ -49,26 +49,12 @@ export function VideoPromptNode({ id, data, selected, positionAbsoluteX, positio
     const directNodes = nodes.filter((n) => sourceIds.includes(n.id));
     return directNodes.map((n) => {
       const d = n.data as Record<string, unknown>;
-      // An Image Gen still's URL lives in its active output (hydrated into data.parsed, D19).
-      const fileUrl =
-        n.type === "file" || n.type === "draw"
-          ? (d.fileUrl as string | undefined)
-          : isGeneratedImageType(n.type)
-            ? (typeof d.parsed === "string" ? (d.parsed as string) : undefined)
-            : undefined;
-      const fileKind =
-        n.type === "file" || n.type === "draw"
-          ? (d.fileKind as string | undefined)
-          : isGeneratedImageType(n.type)
-            ? "image"
-            : undefined;
       const typeLabel = TYPE_LABEL[n.type ?? ""] ?? String(n.type);
       return {
         id: n.id,
-        label: (d.title as string | undefined)?.trim() || typeLabel,
+        label: canvasNodeName(d) || typeLabel,
         type: n.type ?? "",
-        fileUrl,
-        fileKind,
+        ...canvasPicture(n.type, d),
         useLlm: n.type === "file" ? (d.useLlm as boolean | undefined) : undefined,
         avatarId: n.type === "avatar" && typeof d.avatarId === "string" ? d.avatarId : undefined,
       };

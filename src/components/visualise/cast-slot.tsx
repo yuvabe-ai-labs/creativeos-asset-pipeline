@@ -52,6 +52,8 @@ export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, make
   // One sheet, shown as the image it is made as (D395). Only once its views exist: a sheet that
   // could not be cut, or an older single-image sheet, must not look finished.
   const generating = maker.step === "views" || maker.step === "face";
+  // An upload shows its progress inside the photo box; a second "Uploading…" here only repeated it.
+  const stepCopy = maker.step && maker.step !== "upload" ? STEP_COPY[maker.step] : null;
 
   return (
     <Card className={cn("flex flex-col gap-3 p-4 shadow-card has-[[data-part-commented]]:ring-client/40", bare && "border-0 bg-transparent p-0 shadow-none ring-0")}>
@@ -79,8 +81,8 @@ export function CastSlot({ clientId, member, avatar, takenIds, headerExtra, make
             preview plays beside it. */}
         <CastSlotSheet clientId={clientId} name={member.name} avatar={avatar} generating={generating} />
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
-          {maker.step && <Loader2 className="size-3.5 animate-spin text-primary" strokeWidth={1.5} />}
-          {maker.step ? STEP_COPY[maker.step] : castSlotLine(avatar)}
+          {stepCopy && <Loader2 className="size-3.5 animate-spin text-primary" strokeWidth={1.5} />}
+          {stepCopy ?? castSlotLine(avatar)}
         </p>
       </div>
       {mode === "ai" ? (

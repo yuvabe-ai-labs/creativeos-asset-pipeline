@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { getClientBySlug } from "@/lib/db/clients";
+import { redirectUnlessKbReady } from "@/lib/clients/kb-gate";
 import { listCanvases } from "@/lib/db/canvases";
 import { getOrgReviewCounts } from "@/lib/db/review";
 import { resolveOrgId } from "@/lib/dal";
@@ -52,9 +52,7 @@ export default async function ClientPage({
     );
   }
 
-  if (client.kb_status !== "ready") {
-    redirect(`/clients/${client.slug}/kb`);
-  }
+  redirectUnlessKbReady(client, { notice: false });
 
   // R5.2: seeded server-side alongside the canvases, so the first paint carries the right
   // numbers. Same RPC the client list uses — R5.5 holds at runtime, not just in the schema.

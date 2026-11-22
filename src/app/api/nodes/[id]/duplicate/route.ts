@@ -1,6 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { apiError, apiOk, withTryCatch, withNode } from "@/lib/api/route-helpers";
 import { EDITOR_DUPLICATE_REFUSED } from "@/lib/editor/rules";
+import { CLIENT_REVIEW_DUPLICATE_REFUSED } from "@/lib/client-review/rules";
 
 export async function POST(
   req: Request,
@@ -13,6 +14,11 @@ export async function POST(
       // D388 — one Editor per canvas.
       if (sourceNode.type === "editor") {
         return apiError(EDITOR_DUPLICATE_REFUSED, 409);
+      }
+
+      // D495 — one Client review node per canvas.
+      if (sourceNode.type === "client-review") {
+        return apiError(CLIENT_REVIEW_DUPLICATE_REFUSED, 409);
       }
 
       // KB nodes cannot be duplicated

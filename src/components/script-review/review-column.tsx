@@ -25,7 +25,7 @@ export function ReviewColumn({ activity }: { activity: ActivityLine[] }) {
     <>
       <aside
         aria-label="Comments and activity"
-        className="hidden min-w-0 flex-col gap-8 xl:sticky xl:top-6 xl:flex xl:max-h-[calc(100dvh-3rem)] xl:overflow-y-auto"
+        className="hidden min-w-0 flex-col gap-8 xl:sticky xl:top-[var(--review-sticky-top,1.5rem)] xl:flex xl:max-h-[calc(100dvh-var(--review-sticky-top,1.5rem)-1.5rem)] xl:overflow-y-auto"
       >
         {body}
       </aside>

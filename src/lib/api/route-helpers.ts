@@ -6,8 +6,9 @@ import { resolveOrgId, resolveCallerContext, type CallerContext } from "@/lib/da
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
-import { getReviewByToken, type ReviewByToken } from "@/lib/db/client-reviews";
-import { toCanonicalShareToken } from "@/lib/client-review/token";
+import { getReviewVersionByLink, type ReviewByToken } from "@/lib/db/client-reviews";
+import type { ReviewVersionRow } from "@/lib/client-review/wire";
+import { parseReviewLink, toCanonicalShareToken } from "@/lib/client-review/token";
 import { getScriptReviewByToken } from "@/lib/db/script-reviews";
 import type { ScriptReviewByToken } from "@/lib/script-review/wire";
 
@@ -250,17 +251,19 @@ export async function withMoodboard(
 // src/proxy.ts). The token is the capability — no session, no org check, no
 // impersonation gate (there is no operator here). Unknown → 404, like every other
 // resolver; a malformed token never reaches the database.
+//
+// D496: a link names one version (`<title-slug>-<code>-v<n>`, no suffix = v1). The handler gets
+// that version and only ever acts on it; a version that doesn't exist is a 404.
 export async function withShareToken(
   params: Promise<{ token: string }>,
-  handler: (review: ReviewByToken) => Promise<AnyResponse>,
+  handler: (review: ReviewByToken, version: ReviewVersionRow) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { token: raw } = await params;
-  // D311: a link is `<title-slug>-<code>`; only the code finds the review.
-  const token = toCanonicalShareToken(raw);
-  if (!token) return apiError("Review not found.", 404);
-  const review = await getReviewByToken(token);
-  if (!review) return apiError("Review not found.", 404);
-  return handler(review);
+  const link = parseReviewLink(raw);
+  if (!link) return apiError("Review not found.", 404);
+  const found = await getReviewVersionByLink(link.token, link.versionNo);
+  if (!found) return apiError("Review not found.", 404);
+  return handler(found.review, found.version);
 }
 
 // D356: the second named token resolver, for /api/r/s/[token]/* (script reviews). Same rules as

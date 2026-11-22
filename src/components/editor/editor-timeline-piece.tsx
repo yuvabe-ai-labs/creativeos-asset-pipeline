@@ -1,6 +1,6 @@
 "use client";
 // One piece on the Video lane: its own frames, its badges (dub, lip sync), edges to trim. Pointer
-// handling lives in useTimelineDrag (D404); right-click opens the clip's menu (D405).
+// handling lives in useTimelineDrag (D404); right-click opens the clip's menu (D405, D504).
 import { dubLanguageLabel } from "@/lib/dubbing/types";
 import { formatTime } from "@/lib/editor/timeline";
 import type { Piece, SourceView } from "@/lib/editor/types";

@@ -1,33 +1,61 @@
 "use client";
 
+import { RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { CAPTION_FONTS, type CaptionFontKey } from "@/lib/editor/caption-fonts";
-import { applyCaptionStyle, MAX_SIZE, MIN_SIZE, type CaptionStyle } from "@/lib/editor/caption-style";
+import { applyCaptionLook, applyCaptionStyle, captionLook, MAX_SIZE, MIN_SIZE, resetCaptionLook, type CaptionStyle } from "@/lib/editor/caption-style";
 import { CAPTION_FONT_CSS } from "./caption-font-faces";
 import { EditorCaptionPresets } from "./editor-caption-presets";
 import { useEditorStore, useEditorStoreApi } from "./editor-store-provider";
 
-/** The reel's one caption style (D396): presets, then font, size, colour and word by word. Every
- *  change reaches every caption. A slider or colour drag is one undo step (D400). */
-export function EditorCaptionsStyle() {
+/** The reel's caption style (D396): presets, then font, size, colour and word by word. Every change
+ *  reaches every caption that hasn't its own value. With `captionId`, the same controls set that
+ *  one caption's own look (D505), with a reset back to the reel's. A slider or colour drag is one
+ *  undo step (D400). */
+export function EditorCaptionsStyle({ captionId }: { captionId?: string } = {}) {
   const store = useEditorStoreApi();
-  const style = useEditorStore((s) => s.doc.captionStyle);
+  const reelStyle = useEditorStore((s) => s.doc.captionStyle);
+  const ownLook = useEditorStore((s) => (captionId ? s.doc.captions.find((x) => x.id === captionId)?.look : undefined));
+  const style = captionLook({ captionStyle: reelStyle }, { look: ownLook });
+  const hasOwnLook = !!ownLook;
   const count = useEditorStore((s) => s.doc.captions.length);
   const editable = useEditorStore((s) => s.editable);
-  const set = (patch: Partial<CaptionStyle>) => store.getState().apply((d) => applyCaptionStyle(d, patch));
+  const set = (patch: Partial<CaptionStyle>) =>
+    store.getState().apply((d) => (captionId ? applyCaptionLook(d, captionId, patch) : applyCaptionStyle(d, patch)));
   const begin = () => store.getState().begin();
   const commit = () => store.getState().commit();
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="m-0 text-xs text-muted-foreground">
-        {count ? `Changes apply to all ${count} captions.` : "Captions you add will use this style."} Drag a caption on the preview to move it; drag a corner to resize.
-      </p>
-      <EditorCaptionPresets />
+      {captionId ? (
+        <div className="flex items-center justify-between gap-2">
+          <p className="m-0 text-xs text-muted-foreground">
+            {hasOwnLook ? "This caption has its own style; the default style no longer changes it." : "This caption uses the default style until you change it here."} Changes here apply to this caption only.
+          </p>
+          {hasOwnLook && (
+            <Button
+              variant="ghost"
+              size="xs"
+              disabled={!editable}
+              onClick={() => store.getState().apply((d) => resetCaptionLook(d, captionId))}
+              className="shrink-0 gap-1"
+            >
+              <RotateCcw className="size-3" strokeWidth={1.5} />
+              Use default style
+            </Button>
+          )}
+        </div>
+      ) : (
+        <p className="m-0 text-xs text-muted-foreground">
+          {count ? "The default style: it reaches only the captions you haven't styled or moved on their own." : "Captions you add will use this style."} To change one caption, select it on the preview or in a clip&apos;s captions.
+        </p>
+      )}
+      <EditorCaptionPresets captionId={captionId} />
       <div className="flex flex-col gap-3.5 border-t border-border pt-4">
         <div className="grid grid-cols-2 gap-3">
           <div className="flex min-w-0 flex-col gap-1.5">
@@ -72,9 +100,11 @@ export function EditorCaptionsStyle() {
           <Switch checked={style.wordByWord} disabled={!editable} onCheckedChange={(v) => set({ wordByWord: v })} />
         </Label>
       </div>
-      <p className="m-0 border-t border-border pt-3 text-xs text-muted-foreground">
-        {style.wordByWord ? "Arrives in Premiere as editable text on V2, one clip per word." : "Arrives in Premiere as editable text on V2, one clip per line."} The fonts ship in the package.
-      </p>
+      {!captionId && (
+        <p className="m-0 border-t border-border pt-3 text-xs text-muted-foreground">
+          {style.wordByWord ? "Arrives in Premiere as editable text on V2, one clip per word." : "Arrives in Premiere as editable text on V2, one clip per line."} The fonts ship in the package.
+        </p>
+      )}
     </div>
   );
 }

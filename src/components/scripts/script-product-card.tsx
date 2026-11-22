@@ -40,9 +40,10 @@ export function ScriptProductCard({ product }: { product: Product }) {
       {product.images.length === 0 ? (
         <span className="text-xs text-muted-foreground">Needs a picture</span>
       ) : (
-        <ul className="flex flex-wrap gap-2" aria-label={`${product.name} pictures`}>
+        // Three to a row (3 + 3 at the six-picture max), each a square that fills its column.
+        <ul className="grid grid-cols-3 gap-2" aria-label={`${product.name} pictures`}>
           {product.images.map((img, i) => (
-            <li key={img.url} className="group relative size-16 overflow-hidden rounded-lg border border-border bg-muted">
+            <li key={img.url} className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={img.url} alt={i === 0 ? `${product.name}, main picture` : `${product.name}, angle ${i}`} className="size-full object-contain" />
               {i === 0 && <Badge variant="secondary" className="absolute bottom-0.5 left-0.5 px-1 py-0 text-[0.6rem]">Main</Badge>}
@@ -55,6 +56,7 @@ export function ScriptProductCard({ product }: { product: Product }) {
                     </Button>
                   )}
                   <Button variant="secondary" size="icon-xs" aria-label="Remove this picture"
+                    className="hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20"
                     onClick={() => setImages(product.images.filter((_, j) => j !== i))}>
                     <X className="size-3" strokeWidth={1.5} />
                   </Button>
@@ -84,6 +86,9 @@ export function ScriptProductCard({ product }: { product: Product }) {
           onOpenChange={setPicking}
           title={`Pictures of ${product.name}`}
           max={room}
+          existing={product.images.map((img) => img.url)}
+          onRemoveExisting={(i) => setImages(product.images.filter((_, j) => j !== i))}
+          onMakeMainExisting={(i) => setImages([product.images[i], ...product.images.filter((_, j) => j !== i)])}
           onUpload={(files) => void assets.upload(files, { kind: "product", productId: product.id })}
           onPick={(images) => setImages([...product.images, ...images])}
         />
