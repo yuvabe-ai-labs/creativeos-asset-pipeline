@@ -1015,10 +1015,6 @@ set, so it can't run right now."
 ```sql
 -- expect 5
 select count(*) from ai_models where kind in ('dub','lipsync','voice','transcribe','text');
--- expect 8 (5 service rows + 3 Kling unit rows)
-select count(*) from ai_model_prices where model_id in (
-  'sarvam:dub', 'fal:lipsync-2-pro', 'elevenlabs:eleven_multilingual_sts_v2',
-  'elevenlabs:scribe_v2', 'openai:gpt-5.4-mini',
-  'kling:kling-3-0', 'kling:kling-o1', 'kling:kling-3-0-omni'
-) and effective_from in ('2026-01-01', '2026-11-23');
+-- expect 8 (5 service rows + 3 Kling unit rows), counted by the note 0080 writes
+select count(*) from ai_model_prices where note in ('Seeded from the code prices (D535).', 'Adds the price per Kling unit (D535).');
 ```

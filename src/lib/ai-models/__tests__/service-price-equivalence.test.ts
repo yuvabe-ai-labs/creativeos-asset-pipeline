@@ -8,6 +8,7 @@ import { parseAiModelPriceRow } from "../schema";
 import {
   dubUsd, lipSyncUsd, voiceChangeEstimateUsd, voiceChangeCharge, transcribeEstimateUsd, promptFlatCredits, promptCharge,
 } from "../service-price";
+import { seededPrice } from "../test-prices";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { computeDubCost, computeLipSyncCost } from "@/lib/dubbing/cost";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
@@ -67,6 +68,7 @@ describe("seeded service rows price exactly what the code does", () => {
     for (const id of ["kling:kling-3-0", "kling:kling-o1", "kling:kling-3-0-omni"]) {
       const p = asPrice(id, KLING_UNIT_FROM);
       expect(p.lines.find((l) => l.meter === "provider_unit")?.unit_usd).toBe(0.1508);
+      expect(p.lines.slice(0, -1)).toEqual(seededPrice(id, new Date("2026-11-22T12:00:00Z")).lines);
     }
   });
 });
