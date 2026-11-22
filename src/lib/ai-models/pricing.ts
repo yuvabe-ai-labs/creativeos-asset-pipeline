@@ -1,0 +1,49 @@
+// D534 — one engine prices every estimate and every charge: quantity × the matching line.
+// Client-safe: the focus views price their estimate with it too.
+import type { AiCatalog, AiModelPrice, Meter, PriceLine } from "./types";
+
+export type PriceDims = Record<string, string | number | boolean | undefined>;
+export type MeterQuantities = Partial<Record<Meter, number>>;
+
+/** The first line for this meter whose `when` matches every one of its keys; none = any run. */
+export function lineFor(price: AiModelPrice, meter: Meter, dims: PriceDims): PriceLine | null {
+  for (const line of price.lines) {
+    if (line.meter !== meter) continue;
+    if (Object.entries(line.when ?? {}).every(([key, value]) => dims[key] === value)) return line;
+  }
+  return null;
+}
+
+/** USD for these quantities. A meter with no matching line adds nothing and is listed. */
+export function priceMeters(
+  price: AiModelPrice,
+  meters: MeterQuantities,
+  dims: PriceDims = {},
+): { usd: number; unpriced: Meter[] } {
+  let usd = 0;
+  const unpriced: Meter[] = [];
+  for (const [meter, quantity] of Object.entries(meters) as [Meter, number | undefined][]) {
+    if (!quantity) continue;
+    const line = lineFor(price, meter, dims);
+    if (!line) {
+      unpriced.push(meter);
+      continue;
+    }
+    usd += quantity * line.unit_usd;
+  }
+  return { usd, unpriced };
+}
+
+/** D530 — the price row a run starting at `at` uses: the latest one at or before it. */
+export function currentPrice(catalog: AiCatalog, modelId: string, at: Date): AiModelPrice | null {
+  let best: AiModelPrice | null = null;
+  for (const p of catalog.prices) {
+    if (p.modelId !== modelId || new Date(p.effectiveFrom) > at) continue;
+    if (!best || new Date(p.effectiveFrom) > new Date(best.effectiveFrom)) best = p;
+  }
+  return best;
+}
+
+export function priceById(catalog: AiCatalog, id: string): AiModelPrice | null {
+  return catalog.prices.find((p) => p.id === id) ?? null;
+}

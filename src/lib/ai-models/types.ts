@@ -13,9 +13,10 @@ export type AiModelStatus = (typeof AI_MODEL_STATUSES)[number];
 
 // D531 — what a provider bill and a price line are counted in.
 export const METERS = [
-  "input_token", "cached_input_token", "text_output_token", "thought_token",
-  "image_output_token", "video_output_token", "output_image", "input_image",
-  "video_second", "audio_second", "character", "provider_unit", "provider_credit", "usd", "request",
+  "input_token", "text_input_token", "image_input_token", "cached_input_token",
+  "text_output_token", "thought_token", "image_output_token", "video_output_token",
+  "output_image", "input_image", "video_second", "audio_second", "character",
+  "provider_unit", "provider_credit", "usd", "request",
 ] as const;
 export type Meter = (typeof METERS)[number];
 

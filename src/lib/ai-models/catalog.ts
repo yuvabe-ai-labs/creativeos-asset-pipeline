@@ -3,6 +3,9 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { MODEL_COLUMNS, PRICE_COLUMNS, parseAiModelPriceRow, parseAiModelRow } from "./schema";
 import type { AiCatalog, AiModel, AiModelPrice } from "./types";
 
+// Kept importable from here for existing callers; it is pure and lives in pricing.ts.
+export { currentPrice } from "./pricing";
+
 // D529 — the catalog is read once and kept for a minute per server instance: a run reads its
 // model and price from memory, never with a query of its own. An admin change clears the cache
 // in the instance that made it; other instances pick it up within a minute (a price applies by
@@ -59,14 +62,4 @@ async function loadAiCatalog(): Promise<AiCatalog> {
     else console.error("[ai-models] price row failed its check — left out", { id: (row as { id?: unknown }).id });
   }
   return { models, prices };
-}
-
-/** D530 — the price row a run starting at `at` uses: the latest one at or before it. */
-export function currentPrice(catalog: AiCatalog, modelId: string, at: Date): AiModelPrice | null {
-  let best: AiModelPrice | null = null;
-  for (const p of catalog.prices) {
-    if (p.modelId !== modelId || new Date(p.effectiveFrom) > at) continue;
-    if (!best || new Date(p.effectiveFrom) > new Date(best.effectiveFrom)) best = p;
-  }
-  return best;
 }
