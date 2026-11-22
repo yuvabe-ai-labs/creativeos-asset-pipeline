@@ -40,16 +40,23 @@ export function videoEstimateUsd(
 }
 
 export function videoUsageMeters(usage: VideoProviderUsage): MeterQuantities {
-  if (usage.kind === "omni") {
-    return {
-      input_token: usage.inputTokens,
-      video_output_token: usage.videoOutputTokens,
-      text_output_token: usage.textOutputTokens,
-      thought_token: usage.thoughtTokens,
-    };
+  switch (usage.kind) {
+    case "omni":
+      return {
+        input_token: usage.inputTokens,
+        video_output_token: usage.videoOutputTokens,
+        text_output_token: usage.textOutputTokens,
+        thought_token: usage.thoughtTokens,
+      };
+    case "seedance":
+      return { video_output_token: usage.completionTokens };
+    case "kling":
+      return { provider_unit: usage.units };
+    default: {
+      const unknown: never = usage;
+      return unknown;
+    }
   }
-  if (usage.kind === "kling") return { provider_unit: usage.units };
-  return { video_output_token: usage.completionTokens };
 }
 
 export type VideoCharge = {
@@ -62,7 +69,17 @@ export type VideoCharge = {
 
 /** Kling states what it deducted; Gemini and BytePlus state what was used. */
 export function videoBillSource(usage: VideoProviderUsage): "provider_charge" | "provider_usage" {
-  return usage.kind === "kling" ? "provider_charge" : "provider_usage";
+  switch (usage.kind) {
+    case "kling":
+      return "provider_charge";
+    case "omni":
+    case "seedance":
+      return "provider_usage";
+    default: {
+      const unknown: never = usage;
+      return unknown;
+    }
+  }
 }
 
 /** What the run costs: the provider's usage when every meter of it is priced, else the seconds. */

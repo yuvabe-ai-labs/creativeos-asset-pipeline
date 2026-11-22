@@ -2,7 +2,7 @@ import "server-only";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
-import { readVideoUsage, type VideoProviderUsage } from "@/lib/video-gen/provider-usage";
+import { isTokenUsage, readVideoUsage, type VideoProviderUsage } from "@/lib/video-gen/provider-usage";
 import { priceForGeneration, priceForNewRun } from "@/lib/ai-models/run-price";
 import { voiceChangeCharge } from "@/lib/ai-models/service-price";
 import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
@@ -416,7 +416,7 @@ export async function completeGeneration(
     costUsd: cost?.usd,
     creditsCharged: actualCredits,
     // tokens_used holds token usage only; Kling reports units, which live on the bill.
-    ...(usage && usage.kind !== "kling" ? { tokensUsed: usage } : {}),
+    ...(isTokenUsage(usage) ? { tokensUsed: usage } : {}),
     providerBill: voiceChange
       ? voiceCharge?.bill ?? null
       : charge

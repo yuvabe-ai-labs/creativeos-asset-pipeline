@@ -17,6 +17,22 @@ export type SeedanceUsage = { kind: "seedance"; completionTokens: number };
 export type KlingUsage = { kind: "kling"; units: number; raw?: unknown[] };
 export type VideoProviderUsage = OmniUsage | SeedanceUsage | KlingUsage;
 
+/** Token usage (what tokens_used holds): Omni's and Seedance's. Kling reports units, which live on the bill. */
+export function isTokenUsage(usage: VideoProviderUsage | null): usage is OmniUsage | SeedanceUsage {
+  if (!usage) return false;
+  switch (usage.kind) {
+    case "omni":
+    case "seedance":
+      return true;
+    case "kling":
+      return false;
+    default: {
+      const unknown: never = usage;
+      return unknown;
+    }
+  }
+}
+
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 
 /** Google's Interactions `usage` block, as the four numbers it is billed on. */

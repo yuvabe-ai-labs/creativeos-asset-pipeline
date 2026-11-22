@@ -4,6 +4,7 @@ import {
   normalizeSeedanceUsage,
   normalizeKlingBilling,
   readVideoUsage,
+  isTokenUsage,
 } from "../provider-usage";
 
 // The `usage` blocks Google returned for real probe generations (2026-11-19, Omni 1.2, 3s 360p).
@@ -109,5 +110,14 @@ describe("normalizeKlingBilling (D535)", () => {
   it("survives the webhook round trip with its raw list", () => {
     const usage = normalizeKlingBilling([{ charge_type: "unit", amount: 1.5 }]);
     expect(readVideoUsage(JSON.parse(JSON.stringify(usage)))).toEqual(usage);
+  });
+});
+
+describe("isTokenUsage", () => {
+  it("is true for the token usages (Omni, Seedance) and false for Kling's units", () => {
+    expect(isTokenUsage({ kind: "omni", inputTokens: 1, videoOutputTokens: 2, textOutputTokens: 0, thoughtTokens: 0 })).toBe(true);
+    expect(isTokenUsage({ kind: "seedance", completionTokens: 5 })).toBe(true);
+    expect(isTokenUsage({ kind: "kling", units: 6.4 })).toBe(false);
+    expect(isTokenUsage(null)).toBe(false);
   });
 });
