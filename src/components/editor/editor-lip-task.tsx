@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useModelPrice } from "@/hooks/queries/ai-models";
 import { lipSyncUsd } from "@/lib/ai-models/service-price";
-import { LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
+import { LIP_SYNC_MODEL_ID, priceUnavailableReason } from "@/lib/ai-models/service-models";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { setPicture } from "@/lib/editor/pieces";
 import type { Piece, SourceView } from "@/lib/editor/types";
@@ -37,8 +37,9 @@ export function EditorLipTask({
   const apply = useEditorStore((s) => s.apply);
   const ui = useEditorUi();
   // D535 - the cost comes from the price row; Lip sync waits until it is known.
-  const { price, loading: priceLoading } = useModelPrice(LIP_SYNC_MODEL_ID);
+  const { price, loading: priceLoading, error: priceError } = useModelPrice(LIP_SYNC_MODEL_ID);
   const usd = price && seconds > 0 ? lipSyncUsd(price, seconds) : null;
+  const priceWhy = seconds > 0 ? priceUnavailableReason({ loading: priceLoading, error: priceError }, usd !== null) : null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -60,7 +61,7 @@ export function EditorLipTask({
               size="sm"
               variant={hasLip ? "outline" : "default"}
               disabled={Boolean(why) || priceLoading || usd === null}
-              title={why}
+              title={why ?? priceWhy ?? undefined}
               onClick={() => void dub.startLipSync(source.nodeId)}
               className="self-start"
             >

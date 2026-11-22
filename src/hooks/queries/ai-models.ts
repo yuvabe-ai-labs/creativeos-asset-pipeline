@@ -22,11 +22,13 @@ export function useAiCatalog() {
   });
 }
 
-/** D534 — a model's price row valid now, selected from the session's one catalog query. */
-export function useModelPrice(modelId: string): { price: AiModelPrice | null; loading: boolean } {
+/** D534 — a model's price row valid now, selected from the session's one catalog query. `error`
+ *  is a failed read with nothing cached, so a paid button can say so rather than "no price". */
+export function useModelPrice(modelId: string): { price: AiModelPrice | null; loading: boolean; error: boolean } {
   const catalog = useAiCatalog();
   return {
     price: catalog.data ? currentPrice(catalog.data, modelId, new Date()) : null,
     loading: catalog.isPending,
+    error: catalog.isError && !catalog.data,
   };
 }

@@ -11,16 +11,22 @@ import { usdToFinalCredits } from "@/lib/credits/units";
 const dubCredits = (s: number) => usdToFinalCredits(dubUsd(seededPrice(DUB_MODEL_ID), s)!);
 const lipSyncCredits = (s: number) => usdToFinalCredits(lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), s)!);
 // D535 - the panels price from the price row; this stands in for the catalog read.
-const priceState = vi.hoisted(() => ({ loading: false, missing: false }));
+const priceState = vi.hoisted(() => ({ loading: false, missing: false, error: false }));
 vi.mock("@/hooks/queries/ai-models", async () => {
   const { seededPrice } = await import("@/lib/ai-models/test-prices");
   return {
     useModelPrice: (modelId: string) => ({
-      price: priceState.loading || priceState.missing ? null : seededPrice(modelId),
+      price: priceState.loading || priceState.missing || priceState.error ? null : seededPrice(modelId),
       loading: priceState.loading,
+      error: priceState.error,
     }),
   };
 });
+// The reason lives in a closed tooltip, which static markup does not render: read it off the wrapper.
+vi.mock("../disabled-reason", () => ({
+  DisabledReason: ({ reason, children }: { reason: string | null; children: React.ReactNode }) => <span data-reason={reason ?? ""}>{children}</span>,
+}));
+const reasonOf = (html: string) => /data-reason="([^"]*)"/.exec(html)?.[1].replace(/&#x27;/g, "'") ?? null;
 
 const base = {
   nodeId: "n1",
@@ -121,12 +127,32 @@ describe("waiting for the price (D535)", () => {
     } finally { priceState.loading = false; }
   });
 
-  it("keeps both disabled when the model has no price", () => {
+  it("keeps both disabled when the model has no price, and says so", () => {
     priceState.missing = true;
     try {
       expect(find(dubPanel(), /^Dub/)?.disabled).toBe(true);
       expect(find(lipPanel(), /^Lip sync/)?.disabled).toBe(true);
+      expect(reasonOf(dubPanel())).toBe("No price set for this model");
+      expect(reasonOf(lipPanel())).toBe("No price set for this model");
     } finally { priceState.missing = false; }
+  });
+
+  it("says the price could not be loaded when the catalog read failed, keeping both disabled", () => {
+    priceState.error = true;
+    try {
+      expect(find(dubPanel(), /^Dub/)?.disabled).toBe(true);
+      expect(find(lipPanel(), /^Lip sync/)?.disabled).toBe(true);
+      expect(reasonOf(dubPanel())).toBe("Couldn't load the price. Try again.");
+      expect(reasonOf(lipPanel())).toBe("Couldn't load the price. Try again.");
+    } finally { priceState.error = false; }
+  });
+
+  it("gives no price reason while the price loads", () => {
+    priceState.loading = true;
+    try {
+      expect(reasonOf(dubPanel())).toBe("");
+      expect(reasonOf(lipPanel())).toBe("");
+    } finally { priceState.loading = false; }
   });
 });
 

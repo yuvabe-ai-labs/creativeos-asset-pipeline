@@ -5,7 +5,7 @@ import type { AiModelPrice } from "./types";
 
 // D534 — where a run's price comes from: the catalog row valid when it starts. A run records the
 // row it reserved with, and is charged with that same row when it finishes.
-export const NO_PRICE_MESSAGE = "This model has no price set, so it can't run right now.";
+export { NO_PRICE_MESSAGE } from "./service-models";
 
 export class NoPriceError extends Error {}
 

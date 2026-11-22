@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   serviceModelRows, SERVICE_SEED_HEADER, DUB_MODEL_ID, LIP_SYNC_MODEL_ID,
   VOICE_CHANGE_PRICE_MODEL_ID, TRANSCRIBE_MODEL_ID, PROMPT_MODEL_ID,
+  NO_PRICE_REASON, PRICE_LOAD_FAILED_REASON, priceUnavailableReason,
 } from "../service-models";
 import { seedSql, SEED_JSON_TAG } from "../seed";
 import { parseAiModelRow } from "../schema";
@@ -44,5 +45,17 @@ describe("migration 0079 (service models)", () => {
     expect(sql).toBe(seedSql(rows, SERVICE_SEED_HEADER));
     const json = sql.slice(sql.indexOf(SEED_JSON_TAG) + SEED_JSON_TAG.length, sql.lastIndexOf(SEED_JSON_TAG));
     expect(JSON.parse(json)).toEqual(JSON.parse(JSON.stringify(rows)));
+  });
+});
+
+describe("priceUnavailableReason", () => {
+  it("says nothing while the price loads or once it is priced", () => {
+    expect(priceUnavailableReason({ loading: true, error: false }, false)).toBeNull();
+    expect(priceUnavailableReason({ loading: false, error: false }, true)).toBeNull();
+  });
+  it("tells a failed catalog read apart from a model with no price", () => {
+    expect(priceUnavailableReason({ loading: false, error: true }, false)).toBe(PRICE_LOAD_FAILED_REASON);
+    expect(PRICE_LOAD_FAILED_REASON).toBe("Couldn't load the price. Try again.");
+    expect(priceUnavailableReason({ loading: false, error: false }, false)).toBe(NO_PRICE_REASON);
   });
 });

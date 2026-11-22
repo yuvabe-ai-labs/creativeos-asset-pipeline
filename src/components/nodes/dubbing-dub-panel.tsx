@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DUB_LANGUAGES, DUB_STYLES, PRESENTER_VOICE, dubLanguageLabel, dubStyleLabel, dubVoiceLabel, type DubLanguage, type DubPace, type DubStyle, type DubVoiceChoice } from "@/lib/dubbing/types";
 import { useModelPrice } from "@/hooks/queries/ai-models";
 import { dubUsd } from "@/lib/ai-models/service-price";
-import { DUB_MODEL_ID } from "@/lib/ai-models/service-models";
+import { DUB_MODEL_ID, priceUnavailableReason } from "@/lib/ai-models/service-models";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { DUB_NO_LENGTH_MESSAGE } from "@/lib/dubbing/copy";
 import { FieldLabel } from "./field-label";
@@ -44,9 +44,10 @@ export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onS
   const busy = running !== null;
   const blocked = dubBlockedReason({ editable, running, hasSource, sourceLoading, sourceSeconds, locked });
   // D535 - the estimate comes from the price row; the paid button waits until it is known.
-  const { price: dubPrice, loading: dubPriceLoading } = useModelPrice(DUB_MODEL_ID);
+  const { price: dubPrice, loading: dubPriceLoading, error: dubPriceError } = useModelPrice(DUB_MODEL_ID);
   const dubUsdEstimate = dubPrice && sourceSeconds > 0 ? dubUsd(dubPrice, sourceSeconds) : null;
   const canDub = editable && hasSource && sourceSeconds > 0 && !busy && !dubPriceLoading && dubUsdEstimate !== null;
+  const priceReason = sourceSeconds > 0 ? priceUnavailableReason({ loading: dubPriceLoading, error: dubPriceError }, dubUsdEstimate !== null) : null;
   const unpriced = hasSource && !sourceLoading && sourceSeconds <= 0;
   return (
     <div className="flex flex-col gap-6">
@@ -99,7 +100,7 @@ export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onS
       <DubbingAdvanced nodeId={nodeId} language={language} voice={voice} onVoiceChange={onVoiceChange} pace={pace} onPaceChange={onPaceChange} disabled={!editable || busy} />
 
       <div className="flex flex-col gap-2">
-        <DisabledReason reason={canDub ? null : blocked}>
+        <DisabledReason reason={canDub ? null : blocked ?? priceReason}>
           <Button onClick={onDub} disabled={!canDub} className="w-full">
             {dubPriceLoading && sourceSeconds > 0 && running !== "dub" && <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />}
             {running === "dub" ? "Dubbing…" : hasDub ? "Dub again" : "Dub"}

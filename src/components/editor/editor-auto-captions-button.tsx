@@ -2,11 +2,10 @@
 
 import { Check, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { priceUnavailableReason } from "@/lib/ai-models/service-models";
 import { cn } from "@/lib/utils";
 import { useAutoCaptionsContext } from "./auto-captions-context";
 import { useEditorStore } from "./editor-store-provider";
-
-const NO_PRICE_REASON = "No price set for this model";
 
 /** The one Auto captions button (D399). Its cost is on it, so there is no confirmation step. For
  *  the whole reel it captions only the clips that have none yet, and says so once all have (D410).
@@ -17,7 +16,7 @@ export function EditorAutoCaptionsButton({ pieceIds, label = "Auto captions", si
   size?: "sm" | "default";
   className?: string;
 }) {
-  const { cost, priceLoading, start, listening, todo } = useAutoCaptionsContext();
+  const { cost, priceLoading, priceError, start, listening, todo } = useAutoCaptionsContext();
   const editable = useEditorStore((s) => s.editable);
   const hasPieces = useEditorStore((s) => s.doc.pieces.length > 0);
   const ids = pieceIds ?? todo;
@@ -25,8 +24,8 @@ export function EditorAutoCaptionsButton({ pieceIds, label = "Auto captions", si
   const allDone = !pieceIds && hasPieces && !busy && todo.length === 0;
   const c = cost(ids);
   const needsPrice = ids.length > 0 && !c.free;
-  const noPrice = needsPrice && !priceLoading && c.credits === null;
-  const why = !editable ? "Someone else is editing this reel." : !hasPieces ? "Add a clip to the timeline first." : busy ? "Listening to the clips…" : noPrice ? NO_PRICE_REASON : undefined;
+  const priceWhy = needsPrice ? priceUnavailableReason({ loading: priceLoading, error: priceError }, c.credits !== null) : null;
+  const why = !editable ? "Someone else is editing this reel." : !hasPieces ? "Add a clip to the timeline first." : busy ? "Listening to the clips…" : priceWhy ?? undefined;
   const blocked = Boolean(why) || (needsPrice && (priceLoading || c.credits === null));
   if (allDone) {
     return (

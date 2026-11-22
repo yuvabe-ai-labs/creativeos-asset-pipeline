@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { dubLanguageLabel, type DubbingOutput } from "@/lib/dubbing/types";
 import { useModelPrice } from "@/hooks/queries/ai-models";
 import { lipSyncUsd } from "@/lib/ai-models/service-price";
-import { LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
+import { LIP_SYNC_MODEL_ID, priceUnavailableReason } from "@/lib/ai-models/service-models";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { lipSyncBlockedReason } from "@/lib/dubbing/blocked-reasons";
 import { FieldLabel } from "./field-label";
@@ -27,9 +27,10 @@ type Props = {
 export function DubbingLipSyncPanel({ activeDub, activeDubSeconds, running, editable, locked = null, onLipSync }: Props) {
   const blocked = lipSyncBlockedReason({ editable, running, hasDub: true, dubSeconds: activeDubSeconds, locked });
   // D535 - the estimate comes from the price row; the paid button waits until it is known.
-  const { price, loading: priceLoading } = useModelPrice(LIP_SYNC_MODEL_ID);
+  const { price, loading: priceLoading, error: priceError } = useModelPrice(LIP_SYNC_MODEL_ID);
   const usdEstimate = price && activeDubSeconds > 0 ? lipSyncUsd(price, activeDubSeconds) : null;
   const waiting = priceLoading || usdEstimate === null;
+  const priceReason = activeDubSeconds > 0 ? priceUnavailableReason({ loading: priceLoading, error: priceError }, usdEstimate !== null) : null;
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
@@ -39,7 +40,7 @@ export function DubbingLipSyncPanel({ activeDub, activeDubSeconds, running, edit
         </p>
       </div>
       <div className="flex flex-col gap-2">
-        <DisabledReason reason={blocked}>
+        <DisabledReason reason={blocked ?? priceReason}>
           <Button onClick={onLipSync} disabled={Boolean(blocked) || waiting} className="w-full">
             {priceLoading && activeDubSeconds > 0 && running !== "lipsync" && <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />}
             {running === "lipsync" ? "Lip-syncing…" : activeDub.lipSynced ? "Lip sync again" : "Lip sync"}

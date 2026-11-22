@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useEditorStore, useEditorStoreApi } from "@/components/editor/editor-store-provider";
 import { useModelPrice } from "@/hooks/queries/ai-models";
-import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
+import { NO_PRICE_MESSAGE, NO_PRICE_REASON, TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { useStartTranscribe, useTranscribeStatus, useTranscripts } from "@/hooks/queries/editor";
 import { autoCaptionCost, captionsFollowSound, fillFromTranscripts, pieceSound, staleAutoPieces, uncaptionedPieces } from "@/lib/editor/auto-captions";
 import { setSound } from "@/lib/editor/pieces";
@@ -22,9 +22,10 @@ const FAILURE_COPY: Record<TranscribeFailureReason, string> = {
 export const failureCopy = (r: TranscribeFailureReason) => FAILURE_COPY[r];
 
 type Run = { pieces: string[]; added: string[]; replaced: Caption[]; failed: number; error?: string };
-function startErrorMessage(err: unknown): string {
+/** The route's 409 is either no price row or a run already holding the lock; its own message is plain. */
+export function startErrorMessage(err: unknown): string {
   if (err instanceof ApiError && err.status === 402) return CREDIT_LIMIT_TOAST_MESSAGE;
-  if (err instanceof ApiError && err.status === 409) return "No price set for this model";
+  if (err instanceof ApiError && err.status === 409) return err.message === NO_PRICE_MESSAGE ? NO_PRICE_REASON : err.message;
   return "Couldn't start captions. Try again.";
 }
 const EMPTY: ReadonlySet<string> = new Set();
@@ -37,7 +38,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
   const store = useEditorStoreApi();
   const doc = useEditorStore((s) => s.doc);
   const sources = useEditorStore((s) => s.sources);
-  const { price, loading: priceLoading } = useModelPrice(TRANSCRIBE_MODEL_ID);
+  const { price, loading: priceLoading, error: priceError } = useModelPrice(TRANSCRIBE_MODEL_ID);
   const transcripts = useTranscripts(canvasId);
   const startMutation = useStartTranscribe(canvasId);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -169,7 +170,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
     [store, startMutation, nodeId, transcripts, setListening],
   );
 
-  return { cost, priceLoading, start, switchSound, listening, failed, stale, todo, transcripts: transcripts.data, busy: listening.size > 0 };
+  return { cost, priceLoading, priceError, start, switchSound, listening, failed, stale, todo, transcripts: transcripts.data, busy: listening.size > 0 };
 }
 
 export type AutoCaptions = ReturnType<typeof useAutoCaptions>;

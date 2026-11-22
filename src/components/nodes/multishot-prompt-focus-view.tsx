@@ -28,7 +28,7 @@ import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { GenerateFooter } from "./generate-footer";
 import { useConnectedInputsKey } from "@/hooks/use-connected-inputs-key";
 import { useModelPrice } from "@/hooks/queries/ai-models";
-import { NO_PRICE_REASON, PROMPT_MODEL_ID } from "@/lib/ai-models/service-models";
+import { PROMPT_MODEL_ID, priceUnavailableReason } from "@/lib/ai-models/service-models";
 import { promptFlatCredits } from "@/lib/ai-models/service-price";
 import { visionAttachmentsOf, isVisionAttachment } from "@/lib/nodes/compose-message";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
@@ -298,9 +298,9 @@ export function MultishotPromptFocusView({
   );
 
   // D536 - the flat price comes from the catalog row; the button waits for it.
-  const { price: promptPrice, loading: promptPriceLoading } = useModelPrice(PROMPT_MODEL_ID);
+  const { price: promptPrice, loading: promptPriceLoading, error: promptPriceError } = useModelPrice(PROMPT_MODEL_ID);
   const estimatedCredits = promptPrice ? promptFlatCredits(promptPrice, upstream.filter(isVisionAttachment).length) : null;
-  const noPriceReason = !promptPriceLoading && estimatedCredits === null ? NO_PRICE_REASON : null;
+  const noPriceReason = priceUnavailableReason({ loading: promptPriceLoading, error: promptPriceError }, estimatedCredits !== null);
   const totalCutSeconds = cuts.reduce((sum, c) => sum + c.seconds, 0);
 
   const mode: "skeleton" | "result" | "empty" = generating

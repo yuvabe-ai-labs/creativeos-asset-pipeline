@@ -12,8 +12,19 @@ export const TRANSCRIBE_MODEL_ID = TRANSCRIBE_ENGINE.modelUsed;
 export const VOICE_CHANGE_PRICE_MODEL_ID = `elevenlabs:${VOICE_CHANGE_MODEL_ID}`;
 /** The text model every prompt node writes with. */
 export const PROMPT_MODEL_ID = "openai:gpt-5.4-mini";
+/** What a route answers (409) when the model has no price row. */
+export const NO_PRICE_MESSAGE = "This model has no price set, so it can't run right now.";
 /** Why a paid button is disabled when the catalog has loaded and the model has no price row. */
 export const NO_PRICE_REASON = "No price set for this model";
+/** Why a paid button is disabled when the catalog could not be read. */
+export const PRICE_LOAD_FAILED_REASON = "Couldn't load the price. Try again.";
+
+/** Why a paid button is off for its price: nothing while it loads or once it is priced; a failed
+ *  catalog read is told apart from a model with no price row. */
+export function priceUnavailableReason(state: { loading: boolean; error: boolean }, priced: boolean): string | null {
+  if (state.loading || priced) return null;
+  return state.error ? PRICE_LOAD_FAILED_REASON : NO_PRICE_REASON;
+}
 
 export const SERVICE_SEED_HEADER = [
   "-- D535: the services that bill per run (dub, lip sync, voice change, transcribe, prompt writing).",
