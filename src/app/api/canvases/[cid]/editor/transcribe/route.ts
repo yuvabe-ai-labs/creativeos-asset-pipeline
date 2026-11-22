@@ -41,7 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       if (fresh.length === 0) return apiOk({ jobId: null, noSound });
 
       const seconds = fresh.reduce((s, f) => s + f.seconds, 0);
-      // D535 — the row prices the run: its estimate is the reservation, and the run records it.
+      // D535 â€” the row prices the run: its estimate is the reservation, and the run records it.
       const price = await priceForNewRun(TRANSCRIBE_MODEL_ID);
       const usd = price ? transcribeEstimateUsd(price, seconds) : null;
       if (!price || usd === null) return apiError(NO_PRICE_MESSAGE, 409);

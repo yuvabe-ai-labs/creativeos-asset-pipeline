@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { useAutoCaptionsContext } from "./auto-captions-context";
 import { useEditorStore } from "./editor-store-provider";
 
+const NO_PRICE_REASON = "No price set for this model";
+
 /** The one Auto captions button (D399). Its cost is on it, so there is no confirmation step. For
  *  the whole reel it captions only the clips that have none yet, and says so once all have (D410).
  *  Captions made again from a stored transcript cost nothing, so no price is shown. */
@@ -22,8 +24,10 @@ export function EditorAutoCaptionsButton({ pieceIds, label = "Auto captions", si
   const busy = pieceIds ? pieceIds.some((id) => listening.has(id)) : listening.size > 0;
   const allDone = !pieceIds && hasPieces && !busy && todo.length === 0;
   const c = cost(ids);
-  const pricing = c.credits === null;
-  const why = !editable ? "Someone else is editing this reel." : !hasPieces ? "Add a clip to the timeline first." : busy ? "Listening to the clips…" : undefined;
+  const needsPrice = ids.length > 0 && !c.free;
+  const noPrice = needsPrice && !priceLoading && c.credits === null;
+  const why = !editable ? "Someone else is editing this reel." : !hasPieces ? "Add a clip to the timeline first." : busy ? "Listening to the clips…" : noPrice ? NO_PRICE_REASON : undefined;
+  const blocked = Boolean(why) || (needsPrice && (priceLoading || c.credits === null));
   if (allDone) {
     return (
       <Button variant="ghost" size={size} disabled title="Every clip has captions. Redo one from its right-click menu." className={cn("gap-1.5 text-muted-foreground", className)}>
@@ -36,7 +40,7 @@ export function EditorAutoCaptionsButton({ pieceIds, label = "Auto captions", si
     <Button
       variant="outline"
       size={size}
-      disabled={Boolean(why)}
+      disabled={blocked}
       title={why}
       onClick={() => start(ids)}
       className={cn("gap-1.5 border-dashed border-primary/40 text-primary hover:bg-primary/5", className)}

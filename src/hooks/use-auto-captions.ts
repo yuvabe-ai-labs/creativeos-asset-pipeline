@@ -22,6 +22,11 @@ const FAILURE_COPY: Record<TranscribeFailureReason, string> = {
 export const failureCopy = (r: TranscribeFailureReason) => FAILURE_COPY[r];
 
 type Run = { pieces: string[]; added: string[]; replaced: Caption[]; failed: number; error?: string };
+function startErrorMessage(err: unknown): string {
+  if (err instanceof ApiError && err.status === 402) return CREDIT_LIMIT_TOAST_MESSAGE;
+  if (err instanceof ApiError && err.status === 409) return "No price set for this model";
+  return "Couldn't start captions. Try again.";
+}
 const EMPTY: ReadonlySet<string> = new Set();
 const NO_TRANSCRIPTS: ReadonlyMap<string, Transcript> = new Map();
 
@@ -156,7 +161,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
           onError: (err) => {
             run.current = null;
             setListening(new Set([...listeningRef.current].filter((x) => !wanted.has(x))));
-            toast.error(err instanceof ApiError && err.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : "Couldn't start captions. Try again.");
+            toast.error(startErrorMessage(err));
           },
         },
       );

@@ -57,7 +57,7 @@ export const editorTranscribeTask = task({
     if (secondsDone === 0) {
       await giveBack("no file transcribed");
     } else {
-      // D535 — charged by the credits ElevenLabs reported, at the row the run recorded.
+      // D535 â€” charged by the credits ElevenLabs reported, at the row the run recorded.
       const generation = await gens.getGeneration(input.generationId);
       const { credits: charged, usd, bill } = await settle.settleTranscribe(
         { generation, secondsDone, providerCredits: characterCost, providerUsd },
