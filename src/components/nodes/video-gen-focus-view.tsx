@@ -71,7 +71,8 @@ import { videoGenApi } from "@/lib/video-gen/api";
 import { VideoGenApiError } from "@/lib/video-gen/api";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
-import { estimateVideoCostUsd } from "@/lib/video-gen/provider-usage";
+import { videoEstimateUsd } from "@/lib/ai-models/video-price";
+import { useModelPrice } from "@/hooks/queries/ai-models";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -1452,9 +1453,11 @@ export function VideoGenFocusView({
   const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
   const resolution = asResolutionString(effectiveParams.resolution);
   // D528 — the same estimate the route reserves: Omni's images and thinking included.
-  const videoCostEstimateUsd = estimateVideoCostUsd(modelId, durationSeconds, audioEnabled, resolution, {
-    images: Object.keys(effectiveImageRoles).length,
-  });
+  // D534 — priced from the model's row in the session's catalog; a spinner until it arrives.
+  const { price: modelPrice, loading: priceLoading } = useModelPrice(modelId);
+  const videoCostEstimateUsd = modelPrice
+    ? videoEstimateUsd(modelPrice, { durationSeconds, audioEnabled, resolution, images: Object.keys(effectiveImageRoles).length })
+    : null;
   const estimatedCredits = videoCostEstimateUsd === null ? null : usdToFinalCredits(videoCostEstimateUsd);
 
   // D236 — Video Gen's own disabled-Generate check for an illegal ladder. checkLadder's doc
@@ -2030,7 +2033,7 @@ export function VideoGenFocusView({
                     credits={estimatedCredits}
                     // D528 — Omni's estimate counts the images sent, which are known only once
                     // the connected inputs have loaded; a number before then reads too low.
-                    estimating={loadingConnected}
+                    estimating={loadingConnected || priceLoading}
                     notice={
                       viewing.isViewingOther ? (
                         <ActiveOnlyNotice label={viewedLabel} />
