@@ -124,7 +124,8 @@ import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { RegionBounds } from "@/lib/review-annotations/draft";
 import { MAX_ANNOTATIONS_PER_DECISION } from "@/lib/review-annotations/constants";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
+import { imageEstimateUsd } from "@/lib/ai-models/image-price";
+import { useModelPrice } from "@/hooks/queries/ai-models";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
 import { ShotAssetsRail } from "./shot-assets-rail";
@@ -458,16 +459,19 @@ export function ImageGenFocusView({
   // call — this eliminates that hop entirely, matching video-gen's computeVideoCost (called
   // directly in render, no fetch at all). Only meaningful on the Generate tab (Edit has its
   // own action button, out of scope per this plan) and once there's a prompt to estimate from.
+  // D534 — priced from the model's row in the session's catalog.
+  const { price: modelPrice, loading: priceLoading } = useModelPrice(model.id);
+  const modelPriceId = modelPrice?.id ?? null;
   const hasPromptUpstream = Boolean(promptUpstream);
   const paramValuesKey = JSON.stringify(paramValues);
   const estimatedCredits = useMemo(() => {
-    if (!open || activeTab === "edit" || !promptUpstream || !fetchedPrompt?.text) return null;
-    const costUsd = estimateImageGenerationCostUsd({
+    if (!open || activeTab === "edit" || !promptUpstream || !fetchedPrompt?.text || !modelPrice) return null;
+    const costUsd = imageEstimateUsd(modelPrice, {
       modelId: model.id,
       quality: paramValues.quality as string | undefined,
       aspectRatio: paramValues.aspect_ratio as string | undefined,
       imageSize: paramValues.image_size as string | undefined,
-      referenceUrls: connectedImageUrls,
+      referenceCount: connectedImageUrls.length,
     });
     return costUsd === null ? null : usdToFinalCredits(costUsd);
     // paramValues/connectedImageUrls omitted on purpose — each is a new object/array
@@ -485,12 +489,13 @@ export function ImageGenFocusView({
     paramValuesKey,
     connectedImageUrlsKey,
     fetchedPrompt?.text,
+    modelPriceId,
   ]);
   // The connected prompt node's output (fetched by the separate effect above) hasn't loaded
   // yet — the Generate button stays disabled/spinning for that, independent of the now-
   // synchronous cost estimate above.
   const estimating =
-    open && activeTab !== "edit" && Boolean(promptUpstream) && !fetchedPrompt?.text;
+    (open && activeTab !== "edit" && Boolean(promptUpstream) && !fetchedPrompt?.text) || priceLoading;
 
   // Connected image NODES (id + url), for the edit-mode reference tiles.
   const connectedImageNodes = upstream
@@ -591,16 +596,16 @@ export function ImageGenFocusView({
   // post-max-count/dedup list the real route actually reserves against — an existing,
   // accepted gap between estimate and reservation, kept consistent rather than special-cased.
   const editEstimatedCredits = useMemo(() => {
-    if (!open || activeTab !== "edit" || !canEditBase || !finalPrompt.trim()) return null;
+    if (!open || activeTab !== "edit" || !canEditBase || !finalPrompt.trim() || !modelPrice) return null;
     const referenceUrls = [editBaseUrl, ...selectedExtraUrls].filter(
       (u): u is string => Boolean(u),
     );
-    const costUsd = estimateImageGenerationCostUsd({
+    const costUsd = imageEstimateUsd(modelPrice, {
       modelId: model.id,
       quality: paramValues.quality as string | undefined,
       aspectRatio: paramValues.aspect_ratio as string | undefined,
       imageSize: paramValues.image_size as string | undefined,
-      referenceUrls,
+      referenceCount: referenceUrls.length,
     });
     return costUsd === null ? null : usdToFinalCredits(costUsd);
     // paramValuesKey stands in for paramValues (an object), same reason as the Generate
@@ -616,11 +621,10 @@ export function ImageGenFocusView({
     paramValuesKey,
     finalPrompt,
     editReferenceUrlsKey,
+    modelPriceId,
   ]);
-  // No async dependency left on this tab (finalPrompt/canEditBase are already synchronously
-  // known, unlike the Generate tab's connected-prompt fetch) — nothing to show a loading
-  // state for.
-  const editEstimating = false;
+  // D534 — the only thing the Edit estimate waits for is the price.
+  const editEstimating = priceLoading;
 
   // The rail lists one row per wired node; the @-mention box lists the images, numbered as the
   // server numbers them (an avatar's sheet is its own entry).

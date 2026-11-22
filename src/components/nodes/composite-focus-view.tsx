@@ -9,7 +9,8 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { imageGenClientModelMap, defaultsForModel } from "@/lib/image-gen/client-models";
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
-import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
+import { imageEstimateUsd } from "@/lib/ai-models/image-price";
+import { useModelPrice } from "@/hooks/queries/ai-models";
 import { validateReferenceImages } from "@/lib/image-gen/validate";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
@@ -92,27 +93,32 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
   const viewedLabel = viewed ? labelById.get(viewed.id) ?? "" : "";
   const shownImageUrl = viewing.isViewingOther ? viewed?.output ?? null : imageUrl;
 
+  const { price: modelPrice, loading: priceLoading } = useModelPrice(model.id);
   // The same images the server will send: an avatar's front and fresh sheet are two.
   const referenceUrls = mentionUpstream.flatMap((u) => (u.fileUrl ? [u.fileUrl] : []));
-  const costUsd = estimateImageGenerationCostUsd({
-    modelId: model.id,
-    quality: values.quality as string | undefined,
-    aspectRatio: values.aspect_ratio as string | undefined,
-    imageSize: values.image_size as string | undefined,
-    referenceUrls,
-  });
+  const costUsd = modelPrice
+    ? imageEstimateUsd(modelPrice, {
+        modelId: model.id,
+        quality: values.quality as string | undefined,
+        aspectRatio: values.aspect_ratio as string | undefined,
+        imageSize: values.image_size as string | undefined,
+        referenceCount: referenceUrls.length,
+      })
+    : null;
   const refValidation = validateReferenceImages(referenceUrls.map((url) => ({ url })), model);
   const canEditPicture = Boolean(imageUrl && activeVersionId) && !viewing.isViewingOther;
   const editing = editMode && canEditPicture;
   const edit = useCompositeEdit({ model, values, activeVersionId, items: mentionUpstream, hasAvatar, generate });
   // An edit sends the current picture plus the references it uses.
-  const editUsd = estimateImageGenerationCostUsd({
-    modelId: model.id,
-    quality: values.quality as string | undefined,
-    aspectRatio: values.aspect_ratio as string | undefined,
-    imageSize: values.image_size as string | undefined,
-    referenceUrls: Array.from({ length: 1 + edit.selectedIds.length }, (_, i) => `ref-${i}`),
-  });
+  const editUsd = modelPrice
+    ? imageEstimateUsd(modelPrice, {
+        modelId: model.id,
+        quality: values.quality as string | undefined,
+        aspectRatio: values.aspect_ratio as string | undefined,
+        imageSize: values.image_size as string | undefined,
+        referenceCount: 1 + edit.selectedIds.length,
+      })
+    : null;
   const actionUsd = editing ? editUsd : costUsd;
   // The Composite runs Edit from the same button, so its reasons follow the mode it is in.
   const compositeBlocker = imageGenerateBlocker({
@@ -225,6 +231,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                     disabled={imageGenerateDisabled(compositeBlocker, generating || viewing.isViewingOther, false)}
                     disabledReason={compositeBlocker}
                     credits={actionUsd === null ? null : usdToFinalCredits(actionUsd)}
+                    estimating={priceLoading}
                   />
                 </div>
               ) : (
