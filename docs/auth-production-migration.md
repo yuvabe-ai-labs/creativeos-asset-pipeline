@@ -996,3 +996,25 @@ select effective_from from ai_model_prices where model_id = 'gemini:gemini-omni-
 -- expect an error: "ai_model_prices rows are never edited"
 update ai_model_prices set note = note where model_id = 'gemini:gemini-omni-1.2-flash';
 ```
+
+## Migrations 0079 + 0080 — service prices and provider bills (D535–D536, 2026-11-23)
+
+`supabase/migrations/0079_ai_service_models.sql` (five service models in `ai_models`) and
+`supabase/migrations/0080_ai_service_prices.sql` (their prices, plus a dated row per Kling model
+that adds the price per Kling unit). Paste each into the Supabase SQL editor → Run, in order,
+after 0076–0078.
+
+**Ordering:** apply both **before** the 2b code deploys to an environment. Without them every dub,
+lip sync, voice change, auto-captions run and prompt run is refused with "This model has no price
+set, so it can't run right now."
+
+**Safe to re-run:** both insert with `on conflict … do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect 5
+select count(*) from ai_models where kind in ('dub','lipsync','voice','transcribe','text');
+-- expect 8 (5 services + 3 Kling unit rows)
+select count(*) from ai_model_prices where effective_from > '2026-01-01';
+```
