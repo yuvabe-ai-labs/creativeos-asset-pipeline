@@ -8,7 +8,10 @@ import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { signDubbingUploads } from "@/lib/storage";
 import { resolveDubSource } from "@/lib/dubbing/source";
-import { dubCredits } from "@/lib/dubbing/cost";
+import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { dubUsd } from "@/lib/ai-models/service-price";
+import { DUB_MODEL_ID } from "@/lib/ai-models/service-models";
+import { usdToFinalCredits } from "@/lib/credits/units";
 import { DUB_ENGINE } from "@/lib/dubbing/providers";
 import { DUBBING_NOT_SET_UP_MESSAGE } from "@/lib/dubbing/copy";
 import { DEFAULT_DUB_PACE, DEFAULT_DUB_STYLE, DUB_SOURCE_LANGUAGE, PRESENTER_VOICE, isDubLanguage, isDubPace, isDubStyle, isDubVoice, type DubRecord } from "@/lib/dubbing/types";
@@ -48,6 +51,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
       if (!source.ok) return apiError(source.reason, 400);
 
+      // D535 - the price row this run is reserved and charged with; none, no run.
+      const price = await priceForNewRun(DUB_MODEL_ID);
+      if (!price) return apiError(NO_PRICE_MESSAGE, 409);
+      const usd = dubUsd(price, source.durationSeconds);
+      if (usd === null) return apiError(NO_PRICE_MESSAGE, 409);
+
       const dub: DubRecord = {
         sourceNodeId: source.sourceNodeId,
         sourceVersionId: source.sourceVersionId,
@@ -68,12 +77,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         userEmail: caller.email,
         type: "dub",
         modelUsed: DUB_ENGINE.modelUsed,
+        modelPriceId: price.id,
         paramsSnapshot: { durationSeconds: source.durationSeconds },
         inputsSnapshot: { dub },
       });
 
       try {
-        const reservation = await reserveCredits(effectiveOrgId, generation.id, dubCredits(source.durationSeconds));
+        const reservation = await reserveCredits(effectiveOrgId, generation.id, usdToFinalCredits(usd));
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
         const uploads = await signDubbingUploads({ nodeId, generationId: generation.id });
         await tasks.trigger("video-dub", {

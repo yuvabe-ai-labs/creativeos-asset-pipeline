@@ -44,7 +44,7 @@ function videoFailureText(generation: GenerationRow, generationId: string, raw: 
 export async function reservedAmountForUnpriced(
   generationId: string,
   generation: GenerationRow,
-  kind: "image" | "video",
+  kind: "image" | "video" | "dub" | "lipsync" | "voice" | "transcribe" | "prompt",
 ): Promise<number> {
   console.error(`[completeGeneration] no price for a finished ${kind}; settled at the reserved amount`, {
     generationId,
@@ -261,7 +261,7 @@ export async function completeGeneration(
       await failAndRefund(input.generationId, generation.org_id, `${input.kind} result for a ${generation.type} generation`);
       return;
     }
-    const deps = dubbingCompleteDeps(failAndRefund);
+    const deps = dubbingCompleteDeps(failAndRefund, reservedAmountForUnpriced);
     if (input.kind === "dub") await completeDubGeneration(nodeId, generation, input, deps);
     else await completeLipSyncGeneration(nodeId, generation, input, deps);
     return;

@@ -1,9 +1,12 @@
 "use client";
 
-import { Mic } from "lucide-react";
+import { Loader2, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { dubLanguageLabel, type DubbingOutput } from "@/lib/dubbing/types";
-import { lipSyncCredits } from "@/lib/dubbing/cost";
+import { useModelPrice } from "@/hooks/queries/ai-models";
+import { lipSyncUsd } from "@/lib/ai-models/service-price";
+import { LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
+import { usdToFinalCredits } from "@/lib/credits/units";
 import { lipSyncBlockedReason } from "@/lib/dubbing/blocked-reasons";
 import { FieldLabel } from "./field-label";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
@@ -23,6 +26,10 @@ type Props = {
 // D378 — the Lip sync tab: runs on the dub being viewed. A disabled button says why on hover.
 export function DubbingLipSyncPanel({ activeDub, activeDubSeconds, running, editable, locked = null, onLipSync }: Props) {
   const blocked = lipSyncBlockedReason({ editable, running, hasDub: true, dubSeconds: activeDubSeconds, locked });
+  // D535 - the estimate comes from the price row; the paid button waits until it is known.
+  const { price, loading: priceLoading } = useModelPrice(LIP_SYNC_MODEL_ID);
+  const usdEstimate = price && activeDubSeconds > 0 ? lipSyncUsd(price, activeDubSeconds) : null;
+  const waiting = priceLoading || usdEstimate === null;
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
@@ -33,9 +40,10 @@ export function DubbingLipSyncPanel({ activeDub, activeDubSeconds, running, edit
       </div>
       <div className="flex flex-col gap-2">
         <DisabledReason reason={blocked}>
-          <Button onClick={onLipSync} disabled={Boolean(blocked)} className="w-full">
+          <Button onClick={onLipSync} disabled={Boolean(blocked) || waiting} className="w-full">
+            {priceLoading && activeDubSeconds > 0 && running !== "lipsync" && <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />}
             {running === "lipsync" ? "Lip-syncing…" : activeDub.lipSynced ? "Lip sync again" : "Lip sync"}
-            {running !== "lipsync" && activeDubSeconds > 0 && <EstimatedCreditsLabel credits={lipSyncCredits(activeDubSeconds)} />}
+            {running !== "lipsync" && !priceLoading && usdEstimate !== null && <EstimatedCreditsLabel credits={usdToFinalCredits(usdEstimate)} />}
           </Button>
         </DisabledReason>
         {activeDub.lipSynced && <p className="text-xs text-muted-foreground">Running it again replaces this dub&apos;s lip-synced video.</p>}

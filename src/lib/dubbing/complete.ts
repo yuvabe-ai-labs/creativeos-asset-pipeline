@@ -4,9 +4,11 @@ import { succeedGeneration } from "@/lib/db/generations";
 import { settleGeneration } from "@/lib/db/credit-transactions";
 import { isOwnStoredUrl } from "@/lib/storage";
 import { usdToFinalCredits } from "@/lib/credits/units";
+import { priceForGeneration } from "@/lib/ai-models/run-price";
+import { dubUsd, lipSyncUsd } from "@/lib/ai-models/service-price";
+import type { AiModelPrice } from "@/lib/ai-models/types";
 import type { GenerationRow } from "@/lib/db/types";
 import { readDubRecord, readDubbingOutput, readLipSyncRecord, type DubbingOutput } from "./types";
-import { computeDubCost, computeLipSyncCost } from "./cost";
 
 export type DubSucceeded = {
   generationId: string; status: "succeeded"; kind: "dub"; stored: true;
@@ -26,12 +28,19 @@ export type CompleteDeps = {
   succeedGeneration: typeof succeedGeneration;
   failAndRefund: (generationId: string, orgId: string, error: string) => Promise<void>;
   isOwnStoredUrl: (url: string) => boolean;
+  priceFor: (g: GenerationRow) => Promise<AiModelPrice | null>;
+  reservedFor: (generationId: string, g: GenerationRow, kind: "dub" | "lipsync") => Promise<number>;
   now: () => string;
 };
 
-export const dubbingCompleteDeps = (failAndRefund: CompleteDeps["failAndRefund"]): CompleteDeps => ({
+export const dubbingCompleteDeps = (
+  failAndRefund: CompleteDeps["failAndRefund"],
+  reservedFor: CompleteDeps["reservedFor"],
+): CompleteDeps => ({
   insertVersion, setActiveVersion, getVersionById, updateVersionOutputAndInputs,
   settleGeneration, succeedGeneration, failAndRefund, isOwnStoredUrl,
+  priceFor: (g) => priceForGeneration(g),
+  reservedFor,
   now: () => new Date().toISOString(),
 });
 
@@ -64,13 +73,16 @@ export async function completeDubGeneration(
     modelUsed: generation.model_used,
     output,
   });
-  const cost = computeDubCost(input.durationSeconds);
-  const credits = usdToFinalCredits(cost.usd);
+  // D535 - priced with the row this run was reserved with; never 0 for a delivered dub.
+  const price = await deps.priceFor(generation);
+  const usd = price ? dubUsd(price, input.durationSeconds) : null;
+  const credits = usd === null ? await deps.reservedFor(input.generationId, generation, "dub") : usdToFinalCredits(usd);
   await deps.settleGeneration({ orgId: generation.org_id, generationId: input.generationId, actualAmount: credits });
   await deps.setActiveVersion(nodeId, version.id);
   await deps.succeedGeneration({
-    generationId: input.generationId, versionId: version.id, costUsd: cost.usd,
+    generationId: input.generationId, versionId: version.id, costUsd: usd ?? undefined,
     creditsCharged: credits, outputSnapshot: input.dubbedUrl,
+    providerBill: { source: "request", meters: { audio_second: Math.ceil(input.durationSeconds) } },
   });
 }
 
@@ -100,11 +112,13 @@ export async function completeLipSyncGeneration(
     { ...current, lipSynced: input.videoUrl },
     { ...(version.inputs_used ?? {}), lipSync },
   );
-  const cost = computeLipSyncCost(input.durationSeconds);
-  const credits = usdToFinalCredits(cost.usd);
+  const price = await deps.priceFor(generation);
+  const usd = price ? lipSyncUsd(price, input.durationSeconds) : null;
+  const credits = usd === null ? await deps.reservedFor(input.generationId, generation, "lipsync") : usdToFinalCredits(usd);
   await deps.settleGeneration({ orgId: generation.org_id, generationId: input.generationId, actualAmount: credits });
   await deps.succeedGeneration({
-    generationId: input.generationId, versionId: version.id, costUsd: cost.usd,
+    generationId: input.generationId, versionId: version.id, costUsd: usd ?? undefined,
     creditsCharged: credits, outputSnapshot: input.videoUrl,
+    providerBill: { source: "request", meters: { video_second: input.durationSeconds } },
   });
 }

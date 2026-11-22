@@ -1,7 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { dubCredits } from "@/lib/dubbing/cost";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { dubUsd } from "@/lib/ai-models/service-price";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import { DUB_MODEL_ID } from "@/lib/ai-models/service-models";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: vi.fn(async (modelId: string) => {
+      try { return seededPrice(modelId); } catch { return null; }
+    }),
+    priceForGeneration: vi.fn(async (g: { model_used: string | null }) => (g.model_used ? seededPrice(g.model_used) : null)),
+  };
+});
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
 vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 const mocks = vi.hoisted(() => ({
@@ -48,7 +61,9 @@ describe("POST /api/nodes/[id]/dub", () => {
       paramsSnapshot: { durationSeconds: 8 },
       inputsSnapshot: { dub: { sourceNodeId: "vg", sourceVersionId: "sv", sourceUrl: "https://own/src.mp4", srcLang: "en-IN", targetLang: "ta-IN", durationSeconds: 8, provider: "sarvam", model: "sarvam-dub", style: "formal" } },
     }));
-    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-1", dubCredits(8));
+    const price = seededPrice(DUB_MODEL_ID);
+    expect(mocks.insertGeneration).toHaveBeenCalledWith(expect.objectContaining({ modelPriceId: price.id }));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-1", usdToFinalCredits(dubUsd(price, 8)!));
     expect(mocks.trigger).toHaveBeenCalledWith("video-dub", {
       generationId: "gen-1", sourceUrl: "https://own/src.mp4", targetLang: "ta-IN", style: "formal",
       dubbedPutUrl: "https://put/v", dubbedAudioPutUrl: "https://put/a",
@@ -91,6 +106,16 @@ describe("POST /api/nodes/[id]/dub", () => {
     process.env.SARVAM_API_KEY = "k";
     expect((await post({ language: "hi-IN" })).status).toBe(404);
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("refuses a model with no price before anything is recorded (D535)", async () => {
+    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const res = await post({ language: "hi-IN" });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This model has no price set, so it can't run right now." });
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
   });
 
   it("fails and refunds when the trigger throws", async () => {

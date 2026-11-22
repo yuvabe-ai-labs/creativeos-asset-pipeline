@@ -7,7 +7,10 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { dubCredits } from "@/lib/dubbing/cost";
+import { useModelPrice } from "@/hooks/queries/ai-models";
+import { dubUsd } from "@/lib/ai-models/service-price";
+import { DUB_MODEL_ID } from "@/lib/ai-models/service-models";
+import { usdToFinalCredits } from "@/lib/credits/units";
 import { DEFAULT_DUB_LANGUAGE, DEFAULT_DUB_STYLE, DUB_LANGUAGES, DUB_STYLES, dubLanguageLabel, type DubLanguage, type DubStyle } from "@/lib/dubbing/types";
 import type { Piece, SourceView } from "@/lib/editor/types";
 import { useAutoCaptionsContext } from "./auto-captions-context";
@@ -49,6 +52,9 @@ export function EditorDubTask({ piece, source }: { piece: Piece; source: SourceV
   const { switchSound } = useAutoCaptionsContext();
   const [language, setLanguage] = useState<DubLanguage>(DEFAULT_DUB_LANGUAGE);
   const [style, setStyle] = useState<DubStyle>(DEFAULT_DUB_STYLE);
+  // D535 - the cost comes from the price row; Dub waits until it is known.
+  const { price, loading: priceLoading } = useModelPrice(DUB_MODEL_ID);
+  const usd = price && seconds > 0 ? dubUsd(price, seconds) : null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -93,9 +99,10 @@ export function EditorDubTask({ piece, source }: { piece: Piece; source: SourceV
             </div>
           </div>
           <p className="m-0 text-xs text-muted-foreground">{DUB_STYLES.find((s) => s.code === style)?.hint} Uses the presenter&apos;s own voice.</p>
-          <Button size="sm" variant={hasDub ? "outline" : "default"} disabled={Boolean(why) || seconds === 0} title={why} onClick={() => void dub.startDub(piece, { language, style })} className="self-start">
+          <Button size="sm" variant={hasDub ? "outline" : "default"} disabled={Boolean(why) || seconds === 0 || priceLoading || usd === null} title={why} onClick={() => void dub.startDub(piece, { language, style })} className="self-start">
+            {priceLoading && seconds > 0 && <Loader2 className="size-3.5 animate-spin" strokeWidth={1.5} />}
             {hasDub ? "Dub again" : "Dub clip"}
-            <span className="font-normal opacity-75">· {dubCredits(seconds)} credits</span>
+            {!priceLoading && usd !== null && <span className="font-normal opacity-75">· {usdToFinalCredits(usd)} credits</span>}
           </Button>
         </>
       )}

@@ -7,7 +7,10 @@ import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { signLipSyncedUpload } from "@/lib/storage";
 import { durationOfParams } from "@/lib/voice-change/record";
-import { lipSyncCredits } from "@/lib/dubbing/cost";
+import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { lipSyncUsd } from "@/lib/ai-models/service-price";
+import { LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
+import { usdToFinalCredits } from "@/lib/credits/units";
 import { LIP_SYNC_ENGINE } from "@/lib/dubbing/providers";
 import { DUBBING_NOT_SET_UP_MESSAGE } from "@/lib/dubbing/copy";
 import { readDubbingOutput, type LipSyncRecord } from "@/lib/dubbing/types";
@@ -33,6 +36,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const durationSeconds = version ? durationOfParams(version.params_used ?? {}) : 0;
       if (!output || !durationSeconds) return apiError("Make a dub first, then lip-sync it.", 400);
 
+      // D535 - the price row this run is reserved and charged with; none, no run.
+      const price = await priceForNewRun(LIP_SYNC_MODEL_ID);
+      if (!price) return apiError(NO_PRICE_MESSAGE, 409);
+      const usd = lipSyncUsd(price, durationSeconds);
+      if (usd === null) return apiError(NO_PRICE_MESSAGE, 409);
+
       const lipSync: LipSyncRecord = { versionId, provider: LIP_SYNC_ENGINE.provider, model: LIP_SYNC_ENGINE.model, runs: 0 };
       const generation = await insertGeneration({
         nodeId,
@@ -42,12 +51,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         userEmail: caller.email,
         type: "lipsync",
         modelUsed: LIP_SYNC_ENGINE.modelUsed,
+        modelPriceId: price.id,
         paramsSnapshot: { durationSeconds },
         inputsSnapshot: { lipSync },
       });
 
       try {
-        const reservation = await reserveCredits(effectiveOrgId, generation.id, lipSyncCredits(durationSeconds));
+        const reservation = await reserveCredits(effectiveOrgId, generation.id, usdToFinalCredits(usd));
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
         const upload = await signLipSyncedUpload({ nodeId, generationId: generation.id });
         await tasks.trigger("video-lip-sync", {

@@ -4,6 +4,17 @@ import { DubbingControls } from "../dubbing-controls";
 import { DubbingDubPanel } from "../dubbing-dub-panel";
 import { DubbingLipSyncPanel } from "../dubbing-lip-sync-panel";
 import { dubCredits, lipSyncCredits } from "@/lib/dubbing/cost";
+// D535 - the panels price from the price row; this stands in for the catalog read.
+const priceState = vi.hoisted(() => ({ loading: false, missing: false }));
+vi.mock("@/hooks/queries/ai-models", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    useModelPrice: (modelId: string) => ({
+      price: priceState.loading || priceState.missing ? null : seededPrice(modelId),
+      loading: priceState.loading,
+    }),
+  };
+});
 
 const base = {
   nodeId: "n1",
@@ -87,6 +98,29 @@ describe("Dub tab", () => {
     expect(find(dubPanel({ hasSource: false }), /^Dub/)?.disabled).toBe(true);
     expect(find(dubPanel({ running: "dub" }), /Dubbing…/)?.disabled).toBe(true);
     expect(find(dubPanel({ editable: false }), /^Dub/)?.disabled).toBe(true);
+  });
+});
+
+describe("waiting for the price (D535)", () => {
+  it("shows a spinner and keeps Dub and Lip sync disabled while the price loads", () => {
+    priceState.loading = true;
+    try {
+      const d = dubPanel();
+      expect(d).toContain("animate-spin");
+      expect(d).not.toContain("Est.");
+      expect(find(d, /^Dub/)?.disabled).toBe(true);
+      const l = lipPanel();
+      expect(l).toContain("animate-spin");
+      expect(find(l, /^Lip sync/)?.disabled).toBe(true);
+    } finally { priceState.loading = false; }
+  });
+
+  it("keeps both disabled when the model has no price", () => {
+    priceState.missing = true;
+    try {
+      expect(find(dubPanel(), /^Dub/)?.disabled).toBe(true);
+      expect(find(lipPanel(), /^Lip sync/)?.disabled).toBe(true);
+    } finally { priceState.missing = false; }
   });
 });
 

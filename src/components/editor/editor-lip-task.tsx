@@ -3,7 +3,10 @@
 // presenter's mouth to it, and chooses which picture the clip shows.
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { lipSyncCredits } from "@/lib/dubbing/cost";
+import { useModelPrice } from "@/hooks/queries/ai-models";
+import { lipSyncUsd } from "@/lib/ai-models/service-price";
+import { LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
+import { usdToFinalCredits } from "@/lib/credits/units";
 import { setPicture } from "@/lib/editor/pieces";
 import type { Piece, SourceView } from "@/lib/editor/types";
 import { ClipDubNotices, useClipDub } from "./editor-dub-task";
@@ -33,6 +36,9 @@ export function EditorLipTask({
   const sources = useEditorStore((s) => s.sources);
   const apply = useEditorStore((s) => s.apply);
   const ui = useEditorUi();
+  // D535 - the cost comes from the price row; Lip sync waits until it is known.
+  const { price, loading: priceLoading } = useModelPrice(LIP_SYNC_MODEL_ID);
+  const usd = price && seconds > 0 ? lipSyncUsd(price, seconds) : null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -53,15 +59,18 @@ export function EditorLipTask({
             <Button
               size="sm"
               variant={hasLip ? "outline" : "default"}
-              disabled={Boolean(why)}
+              disabled={Boolean(why) || priceLoading || usd === null}
               title={why}
               onClick={() => void dub.startLipSync(source.nodeId)}
               className="self-start"
             >
+              {priceLoading && seconds > 0 && <Loader2 className="size-3.5 animate-spin" strokeWidth={1.5} />}
               {hasLip ? "Lip sync again" : "Lip sync"}
-              <span className="font-normal opacity-75">
-                · {lipSyncCredits(seconds)} credits
-              </span>
+              {!priceLoading && usd !== null && (
+                <span className="font-normal opacity-75">
+                  · {usdToFinalCredits(usd)} credits
+                </span>
+              )}
             </Button>
           ) : (
             <Button

@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 import { completeDubGeneration, completeLipSyncGeneration, type CompleteDeps } from "../complete";
-import { dubCredits, lipSyncCredits, computeDubCost, computeLipSyncCost } from "../cost";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { dubUsd, lipSyncUsd } from "@/lib/ai-models/service-price";
+import { DUB_MODEL_ID, LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import { dubCredits, lipSyncCredits } from "../cost";
 
 const OWN = (p: string) => `https://storage.googleapis.com/bucket/${p}`;
 const DUB = { sourceNodeId: "vg", sourceVersionId: "sv", sourceUrl: OWN("src.mp4"), srcLang: "en-IN", targetLang: "hi-IN", durationSeconds: 8, provider: "sarvam", model: "sarvam-dub" };
@@ -18,6 +22,8 @@ beforeEach(() => {
     succeedGeneration: vi.fn(async () => undefined),
     failAndRefund: vi.fn(async () => undefined),
     isOwnStoredUrl: (u: string) => u.startsWith("https://storage.googleapis.com/bucket/"),
+    priceFor: vi.fn(async (g: { model_used: string | null }) => (g.model_used ? seededPrice(g.model_used) : null)),
+    reservedFor: vi.fn(async () => 77),
     now: () => "2026-10-15T00:00:00.000Z",
   } as unknown as CompleteDeps;
 });
@@ -31,9 +37,32 @@ describe("completeDubGeneration", () => {
       inputsUsed: { dub: { ...DUB, vendorJobId: "dub_1" } },
       paramsUsed: { durationSeconds: 8 },
     }));
-    expect(deps.settleGeneration).toHaveBeenCalledWith({ orgId: "org", generationId: "g1", actualAmount: dubCredits(8) });
+    const usd = dubUsd(seededPrice(DUB_MODEL_ID), 8)!;
+    expect(deps.settleGeneration).toHaveBeenCalledWith({ orgId: "org", generationId: "g1", actualAmount: usdToFinalCredits(usd) });
     expect(deps.setActiveVersion).toHaveBeenCalledWith("n1", "ver-1");
-    expect(deps.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ versionId: "ver-1", creditsCharged: dubCredits(8), costUsd: computeDubCost(8).usd }));
+    expect(deps.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ versionId: "ver-1", creditsCharged: usdToFinalCredits(usd), costUsd: usd, providerBill: { source: "request", meters: { audio_second: 8 } } }));
+  });
+
+  it("settles a delivered dub at the reserved amount when its price is missing", async () => {
+    (deps.priceFor as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    await completeDubGeneration("n1", gen(), { generationId: "g1", status: "succeeded", kind: "dub", stored: true, dubbedUrl: OWN("d.mp4"), dubbedAudioUrl: OWN("d.mp3"), durationSeconds: 8, vendorJobId: "dub_1" }, deps);
+    expect(deps.reservedFor).toHaveBeenCalledWith("g1", expect.anything(), "dub");
+    expect(deps.settleGeneration).toHaveBeenCalledWith({ orgId: "org", generationId: "g1", actualAmount: 77 });
+    expect(deps.setActiveVersion).toHaveBeenCalledWith("n1", "ver-1");
+    const call = (deps.succeedGeneration as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.costUsd).toBeUndefined();
+    expect(call.creditsCharged).toBe(77);
+  });
+
+  it("charges the same credits as the code prices did: INR 40 a minute per whole second, $5 a minute lip sync", () => {
+    // 7.2s of lip sync is exactly 600 credits; the old float math read it as 600.0000000000001 and
+    // rounded up to 605, the row's own unit price does not, so that one value is left out.
+    for (const s of [1, 7.2, 8, 30, 61.5, 600]) {
+      expect(usdToFinalCredits(dubUsd(seededPrice(DUB_MODEL_ID), s)!)).toBe(dubCredits(s));
+    }
+    for (const s of [1, 8, 30, 61.5, 600]) {
+      expect(usdToFinalCredits(lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), s)!)).toBe(lipSyncCredits(s));
+    }
   });
 
   it("fails and refunds a result stored outside our bucket or a missing record", async () => {
@@ -57,7 +86,18 @@ describe("completeLipSyncGeneration", () => {
       { dub: DUB, lipSync: { versionId: "ver-1", provider: "fal", model: "lipsync-2-pro", runs: 2, lastRanAt: "2026-10-15T00:00:00.000Z", vendorRequestId: "r9" } },
     );
     expect(deps.insertVersion).not.toHaveBeenCalled();
-    expect(deps.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ versionId: "ver-1", creditsCharged: lipSyncCredits(8), costUsd: computeLipSyncCost(8).usd }));
+    expect(deps.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ versionId: "ver-1", creditsCharged: usdToFinalCredits(lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), 8)!), costUsd: lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), 8), providerBill: { source: "request", meters: { video_second: 8 } } }));
+  });
+
+  it("settles a delivered lip sync at the reserved amount when its price is missing", async () => {
+    (deps.getVersionById as ReturnType<typeof vi.fn>).mockResolvedValue(VERSION);
+    (deps.priceFor as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    await completeLipSyncGeneration("n1", lgen, { generationId: "g1", status: "succeeded", kind: "lipsync", stored: true, videoUrl: OWN("new.mp4"), durationSeconds: 8, vendorRequestId: "r9" }, deps);
+    expect(deps.reservedFor).toHaveBeenCalledWith("g1", expect.anything(), "lipsync");
+    expect(deps.settleGeneration).toHaveBeenCalledWith({ orgId: "org", generationId: "g1", actualAmount: 77 });
+    expect(deps.updateVersionOutputAndInputs).toHaveBeenCalled();
+    const call = (deps.succeedGeneration as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.costUsd).toBeUndefined();
   });
 
   it("fails and refunds when the target version is gone or not a dub", async () => {

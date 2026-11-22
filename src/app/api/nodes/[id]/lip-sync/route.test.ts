@@ -1,7 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { lipSyncCredits } from "@/lib/dubbing/cost";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { lipSyncUsd } from "@/lib/ai-models/service-price";
+import { usdToFinalCredits } from "@/lib/credits/units";
+import { LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: vi.fn(async (modelId: string) => {
+      try { return seededPrice(modelId); } catch { return null; }
+    }),
+    priceForGeneration: vi.fn(async (g: { model_used: string | null }) => (g.model_used ? seededPrice(g.model_used) : null)),
+  };
+});
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
 vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 const mocks = vi.hoisted(() => ({
@@ -43,11 +56,23 @@ describe("POST /api/nodes/[id]/lip-sync", () => {
       type: "lipsync", modelUsed: "fal:lipsync-2-pro", paramsSnapshot: { durationSeconds: 8 },
       inputsSnapshot: { lipSync: { versionId: "ver-1", provider: "fal", model: "lipsync-2-pro", runs: 0 } },
     }));
-    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-2", lipSyncCredits(8));
+    const price = seededPrice(LIP_SYNC_MODEL_ID);
+    expect(mocks.insertGeneration).toHaveBeenCalledWith(expect.objectContaining({ modelPriceId: price.id }));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-2", usdToFinalCredits(lipSyncUsd(price, 8)!));
     expect(mocks.trigger).toHaveBeenCalledWith("video-lip-sync", {
       generationId: "gen-2", videoUrl: "https://own/o.mp4", audioUrl: "https://own/d.mp3", model: "lipsync-2-pro",
       lipSyncedPutUrl: "https://put/l", lipSyncedUrl: "https://own/l.mp4", durationSeconds: 8,
     });
+  });
+
+  it("refuses a model with no price before anything is recorded (D535)", async () => {
+    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const res = await post({ versionId: "ver-1" });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This model has no price set, so it can't run right now." });
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
   });
 
   it("only runs on this node's active dub, one job at a time", async () => {
