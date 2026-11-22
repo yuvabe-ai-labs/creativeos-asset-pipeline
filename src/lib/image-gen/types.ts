@@ -1,4 +1,5 @@
 import type { ZodTypeAny } from "zod";
+import type { BilledImages } from "@/lib/ai-models/image-price";
 
 export type ImageProvider = "openai" | "gemini" | "seedream";
 
@@ -25,7 +26,8 @@ export type ImageGenResult = {
   imageBase64: string;       // raw bytes from provider, uploaded to Storage immediately
   mimeType: string;          // "image/png" | "image/jpeg" | "image/webp"
   tokensUsed: ImageTokenUsage;
-  costUsd?: number;          // exact per-image charge, for providers not billed by token (Seedream)
+  /** D534 — providers billed per image (Seedream) report what they billed; the price row prices it. */
+  billedImages?: BilledImages;
 };
 
 // ── Param manifest types ──────────────────────────────────────────────────────

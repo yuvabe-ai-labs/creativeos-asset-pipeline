@@ -1,6 +1,5 @@
 import "server-only";
 import { buildZodFromParams } from "../schema-builder";
-import { seedreamImageCostUsd } from "../cost";
 import {
   SEEDREAM_LITE_SIZES,
   SEEDREAM_PRO_SIZES,
@@ -126,7 +125,11 @@ export async function generateWithSeedream(
       image_output_tokens: outputTokens,
       total_tokens:        json.usage?.total_tokens ?? outputTokens,
     },
-    costUsd: seedreamImageCostUsd(variant.id, resolutionOf(input), input.referenceUrls.length) ?? undefined,
+    billedImages: {
+      output_image: 1,
+      input_image: Math.max(0, input.referenceUrls.length - 1),
+      size: resolutionOf(input),
+    },
   };
 }
 

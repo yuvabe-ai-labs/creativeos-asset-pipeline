@@ -1,7 +1,8 @@
 import "server-only";
 import sharp from "sharp";
 import { imageGenRegistry } from "@/lib/image-gen/registry";
-import { computeImageCost } from "@/lib/image-gen/cost";
+import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { imageChargeUsd } from "@/lib/ai-models/image-price";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import {
@@ -42,6 +43,10 @@ export async function runBilledImageGeneration(
   if (!parsed.success) throw new Error(`Invalid params for ${args.modelId}.`);
   const validatedParams = parsed.data as Record<string, unknown>;
 
+  // D534 — the price row this image is reserved and charged with; no row, no image.
+  const price = await priceForNewRun(args.modelId);
+  if (!price) throw new Error(NO_PRICE_MESSAGE);
+
   const generation = await insertGeneration({
     ...args.owner,
     orgId: args.orgId,
@@ -50,12 +55,13 @@ export async function runBilledImageGeneration(
     userEmail: args.userEmail,
     type: "image",
     modelUsed: args.modelId,
+    modelPriceId: price.id,
     paramsSnapshot: validatedParams,
     inputsSnapshot: args.inputsSnapshot,
   });
 
   try {
-    const estimateUsd = estimateAvatarImageCostUsd({
+    const estimateUsd = estimateAvatarImageCostUsd(price, {
       modelId: args.modelId, aspect: args.aspect, referenceCount: args.referenceUrls.length,
     });
     if (estimateUsd === null) throw new Error(`No cost estimate available for ${args.modelId}.`);
@@ -80,12 +86,8 @@ export async function runBilledImageGeneration(
       // best-effort — dimensions are display-only
     }
 
-    const cost =
-      result.costUsd !== undefined
-        ? { usd: result.costUsd }
-        : result.tokensUsed
-          ? computeImageCost(args.modelId, result.tokensUsed)
-          : null;
+    const charge = imageChargeUsd(price, { tokens: result.tokensUsed ?? null, billedImages: result.billedImages ?? null });
+    const cost = charge ? { usd: charge.usd } : null;
     const creditsCharged = cost ? usdToFinalCredits(cost.usd) : 0;
     const meta = { ...(args.userEmail ? { email: args.userEmail } : {}), width, height, sizeBytes: bytes.length };
 

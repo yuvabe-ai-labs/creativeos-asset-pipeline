@@ -443,11 +443,11 @@ describe("completeGeneration — image (D366)", () => {
     height: 1536,
     fileSizeBytes: 2048,
     tokensUsed: TOKENS,
-    costUsd: 0.05,
   };
 
-  it("creates the version from the run's snapshots, makes it active and settles at the reported cost", async () => {
+  it("creates the version from the run's snapshots, makes it active and settles at the price of its tokens", async () => {
     await completeGeneration(succeeded);
+    const usd = (10 * 5 + 20 * 30) / 1e6;
     expect(mocks.insertVersion).toHaveBeenCalledWith({
       nodeId: "n1",
       operatorUserId: "u1",
@@ -467,13 +467,13 @@ describe("completeGeneration — image (D366)", () => {
     expect(mocks.settleGeneration).toHaveBeenCalledWith({
       orgId: "org-1",
       generationId: "g1",
-      actualAmount: usdToFinalCredits(0.05),
+      actualAmount: usdToFinalCredits(usd),
     });
     expect(mocks.succeedGeneration).toHaveBeenCalledWith(
       expect.objectContaining({
         generationId: "g1",
         versionId: "ver-1",
-        costUsd: 0.05,
+        costUsd: expect.closeTo(usd, 10),
         outputSnapshot: "https://storage.googleapis.com/b/g1.png",
       }),
     );
@@ -488,8 +488,7 @@ describe("completeGeneration — image (D366)", () => {
   });
 
   it("bills a token-billed image from its reported tokens, never at zero", async () => {
-    const { costUsd: _omit, ...tokenBilled } = succeeded;
-    void _omit;
+    const tokenBilled = succeeded;
     const tokens: ImageTokenUsage = {
       text_input_tokens: 200,
       image_input_tokens: 1000,
@@ -502,6 +501,24 @@ describe("completeGeneration — image (D366)", () => {
     expect(credits).toBeGreaterThan(0);
     expect(mocks.settleGeneration).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1", actualAmount: credits });
     expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ costUsd: usd, creditsCharged: credits }));
+  });
+
+  it("prices the images Seedream billed with its row (D534)", async () => {
+    mocks.generation = { ...mocks.generation, model_used: "seedream:seedream-5-0-pro", params_snapshot: { image_size: "2K" } };
+    await completeGeneration({ ...succeeded, tokensUsed: null, billedImages: { output_image: 1, input_image: 2, size: "2K" } });
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(0.096) }));
+  });
+
+  it("settles a finished image at its reserved amount when its price is missing (D534)", async () => {
+    const { priceForGeneration } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForGeneration).mockResolvedValueOnce(null);
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await completeGeneration(succeeded);
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: 77 }));
+    expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ creditsCharged: 77, costUsd: undefined }));
+    expect(mocks.setActiveVersion).toHaveBeenCalled();
+    expect(mocks.failGeneration).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it("fails closed when an image result arrives for a non-image generation", async () => {

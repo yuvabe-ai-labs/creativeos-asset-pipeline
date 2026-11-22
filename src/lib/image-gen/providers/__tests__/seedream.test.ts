@@ -72,8 +72,9 @@ describe("generateWithSeedream", () => {
     expect(result.imageBase64).toBe("AAAA");
     expect(result.mimeType).toBe("image/png");
     expect(result.tokensUsed.image_output_tokens).toBe(16000);
-    // Pro 2K $0.09 + 2 extra references x $0.003.
-    expect(result.costUsd).toBeCloseTo(0.096, 6);
+    // D534 — the images billed (2 references after the first); the price row turns them into $0.096.
+    expect(result.billedImages).toEqual({ output_image: 1, input_image: 2, size: "2K" });
+    expect("costUsd" in result).toBe(false);
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://ark.ap-southeast.bytepluses.com/api/v3/images/generations");
@@ -86,7 +87,7 @@ describe("generateWithSeedream", () => {
       SEEDREAM_LITE,
       input({ params: { aspect_ratio: "1:1", image_size: "4K" }, referenceUrls: ["https://a", "https://b"] }),
     );
-    expect(result.costUsd).toBeCloseTo(0.035, 6);
+    expect(result.billedImages).toEqual({ output_image: 1, input_image: 1, size: "4K" });
     expect(result.tokensUsed.total_tokens).toBe(0);
   });
 

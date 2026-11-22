@@ -17,6 +17,13 @@ vi.mock("@/lib/db/credit-transactions", () => {
   class CreditLimitError extends Error {}
   return { reserveCredits: vi.fn(), settleGeneration: vi.fn(), refundReservation: vi.fn(), CreditLimitError };
 });
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: async (modelId: string) => seededPrice(modelId),
+  };
+});
 vi.mock("@/lib/storage", () => ({ uploadAvatarGenerated: vi.fn() }));
 vi.mock("sharp", () => ({ default: () => ({ metadata: async () => ({ width: 1536, height: 2048 }) }) }));
 
@@ -53,7 +60,7 @@ beforeEach(() => {
   generate.mockResolvedValue({
     imageBase64: BYTES.toString("base64"), mimeType: "image/png",
     tokensUsed: { text_input_tokens: 0, image_input_tokens: 0, image_output_tokens: 0, total_tokens: 0 },
-    costUsd: 0.035,
+    billedImages: { output_image: 1, input_image: 0, size: "2K" },
   });
 });
 

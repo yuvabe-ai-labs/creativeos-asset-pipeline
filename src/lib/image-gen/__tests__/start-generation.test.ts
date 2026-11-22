@@ -32,7 +32,15 @@ vi.mock("@/lib/db/credit-transactions", () => ({
   CreditLimitError: class CreditLimitError extends Error {},
 }));
 vi.mock("@/lib/storage", () => ({ prepareImageGenUploads: m.prepareImageGenUploads }));
-vi.mock("@/lib/image-gen/estimate", () => ({ estimateImageGenerationCostUsd: () => 0.04 }));
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: vi.fn(async (modelId: string) => {
+      try { return seededPrice(modelId); } catch { return null; }
+    }),
+  };
+});
 vi.mock("@trigger.dev/sdk/v3", () => ({ tasks: { trigger: m.trigger } }));
 
 import { startImageGeneration, type StartImageGenerationInput } from "../start-generation";
@@ -51,6 +59,14 @@ const input: StartImageGenerationInput = {
 };
 
 beforeEach(() => vi.clearAllMocks());
+
+it("refuses a model with no price before anything is recorded (D534)", async () => {
+  const { priceForNewRun } = await import("@/lib/ai-models/run-price");
+  vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+  const res = await startImageGeneration(input);
+  expect(res.status).toBe(409);
+  expect(m.insertGeneration).not.toHaveBeenCalled();
+});
 
 describe("startImageGeneration (D366)", () => {
   it("refuses a second run on the same node, before inserting or reserving", async () => {

@@ -15,7 +15,7 @@ import { readVideoEdit, plainVideoEditFailure } from "@/lib/video-edit/record";
 import { readVoiceChange } from "@/lib/voice-change/source";
 import { isVoicePreviewGeneration } from "@/lib/avatars/voice-preview";
 import { completeAvatarVoicePreview } from "@/lib/avatars/complete-voice-preview";
-import { computeImageCost } from "@/lib/image-gen/cost";
+import { imageChargeUsd } from "@/lib/ai-models/image-price";
 import { IMAGE_GENERATION_FAILED_MESSAGE, plainImageFailure } from "@/lib/image-gen/failure-copy";
 import type { ImageGenerationSucceeded } from "@/lib/image-gen/run-task";
 import { completeDubGeneration, completeLipSyncGeneration, dubbingCompleteDeps, type DubSucceeded, type LipSyncSucceeded } from "@/lib/dubbing/complete";
@@ -37,6 +37,20 @@ function videoFailureText(generation: GenerationRow, generationId: string, raw: 
   if (!readVideoEdit(generation.inputs_snapshot?.videoEdit)) return raw;
   console.error("[completeGeneration] video edit failed", { generationId, error: raw });
   return plainVideoEditFailure(raw);
+}
+
+// D534 — a finished paid run is never charged 0 because its price is missing: the provider has
+// billed us and the output is kept, so settle at what was reserved and record no dollar cost.
+async function reservedAmountForUnpriced(
+  generationId: string,
+  generation: GenerationRow,
+  kind: "image" | "video",
+): Promise<number> {
+  console.error(`[completeGeneration] no price for a finished ${kind}; settled at the reserved amount`, {
+    generationId,
+    model: generation.model_used,
+  });
+  return (await getReservationAmounts([generationId])).get(generationId) ?? 0;
 }
 
 // D366 — an image arrives already stored (the task uploaded it through a signed URL).
@@ -70,14 +84,19 @@ async function completeImageGeneration(
     output: input.imageUrl,
   });
 
-  // A provider billed per image (Seedream) reports its exact charge; token-billed ones don't.
-  const cost =
-    input.costUsd !== undefined
-      ? { usd: input.costUsd }
-      : input.tokensUsed && generation.model_used
-        ? computeImageCost(generation.model_used, input.tokensUsed)
-        : null;
-  const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+  // D534 — priced with the row this run was reserved with: billed images (Seedream) or tokens.
+  const price = await priceForGeneration(generation);
+  const charge = price
+    ? imageChargeUsd(price, { tokens: input.tokensUsed ?? null, billedImages: input.billedImages ?? null })
+    : null;
+  const cost = charge ? { usd: charge.usd } : null;
+  // A paid image with a missing price settles at what was reserved. A provider that reported
+  // neither tokens nor billed images still settles at 0 (unchanged).
+  const actualCredits = cost
+    ? usdToFinalCredits(cost.usd)
+    : price
+      ? 0
+      : await reservedAmountForUnpriced(input.generationId, generation, "image");
 
   // Settle before the image goes live: if settling throws, the row is still `running` and no
   // card shows an image the run never paid for.
@@ -339,16 +358,9 @@ export async function completeGeneration(
       : null;
   // D534 — a finished video is never charged 0 because its price is missing: the provider has
   // billed us and the video is kept, so settle at what was reserved and record no dollar cost.
-  let actualCredits: number;
-  if (cost) {
-    actualCredits = usdToFinalCredits(cost.usd);
-  } else {
-    actualCredits = (await getReservationAmounts([input.generationId])).get(input.generationId) ?? 0;
-    console.error("[completeGeneration] no price for a finished video; settled at the reserved amount", {
-      generationId: input.generationId,
-      model: generation.model_used,
-    });
-  }
+  const actualCredits = cost
+    ? usdToFinalCredits(cost.usd)
+    : await reservedAmountForUnpriced(input.generationId, generation, "video");
 
   await settleGeneration({
     orgId: generation.org_id,

@@ -1,5 +1,6 @@
 import { defaultsForModel, imageGenClientModelMap } from "@/lib/image-gen/client-models";
-import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
+import { imageEstimateUsd } from "@/lib/ai-models/image-price";
+import type { AiModelPrice } from "@/lib/ai-models/types";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
   AVATAR_FRAMING_CLAUSE, AVATAR_SHEET_ASPECT, AVATAR_STYLES, AVATAR_WORKS_WITH, SEEDANCE_FACE_MODEL_ID,
@@ -41,8 +42,8 @@ export function familyClause(relatives: string[]): string {
 
 /** D395 — the sheet is one 16:9 image with the front as its reference; its four views are cut
  *  from it at no further cost. */
-export function estimateSheetCredits(modelId: string): number | null {
-  return estimateAvatarImageCredits({ modelId, aspect: AVATAR_SHEET_ASPECT, referenceCount: 1 });
+export function estimateSheetCredits(price: AiModelPrice | null, modelId: string): number | null {
+  return estimateAvatarImageCredits(price, { modelId, aspect: AVATAR_SHEET_ASPECT, referenceCount: 1 });
 }
 
 /** The model's own defaults with the aspect ratio forced. Null for an unknown model. */
@@ -55,29 +56,26 @@ export function avatarImageParams(
   return { ...defaultsForModel(model), aspect_ratio: aspect };
 }
 
-export function estimateAvatarImageCostUsd(input: {
-  modelId: string;
-  aspect: string;
-  referenceCount: number;
-}): number | null {
+export function estimateAvatarImageCostUsd(
+  price: AiModelPrice | null,
+  input: { modelId: string; aspect: string; referenceCount: number },
+): number | null {
   const params = avatarImageParams(input.modelId, input.aspect);
-  if (!params) return null;
-  return estimateImageGenerationCostUsd({
+  if (!params || !price) return null;
+  return imageEstimateUsd(price, {
     modelId: input.modelId,
     quality: params.quality as string | undefined,
     aspectRatio: input.aspect,
     imageSize: params.image_size as string | undefined,
-    // Only the count is read; the URLs themselves do not change the price.
-    referenceUrls: Array.from({ length: input.referenceCount }, () => ""),
+    referenceCount: input.referenceCount,
   });
 }
 
-export function estimateAvatarImageCredits(input: {
-  modelId: string;
-  aspect: string;
-  referenceCount: number;
-}): number | null {
-  const usd = estimateAvatarImageCostUsd(input);
+export function estimateAvatarImageCredits(
+  price: AiModelPrice | null,
+  input: { modelId: string; aspect: string; referenceCount: number },
+): number | null {
+  const usd = estimateAvatarImageCostUsd(price, input);
   return usd === null ? null : usdToFinalCredits(usd);
 }
 

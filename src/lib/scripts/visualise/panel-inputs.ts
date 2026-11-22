@@ -1,5 +1,6 @@
 import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
 import { AVATAR_VIEWS } from "@/lib/avatars/constants";
+import { priceFromCodeTables } from "@/lib/ai-models/price-seed";
 import { estimateAvatarImageCredits } from "@/lib/avatars/generation";
 import { hasFourViews } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
@@ -109,5 +110,5 @@ export function panelInputs(input: {
 /** D346 — a panel bills like any image: the same estimate the draw reserves. `referenceCount`
  *  is the people's views; the house style image the draw adds is counted here too. */
 export function estimatePanelCredits(referenceCount: number, aspect: string, modelId: string = PANEL_MODEL_ID): number | null {
-  return estimateAvatarImageCredits({ modelId, aspect, referenceCount: referenceCount + 1 });
+  return estimateAvatarImageCredits(priceFromCodeTables(modelId), { modelId, aspect, referenceCount: referenceCount + 1 });
 }

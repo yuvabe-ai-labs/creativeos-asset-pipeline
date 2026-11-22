@@ -5,6 +5,7 @@ import {
   castChipStatus, castSlotLine, finishAvatar, previewLockedReason, makeGeneratedAvatar, nextMakerStep, reusableFor, type MakerDeps,
 } from "../maker";
 import { MEENAKSHI_AVATAR, readyAvatar, reel01Doc } from "./fixtures";
+import { seededPrice } from "@/lib/ai-models/test-prices";
 import { estimateAvatarImageCredits, estimateSheetCredits } from "@/lib/avatars/generation";
 import { estimateMakeCredits } from "../maker";
 import { VISUALISE_AVATAR_MODEL_ID } from "../constants";
@@ -138,8 +139,8 @@ describe("Make avatar shows its first step at once (testing: no loading, repeat 
 describe("estimateMakeCredits for the chosen model", () => {
   it("is one face plus one sheet, on that model", () => {
     const gpt = "openai:gpt-image-2";
-    const face = estimateAvatarImageCredits({ modelId: gpt, aspect: "3:4", referenceCount: 0 })!;
-    const sheet = estimateSheetCredits(gpt)!;
+    const face = estimateAvatarImageCredits(seededPrice(gpt), { modelId: gpt, aspect: "3:4", referenceCount: 0 })!;
+    const sheet = estimateSheetCredits(seededPrice(gpt), gpt)!;
     expect(estimateMakeCredits(gpt)).toBe(face + sheet);
   });
 

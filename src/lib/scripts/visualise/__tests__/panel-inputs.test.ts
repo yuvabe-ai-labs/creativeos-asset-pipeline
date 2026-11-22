@@ -7,6 +7,7 @@ import {
 import { castReadyForPanels, estimatePanelCredits, panelInputs, panelReferenceCap, type PanelInputs } from "../panel-inputs";
 import { shotKey } from "../keys";
 import type { ScriptDoc } from "@/lib/scripts/schema";
+import { seededPrice } from "@/lib/ai-models/test-prices";
 import { estimateAvatarImageCredits } from "@/lib/avatars/generation";
 import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
 import { isPanelModel, PANEL_MODEL_ID, PANEL_MODEL_IDS } from "../constants";
@@ -91,7 +92,7 @@ describe("panelInputs on Reel 01 (D342)", () => {
   });
 
   it("prices the house style image in, so the cost shown is what is reserved", () => {
-    expect(estimatePanelCredits(8, "9:16")).toBe(estimateAvatarImageCredits({ modelId: PANEL_MODEL_ID, aspect: "9:16", referenceCount: 9 }));
+    expect(estimatePanelCredits(8, "9:16")).toBe(estimateAvatarImageCredits(seededPrice(PANEL_MODEL_ID), { modelId: PANEL_MODEL_ID, aspect: "9:16", referenceCount: 9 }));
   });
 
   it("draws the setting, the kit, the sketch style, and never any text or brand", () => {
@@ -180,7 +181,7 @@ describe("the panel model (D424: Nano Banana 2.1 by default, changeable under Ad
   it("sizes the reference cap and the price to the chosen model", () => {
     const nb2 = "gemini:gemini-3.1-flash-image";
     expect(panelReferenceCap(nb2)).toBe(imageGenClientModelMap[nb2]!.maxReferenceImages! - 1);
-    expect(estimatePanelCredits(8, "9:16", nb2)).toBe(estimateAvatarImageCredits({ modelId: nb2, aspect: "9:16", referenceCount: 9 }));
+    expect(estimatePanelCredits(8, "9:16", nb2)).toBe(estimateAvatarImageCredits(seededPrice(nb2), { modelId: nb2, aspect: "9:16", referenceCount: 9 }));
   });
 });
 

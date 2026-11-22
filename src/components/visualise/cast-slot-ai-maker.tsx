@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
 import { AvatarCreditCost } from "@/components/avatars/avatar-credit-cost";
+import { priceFromCodeTables } from "@/lib/ai-models/price-seed";
 import { estimateSheetCredits } from "@/lib/avatars/generation";
 import type { Avatar } from "@/lib/avatars/schema";
 import { estimateMakeCredits, nextMakerStep } from "@/lib/scripts/visualise/maker";
@@ -49,7 +50,7 @@ export function CastSlotAiMaker({ avatar, modelId, busy, onMake }: {
             <>
               {next === "views" && (
                 <Button disabled={busy} onClick={() => onMake("", false)}>
-                  Make the four views <AvatarCreditCost credits={estimateSheetCredits(modelId)} />
+                  Make the four views <AvatarCreditCost credits={estimateSheetCredits(priceFromCodeTables(modelId), modelId)} />
                 </Button>
               )}
               {next === "save" && <Button disabled={busy} onClick={() => onMake("", false)}>Save to Avatars</Button>}

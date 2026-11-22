@@ -15,6 +15,15 @@ vi.mock("@/lib/db/credit-transactions", () => {
   class CreditLimitError extends Error {}
   return { reserveCredits: vi.fn(), settleGeneration: vi.fn(), refundReservation: vi.fn(), CreditLimitError };
 });
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: async (modelId: string) => {
+      try { return seededPrice(modelId); } catch { return null; }
+    },
+  };
+});
 vi.mock("sharp", () => ({ default: () => ({ metadata: async () => ({ width: 768, height: 1365 }) }) }));
 
 import { runBilledImageGeneration } from "../billed-run";
@@ -36,7 +45,7 @@ beforeEach(() => {
   vi.mocked(insertGeneration).mockResolvedValue({ id: "g1", created_at: "x", status: "running" } as never);
   vi.mocked(reserveCredits).mockResolvedValue({ ok: true });
   store.mockResolvedValue({ url: "https://storage.googleapis.com/b/panel.png" });
-  generate.mockResolvedValue({ imageBase64: BYTES.toString("base64"), mimeType: "image/png", tokensUsed: { total_tokens: 0 }, costUsd: 0.067 });
+  generate.mockResolvedValue({ imageBase64: BYTES.toString("base64"), mimeType: "image/png", tokensUsed: { text_input_tokens: 180, image_input_tokens: 0, image_output_tokens: 1120, total_tokens: 1300 } });
 });
 
 describe("runBilledImageGeneration", () => {
