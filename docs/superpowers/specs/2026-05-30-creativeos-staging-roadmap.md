@@ -8893,3 +8893,23 @@ A new run reads the row valid now from the cached catalog and records it as `gen
 **Rejected.** Hand-entering the seed rows (a typo would change a price silently). Pricing a completion at the row valid when it finishes (a run straddling a price change would be reserved at one price and charged at another). Charging 0 for a model with no price.
 
 **Originated →** [2026-11-22-model-catalog-2a-prices.md](../plans/2026-11-22-model-catalog-2a-prices.md).
+
+### D535 — Dub, lip sync, voice change, auto captions and Kling are charged from price rows and what the provider billed *(recorded 2026-11-22; follows D531, D534)*
+
+**Decision.** Five service models (`sarvam:dub`, `fal:lipsync-2-pro`, `elevenlabs:eleven_multilingual_sts_v2`, `elevenlabs:scribe_v2`, `openai:gpt-5.4-mini`) are in `ai_models` (migration 0079) with dated prices in `ai_model_prices` (0080). Each run reserves with its row, records `model_price_id`, and settles with the same row. A run with no price row is refused before anything is recorded. A voice change records the video's model but is priced by the ElevenLabs row. When the provider reports its charge, that is what is charged: Kling's task `billing` units at $0.1508 a unit, and ElevenLabs' `character-cost` credits at $0.000182 a credit for voice change and auto captions. Speech to text's `fiat-cost-before-overages` dollars are kept in the bill but not charged. fal and Sarvam report nothing and are priced by seconds. What the provider reported is stored in `generations.provider_bill`. Its `source` says whether the provider reported a charge, reported usage, or nothing. A reported meter the row cannot price is listed in `unpriced`, and the run falls back to its seconds price. The code constants are gone. 0080 is pinned by a snapshot test.
+
+**Why.** The credit audit (19 to 21 Nov) found these prices hard-coded in several files, with no record of what the provider charged for each run.
+
+**Rejected.** Keeping per-service constants beside the rows, because that gives two sources of truth. Charging captions by the fiat header, because ElevenLabs bills the plan in credits.
+
+**Originated →** [2026-11-22-model-catalog-2b-remaining-prices.md](../plans/2026-11-22-model-catalog-2b-remaining-prices.md).
+
+### D536 — Prompt runs keep their flat charge; what OpenAI billed is recorded *(recorded 2026-11-22)*
+
+**Decision.** A prompt run reserves and settles a flat amount from the `openai:gpt-5.4-mini` row: $0.005 a request plus $0.0025 an attached image, converted at 1,000 credits a dollar with no rounding (5 credits plus 2.5 an image). The token cost OpenAI reports is priced with the same row's token lines and stored in `cost_usd` and `provider_bill`. It is not charged.
+
+**Why.** The user chose to keep the flat charge for prompts, which are cheap and frequent, so that the price shown before a run is the price paid. Recording the token cost lets the flat amount be checked against what OpenAI billed.
+
+**Rejected.** Settling at the token cost, because the charge would differ from the price shown before the run.
+
+**Originated →** [2026-11-22-model-catalog-2b-remaining-prices.md](../plans/2026-11-22-model-catalog-2b-remaining-prices.md).
