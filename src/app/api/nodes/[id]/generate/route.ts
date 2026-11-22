@@ -6,8 +6,9 @@ import { promptGeneratePrompt } from "@/prompts/prompt-generate";
 import { type ShotControls } from "@/lib/nodes/shot-controls";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
-import { computeCost } from "@/lib/pricing";
-import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { NO_PRICE_MESSAGE, priceForNewRun } from "@/lib/ai-models/run-price";
+import { PROMPT_MODEL_ID } from "@/lib/ai-models/service-models";
+import { promptFlatCredits, promptRunRecord } from "@/lib/ai-models/service-price";
 import {
   reserveCredits,
   settleGeneration,
@@ -62,6 +63,11 @@ export async function POST(
     });
 
     const model = `openai:${promptGeneratePrompt.model}`;
+    // D536 — the row is looked up before anything is recorded: no row, no run.
+    const attachmentCount = resolved.upstream.filter(isVisionAttachment).length;
+    const price = await priceForNewRun(PROMPT_MODEL_ID);
+    const estimatedCredits = price ? promptFlatCredits(price, attachmentCount) : null;
+    if (!price || estimatedCredits === null) return apiError(NO_PRICE_MESSAGE, 409);
     let generation: Awaited<ReturnType<typeof insertGeneration>> | null = null;
 
     try {
@@ -75,9 +81,9 @@ export async function POST(
         modelUsed: model,
         paramsSnapshot: { model: promptGeneratePrompt.model },
         inputsSnapshot: { instruction: effectiveInstruction },
+        modelPriceId: price.id,
       });
 
-      const estimatedCredits = estimatePromptCredits(resolved.upstream.filter(isVisionAttachment).length);
       const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw new CreditLimitError("Monthly credit limit reached");
@@ -114,32 +120,23 @@ export async function POST(
       });
       await setActiveVersion(nodeId, version.id);
 
-      const usage = completion.usage;
-      const cost = usage
-        ? computeCost(model, {
-            prompt_tokens: usage.prompt_tokens,
-            completion_tokens: usage.completion_tokens,
-            total_tokens: usage.total_tokens,
-          })
-        : null;
-      // Prompt-type generations settle on the same flat estimate used for the reservation
-      // (5 base + 2.5/attachment), not real OpenAI token cost — unlike image/video, whose
-      // real vendor $ cost IS the charge. Real cost is still recorded via costUsd below for
-      // admin visibility; it no longer drives credits_charged. Settling on real cost here
-      // silently dropped the attachment premium: a short completion's real cost never clears
-      // usdToFinalCredits' 5-credit rounding step, so every prompt generation — regardless
-      // of attachment count — settled at the same 5-credit floor.
+      const usage = completion.usage ?? null;
+      // D536 — a prompt run keeps its flat price, set in the database, for reserve and settle. The
+      // token cost OpenAI billed is recorded for comparison and never drives credits_charged.
+      const record = promptRunRecord(price, usage, attachmentCount);
+      const credits = record?.credits ?? estimatedCredits;
       await settleGeneration({
         orgId: effectiveOrgId,
         generationId: generation.id,
-        actualAmount: estimatedCredits,
+        actualAmount: credits,
       });
       await succeedGeneration({
         generationId: generation.id,
         versionId: version.id,
-        costUsd: cost?.usd,
-        creditsCharged: estimatedCredits,
+        costUsd: record?.costUsd ?? undefined,
+        creditsCharged: credits,
         tokensUsed: usage ? { ...usage } : null,
+        providerBill: record?.bill ?? null,
         outputSnapshot: output,
       });
 

@@ -7,6 +7,8 @@ import type { AiModelPrice } from "./types";
 // row it reserved with, and is charged with that same row when it finishes.
 export const NO_PRICE_MESSAGE = "This model has no price set, so it can't run right now.";
 
+export class NoPriceError extends Error {}
+
 export async function priceForNewRun(modelId: string, at: Date = new Date()): Promise<AiModelPrice | null> {
   return currentPrice(await getAiCatalog(), modelId, at);
 }

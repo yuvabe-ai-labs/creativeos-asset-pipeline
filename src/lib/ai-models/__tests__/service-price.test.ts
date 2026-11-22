@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   dubUsd, lipSyncUsd, voiceChangeEstimateUsd, voiceChangeCharge, transcribeEstimateUsd,
-  transcribeCharge, promptFlatUsd, promptFlatCredits, promptCharge,
+  transcribeCharge, promptFlatUsd, promptFlatCredits, promptCharge, promptRunRecord,
 } from "../service-price";
 import type { AiModelPrice } from "../types";
 
@@ -125,5 +125,22 @@ describe("prompt", () => {
     const c = promptCharge(row([{ meter: "request", unit_usd: 0.005 }, { meter: "input_image", unit_usd: 0.0025 }]), usage, 0)!;
     expect(c.usd).toBeCloseTo(0.005, 10);
     expect(c.recordedUsd).toBeNull();
+  });
+});
+
+describe("promptRunRecord", () => {
+  const flat = row([{ meter: "request", unit_usd: 0.005 }, { meter: "input_image", unit_usd: 0.0025 }, { meter: "input_token", unit_usd: 0.000001 }, { meter: "text_output_token", unit_usd: 0.000002 }]);
+  const usage = { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 };
+  it("charges the flat credits, records the token cost and keeps the usage block in raw", () => {
+    const r = promptRunRecord(flat, usage, 1)!;
+    expect(r.credits).toBe(7.5);
+    expect(r.costUsd).toBeCloseTo(100 * 0.000001 + 10 * 0.000002, 12);
+    expect(r.bill).toEqual({ source: "provider_usage", meters: { input_token: 100, text_output_token: 10 }, raw: usage });
+  });
+  it("with no usage records the request and no cost", () => {
+    expect(promptRunRecord(flat, null, 2)).toEqual({ credits: 10, costUsd: null, bill: { source: "request", meters: { request: 1, input_image: 2 } } });
+  });
+  it("is null when the row has no flat price", () => {
+    expect(promptRunRecord(row([{ meter: "input_token", unit_usd: 0.000001 }]), null, 0)).toBeNull();
   });
 });

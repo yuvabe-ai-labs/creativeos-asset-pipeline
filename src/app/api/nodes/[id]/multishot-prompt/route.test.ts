@@ -553,3 +553,13 @@ describe("POST multishot-prompt — Direction references (D281)", () => {
     expect(content[2].type).toBe("image_url");
   });
 });
+
+describe("POST multishot-prompt - no price row (D535)", () => {
+  it("409s with the no-price message when the run is refused for it", async () => {
+    const { NoPriceError, NO_PRICE_MESSAGE } = await import("@/lib/ai-models/run-price");
+    runPromptGeneration.mockRejectedValueOnce(new NoPriceError(NO_PRICE_MESSAGE));
+    const res = await post({ scope: "all" });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe(NO_PRICE_MESSAGE);
+  });
+});

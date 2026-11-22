@@ -110,3 +110,20 @@ export function promptCharge(
   };
   return { usd, recordedUsd: priced(price, meters), bill: { source: "provider_usage", meters } };
 }
+
+/**
+ * D536 — what a finished prompt run records: the flat credits it is charged (reserved and settled
+ * alike), the token cost OpenAI billed (null when there is no usage or a token meter is unpriced),
+ * and the bill. With no usage the bill is the request itself. Null when the row has no flat price.
+ */
+export function promptRunRecord(
+  price: AiModelPrice,
+  usage: PromptUsage | null,
+  attachmentCount: number,
+): { credits: number; costUsd: number | null; bill: ProviderBill } | null {
+  const credits = promptFlatCredits(price, attachmentCount);
+  if (credits === null) return null;
+  const charge = usage ? promptCharge(price, usage, attachmentCount) : null;
+  if (usage && charge) return { credits, costUsd: charge.recordedUsd, bill: { ...charge.bill, raw: { ...usage } } };
+  return { credits, costUsd: null, bill: { source: "request", meters: { request: 1, input_image: attachmentCount } } };
+}

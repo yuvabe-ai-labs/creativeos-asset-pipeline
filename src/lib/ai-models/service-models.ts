@@ -12,6 +12,8 @@ export const TRANSCRIBE_MODEL_ID = TRANSCRIBE_ENGINE.modelUsed;
 export const VOICE_CHANGE_PRICE_MODEL_ID = `elevenlabs:${VOICE_CHANGE_MODEL_ID}`;
 /** The text model every prompt node writes with. */
 export const PROMPT_MODEL_ID = "openai:gpt-5.4-mini";
+/** Why a paid button is disabled when the catalog has loaded and the model has no price row. */
+export const NO_PRICE_REASON = "No price set for this model";
 
 export const SERVICE_SEED_HEADER = [
   "-- D535: the services that bill per run (dub, lip sync, voice change, transcribe, prompt writing).",

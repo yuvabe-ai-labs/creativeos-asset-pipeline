@@ -24,7 +24,9 @@ import { GenerateFooter } from "./generate-footer";
 import { useConnectedInputsKey } from "@/hooks/use-connected-inputs-key";
 import { promptGenerateBlocker } from "@/lib/nodes/prompt-generate-blocker";
 import { imageGenerateDisabled } from "@/lib/image-gen/generate-blocker";
-import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { useModelPrice } from "@/hooks/queries/ai-models";
+import { NO_PRICE_REASON, PROMPT_MODEL_ID } from "@/lib/ai-models/service-models";
+import { promptFlatCredits } from "@/lib/ai-models/service-price";
 import { isVisionAttachment, visionAttachmentsOf } from "@/lib/nodes/compose-message";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { CameraSelect } from "./camera-select";
@@ -198,7 +200,10 @@ export function VideoPromptFocusView({
 
   // Mirrors the image Prompt node's Generate button (prompt-focus-view.tsx) — same
   // estimatePromptCredits heuristic, folded into the button label below.
-  const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
+  // D536 - the flat price comes from the catalog row; the button waits for it.
+  const { price: promptPrice, loading: promptPriceLoading } = useModelPrice(PROMPT_MODEL_ID);
+  const estimatedCredits = promptPrice ? promptFlatCredits(promptPrice, upstream.filter(isVisionAttachment).length) : null;
+  const noPriceReason = !promptPriceLoading && estimatedCredits === null ? NO_PRICE_REASON : null;
   // Held until the inputs are saved and resolved, and while one of them is still empty.
   const generateBlocker = promptGenerateBlocker({
     editable,
@@ -686,9 +691,10 @@ export function VideoPromptFocusView({
                     label={output ? "Re-generate" : "Generate motion prompt"}
                     busy={generating}
                     onClick={runGenerate}
-                    disabled={imageGenerateDisabled(generateBlocker, generating || isViewingOther, loadingPreview)}
-                    disabledReason={generateBlocker}
+                    disabled={imageGenerateDisabled(generateBlocker ?? noPriceReason, generating || isViewingOther, loadingPreview || promptPriceLoading)}
+                    disabledReason={generateBlocker ?? noPriceReason}
                     credits={estimatedCredits}
+                    estimating={promptPriceLoading}
                     notice={isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
                   />
                 </div>

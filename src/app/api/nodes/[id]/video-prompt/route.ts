@@ -5,7 +5,7 @@ import { buildUserContent, isVisionAttachment } from "@/lib/nodes/compose-messag
 import { videoPromptGeneratePromptFor, type VideoProvider } from "@/prompts/video-prompt-generate";
 import { normalizeVideoControls } from "@/lib/nodes/video-controls";
 import { insertVersion } from "@/lib/db/versions";
-import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { NO_PRICE_MESSAGE, NoPriceError } from "@/lib/ai-models/run-price";
 import { runPromptGeneration, CreditLimitError, type ModelUsage } from "@/lib/api/prompt-run";
 import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
@@ -64,7 +64,6 @@ export async function POST(
     });
 
     const model = `openai:${promptSpec.model}`;
-    const estimatedCredits = estimatePromptCredits(resolved.upstream.filter(isVisionAttachment).length);
 
     try {
       const { output, versionId } = await runPromptGeneration({
@@ -76,7 +75,7 @@ export async function POST(
         operatorUserId: caller.userId, // R11.1: the maker
         type: "prompt",
         model,
-        estimatedCredits,
+        attachmentCount: resolved.upstream.filter(isVisionAttachment).length,
         generationParamsSnapshot: { model: promptSpec.model, targetProvider },
         generationInputsSnapshot: { instruction: effectiveInstruction },
         inputsUsed: {
@@ -138,6 +137,7 @@ export async function POST(
 
       return apiOk({ output, versionId, compiled: user });
     } catch (e) {
+      if (e instanceof NoPriceError) return apiError(NO_PRICE_MESSAGE, 409);
       const message = e instanceof Error ? e.message : "Generation failed";
       const status = e instanceof CreditLimitError ? 402 : 500;
       return apiError(message, status);

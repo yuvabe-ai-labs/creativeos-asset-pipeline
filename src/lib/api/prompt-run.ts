@@ -1,7 +1,10 @@
 import "server-only";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
-import { computeCost, type TokenUsage } from "@/lib/pricing";
+import type { TokenUsage } from "@/lib/pricing";
+import { NO_PRICE_MESSAGE, NoPriceError, priceForNewRun } from "@/lib/ai-models/run-price";
+import { PROMPT_MODEL_ID } from "@/lib/ai-models/service-models";
+import { promptFlatCredits, promptRunRecord } from "@/lib/ai-models/service-price";
 import {
   reserveCredits,
   settleGeneration,
@@ -45,9 +48,8 @@ export async function runPromptGeneration<T>(args: {
   operatorUserId?: string | null;
   type: GenerationRow["type"];
   model: string;
-  // Computed by the caller (e.g. estimatePromptCredits) — attachment-counting and similar
-  // estimation policy is prompt-type-specific and stays at the call site.
-  estimatedCredits: number;
+  // D536 — the flat price is `request` + one `input_image` per attachment, read from the row.
+  attachmentCount: number;
   generationParamsSnapshot?: Record<string, unknown>;
   generationInputsSnapshot?: Record<string, unknown>;
   // Everything the success version's inputs_used/params_used should carry EXCEPT tokensUsed,
@@ -63,6 +65,11 @@ export async function runPromptGeneration<T>(args: {
   // propagates regardless of what onFailure does.
   onFailure?: (error: unknown) => Promise<void> | void;
 }): Promise<{ output: T; versionId: string; generationId: string; usage: ModelUsage | null }> {
+  // D536 — the row is looked up before anything is recorded: no row, no run.
+  const price = await priceForNewRun(PROMPT_MODEL_ID);
+  const estimate = price ? promptFlatCredits(price, args.attachmentCount) : null;
+  if (!price || estimate === null) throw new NoPriceError(NO_PRICE_MESSAGE);
+
   const generation = await insertGeneration({
     nodeId: args.nodeId,
     orgId: args.orgId,
@@ -73,10 +80,11 @@ export async function runPromptGeneration<T>(args: {
     modelUsed: args.model,
     paramsSnapshot: args.generationParamsSnapshot,
     inputsSnapshot: args.generationInputsSnapshot,
+    modelPriceId: price.id,
   });
 
   try {
-    const reservation = await reserveCredits(args.orgId, generation.id, args.estimatedCredits);
+    const reservation = await reserveCredits(args.orgId, generation.id, estimate);
     if (!reservation.ok) {
       throw new CreditLimitError("Monthly credit limit reached");
     }
@@ -93,22 +101,18 @@ export async function runPromptGeneration<T>(args: {
     });
     await setActiveVersion(args.nodeId, version.id);
 
-    const cost = usage ? computeCost(args.model, usage) : null;
-    // Prompt-type generations settle on the same flat estimate used for the reservation, not
-    // real model $ cost (see the comment this carried in video-prompt/route.ts before the
-    // move) — real cost is still recorded via costUsd below for admin visibility, it just
-    // doesn't drive credits_charged.
-    await settleGeneration({
-      orgId: args.orgId,
-      generationId: generation.id,
-      actualAmount: args.estimatedCredits,
-    });
+    // D536 — a prompt run keeps its flat price, set in the database, for reserve and settle. The
+    // token cost OpenAI billed is recorded for comparison and never drives credits_charged.
+    const record = promptRunRecord(price, usage, args.attachmentCount);
+    const credits = record?.credits ?? estimate;
+    await settleGeneration({ orgId: args.orgId, generationId: generation.id, actualAmount: credits });
     await succeedGeneration({
       generationId: generation.id,
       versionId: version.id,
-      costUsd: cost?.usd,
-      creditsCharged: args.estimatedCredits,
+      costUsd: record?.costUsd ?? undefined,
+      creditsCharged: credits,
       tokensUsed: usage ? { ...usage } : null,
+      providerBill: record?.bill ?? null,
       outputSnapshot: typeof output === "string" ? output : JSON.stringify(output),
     });
 
