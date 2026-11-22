@@ -13,7 +13,8 @@ export type OmniUsage = {
   thoughtTokens: number;
 };
 export type SeedanceUsage = { kind: "seedance"; completionTokens: number };
-export type KlingUsage = { kind: "kling"; units: number };
+/** `raw` is Kling's billing list, verbatim, kept on the bill for audit. */
+export type KlingUsage = { kind: "kling"; units: number; raw?: unknown[] };
 export type VideoProviderUsage = OmniUsage | SeedanceUsage | KlingUsage;
 
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
@@ -53,7 +54,7 @@ export function normalizeKlingBilling(raw: unknown): KlingUsage | null {
     const n = Number(e.amount);
     if (Number.isFinite(n) && n > 0) units += n;
   }
-  return units > 0 ? { kind: "kling", units } : null;
+  return units > 0 ? { kind: "kling", units, raw } : null;
 }
 
 /** A usage that arrived in a webhook body: accepted only in exactly the shape we send. */
@@ -74,6 +75,8 @@ export function readVideoUsage(value: unknown): VideoProviderUsage | null {
   if (v.kind === "seedance" && isCount(v.completionTokens)) {
     return { kind: "seedance", completionTokens: v.completionTokens };
   }
-  if (v.kind === "kling" && isCount(v.units)) return { kind: "kling", units: v.units };
+  if (v.kind === "kling" && isCount(v.units)) {
+    return { kind: "kling", units: v.units, ...(Array.isArray(v.raw) ? { raw: v.raw } : {}) };
+  }
   return null;
 }

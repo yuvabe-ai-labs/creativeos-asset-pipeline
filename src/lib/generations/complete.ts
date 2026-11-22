@@ -401,7 +401,11 @@ export async function completeGeneration(
     costUsd: cost?.usd,
     creditsCharged: actualCredits,
     ...(charge?.source === "provider_usage" && usage ? { tokensUsed: usage } : {}),
-    providerBill: voiceChange ? voiceCharge?.bill ?? null : charge ? { source: charge.source, meters: charge.meters } : null,
+    providerBill: voiceChange
+      ? voiceCharge?.bill ?? null
+      : charge
+        ? { source: charge.source, meters: charge.meters, ...(charge.source === "provider_usage" && usage?.kind === "kling" && usage.raw ? { raw: usage.raw } : {}) }
+        : null,
     outputSnapshot: storedVideoUrl,
     meta: input.meta,
   });

@@ -280,7 +280,7 @@ describe("kling30.generate — poll flow", () => {
     const p = kling30.generate({ prompt: "p", startFrameUrl: "https://x.test/s.png", referenceUrls: [], params: { resolution: "720p", duration: "8" } });
     await vi.advanceTimersByTimeAsync(5000);
     const result = await p;
-    expect(result.usage).toEqual({ kind: "kling", units: 6.4 });
+    expect(result.usage).toEqual({ kind: "kling", units: 6.4, raw: [{ charge_type: "unit", amount: "6.4", package_type: "video" }] });
   });
 
   it("returns no usage when the task reports no billing", async () => {

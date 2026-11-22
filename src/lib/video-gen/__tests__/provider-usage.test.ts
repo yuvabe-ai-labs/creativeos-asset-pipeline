@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeOmniUsage,
   normalizeSeedanceUsage,
+  normalizeKlingBilling,
   readVideoUsage,
 } from "../provider-usage";
 
@@ -81,5 +82,32 @@ describe("readVideoUsage (webhook body)", () => {
     expect(readVideoUsage({ kind: "omni", inputTokens: -1, videoOutputTokens: 1, textOutputTokens: 0, thoughtTokens: 0 })).toBeNull();
     expect(readVideoUsage({ kind: "seedance", completionTokens: "5" })).toBeNull();
     expect(readVideoUsage({ kind: "kling" })).toBeNull();
+  });
+});
+
+describe("normalizeKlingBilling (D535)", () => {
+  it("sums several unit entries and keeps the list verbatim", () => {
+    const billing = [
+      { charge_type: "unit", amount: 4.2 },
+      { charge_type: "unit", amount: 2.2 },
+    ];
+    expect(normalizeKlingBilling(billing)).toEqual({ kind: "kling", units: 6.4, raw: billing });
+  });
+
+  it("returns null for a missing or empty list, so the caller falls back", () => {
+    expect(normalizeKlingBilling(undefined)).toBeNull();
+    expect(normalizeKlingBilling(null)).toBeNull();
+    expect(normalizeKlingBilling([])).toBeNull();
+  });
+
+  it("ignores non-numeric, negative and non-unit entries", () => {
+    expect(normalizeKlingBilling([{ charge_type: "unit", amount: "abc" }, { charge_type: "unit", amount: -3 }])).toBeNull();
+    const billing = [{ charge_type: "unit", amount: 2 }, { charge_type: "unit", amount: -3 }, { charge_type: "other", amount: 9 }];
+    expect(normalizeKlingBilling(billing)).toEqual({ kind: "kling", units: 2, raw: billing });
+  });
+
+  it("survives the webhook round trip with its raw list", () => {
+    const usage = normalizeKlingBilling([{ charge_type: "unit", amount: 1.5 }]);
+    expect(readVideoUsage(JSON.parse(JSON.stringify(usage)))).toEqual(usage);
   });
 });

@@ -22,7 +22,7 @@ vi.mock("@/lib/ai-models/run-price", async () => {
     priceForNewRun: vi.fn(async (modelId: string) => {
       try { return seededPrice(modelId); } catch { return null; }
     }),
-    priceForGeneration: vi.fn(async (g: { model_used: string | null }) => (g.model_used ? seededPrice(g.model_used) : null)),
+    priceForGeneration: vi.fn(async (g: { model_used: string | null; created_at?: string }) => (g.model_used ? seededPrice(g.model_used, g.created_at ? new Date(g.created_at) : undefined) : null)),
   };
 });
 vi.mock("@/lib/db/versions", () => ({
@@ -204,6 +204,50 @@ describe("completeGeneration — billed from the provider's usage (D528)", () =>
     });
     expect(mocks.settleGeneration).toHaveBeenCalledWith(
       expect.objectContaining({ actualAmount: usdToFinalCredits(voiceUsd(8, 2)) }),
+    );
+  });
+});
+
+describe("completeGeneration — Kling billed by its units (D535)", () => {
+  const kling = (created_at: string) => {
+    mocks.generation = {
+      ...mocks.generation,
+      model_used: "kling:kling-3-0",
+      created_at,
+      params_snapshot: { resolution: "720p", audio: "off" },
+    };
+  };
+  const run = (extra: Record<string, unknown> = {}) =>
+    completeGeneration({ generationId: "g1", status: "succeeded", stored: true, videoUrl: ORIGINAL, durationSeconds: 5, ...extra } as CompleteGenerationInput);
+
+  it("charges the units Kling reported at the unit price and records them", async () => {
+    kling("2026-11-24T00:00:00Z");
+    await run({ usage: { kind: "kling", units: 6.4 } });
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(6.4 * 0.1508) }));
+    const call = (mocks.succeedGeneration.mock.calls[0] as unknown as [Record<string, unknown>])[0];
+    expect(call.creditsCharged).toBe(usdToFinalCredits(6.4 * 0.1508));
+    expect(call.costUsd as number).toBeCloseTo(0.96512, 5);
+    expect(call.providerBill).toEqual({ source: "provider_usage", meters: { provider_unit: 6.4 } });
+  });
+
+  it("charges the per-second price when Kling reported nothing", async () => {
+    kling("2026-11-24T00:00:00Z");
+    await run();
+    const expected = videoSecondsUsd(seededPrice("kling:kling-3-0", new Date("2026-11-24T00:00:00Z")), 5, false, "720p")!;
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(expected) }));
+    expect((mocks.succeedGeneration.mock.calls[0] as unknown as [Record<string, unknown>])[0].providerBill).toEqual(
+      expect.objectContaining({ source: "request" }),
+    );
+  });
+
+  it("keeps a run that started before the unit row on the row it reserved with, never charging 0", async () => {
+    kling("2026-11-22T00:00:00Z");
+    await run({ usage: { kind: "kling", units: 6.4 } });
+    const expected = videoSecondsUsd(seededPrice("kling:kling-3-0", new Date("2026-11-22T00:00:00Z")), 5, false, "720p")!;
+    expect(expected).toBeGreaterThan(0);
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(expected) }));
+    expect((mocks.succeedGeneration.mock.calls[0] as unknown as [Record<string, unknown>])[0].providerBill).toEqual(
+      expect.objectContaining({ source: "request" }),
     );
   });
 });
