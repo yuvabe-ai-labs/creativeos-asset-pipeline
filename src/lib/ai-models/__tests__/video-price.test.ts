@@ -27,7 +27,7 @@ it("prices Kling's billed units on provider_unit", () => {
   const p: AiModelPrice = { id: "k", modelId: "kling:kling-3-0", effectiveFrom: "2026-11-23T00:00:00Z", estimate: {}, sourceUrl: null, note: null,
     lines: [{ meter: "video_second", unit_usd: 0.084, when: { resolution: "720p", audio: false } }, { meter: "provider_unit", unit_usd: 0.1508 }] };
   const c = videoChargeUsd(p, { usage: { kind: "kling", units: 6.4 }, durationSeconds: 8, audioEnabled: false, resolution: "720p" })!;
-  expect(c).toEqual({ usd: 6.4 * 0.1508, source: "provider_usage", meters: { provider_unit: 6.4 } });
+  expect(c).toEqual({ usd: 6.4 * 0.1508, source: "provider_charge", meters: { provider_unit: 6.4 } });
 });
 
 describe("videoSecondsUsd", () => {
@@ -70,9 +70,16 @@ describe("videoChargeUsd", () => {
       .toEqual({ usd: expect.closeTo(0.8, 10), source: "request", meters: { video_second: 8 } });
     const c = videoChargeUsd(VEO, { usage, durationSeconds: 8, audioEnabled: false, resolution: "720p" });
     expect(c?.usd).toBeCloseTo(0.8, 10);
-    expect(c?.source).toBe("provider_charge");
+    expect(c?.source).toBe("provider_usage");
     expect(c?.meters).toEqual(videoUsageMeters(usage));
     expect(c?.unpriced?.length).toBeGreaterThan(0);
+  });
+  it("keeps Kling a provider_charge and Seedance a provider_usage when their meters are unpriced", () => {
+    const kling = videoChargeUsd(VEO, { usage: { kind: "kling", units: 6.4 }, durationSeconds: 8, audioEnabled: false, resolution: "720p" });
+    expect(kling?.source).toBe("provider_charge");
+    expect(kling?.unpriced?.length).toBeGreaterThan(0);
+    const seed = videoChargeUsd(VEO, { usage: { kind: "seedance", completionTokens: 1000 }, durationSeconds: 8, audioEnabled: false, resolution: "720p" });
+    expect(seed?.source).toBe("provider_usage");
   });
   it("is null when neither the usage nor the duration can be priced", () => {
     expect(videoChargeUsd(VEO, { usage: null, durationSeconds: 8, audioEnabled: false, resolution: "4k" })).toBeNull();

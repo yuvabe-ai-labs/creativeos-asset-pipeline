@@ -74,7 +74,7 @@ describe("seeded service rows price exactly what the code does", () => {
         expect(videoChargeUsd(next, a)?.usd).toBe(videoChargeUsd(old, a)?.usd);
       }
       const c = videoChargeUsd(next, { usage: { kind: "kling", units: 6.4 }, durationSeconds: 8, audioEnabled: false, resolution: "720p" })!;
-      expect(c.source).toBe("provider_usage");
+      expect(c.source).toBe("provider_charge");
       expect(c.usd).toBeCloseTo(6.4 * 0.1508, 10);
       expect(c.meters).toEqual({ provider_unit: 6.4 });
     }

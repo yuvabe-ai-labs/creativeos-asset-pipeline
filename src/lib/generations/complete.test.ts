@@ -227,7 +227,8 @@ describe("completeGeneration — Kling billed by its units (D535)", () => {
     const call = (mocks.succeedGeneration.mock.calls[0] as unknown as [Record<string, unknown>])[0];
     expect(call.creditsCharged).toBe(usdToFinalCredits(6.4 * 0.1508));
     expect(call.costUsd as number).toBeCloseTo(0.96512, 5);
-    expect(call.providerBill).toEqual({ source: "provider_usage", meters: { provider_unit: 6.4 } });
+    expect(call.providerBill).toEqual({ source: "provider_charge", meters: { provider_unit: 6.4 } });
+    expect(call).not.toHaveProperty("tokensUsed");
   });
 
   it("charges the per-second price when Kling reported nothing", async () => {
@@ -639,6 +640,8 @@ describe("completeGeneration — image (D366)", () => {
     expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: 77 }));
     expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ creditsCharged: 77, costUsd: undefined }));
     expect(spy).toHaveBeenCalledWith(expect.stringContaining("meters with no price"));
+    const bill = (mocks.succeedGeneration.mock.calls[0] as unknown as [Record<string, unknown>])[0].providerBill as { source: string };
+    expect(bill.source).toBe("provider_usage");
     spy.mockRestore();
   });
 

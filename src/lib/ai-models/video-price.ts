@@ -60,6 +60,11 @@ export type VideoCharge = {
   unpriced?: Meter[];
 };
 
+/** Kling states what it deducted; Gemini and BytePlus state what was used. */
+export function videoBillSource(usage: VideoProviderUsage): "provider_charge" | "provider_usage" {
+  return usage.kind === "kling" ? "provider_charge" : "provider_usage";
+}
+
 /** What the run costs: the provider's usage when every meter of it is priced, else the seconds. */
 export function videoChargeUsd(
   price: AiModelPrice,
@@ -68,10 +73,11 @@ export function videoChargeUsd(
   if (a.usage) {
     const meters = videoUsageMeters(a.usage);
     const priced = priceMeters(price, meters, videoDims(a.resolution, a.audioEnabled));
-    if (priced.unpriced.length === 0) return { usd: priced.usd, source: "provider_usage", meters };
+    const source = videoBillSource(a.usage);
+    if (priced.unpriced.length === 0) return { usd: priced.usd, source, meters };
     // The provider reported meters this row cannot price: charge the seconds, but keep what it sent.
     const usd = videoSecondsUsd(price, a.durationSeconds, a.audioEnabled, a.resolution);
-    return usd === null ? null : { usd, source: "provider_charge", meters, unpriced: priced.unpriced };
+    return usd === null ? null : { usd, source, meters, unpriced: priced.unpriced };
   }
   const usd = videoSecondsUsd(price, a.durationSeconds, a.audioEnabled, a.resolution);
   return usd === null ? null : { usd, source: "request", meters: { video_second: a.durationSeconds } };

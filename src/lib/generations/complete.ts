@@ -119,7 +119,14 @@ async function completeImageGeneration(
     creditsCharged: actualCredits,
     tokensUsed: input.tokensUsed ? { ...input.tokensUsed } : null,
     ...(charge && charge.unpriced.length > 0
-      ? { providerBill: { source: "provider_charge" as const, meters: charge.meters, unpriced: charge.unpriced } }
+      ? {
+          providerBill: {
+            source: "provider_usage" as const,
+            meters: charge.meters,
+            unpriced: charge.unpriced,
+            ...(input.tokensUsed ? { raw: input.tokensUsed } : {}),
+          },
+        }
       : {}),
     outputSnapshot: input.imageUrl,
   });
@@ -408,7 +415,8 @@ export async function completeGeneration(
     versionId: version.id,
     costUsd: cost?.usd,
     creditsCharged: actualCredits,
-    ...(charge?.source === "provider_usage" && usage ? { tokensUsed: usage } : {}),
+    // tokens_used holds token usage only; Kling reports units, which live on the bill.
+    ...(usage && usage.kind !== "kling" ? { tokensUsed: usage } : {}),
     providerBill: voiceChange
       ? voiceCharge?.bill ?? null
       : charge

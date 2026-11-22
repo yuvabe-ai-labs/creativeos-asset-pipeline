@@ -63,7 +63,7 @@ export type ProviderBill = {
   meters: Partial<Record<Meter, number>>;
   raw?: unknown;
   /** Meters the provider reported that the price row had no line for; the run was charged another way. */
-  unpriced?: string[];
+  unpriced?: Meter[];
 };
 
 export type AiCatalog = { models: AiModel[]; prices: AiModelPrice[] };
