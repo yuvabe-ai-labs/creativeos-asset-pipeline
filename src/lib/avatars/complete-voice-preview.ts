@@ -9,10 +9,12 @@ import { asResolutionString } from "@/lib/video-gen/cost";
 import type { GenerationRow } from "@/lib/db/types";
 import { priceForGeneration, priceForNewRun } from "@/lib/ai-models/run-price";
 import { voiceChangeCharge } from "@/lib/ai-models/service-price";
+import { videoSecondsUsd } from "@/lib/ai-models/video-price";
+import type { ProviderBill } from "@/lib/ai-models/types";
 import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { isVideoSucceeded, reservedAmountForUnpriced, type CompleteGenerationInput } from "@/lib/generations/complete";
 import { keepAutoVoice } from "./auto-voice";
-import { voicePreviewCostUsd, voicePreviewKeepsSample, voicePreviewRowEngine, voicePreviewRowMode } from "./voice-preview";
+import { voicePreviewKeepsSample, voicePreviewRowMode } from "./voice-preview";
 
 /** What the task reports about the voice it extracted (D296). */
 type VoiceSampleMeta = { url?: unknown; durationSeconds?: unknown };
@@ -65,19 +67,16 @@ export async function completeAvatarVoicePreview(
   const mode = voicePreviewRowMode(generation);
   const multiplier = Number((generation.inputs_snapshot as { priceMultiplier?: unknown } | null)?.priceMultiplier);
   const priceMultiplier = Number.isFinite(multiplier) && multiplier >= 1 ? multiplier : 1;
-  // D535 - the clip is priced from its own row; a named preview's voice change from ElevenLabs'
-  // row (valid when the preview started), charged by the credits ElevenLabs reported when it sent
-  // them (the last attempt's only), else by seconds x the voice's multiplier.
-  const clipUsd = voicePreviewCostUsd(
-    await priceForGeneration(generation),
-    null,
-    "native",
-    voicePreviewRowEngine(generation),
-    input.durationSeconds,
-    asResolutionString(generation.params_snapshot?.resolution),
-    priceMultiplier,
-  );
+  // D535 - the clip is priced from its own row by its seconds; a named preview's voice change from
+  // ElevenLabs' row (valid when the preview started), charged by the credits ElevenLabs reported
+  // when it sent them (the last attempt's only), else by seconds x the voice's multiplier. Only the
+  // voice part has a provider report, so it alone is the bill.
+  const clipPrice = await priceForGeneration(generation);
+  const clipUsd = clipPrice
+    ? videoSecondsUsd(clipPrice, input.durationSeconds, false, asResolutionString(generation.params_snapshot?.resolution))
+    : null;
   let usd = clipUsd;
+  let providerBill: ProviderBill | undefined;
   if (clipUsd !== null && mode === "named") {
     const reported = Number((input.meta?.voiceChange as { characterCost?: unknown } | undefined)?.characterCost);
     const voicePrice = await priceForNewRun(VOICE_CHANGE_PRICE_MODEL_ID, new Date(generation.created_at));
@@ -89,6 +88,7 @@ export async function completeAvatarVoicePreview(
         })
       : null;
     usd = voice ? clipUsd + voice.usd : null;
+    providerBill = voice?.bill;
   }
   // D534 — a delivered preview is never charged 0 because its price is missing: settle at what
   // was reserved and record no dollar cost.
@@ -123,5 +123,6 @@ export async function completeAvatarVoicePreview(
     creditsCharged: credits,
     outputSnapshot: input.videoUrl,
     meta: input.meta,
+    ...(providerBill ? { providerBill } : {}),
   });
 }

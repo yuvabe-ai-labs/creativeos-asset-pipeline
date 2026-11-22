@@ -49,6 +49,20 @@ export function transcribeEstimateUsd(price: AiModelPrice, seconds: number): num
   return credits === null ? null : priced(price, { provider_credit: credits });
 }
 
+/**
+ * A transcription of several files: ElevenLabs bills each file and rounds each one up, so the
+ * estimate is the sum of each file's whole credits. The captions button and the route both use it.
+ */
+export function transcribeFilesEstimateUsd(price: AiModelPrice, filesSeconds: readonly number[]): number | null {
+  let credits = 0;
+  for (const seconds of filesSeconds) {
+    const c = transcribeEstimateCredits(price, seconds);
+    if (c === null) return null;
+    credits += c;
+  }
+  return priced(price, { provider_credit: credits });
+}
+
 /** Charged from the credits ElevenLabs reports; its fiat header is kept in `raw` only. */
 export function transcribeCharge(
   price: AiModelPrice,

@@ -3,7 +3,7 @@ import * as z from "zod";
 import { apiError, apiOk, withCanvas, withTryCatch } from "@/lib/api/route-helpers";
 import { NO_PRICE_MESSAGE, priceForNewRun } from "@/lib/ai-models/run-price";
 import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
-import { transcribeEstimateUsd } from "@/lib/ai-models/service-price";
+import { transcribeFilesEstimateUsd } from "@/lib/ai-models/service-price";
 import { CREDIT_LIMIT_TOAST_MESSAGE, usdToFinalCredits } from "@/lib/credits/units";
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { CreditLimitError, refundReservation, reserveCredits } from "@/lib/db/credit-transactions";
@@ -43,7 +43,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       const seconds = fresh.reduce((s, f) => s + f.seconds, 0);
       // D535 — the row prices the run: its estimate is the reservation, and the run records it.
       const price = await priceForNewRun(TRANSCRIBE_MODEL_ID);
-      const usd = price ? transcribeEstimateUsd(price, seconds) : null;
+      const usd = price ? transcribeFilesEstimateUsd(price, fresh.map((f) => f.seconds)) : null;
       if (!price || usd === null) return apiError(NO_PRICE_MESSAGE, 409);
       const clientId = canvas.client_id;
       await failStaleJobs(clientId, "editor-transcribe", STALE_MS);

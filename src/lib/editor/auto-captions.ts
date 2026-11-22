@@ -1,6 +1,6 @@
 // The browser side of Auto captions (D399, D401): what the button costs, which clips can be
 // filled from stored transcripts, and which clips have a new take. Pure.
-import { transcribeEstimateUsd } from "@/lib/ai-models/service-price";
+import { transcribeFilesEstimateUsd } from "@/lib/ai-models/service-price";
 import type { AiModelPrice } from "@/lib/ai-models/types";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import type { Transcript } from "@/lib/transcribe/types";
@@ -32,7 +32,7 @@ export function autoCaptionCost(price: AiModelPrice | null, doc: EditDoc, source
   }
   const seconds = [...fresh.values()].reduce((x, y) => x + y, 0);
   if (seconds <= 0) return { credits: 0, free: fresh.size === 0 };
-  const usd = price ? transcribeEstimateUsd(price, seconds) : null;
+  const usd = price ? transcribeFilesEstimateUsd(price, [...fresh.values()]) : null;
   return { credits: usd === null ? null : usdToFinalCredits(usd), free: false };
 }
 

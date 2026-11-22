@@ -25,4 +25,15 @@ describe("usdToFinalCredits", () => {
   it("returns 0 for a zero cost", () => {
     expect(usdToFinalCredits(0)).toBe(0);
   });
+
+  it("ignores float noise before rounding up to the step", () => {
+    // 5 x 0.084 = 0.42000000000000004 in floating point: 420 credits, not 425
+    expect(usdToFinalCredits(5 * 0.084)).toBe(420);
+    // voice change 87.5 s at $0.002 a second = 0.17500000000000002: 175, not 180
+    expect(usdToFinalCredits(87.5 * 0.002)).toBe(175);
+  });
+
+  it("still rounds a real excess of a millionth of a credit up", () => {
+    expect(usdToFinalCredits(0.420001)).toBe(425);
+  });
 });

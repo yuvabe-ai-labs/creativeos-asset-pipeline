@@ -47,6 +47,8 @@ export const editorTranscribeTask = task({
       throw new AbortTaskRunError("ELEVEN_LABS_API_KEY is not set");
     }
 
+    // Read before any audio is sent: a failed read after ElevenLabs has billed would refund that audio.
+    const generation = await gens.getGenerationForSettle(input.generationId);
     const { result, secondsDone, characterCost, providerUsd } = await runTranscription(input, {
       transcribe: (url) => transcribeUrl(url, { fetch, apiKey }),
       save: saveTranscript,
@@ -58,7 +60,6 @@ export const editorTranscribeTask = task({
       await giveBack("no file transcribed");
     } else {
       // D535 — charged by the credits ElevenLabs reported, at the row the run recorded.
-      const generation = await gens.getGeneration(input.generationId);
       const { credits: charged, usd, bill } = await settle.settleTranscribe(
         { generation, secondsDone, providerCredits: characterCost, providerUsd },
         {

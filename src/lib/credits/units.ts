@@ -16,7 +16,8 @@ export const CREDIT_ROUND_DIRECTION: "up" | "down" | "nearest" = "up";
  * starting direction) guarantees the charge never falls short of true cost.
  */
 export function usdToFinalCredits(costUsd: number): number {
-  const raw = costUsd * USD_TO_CREDITS * (1 + MARGIN_PERCENT / 100);
+  // To 6 decimals first, so float noise (5 x 0.084 = 0.42000000000000004) never adds a step.
+  const raw = Math.round(costUsd * USD_TO_CREDITS * (1 + MARGIN_PERCENT / 100) * 1e6) / 1e6;
   switch (CREDIT_ROUND_DIRECTION) {
     case "up":
       return Math.ceil(raw / CREDIT_ROUND_STEP) * CREDIT_ROUND_STEP;

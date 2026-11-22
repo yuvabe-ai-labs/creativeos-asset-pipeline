@@ -148,6 +148,20 @@ export async function getGeneration(id: string): Promise<GenerationRow> {
   return data as GenerationRow;
 }
 
+export type GenerationForSettle = Pick<GenerationRow, "id" | "org_id" | "model_used" | "model_price_id" | "created_at">;
+
+/** The columns a run's settle prices it with: its row, its model and when it started. */
+export async function getGenerationForSettle(id: string): Promise<GenerationForSettle> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("id, org_id, model_used, model_price_id, created_at")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  return data as GenerationForSettle;
+}
+
 /** D366 — whether this node has a generation still running: one at a time per node. */
 export async function hasRunningGeneration(nodeId: string, nowMs: number = Date.now()): Promise<boolean> {
   // D366 — an image row still `running` past IMAGE_RUN_MAX_AGE_MS is stuck (its task can no

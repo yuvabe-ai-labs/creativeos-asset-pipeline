@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
-import { transcribeEstimateUsd } from "@/lib/ai-models/service-price";
+import { transcribeFilesEstimateUsd } from "@/lib/ai-models/service-price";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { autoCaptionCost, captionsFollowSound, fillFromTranscripts, staleAutoPieces, uncaptionedPieces, unsureWordIndexes } from "../auto-captions";
 import { setSound } from "../pieces";
 import type { Piece } from "../types";
-import { cap, emptyDoc, source } from "./fixtures";
+import { audioFacts, cap, emptyDoc, source } from "./fixtures";
 
 const a = source("a");
 const b = source("b");
@@ -17,10 +17,16 @@ const transcript = (url: string, words = [{ t: "hello", s: 0.5, e: 0.9, p: 1 }, 
 describe("autoCaptionCost", () => {
   const row = seededPrice(TRANSCRIBE_MODEL_ID);
   it("prices each new file once from the row and is free when all are transcribed", () => {
-    const seconds = 2 * (121 / 24);
-    expect(autoCaptionCost(row, doc, [a, b], new Set())).toEqual({ credits: usdToFinalCredits(transcribeEstimateUsd(row, seconds)!), free: false });
+    const seconds = 121 / 24;
+    expect(autoCaptionCost(row, doc, [a, b], new Set())).toEqual({ credits: usdToFinalCredits(transcribeFilesEstimateUsd(row, [seconds, seconds])!), free: false });
     expect(autoCaptionCost(row, doc, [a, b], new Set([a.files.original.url, b.files.original.url]))).toEqual({ credits: 0, free: true });
     expect(autoCaptionCost(row, doc, [a, b], new Set([a.files.original.url]), ["1", "3"])).toEqual({ credits: 0, free: true });
+  });
+  it("rounds each file's credits up on its own, as the server reserves", () => {
+    // 200 clips of 3 s: 1 credit each = 200 credits (40 after rounding), not ceil(600 x 0.2834) = 171 (35)
+    const many = Array.from({ length: 200 }, (_, i) => source(`s${i}`, { facts: audioFacts(3) }));
+    const manyDoc = emptyDoc({ pieces: many.map((s, i) => ({ ...piece(String(i), s.nodeId), out: 3 })) });
+    expect(autoCaptionCost(row, manyDoc, many, new Set())).toEqual({ credits: 40, free: false });
   });
   it("has no price while the row is unknown", () => {
     expect(autoCaptionCost(null, doc, [a, b], new Set())).toEqual({ credits: null, free: false });

@@ -52,4 +52,7 @@ describe("frozen service prices (0080)", () => {
     }
     expect(out).toMatchSnapshot();
   });
+  it("charges lip sync 7.2 s 600 credits, not the float figure 605", () => {
+    expect(credits(lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), 7.2))).toBe(600);
+  });
 });

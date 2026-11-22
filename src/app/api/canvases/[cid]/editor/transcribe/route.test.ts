@@ -36,7 +36,7 @@ vi.mock("@/lib/jobs/db", () => ({ insertJob: vi.fn(), failStaleJobs: vi.fn(), se
 
 import { priceForNewRun } from "@/lib/ai-models/run-price";
 import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
-import { transcribeEstimateUsd } from "@/lib/ai-models/service-price";
+import { transcribeFilesEstimateUsd } from "@/lib/ai-models/service-price";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { runs, tasks } from "@trigger.dev/sdk";
@@ -95,7 +95,15 @@ describe("POST /api/canvases/[cid]/editor/transcribe", () => {
     await post({ nodeId: NODE });
     const row = seededPrice(TRANSCRIBE_MODEL_ID);
     expect(vi.mocked(insertGeneration).mock.calls[0][0]).toMatchObject({ modelPriceId: row.id });
-    expect(reserveCredits).toHaveBeenCalledWith("org-1", "gen1", usdToFinalCredits(transcribeEstimateUsd(row, 17)!));
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "gen1", usdToFinalCredits(transcribeFilesEstimateUsd(row, [8, 9])!));
+  });
+
+  it("reserves each file's credits rounded up on its own, as ElevenLabs bills them", async () => {
+    // 200 clips of 3 s: 1 credit each = 200 credits (40 after rounding), not ceil(600 x 0.2834) = 171 (35)
+    const files = Array.from({ length: 200 }, (_, i) => ({ url: `https://s/${i}.mp4`, seconds: 3 }));
+    vi.mocked(planTranscription).mockReturnValue({ files, noSound: [] });
+    await post({ nodeId: NODE });
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "gen1", 40);
   });
 
   it("409s before anything is recorded when the model has no price", async () => {

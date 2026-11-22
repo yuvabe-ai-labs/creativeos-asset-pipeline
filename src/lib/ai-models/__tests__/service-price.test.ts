@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  dubUsd, lipSyncUsd, voiceChangeEstimateUsd, voiceChangeCharge, transcribeEstimateUsd,
+  dubUsd, lipSyncUsd, voiceChangeEstimateUsd, voiceChangeCharge, transcribeEstimateUsd, transcribeFilesEstimateUsd,
   transcribeCharge, promptFlatUsd, promptFlatCredits, promptCharge, promptRunRecord,
 } from "../service-price";
 import type { AiModelPrice } from "../types";
@@ -57,6 +57,13 @@ describe("transcribe", () => {
   const p = row([{ meter: "provider_credit", unit_usd: 0.000182 }], { provider_credits_per_audio_second: 0.2834 });
   it("estimates the seconds' credits, rounded up to whole credits, at the credit price", () => {
     expect(transcribeEstimateUsd(p, 60)).toBeCloseTo(18 * 0.000182, 10);
+  });
+  it("rounds each file up on its own, as ElevenLabs bills each file", () => {
+    // 20 clips of 3 s: 1 credit each = 20, not ceil(60 x 0.2834) = 18
+    expect(transcribeFilesEstimateUsd(p, Array(20).fill(3))).toBeCloseTo(20 * 0.000182, 10);
+    expect(transcribeFilesEstimateUsd(p, [60])).toBeCloseTo(transcribeEstimateUsd(p, 60)!, 10);
+    expect(transcribeFilesEstimateUsd(p, [])).toBe(0);
+    expect(transcribeFilesEstimateUsd(row([{ meter: "provider_credit", unit_usd: 1 }]), [3])).toBeNull();
   });
   it("is null without the allowance key or credit line", () => {
     expect(transcribeEstimateUsd(row([{ meter: "provider_credit", unit_usd: 1 }]), 60)).toBeNull();
