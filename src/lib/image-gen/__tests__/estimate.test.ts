@@ -27,9 +27,10 @@ describe("estimateImageGenerationCostUsd", () => {
     expect(result).toBeCloseTo(0.053 + 0.01392, 5);
   });
 
-  it("sums output + input cost for a Gemini model with zero references", () => {
+  it("sums output + input + a text and thinking allowance for a Gemini model with zero references", () => {
     // gemini-3.1-flash-image 1K output = 0.067 (GEMINI_IMAGE_ESTIMATE_TABLE).
     // 0 references -> inputTokens = 180; textIn rate $0.50/1M -> 0.00009.
+    // D528 — 1,000 tokens of text and thinking at its $3/1M text rate -> 0.003.
     const result = estimateImageGenerationCostUsd({
       modelId: "gemini:gemini-3.1-flash-image",
       quality: undefined,
@@ -37,7 +38,7 @@ describe("estimateImageGenerationCostUsd", () => {
       imageSize: "1K",
       referenceUrls: [],
     });
-    expect(result).toBeCloseTo(0.067 + 0.00009, 5);
+    expect(result).toBeCloseTo(0.067 + 0.00009 + 0.003, 5);
   });
 
   it("prices Seedream Pro per image plus each reference after the first", () => {

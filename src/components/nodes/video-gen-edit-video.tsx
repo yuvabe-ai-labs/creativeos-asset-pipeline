@@ -77,7 +77,7 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
   const start = useStartVideoEdit(nodeId);
 
   const duration = durationOfParams(source?.paramsUsed ?? {});
-  const credits = duration > 0 ? videoEditEstimateCredits(duration, resolution, modelId) : null;
+  const credits = duration > 0 ? videoEditEstimateCredits(duration, resolution, modelId, selectedIds.length) : null;
   const gate = videoEditGate({
     sourceId,
     instruction: draft,

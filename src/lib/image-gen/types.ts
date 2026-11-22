@@ -7,6 +7,9 @@ export type ImageTokenUsage = {
   image_input_tokens: number;
   image_output_tokens: number;
   total_tokens: number;
+  /** D528 — Gemini only: the model's text output and its thinking, both billed at the text rate. */
+  text_output_tokens?: number;
+  thought_tokens?: number;
 };
 
 export type ImageGenInput = {

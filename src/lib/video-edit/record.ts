@@ -1,5 +1,5 @@
 // D483 — Video Gen's Edit mode. Client-safe: the focus view, History and the route all read this.
-import { computeVideoCost } from "@/lib/video-gen/cost";
+import { estimateVideoCostUsd } from "@/lib/video-gen/provider-usage";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
   GEMINI_OMNI_11_MODEL_ID,
@@ -115,10 +115,21 @@ export function readVideoEdit(value: unknown): VideoEditRecord | null {
   };
 }
 
-/** The one price both the panel's estimate and the route's reservation use. */
-export function videoEditEstimateCredits(durationSeconds: number, resolution: VideoEditResolution, modelId: VideoEditModelId): number {
-  const cost = computeVideoCost(modelId, durationSeconds, true, resolution);
-  return cost ? usdToFinalCredits(cost.usd) : 0;
+/**
+ * The one price both the panel's estimate and the route's reservation use. D528 — Omni also
+ * bills the take itself as input (as many tokens as the output) and any reference images.
+ */
+export function videoEditEstimateCredits(
+  durationSeconds: number,
+  resolution: VideoEditResolution,
+  modelId: VideoEditModelId,
+  referenceImages = 0,
+): number {
+  const usd = estimateVideoCostUsd(modelId, durationSeconds, true, resolution, {
+    images: referenceImages,
+    editInputSeconds: durationSeconds,
+  });
+  return usd === null ? 0 : usdToFinalCredits(usd);
 }
 
 export function videoEditGate(a: {

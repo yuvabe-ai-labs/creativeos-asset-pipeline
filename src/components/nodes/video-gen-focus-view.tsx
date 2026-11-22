@@ -70,7 +70,8 @@ import {
 import { videoGenApi } from "@/lib/video-gen/api";
 import { VideoGenApiError } from "@/lib/video-gen/api";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
-import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { estimateVideoCostUsd } from "@/lib/video-gen/provider-usage";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -1450,8 +1451,11 @@ export function VideoGenFocusView({
   }
   const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
   const resolution = asResolutionString(effectiveParams.resolution);
-  const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
-  const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
+  // D528 — the same estimate the route reserves: Omni's images and thinking included.
+  const videoCostEstimateUsd = estimateVideoCostUsd(modelId, durationSeconds, audioEnabled, resolution, {
+    images: Object.keys(supportedImageRoles).length,
+  });
+  const estimatedCredits = videoCostEstimateUsd === null ? null : usdToFinalCredits(videoCostEstimateUsd);
 
   // D236 — Video Gen's own disabled-Generate check for an illegal ladder. checkLadder's doc
   // comment (multishot-models.ts) has always claimed its reason "is shown verbatim on ... Video

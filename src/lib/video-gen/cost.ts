@@ -10,12 +10,12 @@ const VIDEO_MODEL_PRICING: Record<
 };
 
 // Omni output tokens per second of video (Google's published table, identical for 1.1 and 1.2).
-const OMNI_OUTPUT_TOKENS_PER_SECOND: Record<string, number> = {
+export const OMNI_OUTPUT_TOKENS_PER_SECOND: Record<string, number> = {
   "360p": 1_931, "720p": 5_792, "1080p": 8_688, "4k": 17_376,
 };
 // USD per 1M video output tokens. 1.2 is ~30% cheaper: $0.07/s at 720p against 1.1's ~$0.10/s.
-const OMNI_11_VIDEO_OUT_PER_M = 17.5;
-const OMNI_12_VIDEO_OUT_PER_M = 12.0;
+export const OMNI_11_VIDEO_OUT_PER_M = 17.5;
+export const OMNI_12_VIDEO_OUT_PER_M = 12.0;
 
 function omniRates(usdPerMillion: number): Record<string, number> {
   return Object.fromEntries(

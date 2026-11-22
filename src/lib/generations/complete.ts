@@ -2,6 +2,7 @@ import "server-only";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { computeVideoCostFromUsage, readVideoUsage, type VideoProviderUsage } from "@/lib/video-gen/provider-usage";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -99,6 +100,8 @@ export type VideoGenerationSucceeded = {
   /** D282 — `videoUrl` is already in our bucket (the task uploaded it); skip download/upload. */
   stored?: boolean;
   meta?: Record<string, unknown>;
+  /** D528 — the provider's own usage; read through readVideoUsage, never trusted as typed. */
+  usage?: VideoProviderUsage;
 };
 
 export type CompleteGenerationInput =
@@ -320,11 +323,17 @@ export async function completeGeneration(
   const audioEnabled = isVideoAudioEnabled(generation.params_snapshot?.audio);
   const resolution = asResolutionString(generation.params_snapshot?.resolution);
 
+  // D528 — the provider's reported usage when it sent one (Omni, Seedance); otherwise the
+  // per-second price. A voice change is ElevenLabs' work, priced by its voice, never by usage.
+  const usage = voiceChange ? null : readVideoUsage(input.usage);
+  const usageCost = usage && generation.model_used
+    ? computeVideoCostFromUsage(generation.model_used, usage, resolution)
+    : null;
   const cost = voiceChange
     ? computeVoiceChangeCost(input.durationSeconds, voiceChange.priceMultiplier)
-    : generation.model_used
+    : usageCost ?? (generation.model_used
       ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
-      : null;
+      : null);
   // cost is only ever null when model_used is unset (shouldn't happen — every video
   // generation records a model at insertGeneration) — an actual cost of 0 credits in that
   // case, not a reason to skip settlement.
@@ -340,6 +349,7 @@ export async function completeGeneration(
     versionId: version.id,
     costUsd: cost?.usd,
     creditsCharged: actualCredits,
+    ...(usageCost && usage ? { tokensUsed: usage } : {}),
     outputSnapshot: storedVideoUrl,
     meta: input.meta,
   });

@@ -57,7 +57,7 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     expect(snapshot.videoEdit).toMatchObject({ baseVersionId: "v3", rootVersionId: "v3", instruction: "Make the flour beige", referenceNodeIds: ["n-pack"], referenceUrls: [PACK.imageUrl], resolution: "720p" });
     expect(snapshot.prompt).toContain("Reference images, in the order attached: 1. Jackfruit 365 pack.");
     expect(snapshot.prompt).not.toContain("IMAGE_REF");
-    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(6, "720p", GEMINI_OMNI_12_MODEL_ID));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(6, "720p", GEMINI_OMNI_12_MODEL_ID, 1));
     expect(mocks.trigger).toHaveBeenCalledWith("video-generate", expect.objectContaining({
       generationId: "gen-7", modelId: "gemini:gemini-omni-1.2-flash", editVideoUrl: TAKE,
       referenceUrls: [PACK.imageUrl], params: { resolution: "720p", durationSeconds: 6 }, mockMode: false,
@@ -96,7 +96,7 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     const call = (mocks.insertGeneration.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
     expect(call).toMatchObject({ type: "edit", modelUsed: GEMINI_OMNI_11_MODEL_ID });
     expect((call.inputsSnapshot as { videoEdit: { modelId: string } }).videoEdit.modelId).toBe(GEMINI_OMNI_11_MODEL_ID);
-    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(6, "720p", GEMINI_OMNI_11_MODEL_ID));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-7", videoEditEstimateCredits(6, "720p", GEMINI_OMNI_11_MODEL_ID, 1));
     expect(mocks.trigger).toHaveBeenCalledWith("video-generate", expect.objectContaining({ modelId: GEMINI_OMNI_11_MODEL_ID }));
     // 1.1 takes up to 10 s; 1.2 up to 15 s.
     mocks.insertGeneration.mockClear();

@@ -2,6 +2,7 @@ import {
   estimateImageOutputCost,
   estimateImageInputCost,
   estimateGeminiInputTokens,
+  estimateGeminiTextOutputCost,
   estimateOpenAIInputTokens,
   aspectRatioToOpenAISize,
   seedreamReferenceCostUsd,
@@ -49,5 +50,7 @@ export function estimateImageGenerationCostUsd(input: {
     : estimateGeminiInputTokens(referenceCount);
   const inputCostUsd = estimateImageInputCost(input.modelId, inputTokens, hasReferenceImages) ?? 0;
 
-  return outputCostUsd + inputCostUsd;
+  const textOutputCostUsd = isOpenAI ? 0 : estimateGeminiTextOutputCost(input.modelId);
+
+  return outputCostUsd + inputCostUsd + textOutputCostUsd;
 }

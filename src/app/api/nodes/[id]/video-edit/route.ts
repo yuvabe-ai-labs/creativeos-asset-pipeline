@@ -104,7 +104,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       });
 
       try {
-        const reservation = await reserveCredits(effectiveOrgId, generation.id, videoEditEstimateCredits(durationSeconds, resolution, modelId));
+        const reservation = await reserveCredits(effectiveOrgId, generation.id, videoEditEstimateCredits(durationSeconds, resolution, modelId, referenceUrls.length));
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
         await tasks.trigger("video-generate", {
           generationId: generation.id,

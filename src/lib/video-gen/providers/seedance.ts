@@ -3,6 +3,7 @@ import { logger } from "@trigger.dev/sdk/v3";
 import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
 import { seedanceParams } from "../params/seedance";
 import { fitSeedanceImages } from "./seedance-images";
+import { normalizeSeedanceUsage } from "../provider-usage";
 
 const ARK_BASE = "https://ark.ap-southeast.bytepluses.com/api/v3";
 
@@ -202,6 +203,8 @@ type SeedanceTask = {
   // not nested under `content` — the vendor doc's own response-parameters list has `duration`
   // as a sibling of `content`, not a field inside it.
   duration?: number;
+  /** D528 — `completion_tokens` is what BytePlus bills, its minimum included. */
+  usage?: { completion_tokens?: number; total_tokens?: number };
   error?: { code?: string; message?: string } | null;
 };
 
@@ -286,7 +289,8 @@ async function pollSeedanceTask(taskId: string): Promise<VideoGenResult> {
     if (task.status === "succeeded") {
       const videoUrl = task.content?.video_url;
       if (!videoUrl) throw new Error("Seedance task succeeded but returned no video output");
-      return { videoUrl, durationSeconds: Number(task.duration ?? 0) };
+      const usage = normalizeSeedanceUsage(task.usage);
+      return { videoUrl, durationSeconds: Number(task.duration ?? 0), ...(usage ? { usage } : {}) };
     }
     // For some Seedance 2.5 task types the vendor returns `error` only after the queued task is
     // consumed (ref/byteplus-docs/Retrieve a video generation task.md), so `error.message` here

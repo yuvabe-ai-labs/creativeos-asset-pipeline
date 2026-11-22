@@ -45,6 +45,27 @@ describe("computeImageCost", () => {
 
 // A model the cost tables don't know settles at 0 credits (billed-run.ts and the image routes
 // treat a null cost as free), so every model the picker offers must be priced at every option.
+describe("computeImageCost — text and thinking output (D528)", () => {
+  const base = { text_input_tokens: 12, image_input_tokens: 0, image_output_tokens: 1120, total_tokens: 2143 };
+
+  it("bills Nano Banana 2.1's text and thinking at $7.50/M", () => {
+    // A real probe, 2026-11-19: 12 in, 1,120 image out, 234 text out, 777 thinking.
+    const cost = computeImageCost("gemini:gemini-nano-banana-2.1", { ...base, text_output_tokens: 234, thought_tokens: 777 });
+    expect(cost?.usd).toBeCloseTo((12 * 1.5 + 1120 * 30 + (234 + 777) * 7.5) / 1_000_000, 10);
+  });
+
+  it("uses each Gemini model's own text rate", () => {
+    const extra = { ...base, text_output_tokens: 100, thought_tokens: 100 };
+    const diff = (id: string) => computeImageCost(id, extra)!.usd - computeImageCost(id, base)!.usd;
+    expect(diff("gemini:gemini-3.1-flash-image")).toBeCloseTo((200 * 3) / 1_000_000, 10);
+    expect(diff("gemini:gemini-3-pro-image")).toBeCloseTo((200 * 12) / 1_000_000, 10);
+  });
+
+  it("prices as before when no text or thinking was reported", () => {
+    expect(computeImageCost("gemini:gemini-nano-banana-2.1", base)?.usd).toBeCloseTo((12 * 1.5 + 1120 * 30) / 1_000_000, 10);
+  });
+});
+
 describe("every offered image model is priced", () => {
   for (const model of imageGenClientModels) {
     it(model.id, () => {

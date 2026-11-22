@@ -167,6 +167,40 @@ describe("pollSeedanceTask — transient network failures", () => {
     await expect(p).resolves.toMatchObject({ videoUrl: "https://v/out.mp4" });
   });
 
+  it("returns the tokens BytePlus billed, from the task's usage", async () => {
+    mockFetch.mockResolvedValueOnce(created).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "succeeded",
+        content: { video_url: "https://v/out.mp4" },
+        duration: 8,
+        usage: { completion_tokens: 108900, total_tokens: 108900 },
+      }),
+    });
+
+    const { seedance25 } = await import("../providers/seedance");
+    const p = seedance25.generate({
+      prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
+    });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toEqual({
+      videoUrl: "https://v/out.mp4",
+      durationSeconds: 8,
+      usage: { kind: "seedance", completionTokens: 108900 },
+    });
+  });
+
+  it("returns no usage when the task reports none", async () => {
+    mockFetch.mockResolvedValueOnce(created).mockResolvedValueOnce(succeeded);
+
+    const { seedance25 } = await import("../providers/seedance");
+    const p = seedance25.generate({
+      prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
+    });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toEqual({ videoUrl: "https://v/out.mp4", durationSeconds: 8 });
+  });
+
   it("retries a 429 and a 502, which are the server asking us to come back", async () => {
     mockFetch
       .mockResolvedValueOnce(created)

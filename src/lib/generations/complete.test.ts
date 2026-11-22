@@ -54,6 +54,7 @@ import { IMAGE_GENERATION_FAILED_MESSAGE, IMAGE_PROMPT_DECLINED_MESSAGE } from "
 import { computeImageCost } from "@/lib/image-gen/cost";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import { computeVideoCost } from "@/lib/video-gen/cost";
+import { computeVideoCostFromUsage } from "@/lib/video-gen/provider-usage";
 import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -148,6 +149,48 @@ describe("completeGeneration — non-stored video (no voice)", () => {
       actualAmount: usdToFinalCredits(videoUsd()),
     });
     fetchSpy.mockRestore();
+  });
+});
+
+describe("completeGeneration — billed from the provider's usage (D528)", () => {
+  const usage = { kind: "omni", inputTokens: 5798, videoOutputTokens: 5793, textOutputTokens: 0, thoughtTokens: 334 } as const;
+
+  it("settles at what the provider reported and records that usage on the row", async () => {
+    mocks.generation = { ...mocks.generation, params_snapshot: { resolution: "360p" } };
+    await completeGeneration({
+      generationId: "g1", status: "succeeded", stored: true, videoUrl: ORIGINAL, durationSeconds: 3, usage,
+    });
+    const credits = usdToFinalCredits(computeVideoCostFromUsage(GEMINI_OMNI_MODEL_ID, usage, "360p")!.usd);
+    expect(credits).toBeGreaterThan(usdToFinalCredits(computeVideoCost(GEMINI_OMNI_MODEL_ID, 3, false, "360p")!.usd));
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: credits }));
+    expect(mocks.succeedGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({ creditsCharged: credits, tokensUsed: usage }),
+    );
+  });
+
+  it("falls back to the duration price when no usage came back", async () => {
+    await completeGeneration({
+      generationId: "g1", status: "succeeded", stored: true, videoUrl: ORIGINAL, durationSeconds: 8,
+    });
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(videoUsd()) }));
+  });
+
+  it("ignores a malformed usage and prices by duration", async () => {
+    await completeGeneration({
+      generationId: "g1", status: "succeeded", stored: true, videoUrl: ORIGINAL, durationSeconds: 8,
+      usage: { kind: "omni", inputTokens: -5 } as never,
+    });
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(videoUsd()) }));
+  });
+
+  it("keeps a voice change priced by its voice, whatever usage arrives", async () => {
+    mocks.generation = { ...mocks.generation, type: "voice", inputs_snapshot: { voiceChange: VC } };
+    await completeGeneration({
+      generationId: "g1", status: "succeeded", stored: true, videoUrl: REVOICED, durationSeconds: 8, usage,
+    });
+    expect(mocks.settleGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({ actualAmount: usdToFinalCredits(computeVoiceChangeCost(8, 2).usd) }),
+    );
   });
 });
 

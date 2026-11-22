@@ -1,4 +1,5 @@
 import type { ParamSpec } from "@/lib/image-gen/types";
+import type { VideoProviderUsage } from "./provider-usage";
 
 export type { ParamSpec };
 
@@ -34,6 +35,8 @@ export type VideoGenInput = {
 export type VideoGenResult = {
   videoUrl: string;
   durationSeconds: number;
+  /** D528 — what the provider says it billed, when it says (Gemini Omni, Seedance). */
+  usage?: VideoProviderUsage;
 };
 
 // ── Constraint rule system (JSON-serializable, DB-ready) ──────────────────────

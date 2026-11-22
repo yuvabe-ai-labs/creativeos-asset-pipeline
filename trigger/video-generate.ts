@@ -93,6 +93,8 @@ export const videoGenerateTask = task({
           status: "succeeded",
           videoUrl: result.videoUrl,
           durationSeconds: result.durationSeconds,
+          // D528 — the provider's own usage, so the charge follows what it billed.
+          ...(result.usage ? { usage: result.usage } : {}),
         });
       } catch (e) {
         // Name the URL, so a run lost to an unreachable webhook can be reconciled by hand.

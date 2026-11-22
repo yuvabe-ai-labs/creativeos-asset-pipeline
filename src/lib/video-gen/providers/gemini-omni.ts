@@ -17,6 +17,7 @@ import {
 import { planOmniInput } from "../plan-omni-input";
 import { composeOmniPrompt } from "../compose-omni-prompt";
 import { fetchAsBase64 } from "./fetch-as-base64";
+import { normalizeOmniUsage } from "../provider-usage";
 import { fetchOrThrow } from "./fetch-error";
 import { VIDEO_EDIT_REFUSED_MESSAGE } from "@/lib/video-edit/record";
 import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "../client-models";
@@ -219,7 +220,7 @@ async function editWithOmni(
   if (!videoUrl) throw new Error("Omni edit completed but returned no video URI");
   const fileName = fileNameFromUri(videoUrl);
   if (fileName) await waitForFileReady(fileName);
-  return { videoUrl, durationSeconds };
+  return omniResult(interaction, videoUrl, durationSeconds);
 }
 
 type OmniContent = { type: string; mime_type?: string; uri?: string; data?: string };
@@ -229,7 +230,16 @@ type OmniInteraction = {
   status?: string;
   steps?: OmniStep[];
   error?: { message?: string };
+  /** D528 — what Google bills: input, video output, text output and thinking tokens. */
+  usage?: unknown;
 };
+
+/** The finished result, with Google's usage when it sent one. */
+function omniResult(interaction: OmniInteraction, videoUrl: string, durationSeconds: number): VideoGenResult {
+  const usage = normalizeOmniUsage(interaction.usage);
+  if (!usage) logger.warn("Omni returned no usage; billing falls back to the duration", { id: interaction.id });
+  return { videoUrl, durationSeconds, ...(usage ? { usage } : {}) };
+}
 
 /**
  * The generated video's URI.
@@ -407,7 +417,7 @@ async function generateWithOmni(input: VideoGenInput, version: OmniVersion): Pro
 
   // The REQUESTED duration — Omni returns none in its response. Read from the same helper the
   // request used, never parsed back off the "8s" wire value.
-  return { videoUrl, durationSeconds };
+  return omniResult(interaction, videoUrl, durationSeconds);
 }
 
 const OMNI_11: OmniVersion = { apiModel: OMNI_11_API_MODEL, maxSeconds: GEMINI_OMNI_11_MAX_SECONDS };

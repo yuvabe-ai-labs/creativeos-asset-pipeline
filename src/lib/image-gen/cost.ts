@@ -5,6 +5,8 @@ type ImagePricingEntry = {
   textIn?: number;
   imgIn?: number;
   imgOut: number;
+  /** D528 — text output and thinking, one rate (Gemini). */
+  textOut?: number;
 };
 
 // Keys must exactly match ImageGenModelConfig.id values in registry.ts
@@ -19,10 +21,12 @@ const IMAGE_MODEL_PRICING: Record<string, ImagePricingEntry> = {
   // equal to that single published rate so the existing per-field formula still sums to
   // the right combined cost.
   "gemini:gemini-2.5-flash-image": { textIn: 0.30, imgIn: 0.30,  imgOut: 30.00  },
-  "gemini:gemini-3.1-flash-image": { textIn: 0.50, imgIn: 0.50,  imgOut: 60.00  },
-  "gemini:gemini-3-pro-image":     { textIn: 2.00, imgIn: 2.00,  imgOut: 120.00 },
+  // textOut ("text and thinking") read 2026-11-19 at aistudio.google.com/docs/pricing. The 2.5
+  // Flash Image rate was not checked, so it bills none.
+  "gemini:gemini-3.1-flash-image": { textIn: 0.50, imgIn: 0.50,  imgOut: 60.00,  textOut: 3.00  },
+  "gemini:gemini-3-pro-image":     { textIn: 2.00, imgIn: 2.00,  imgOut: 120.00, textOut: 12.00 },
   // Verified 2026-10-10 on the same page (standard tier, text/image/video input one rate).
-  "gemini:gemini-nano-banana-2.1": { textIn: 1.50, imgIn: 1.50,  imgOut: 30.00  },
+  "gemini:gemini-nano-banana-2.1": { textIn: 1.50, imgIn: 1.50,  imgOut: 30.00,  textOut: 7.50  },
 };
 
 export function computeImageCost(
@@ -34,7 +38,8 @@ export function computeImageCost(
   const usd =
     ((tokens.text_input_tokens  ?? 0) / 1_000_000) * (p.textIn ?? 0) +
     ((tokens.image_input_tokens ?? 0) / 1_000_000) * (p.imgIn  ?? 0) +
-    ((tokens.image_output_tokens ?? 0) / 1_000_000) * p.imgOut;
+    ((tokens.image_output_tokens ?? 0) / 1_000_000) * p.imgOut +
+    (((tokens.text_output_tokens ?? 0) + (tokens.thought_tokens ?? 0)) / 1_000_000) * (p.textOut ?? 0);
   return { usd, inr: usd * USD_TO_INR };
 }
 
@@ -218,6 +223,16 @@ const GEMINI_PER_REFERENCE_INPUT_TOKENS = 260;
  */
 export function estimateGeminiInputTokens(referenceCount: number): number {
   return GEMINI_BASE_INPUT_TOKENS + referenceCount * GEMINI_PER_REFERENCE_INPUT_TOKENS;
+}
+
+// D528 — Gemini image models also write text and think, billed at their text rate. Two Nano
+// Banana 2.1 captures came to 1,011 and 966 such tokens; 1,000 is the allowance.
+const GEMINI_TEXT_OUTPUT_ALLOWANCE_TOKENS = 1000;
+
+/** The estimated cost of a Gemini image model's text and thinking. 0 for any other model. */
+export function estimateGeminiTextOutputCost(modelId: string): number {
+  const rate = IMAGE_MODEL_PRICING[modelId]?.textOut ?? 0;
+  return (GEMINI_TEXT_OUTPUT_ALLOWANCE_TOKENS / 1_000_000) * rate;
 }
 
 const OPENAI_BASE_INPUT_TOKENS = 190;

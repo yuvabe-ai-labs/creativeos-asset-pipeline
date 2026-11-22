@@ -3,7 +3,8 @@ import { editorLockResponse } from "@/lib/editor/lock-guard";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
-import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { estimateVideoCostUsd } from "@/lib/video-gen/provider-usage";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { videoGenRegistry, DEFAULT_VIDEO_MODEL_ID } from "@/lib/video-gen/registry";
@@ -369,11 +370,13 @@ export async function POST(
       const durationSeconds = Number(resolvedParams.seconds ?? resolvedParams.duration ?? 0);
       const audioEnabled = isVideoAudioEnabled(resolvedParams.audio);
       const resolution = asResolutionString(resolvedParams.resolution);
-      const estimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
-      if (estimate === null) {
+      // D528 — Omni also bills every image it is sent, and its thinking.
+      const images = (startFrameUrl ? 1 : 0) + (endFrameUrl ? 1 : 0) + referenceUrls.length;
+      const estimateUsd = estimateVideoCostUsd(modelId, durationSeconds, audioEnabled, resolution, { images });
+      if (estimateUsd === null) {
         throw new Error(`No cost estimate available for ${modelId} at these params.`);
       }
-      const estimatedCredits = usdToFinalCredits(estimate.usd);
+      const estimatedCredits = usdToFinalCredits(estimateUsd);
       const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw new CreditLimitError("Monthly credit limit reached");

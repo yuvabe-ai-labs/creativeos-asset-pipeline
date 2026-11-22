@@ -29,6 +29,20 @@ describe("Gemini image token usage", () => {
     expect(result.tokensUsed?.text_input_tokens).toBe(14);
   });
 
+  // D528 — Google bills the model's text and thinking at the text output rate.
+  it("records the text and thinking a generateContent model produced", async () => {
+    generateContent.mockResolvedValue({
+      candidates: [{ content: { parts: [{ inlineData: { data: "aW1n", mimeType: "image/png" } }] } }],
+      usageMetadata: {
+        promptTokenCount: 14, candidatesTokenCount: 1213, totalTokenCount: 1354,
+        candidatesTokensDetails: [{ modality: "IMAGE", tokenCount: 1120 }], thoughtsTokenCount: 127,
+      },
+    });
+    const result = await generate("gemini:gemini-3-pro-image");
+    expect(result.tokensUsed?.text_output_tokens).toBe(93);
+    expect(result.tokensUsed?.thought_tokens).toBe(127);
+  });
+
   it("falls back to candidatesTokenCount when no breakdown is returned", async () => {
     generateContent.mockResolvedValue({
       candidates: [{ content: { parts: [{ inlineData: { data: "aW1n" } }] } }],
@@ -36,6 +50,8 @@ describe("Gemini image token usage", () => {
     });
     const result = await generate("gemini:gemini-2.5-flash-image");
     expect(result.tokensUsed?.image_output_tokens).toBe(1290);
+    expect(result.tokensUsed?.text_output_tokens).toBe(0);
+    expect(result.tokensUsed?.thought_tokens).toBe(0);
   });
 
   it("bills Nano Banana 2.1 on the image modality, not total_output_tokens", async () => {
@@ -50,6 +66,8 @@ describe("Gemini image token usage", () => {
     const result = await generate("gemini:gemini-nano-banana-2.1");
     expect(result.tokensUsed?.image_output_tokens).toBe(1120);
     expect(result.mimeType).toBe("image/jpeg");
+    expect(result.tokensUsed?.text_output_tokens).toBe(291);
+    expect(result.tokensUsed?.thought_tokens).toBe(675);
   });
 
   it("fails an interaction that did not complete", async () => {
