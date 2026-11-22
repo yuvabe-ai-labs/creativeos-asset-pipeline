@@ -1,7 +1,7 @@
 import {
   AVATAR_FRONT_ASPECT, AVATAR_NAME_MAX, AVATAR_STORY_MAX, type AvatarAttributes,
 } from "@/lib/avatars/constants";
-import { priceFromCodeTables } from "@/lib/ai-models/price-seed";
+import type { AiModelPrice } from "@/lib/ai-models/types";
 import { estimateAvatarImageCredits, estimateSheetCredits } from "@/lib/avatars/generation";
 import { hasFourViews, needsLikenessConsent } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
@@ -129,9 +129,9 @@ export function castChipStatus(avatar: Avatar | null, step: string | null): Cast
   return { label: "Ready", tone: "ready" };
 }
 
-/** What Make avatar costs: one face, then one sheet. */
-export function estimateMakeCredits(modelId: string = VISUALISE_AVATAR_MODEL_ID): number | null {
-  const face = estimateAvatarImageCredits(priceFromCodeTables(modelId), { modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
-  const sheet = estimateSheetCredits(priceFromCodeTables(modelId), modelId);
+/** What Make avatar costs: one face, then one sheet. D534: null until the price is known. */
+export function estimateMakeCredits(price: AiModelPrice | null, modelId: string = VISUALISE_AVATAR_MODEL_ID): number | null {
+  const face = estimateAvatarImageCredits(price, { modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
+  const sheet = estimateSheetCredits(price, modelId);
   return face === null || sheet === null ? null : face + sheet;
 }

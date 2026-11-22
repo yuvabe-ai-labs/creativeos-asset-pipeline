@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useModelPrice } from "@/hooks/queries/ai-models";
 import type { Script } from "@/lib/scripts/schema";
 import { estimatePanelCredits, panelInputs, panelReferenceCap, type PanelInputs } from "@/lib/scripts/visualise/panel-inputs";
 import { panelAspect } from "@/lib/scripts/visualise/panel-prompt";
@@ -10,6 +11,7 @@ import type { VisualiseBoard } from "@/lib/scripts/visualise/schema";
 /** Everything the Visualise view shows, derived from the script and its board with the same
  *  pure functions the draw route uses. `now` is when the board was read, for the take timeout. */
 export function useVisualiseModel(script: Script, board: VisualiseBoard, drawing: ReadonlySet<string>, now: number, modelId: string) {
+  const { price } = useModelPrice(modelId);
   return useMemo(() => {
     const avatars = new Map(board.avatars.map((a) => [a.id, a]));
     const cap = panelReferenceCap(modelId);
@@ -24,7 +26,7 @@ export function useVisualiseModel(script: Script, board: VisualiseBoard, drawing
         inputs: i, takes: board.takes.filter((t) => t.shotId === shot.id),
         pickId: board.picks[shot.id], drawing: drawing.has(shot.id), now,
       }));
-      credits.set(shot.id, estimatePanelCredits(i.references.length, aspect, modelId));
+      credits.set(shot.id, estimatePanelCredits(price, i.references.length, aspect, modelId));
     }
     return {
       avatars, aspect, inputs, views, credits,
@@ -32,5 +34,5 @@ export function useVisualiseModel(script: Script, board: VisualiseBoard, drawing
       plan: generateAllPlan(script.doc, views, (id) => credits.get(id) ?? null),
       avatarFaces: Object.fromEntries(board.avatars.map((a) => [a.id, a.front?.url ?? null])),
     };
-  }, [script, board, drawing, now, modelId]);
+  }, [script, board, drawing, now, modelId, price]);
 }

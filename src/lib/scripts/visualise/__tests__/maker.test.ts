@@ -141,7 +141,11 @@ describe("estimateMakeCredits for the chosen model", () => {
     const gpt = "openai:gpt-image-2";
     const face = estimateAvatarImageCredits(seededPrice(gpt), { modelId: gpt, aspect: "3:4", referenceCount: 0 })!;
     const sheet = estimateSheetCredits(seededPrice(gpt), gpt)!;
-    expect(estimateMakeCredits(gpt)).toBe(face + sheet);
+    expect(estimateMakeCredits(seededPrice(gpt), gpt)).toBe(face + sheet);
+  });
+
+  it("is null before a price is known", () => {
+    expect(estimateMakeCredits(null)).toBeNull();
   });
 
   it("makes Visualise avatars with GPT Image 2 by default", () => {
