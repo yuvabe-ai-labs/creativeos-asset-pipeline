@@ -69,9 +69,19 @@ export function transcribeCharge(
   return usd === null ? null : { usd, bill: { source: "request", meters } };
 }
 
-/** D536 — a prompt run's flat price, read from its row: a `request` line plus one per attachment. */
+/**
+ * D536 — a prompt run's flat price in USD, read from its row: a `request` line plus one
+ * `input_image` line per attachment. On a prompt row the input_image line is a flat per-attachment
+ * price, not a token meter.
+ */
 export function promptFlatUsd(price: AiModelPrice, attachmentCount: number): number | null {
   return priced(price, { request: 1, input_image: attachmentCount });
+}
+
+/** The flat price in credits: USD x 1000, deliberately not rounded (usdToFinalCredits would round to 5). */
+export function promptFlatCredits(price: AiModelPrice, attachmentCount: number): number | null {
+  const usd = promptFlatUsd(price, attachmentCount);
+  return usd === null ? null : usd * 1000;
 }
 
 type PromptUsage = {
@@ -82,7 +92,8 @@ type PromptUsage = {
 
 /**
  * D536 — a prompt run is charged its flat price; the token cost OpenAI billed is returned beside it
- * (`recordedUsd`, null when a token meter is unpriced) to be recorded, never charged.
+ * (`recordedUsd`, null when a token meter is unpriced) to be recorded, never charged. `usd` is the
+ * flat USD; callers convert it with promptFlatCredits (x1000), never usdToFinalCredits.
  */
 export function promptCharge(
   price: AiModelPrice,
