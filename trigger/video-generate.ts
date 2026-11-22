@@ -83,6 +83,8 @@ export const videoGenerateTask = task({
         modelId,
         videoUrl: result.videoUrl,
         durationSeconds: result.durationSeconds,
+        // D528 — so a run whose webhook fails can be completed by hand at what the provider billed.
+        usage: result.usage ?? null,
       });
 
       // The video EXISTS and has been billed: nothing from here may lead to a retry.

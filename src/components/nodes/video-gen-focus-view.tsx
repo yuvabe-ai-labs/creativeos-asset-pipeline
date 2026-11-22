@@ -1453,7 +1453,7 @@ export function VideoGenFocusView({
   const resolution = asResolutionString(effectiveParams.resolution);
   // D528 — the same estimate the route reserves: Omni's images and thinking included.
   const videoCostEstimateUsd = estimateVideoCostUsd(modelId, durationSeconds, audioEnabled, resolution, {
-    images: Object.keys(supportedImageRoles).length,
+    images: Object.keys(effectiveImageRoles).length,
   });
   const estimatedCredits = videoCostEstimateUsd === null ? null : usdToFinalCredits(videoCostEstimateUsd);
 
@@ -2028,6 +2028,9 @@ export function VideoGenFocusView({
                     disabled={isGenerating || disableGenerate || !editable || viewing.isViewingOther}
                     disabledReason={disableGenerate ? disableGenerateReason : null}
                     credits={estimatedCredits}
+                    // D528 — Omni's estimate counts the images sent, which are known only once
+                    // the connected inputs have loaded; a number before then reads too low.
+                    estimating={loadingConnected}
                     notice={
                       viewing.isViewingOther ? (
                         <ActiveOnlyNotice label={viewedLabel} />
