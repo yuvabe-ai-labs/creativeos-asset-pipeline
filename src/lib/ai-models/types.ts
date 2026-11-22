@@ -57,4 +57,11 @@ export type AiModelPrice = {
   note: string | null;
 };
 
+/** D531 — what a provider reported for one run, as meters, and its own block verbatim. */
+export type ProviderBill = {
+  source: "provider_charge" | "provider_usage" | "request";
+  meters: Partial<Record<Meter, number>>;
+  raw?: unknown;
+};
+
 export type AiCatalog = { models: AiModel[]; prices: AiModelPrice[] };
