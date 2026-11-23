@@ -11,7 +11,10 @@ import { panelAssets, panelInputs, panelReferenceCap } from "@/lib/scripts/visua
 import { panelAspect, panelChangePrompt, type PanelReference } from "@/lib/scripts/visualise/panel-prompt";
 import { promptForDraw, waitingMessage } from "@/lib/scripts/visualise/state";
 import { runPanelGeneration } from "@/lib/scripts/visualise/run-panel";
-import { isPanelModel } from "@/lib/scripts/visualise/constants";
+import { isPanelModel, PANEL_MODEL_ID } from "@/lib/scripts/visualise/constants";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { ModelRefusedError } from "@/lib/ai-models/runnable";
+import { imageRun } from "@/lib/image-gen/image-run";
 
 // One Nano Banana 2 image with up to 14 references.
 export const maxDuration = 300;
@@ -77,7 +80,11 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!chosen.ok) return apiError(chosen.error, 400);
       const referenceUrls = references.map((r) => r.url);
 
-      const caller = await resolveCallerContext();
+      // D540 — refuse a model the catalog won't run before the take is stored (a panel has no
+      // node, so hidden is refused too). The billed run checks again; this keeps no failed take.
+      const [catalog, caller] = await Promise.all([getAiCatalog(), resolveCallerContext()]);
+      const run = imageRun(catalog, body.data.modelId ?? PANEL_MODEL_ID);
+      if (!run.ok) return apiError(run.message, 400);
       const take = await insertPanelTake({
         clientId, scriptId: script.id, shotId: shot.id, prompt: chosen.prompt, promptEdited: chosen.edited,
         shotKey: inputs.shotKey, faces: inputs.faces, userId: caller.userId,
@@ -108,7 +115,7 @@ export async function POST(req: Request, { params }: Ctx) {
         const capped = e instanceof CreditLimitError;
         const message = capped ? CREDIT_LIMIT_TOAST_MESSAGE : e instanceof Error ? e.message : "The panel could not be drawn.";
         await failPanelTake(take.id, message).catch(() => null);
-        return apiError(message, capped ? 402 : 502);
+        return apiError(message, capped ? 402 : e instanceof ModelRefusedError ? 400 : 502);
       }
     }),
   );

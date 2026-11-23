@@ -1,7 +1,9 @@
 import "server-only";
 import sharp from "sharp";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
-import { MODEL_UNAVAILABLE_MESSAGE } from "@/lib/ai-models/runnable";
+import {
+  MODEL_UNAVAILABLE_MESSAGE, INVALID_PARAMS_MESSAGE, NO_ESTIMATE_MESSAGE, ModelRefusedError,
+} from "@/lib/ai-models/runnable";
 import { imageRun } from "@/lib/image-gen/image-run";
 import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { imageChargeUsd } from "@/lib/ai-models/image-price";
@@ -40,11 +42,14 @@ export async function runBilledImageGeneration(
 ): Promise<{ generation: GenerationRow; creditsCharged: number }> {
   // D540 — the same check every route makes; an avatar or panel has no node, so hidden is refused.
   const run = imageRun(await getAiCatalog(), args.modelId);
-  if (!run.ok) throw new Error(run.message);
+  if (!run.ok) throw new ModelRefusedError(run.message);
   const params = avatarImageParams(args.modelId, args.aspect);
-  if (!params) throw new Error(MODEL_UNAVAILABLE_MESSAGE);
+  if (!params) throw new ModelRefusedError(MODEL_UNAVAILABLE_MESSAGE);
   const parsed = run.spec.schema.safeParse(params);
-  if (!parsed.success) throw new Error(`Invalid params for ${args.modelId}.`);
+  if (!parsed.success) {
+    console.error(`[billedImageRun] invalid params for ${args.modelId}`, parsed.error.issues);
+    throw new Error(INVALID_PARAMS_MESSAGE);
+  }
   const validatedParams = parsed.data as Record<string, unknown>;
 
   // D534 — the price row this image is reserved and charged with; no row, no image.
@@ -68,7 +73,10 @@ export async function runBilledImageGeneration(
     const estimateUsd = estimateAvatarImageCostUsd(price, {
       modelId: args.modelId, aspect: args.aspect, referenceCount: args.referenceUrls.length,
     });
-    if (estimateUsd === null) throw new Error(`No cost estimate available for ${args.modelId}.`);
+    if (estimateUsd === null) {
+      console.error(`[billedImageRun] no cost estimate for ${args.modelId} at aspect ${args.aspect}`);
+      throw new Error(NO_ESTIMATE_MESSAGE);
+    }
     const reservedCredits = usdToFinalCredits(estimateUsd);
     const reservation = await reserveCredits(args.orgId, generation.id, reservedCredits);
     if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");

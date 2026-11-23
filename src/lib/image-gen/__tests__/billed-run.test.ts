@@ -30,6 +30,7 @@ vi.mock("@/lib/ai-models/run-price", async () => {
 vi.mock("sharp", () => ({ default: () => ({ metadata: async () => ({ width: 768, height: 1365 }) }) }));
 
 import { runBilledImageGeneration } from "../billed-run";
+import { ModelRefusedError } from "@/lib/ai-models/runnable";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { reserveCredits, settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
 
@@ -65,11 +66,39 @@ describe("runBilledImageGeneration", () => {
   });
 
   it("refuses a retired model before recording or reserving anything (D540)", async () => {
-    await expect(runBilledImageGeneration({ ...args(), modelId: "openai:gpt-image-1" })).rejects.toThrow(
-      "This model was retired. Pick another.",
-    );
+    const err = await runBilledImageGeneration({ ...args(), modelId: "openai:gpt-image-1" }).catch((e) => e);
+    expect(err).toBeInstanceOf(ModelRefusedError);
+    expect(err.message).toBe("This model was retired. Pick another.");
     expect(insertGeneration).not.toHaveBeenCalled();
     expect(reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unknown model as unavailable, typed so a route can answer 400", async () => {
+    const err = await runBilledImageGeneration({ ...args(), modelId: "nope:none" }).catch((e) => e);
+    expect(err).toBeInstanceOf(ModelRefusedError);
+    expect(err.message).toBe("This model isn't available. Pick another.");
+    expect(insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("refuses settings the model can't take without naming the model", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const err = await runBilledImageGeneration({ ...args(), aspect: "not-an-aspect" }).catch((e) => e);
+    expect(err.message).toBe("These settings aren't valid for this model.");
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("gemini:gemini-3.1-flash-image"), expect.anything());
+    expect(insertGeneration).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("says a run it can't price can't be priced, without naming the model, and refunds", async () => {
+    const { seededPrice } = await import("@/lib/ai-models/test-prices");
+    priceState.mode = { ...seededPrice("gemini:gemini-3.1-flash-image"), lines: [] };
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const err = await runBilledImageGeneration(args()).catch((e) => e);
+    expect(err.message).toBe("This model can't be priced for these settings. Pick other settings or another model.");
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("gemini:gemini-3.1-flash-image"));
+    expect(reserveCredits).not.toHaveBeenCalled();
+    expect(refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
+    log.mockRestore();
   });
 
   it("hands the adapter the catalog's spec and the row's model name", async () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   runnableModel, usableModelId, nodeModelId, MODEL_RETIRED_MESSAGE, MODEL_UNAVAILABLE_MESSAGE, type RunOptions,
+  ModelUnavailableError, ModelRefusedError,
 } from "../runnable";
 import { seededModelCatalog, withModel } from "../test-catalog";
 import type { AiCatalog } from "../types";
@@ -85,5 +86,17 @@ describe("nodeModelId", () => {
     expect(nodeModelId({ modelId: 3 })).toBeNull();
     expect(nodeModelId(null)).toBeNull();
     expect(nodeModelId(undefined)).toBeNull();
+  });
+});
+
+describe("the refusal errors", () => {
+  it("name themselves and carry the plain copy", () => {
+    const unavailable = new ModelUnavailableError(MODEL_UNAVAILABLE_MESSAGE);
+    expect(unavailable.name).toBe("ModelUnavailableError");
+    expect(unavailable.message).toBe(MODEL_UNAVAILABLE_MESSAGE);
+    const refused = new ModelRefusedError(MODEL_RETIRED_MESSAGE);
+    expect(refused).toBeInstanceOf(Error);
+    expect(refused.name).toBe("ModelRefusedError");
+    expect(refused.message).toBe(MODEL_RETIRED_MESSAGE);
   });
 });

@@ -9,7 +9,7 @@ import { videoEstimateUsd } from "@/lib/ai-models/video-price";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
-import { nodeModelId } from "@/lib/ai-models/runnable";
+import { nodeModelId, NO_ESTIMATE_MESSAGE } from "@/lib/ai-models/runnable";
 import { videoRun } from "@/lib/video-gen/video-run";
 import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import { areFramesAndRefsExclusive, validateAgainstRules } from "@/lib/video-gen/constraints";
@@ -376,7 +376,8 @@ export async function POST(
       const images = (startFrameUrl ? 1 : 0) + (endFrameUrl ? 1 : 0) + referenceUrls.length;
       const estimateUsd = videoEstimateUsd(price, { durationSeconds, audioEnabled, resolution, images });
       if (estimateUsd === null) {
-        throw new Error(`No cost estimate available for ${modelId} at these params.`);
+        console.error(`[video-generate] no cost estimate for ${modelId}`, { durationSeconds, audioEnabled, resolution, images });
+        throw new Error(NO_ESTIMATE_MESSAGE);
       }
       const estimatedCredits = usdToFinalCredits(estimateUsd);
       const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);

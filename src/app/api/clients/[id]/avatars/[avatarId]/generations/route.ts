@@ -11,6 +11,7 @@ import { buildAvatarFrontPrompt } from "@/lib/avatars/generation";
 import { generationToCandidate } from "@/lib/avatars/rows";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
 import { imageRun } from "@/lib/image-gen/image-run";
+import { ModelRefusedError } from "@/lib/ai-models/runnable";
 import {
   AVATAR_DESCRIPTION_MAX, AVATAR_FRONT_ASPECT, AVATAR_STYLES,
 } from "@/lib/avatars/constants";
@@ -113,6 +114,7 @@ export async function POST(req: Request, { params }: Ctx) {
         return apiOk({ candidate, creditsCharged, spentCredits }, 201);
       } catch (e) {
         if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);
+        if (e instanceof ModelRefusedError) return apiError(e.message, 400);
         return apiError(e instanceof Error ? e.message : "Image generation failed", 500);
       }
     }),

@@ -341,6 +341,23 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
   });
 
+  it("says a run it can't price can't be priced, without naming the model, and refunds", async () => {
+    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForNewRun).mockResolvedValueOnce({ ...seededPrice(GEMINI_OMNI_MODEL_ID), lines: [] });
+    mocks.graph = buildGraph(
+      [{ id: "c1", text: "keys", seconds: 3 }, { id: "c2", text: "cab", seconds: 5 }],
+      GEMINI_OMNI_MODEL_ID,
+      PLAN,
+    );
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: { duration: 5 }, imageRoles: { ig: "reference" } });
+    expect((await res.json()).error).toBe("This model can't be priced for these settings. Pick other settings or another model.");
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(GEMINI_OMNI_MODEL_ID), expect.anything());
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
+    expect(mocks.refundReservation).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
   // D486 — Omni 1.1 and 1.2 read the same plan, so a 1.2 plan generates on 1.1 without a rewrite,
   // and its length is then measured against 1.1's own 10s window.
   it("generates an Omni 1.2 plan on Omni 1.1 when the ladder fits 1.1", async () => {

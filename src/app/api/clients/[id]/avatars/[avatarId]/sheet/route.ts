@@ -14,6 +14,7 @@ import { AVATAR_SHEET_ASPECT, AVATAR_VIEWS, AVATAR_VIEW_LABELS } from "@/lib/ava
 import type { AvatarImage, AvatarViewId } from "@/lib/avatars/schema";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
 import { imageRun } from "@/lib/image-gen/image-run";
+import { ModelRefusedError } from "@/lib/ai-models/runnable";
 import { preconditionFailed } from "@/lib/avatars/route-responses";
 import { buildAvatarSheetPrompt } from "@/prompts/avatar-character";
 
@@ -58,6 +59,7 @@ export async function POST(
         });
       } catch (e) {
         if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);
+        if (e instanceof ModelRefusedError) return apiError(e.message, 400);
         return apiError(e instanceof Error ? e.message : "Image generation failed", 500);
       }
       const sheet = generationToImage(made.generation);

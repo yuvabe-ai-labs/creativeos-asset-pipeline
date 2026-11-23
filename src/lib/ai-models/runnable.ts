@@ -8,6 +8,9 @@ import type { AiCatalog, AiModel, AiModelKind } from "./types";
 
 export const MODEL_RETIRED_MESSAGE = "This model was retired. Pick another.";
 export const MODEL_UNAVAILABLE_MESSAGE = "This model isn't available. Pick another.";
+/** A run the model's schema rejects, or one its price can't estimate. Plain copy: log the id. */
+export const INVALID_PARAMS_MESSAGE = "These settings aren't valid for this model.";
+export const NO_ESTIMATE_MESSAGE = "This model can't be priced for these settings. Pick other settings or another model.";
 
 export type ModelRefusal = {
   ok: false;
@@ -25,7 +28,20 @@ export type RunOptions = {
 };
 
 /** A task's model lookup failed. Final: no retry finds a row or an adapter that isn't there. */
-export class ModelUnavailableError extends Error {}
+export class ModelUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ModelUnavailableError";
+  }
+}
+
+/** A route's model was refused (retired, draft, hidden, unknown, no adapter): a 400 with this message. */
+export class ModelRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ModelRefusedError";
+  }
+}
 
 const unavailable = (): ModelRefusal => ({
   ok: false, reason: "unavailable", message: MODEL_UNAVAILABLE_MESSAGE, replacedBy: null,

@@ -95,6 +95,16 @@ describe("POST …/locations/:locationId/plate", () => {
     expect(runBilledImageGeneration).not.toHaveBeenCalled();
   });
 
+  it("is a 400 with the plain copy when the billed run refuses the model, and writes nothing", async () => {
+    const { ModelRefusedError, MODEL_UNAVAILABLE_MESSAGE } = await import("@/lib/ai-models/runnable");
+    vi.mocked(runBilledImageGeneration).mockRejectedValue(new ModelRefusedError(MODEL_UNAVAILABLE_MESSAGE));
+    const { POST } = await import("./route");
+    const res = await POST(post(), { params });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This model isn't available. Pick another.");
+    expect(changeScriptAssets).not.toHaveBeenCalled();
+  });
+
   it("says the credit limit plainly, and writes nothing when the draw fails", async () => {
     vi.mocked(runBilledImageGeneration).mockRejectedValue(new CreditLimitError("limit"));
     const { POST } = await import("./route");
