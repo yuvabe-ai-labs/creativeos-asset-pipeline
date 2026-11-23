@@ -6,6 +6,16 @@ import { makeScript } from "@/lib/scripts/visualise/__tests__/fixtures";
 import { TeamReviewBoard } from "../team/team-review-board";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
+// D542 — Visualise reads the image models below the client layout's gate; here, the seeded catalog.
+vi.mock("@/hooks/queries/ai-models", async (orig) => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  const { imageModelsFrom, videoModelsFrom } = await import("@/lib/ai-models/model-lists");
+  return {
+    ...(await orig<typeof import("@/hooks/queries/ai-models")>()),
+    useImageModels: () => imageModelsFrom(seededModelCatalog()),
+    useVideoModels: () => videoModelsFrom(seededModelCatalog()),
+  };
+});
 
 const review = (over: Partial<TeamScriptReview>): TeamScriptReview => ({
   stage: "in_review", shareToken: "6f1c", latest: { number: 1, scope: "script", sharedAt: "2026-10-10T09:00:00.000Z" },
