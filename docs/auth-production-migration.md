@@ -1074,9 +1074,10 @@ where id in ('gemini:gemini-omni-1.2-flash', 'seedance:seedance-2-5');
 ## Migration 0085 — per-model month stats for the admin (D547, 2026-11-23)
 
 `supabase/migrations/0085_ai_model_month_stats.sql`. Paste into the Supabase SQL editor → Run, after 0084.
-Apply **before** Plan 4 deploys to Vercel. The super admin's models page errors without the function; nothing else uses it.
+Apply **before** Plan 4 deploys to Vercel. Both admin model pages (the models list and a model's page) error without the function; nothing else uses it.
 It adds one index (`generations_created_at_idx`) and one read-only function (`ai_model_month_stats`) that returns, per model, the runs, provider cost, credits and unpriced runs in a date range.
 It changes no data.
+The index is built without `concurrently`, so it locks writes to `generations` while it builds. On a large `generations` table apply it at a quiet time, or first run `create index concurrently if not exists generations_created_at_idx on generations (created_at);` by hand (the migration's `if not exists` then skips it).
 **Safe to re-run:** `create index if not exists` and `create or replace function`.
 
 ```sql

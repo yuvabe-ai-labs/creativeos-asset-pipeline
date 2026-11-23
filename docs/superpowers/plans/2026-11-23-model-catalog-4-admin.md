@@ -489,7 +489,7 @@ git commit -m "feat(admin): add and cancel a model's dated prices, with a run pr
 Not an implementer task. After Tasks 1–6: the user applies 0085 on dev and runs its verify SQL. Then on `http://localhost:3000/admin/models` (super admin login):
 
 1. The list shows every model grouped by kind with this month's numbers; no request per row in the network tab (one page load).
-2. Open Kling 3.0 Omni: set Hidden → Save; the Video Gen picker on a new node stops listing it within a minute; set Live again.
+2. Open Kling 3.0 Omni: set Hidden → Save; after a reload (or within 5 minutes in a tab already open; servers within 60 s) the Video Gen picker on a new node stops listing it, and a run on it is refused on the server; set Live again.
 3. Open GPT Image 1 (retired): the Live option is disabled with the no-code note.
 4. Add a price to a cheap image model starting tomorrow with the same lines: it shows "Starts …" with Cancel; cancel it.
 5. Try a price starting yesterday: refused with "A price can't start in the past."
