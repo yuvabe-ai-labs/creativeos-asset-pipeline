@@ -83,6 +83,9 @@ export async function runAssetImport(
       resumeRunId: checkpoint.windowRunId,
       onStarted: (runId) => remember({ windowRunId: runId }),
       recordFor,
+      // D537 — a resumed run the crashed attempt already recorded is not recorded again.
+      recordedRunId: checkpoint.windowRecordedRunId,
+      onRecorded: (runId) => remember({ windowRecordedRunId: runId }),
     });
     let { assets, error, errorCode } = NORMALIZERS[source](rows as never[]);
 
@@ -102,6 +105,8 @@ export async function runAssetImport(
         resumeRunId: checkpoint.latestRunId,
         onStarted: (runId) => remember({ latestRunId: runId }),
         recordFor,
+        recordedRunId: checkpoint.latestRecordedRunId,
+        onRecorded: (runId) => remember({ latestRecordedRunId: runId }),
       });
       ({ assets, error, errorCode } = NORMALIZERS[source](latestRows as never[], new Date(), { windowed: false }));
       // Nothing at all, even without the date filter: the page has never posted. The import

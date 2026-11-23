@@ -152,6 +152,26 @@ describe("runImportActor", () => {
       expect(recordProviderCost).not.toHaveBeenCalled();
     });
 
+    it("does not record a resumed run that an earlier attempt already recorded", async () => {
+      const onRecorded = vi.fn();
+      const fetchImpl = scriptedFetch([run("SUCCEEDED", 0.031), { body: [{ a: 1 }] }]);
+      await runImportActor("instagram", "u", {
+        token: "t", fetchImpl, recordFor, resumeRunId: "run1", recordedRunId: "run1", onRecorded,
+      });
+      expect(recordProviderCost).not.toHaveBeenCalled();
+      expect(onRecorded).not.toHaveBeenCalled();
+    });
+
+    it("records a resumed run that was not recorded yet, and reports its id", async () => {
+      const onRecorded = vi.fn();
+      const fetchImpl = scriptedFetch([run("SUCCEEDED", 0.031), { body: [{ a: 1 }] }]);
+      await runImportActor("instagram", "u", {
+        token: "t", fetchImpl, recordFor, resumeRunId: "run1", recordedRunId: "run0", onRecorded,
+      });
+      expect(recordProviderCost).toHaveBeenCalledTimes(1);
+      expect(onRecorded).toHaveBeenCalledWith("run1");
+    });
+
     it("hands the record to the caller's writer when one is given", async () => {
       const record = vi.fn();
       const fetchImpl = scriptedFetch([run("SUCCEEDED", 0.031), { body: [{ a: 1 }] }]);

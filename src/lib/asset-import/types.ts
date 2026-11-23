@@ -47,7 +47,13 @@ export type SkippedAsset = { ref: string; sourceUrl: string | null; reason: stri
  * How far a running import got (D483): the Apify runs it started. A retry after a crash reads
  * these runs' results again instead of paying for a new scrape.
  */
-export type ImportCheckpoint = { windowRunId?: string; latestRunId?: string };
+export type ImportCheckpoint = {
+  windowRunId?: string;
+  latestRunId?: string;
+  /** D537 — the run whose cost was recorded, so a retry that resumes it records it once. */
+  windowRecordedRunId?: string;
+  latestRecordedRunId?: string;
+};
 
 /** One source's latest import, as the browser sees it. */
 export type AssetImport = {

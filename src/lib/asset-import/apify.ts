@@ -84,9 +84,14 @@ async function readRun(runId: string, fetchImpl: typeof fetch, headers: Record<s
  * run whether it succeeded or failed, since a failed run can still be billed. Only the run's ids
  * and cost go in `raw`, never its dataset. A failure to record is logged, never thrown.
  */
-async function recordRunCost(run: RunData, actorId: string, recordFor: RecordFor, record: RecordApifyCost) {
+async function recordRunCost(
+  run: RunData,
+  actorId: string,
+  recordFor: RecordFor,
+  record: RecordApifyCost,
+): Promise<boolean> {
   const meters = apifyMeters(run.usageTotalUsd ?? null);
-  if (!("usd" in meters)) return;
+  if (!("usd" in meters)) return false;
   try {
     await record({
       ...recordFor,
@@ -95,8 +100,10 @@ async function recordRunCost(run: RunData, actorId: string, recordFor: RecordFor
       meters,
       raw: { runId: run.id, actorId, usageTotalUsd: run.usageTotalUsd },
     });
+    return true;
   } catch (e) {
     console.error("[record-cost]", "scrape", APIFY_MODEL_ID, e instanceof Error ? e.message : e);
+    return false;
   }
 }
 
@@ -107,6 +114,10 @@ async function recordRunCost(run: RunData, actorId: string, recordFor: RecordFor
  * loop is a handful of calls with no timer of its own. A run still going at the deadline is
  * aborted — left running it would keep crawling, and billing, after we have stopped listening —
  * and comes back with `finished: false`. A finished run's cost is recorded for `recordFor`.
+ *
+ * A resumed run may already have been recorded by the attempt that started it (D483 retry):
+ * `recordedRunId` names the run recorded last time, and is skipped. `onRecorded` hears each run
+ * that was recorded, so the caller can keep that id for its next attempt.
  */
 export async function runApifyActor(
   actorId: string,
@@ -122,6 +133,8 @@ export async function runApifyActor(
     onStarted?: (runId: string) => Promise<void> | void;
     recordFor?: RecordFor;
     record?: RecordApifyCost;
+    recordedRunId?: string | null;
+    onRecorded?: (runId: string) => Promise<void> | void;
   },
 ): Promise<{ run: RunData; finished: boolean }> {
   const fetchImpl = opts.fetchImpl ?? fetch;
@@ -153,8 +166,20 @@ export async function runApifyActor(
     run = ((await res.json()) as { data: RunData }).data;
   }
 
-  if (opts.recordFor) await recordRunCost(run, actorId, opts.recordFor, opts.record ?? recordProviderCost);
+  if (opts.recordFor && run.id !== opts.recordedRunId) {
+    const recorded = await recordRunCost(run, actorId, opts.recordFor, opts.record ?? recordProviderCost);
+    if (recorded) await rememberRecorded(run.id, opts.onRecorded);
+  }
   return { run, finished: true };
+}
+
+/** Keeping the recorded run's id is part of recording, so its failure is logged, never thrown. */
+async function rememberRecorded(runId: string, onRecorded?: (runId: string) => Promise<void> | void) {
+  try {
+    await onRecorded?.(runId);
+  } catch (e) {
+    console.error("[record-cost]", "could not keep the recorded run", runId, e instanceof Error ? e.message : e);
+  }
 }
 
 /** A run's dataset rows. Throws with `error(status)` when they cannot be read. */
@@ -182,6 +207,7 @@ function apifyHeaders(token: string): Record<string, string> {
  * `resumeRunId` continues a run started by an earlier attempt instead of paying for a new scrape
  * (D483). `onStarted` hears a new run's id, so the caller can record it for that case.
  * `recordFor` names whom the run's cost is recorded for (D537); without it nothing is recorded.
+ * `recordedRunId` / `onRecorded` keep a resumed run from being recorded twice (see runApifyActor).
  */
 export async function runImportActor(
   source: ImportSource,
@@ -196,6 +222,8 @@ export async function runImportActor(
     onStarted?: (runId: string) => Promise<void> | void;
     recordFor?: RecordFor;
     record?: RecordApifyCost;
+    recordedRunId?: string | null;
+    onRecorded?: (runId: string) => Promise<void> | void;
   },
 ): Promise<unknown[]> {
   const { run } = await runApifyActor(
@@ -212,6 +240,8 @@ export async function runImportActor(
       onStarted: opts.onStarted,
       recordFor: opts.recordFor,
       record: opts.record,
+      recordedRunId: opts.recordedRunId,
+      onRecorded: opts.onRecorded,
     },
   );
 
