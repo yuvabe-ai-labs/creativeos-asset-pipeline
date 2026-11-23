@@ -51,6 +51,15 @@ describe("geminiMeters", () => {
     expect(geminiMeters({ promptTokenCount: 10, cachedContentTokenCount: 99 })).toEqual({ cached_input_token: 10 });
     expect(geminiMeters({})).toEqual({});
   });
+  it("bills googleSearch grounding's tool-use prompt tokens as uncached input", () => {
+    expect(
+      geminiMeters({ promptTokenCount: 1000, cachedContentTokenCount: 200, toolUsePromptTokenCount: 3000, candidatesTokenCount: 50 }),
+    ).toEqual({ input_token: 3800, cached_input_token: 200, text_output_token: 50 });
+    // Cached is still clamped to the prompt itself, never to the tool-use tokens.
+    expect(geminiMeters({ promptTokenCount: 10, cachedContentTokenCount: 99, toolUsePromptTokenCount: 40 })).toEqual({
+      input_token: 40, cached_input_token: 10,
+    });
+  });
 });
 
 describe("apifyMeters", () => {

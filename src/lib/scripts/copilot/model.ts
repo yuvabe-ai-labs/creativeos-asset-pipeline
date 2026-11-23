@@ -16,7 +16,11 @@ export type StructuredCall = <S extends z.ZodType>(args: { name: string; system:
 export type Recording = { recordFor?: undefined; recordType?: undefined } | { recordFor: RecordFor; recordType: RecordOnlyType };
 
 /** `thinking: "low"` asks a Gemini model to reason less, which is much faster; ignored for OpenAI.
- *  Each call's cost, Gemini or OpenAI, is recorded once, after the response (D537). */
+ *  Each call's cost, Gemini or OpenAI, is recorded once, after the response (D537).
+ *
+ *  Request-only: with a `recordType`, the record is written through `after()` (recordAfterResponse),
+ *  which needs a request to attach to. A Trigger task must not call it; a task awaits
+ *  recordProviderCost itself. */
 export function structuredCaller(model: string, opts: { thinking?: "low" } & Recording = {}): StructuredCall {
   return async (args) => {
     if (model.startsWith("gemini-")) {

@@ -40,16 +40,23 @@ export function openAiResponsesMeters(usage: {
   return textMeters(usage.input_tokens, usage.input_tokens_details?.cached_tokens ?? 0, usage.output_tokens);
 }
 
-/** Gemini usageMetadata (SDK camelCase). Thinking is billed at the output rate. */
+/**
+ * Gemini usageMetadata (SDK camelCase). Thinking is billed at the output rate. A googleSearch
+ * grounded call (KB website research) also reports `toolUsePromptTokenCount`: the search results
+ * fed back to the model, billed as input. They are never cached, so cached stays clamped to the prompt.
+ */
 export function geminiMeters(u: {
   promptTokenCount?: number;
   cachedContentTokenCount?: number;
   candidatesTokenCount?: number;
   thoughtsTokenCount?: number;
+  toolUsePromptTokenCount?: number;
 }): Meters {
+  const prompt = u.promptTokenCount ?? 0;
+  const cached = Math.max(0, Math.min(prompt, u.cachedContentTokenCount ?? 0));
   return textMeters(
-    u.promptTokenCount ?? 0,
-    u.cachedContentTokenCount ?? 0,
+    prompt + (u.toolUsePromptTokenCount ?? 0),
+    cached,
     (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0),
   );
 }
