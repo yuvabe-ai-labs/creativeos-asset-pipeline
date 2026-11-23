@@ -80,8 +80,8 @@ async function readRun(runId: string, fetchImpl: typeof fetch, headers: Record<s
 }
 
 /**
- * D537 — one finished run's cost: what Apify says it charged (`usageTotalUsd`), recorded once per
- * run whether it succeeded or failed, since a failed run can still be billed. Only the run's ids
+ * D537 — one ended run's cost: what Apify says it charged (`usageTotalUsd`), recorded once per
+ * run whether it succeeded, failed or was aborted at our deadline, since each can be billed. Only the run's ids
  * and cost go in `raw`, never its dataset. A failure to record is logged, never thrown.
  */
 async function recordRunCost(
@@ -113,7 +113,8 @@ async function recordRunCost(
  * `waitForFinish` long poll of at most 60 s, capped at what is left before the deadline, so the
  * loop is a handful of calls with no timer of its own. A run still going at the deadline is
  * aborted — left running it would keep crawling, and billing, after we have stopped listening —
- * and comes back with `finished: false`. A finished run's cost is recorded for `recordFor`.
+ * and comes back with `finished: false`. An ended run's cost, an aborted one's included, is
+ * recorded for `recordFor`.
  *
  * A resumed run may already have been recorded by the attempt that started it (D483 retry):
  * `recordedRunId` names the run recorded last time, and is skipped. `onRecorded` hears each run
@@ -157,7 +158,9 @@ export async function runApifyActor(
   while (!TERMINAL.has(run.status)) {
     const left = deadline - Date.now();
     if (left <= 0) {
-      await fetchImpl(`${API}/actor-runs/${run.id}/abort`, { method: "POST", headers }).catch(() => {});
+      // The aborted run was billed for what it crawled: record what the abort reply says it cost.
+      const aborted = await abortRun(run, fetchImpl, headers);
+      await recordOnce({ ...run, usageTotalUsd: aborted.usageTotalUsd ?? run.usageTotalUsd }, actorId, opts);
       return { run, finished: false };
     }
     const wait = Math.max(1, Math.min(60, Math.ceil(left / 1000)));
@@ -166,11 +169,31 @@ export async function runApifyActor(
     run = ((await res.json()) as { data: RunData }).data;
   }
 
-  if (opts.recordFor && run.id !== opts.recordedRunId) {
-    const recorded = await recordRunCost(run, actorId, opts.recordFor, opts.record ?? recordProviderCost);
-    if (recorded) await rememberRecorded(run.id, opts.onRecorded);
-  }
+  await recordOnce(run, actorId, opts);
   return { run, finished: true };
+}
+
+/** Asks Apify to stop a run. Returns the run as the abort reply describes it, or `run` as last
+ *  seen when that reply cannot be read. Never throws: the caller still reads what the run wrote. */
+async function abortRun(run: RunData, fetchImpl: typeof fetch, headers: Record<string, string>): Promise<RunData> {
+  try {
+    const res = await fetchImpl(`${API}/actor-runs/${run.id}/abort`, { method: "POST", headers });
+    if (!res.ok) return run;
+    return ((await res.json()) as { data?: RunData }).data ?? run;
+  } catch {
+    return run;
+  }
+}
+
+/** Records an ended run for `recordFor`, unless an earlier attempt already recorded it (D483). */
+async function recordOnce(
+  run: RunData,
+  actorId: string,
+  opts: { recordFor?: RecordFor; record?: RecordApifyCost; recordedRunId?: string | null; onRecorded?: (runId: string) => Promise<void> | void },
+): Promise<void> {
+  if (!opts.recordFor || run.id === opts.recordedRunId) return;
+  const recorded = await recordRunCost(run, actorId, opts.recordFor, opts.record ?? recordProviderCost);
+  if (recorded) await rememberRecorded(run.id, opts.onRecorded);
 }
 
 /** Keeping the recorded run's id is part of recording, so its failure is logged, never thrown. */

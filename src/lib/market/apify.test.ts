@@ -66,13 +66,14 @@ describe("fetchProfileDetails", () => {
     await expect(fetchProfileDetails("x", { token: "tok", fetchImpl })).rejects.toThrow(/402/);
   });
 
-  it("fails as before when the run outlives the deadline, aborts it, and records nothing", async () => {
-    const fetchImpl = scriptedFetch([run("RUNNING", 0.01), { body: {} }]);
+  it("fails as before when the run outlives the deadline, aborts it, and records what it cost", async () => {
+    const fetchImpl = scriptedFetch([run("RUNNING", 0.01), run("ABORTING", 0.015)]);
     await expect(
       fetchProfileDetails("x", { token: "tok", fetchImpl, recordFor, deadlineMs: -1 }),
     ).rejects.toThrow("Apify request failed: HTTP 408");
     expect(urls(fetchImpl)[1]).toContain("/actor-runs/run9/abort");
-    expect(recordProviderCost).not.toHaveBeenCalled();
+    expect(recordProviderCost).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(recordProviderCost).mock.calls[0][0]).toMatchObject({ meters: { usd: 0.015 } });
   });
 
   it("records a failed run that Apify still billed, then throws", async () => {
@@ -169,13 +170,14 @@ describe("fetchPostMedia", () => {
       expect(recordProviderCost).toHaveBeenCalledTimes(1);
     });
 
-    it("fails as before when the run outlives the deadline, aborts it, and records nothing", async () => {
+    it("fails as before when the run outlives the deadline, aborts it, and records what it cost", async () => {
       const fetchImpl = scriptedFetch([run("RUNNING", 0.01), { body: {} }]);
       await expect(
         fetchPostMedia(reel, { token: "tok", fetchImpl, recordFor, deadlineMs: -1 }),
       ).rejects.toThrow("Apify request failed: HTTP 408");
       expect(urls(fetchImpl)[1]).toContain("/actor-runs/run9/abort");
-      expect(recordProviderCost).not.toHaveBeenCalled();
+      expect(recordProviderCost).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(recordProviderCost).mock.calls[0][0]).toMatchObject({ meters: { usd: 0.01 } });
     });
 
     it("records nothing when no one is named", async () => {
@@ -251,13 +253,14 @@ describe("fetchYouTubeDownload", () => {
       expect(recordProviderCost).toHaveBeenCalledTimes(1);
     });
 
-    it("fails as before when the run outlives the deadline, aborts it, and records nothing", async () => {
+    it("fails as before when the run outlives the deadline, aborts it, and records what it cost", async () => {
       const fetchImpl = scriptedFetch([run("RUNNING", 0.01), { body: {} }]);
       await expect(
         fetchYouTubeDownload(short, { token: "tok", fetchImpl, recordFor, deadlineMs: -1 }),
       ).rejects.toThrow("Apify request failed: HTTP 408");
       expect(urls(fetchImpl)[1]).toContain("/actor-runs/run9/abort");
-      expect(recordProviderCost).not.toHaveBeenCalled();
+      expect(recordProviderCost).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(recordProviderCost).mock.calls[0][0]).toMatchObject({ meters: { usd: 0.01 } });
     });
   });
 });

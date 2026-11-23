@@ -144,9 +144,37 @@ describe("runImportActor", () => {
       expect(vi.mocked(recordProviderCost).mock.calls[0][0]).toMatchObject({ meters: { usd: 0.012 } });
     });
 
-    it("records nothing for a run cut off at the deadline, or when no one is named", async () => {
-      const late = scriptedFetch([run("RUNNING", 0.02), { body: {} }, { body: [{ a: 1 }] }]);
+    it("records a run aborted at the deadline once, with what the abort reply says it cost", async () => {
+      const onRecorded = vi.fn();
+      const late = scriptedFetch([run("RUNNING", 0.01), run("ABORTING", 0.02), { body: [{ a: 1 }] }]);
+      const items = await runImportActor("instagram", "u", { token: "t", fetchImpl: late, deadlineMs: -1, recordFor, onRecorded });
+      expect(items).toEqual([{ a: 1 }]);
+      expect(recordProviderCost).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(recordProviderCost).mock.calls[0][0]).toMatchObject({
+        meters: { usd: 0.02 },
+        raw: { runId: "run1", actorId: "apify~instagram-scraper", usageTotalUsd: 0.02 },
+      });
+      expect(onRecorded).toHaveBeenCalledWith("run1");
+    });
+
+    it("records an aborted run with the last cost seen when the abort reply cannot be read", async () => {
+      const late = scriptedFetch([run("RUNNING", 0.01), { status: 500, body: {} }, { body: [{ a: 1 }] }]);
       await runImportActor("instagram", "u", { token: "t", fetchImpl: late, deadlineMs: -1, recordFor });
+      expect(recordProviderCost).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(recordProviderCost).mock.calls[0][0]).toMatchObject({ meters: { usd: 0.01 } });
+    });
+
+    it("records nothing for an aborted run with no cost, or an aborted run already recorded", async () => {
+      const free = scriptedFetch([run("RUNNING"), run("ABORTING"), { body: [{ a: 1 }] }]);
+      await runImportActor("instagram", "u", { token: "t", fetchImpl: free, deadlineMs: -1, recordFor });
+      const again = scriptedFetch([run("RUNNING", 0.02), run("ABORTING", 0.02), { body: [{ a: 1 }] }]);
+      await runImportActor("instagram", "u", {
+        token: "t", fetchImpl: again, deadlineMs: -1, recordFor, resumeRunId: "run1", recordedRunId: "run1",
+      });
+      expect(recordProviderCost).not.toHaveBeenCalled();
+    });
+
+    it("records nothing when no one is named", async () => {
       const anonymous = scriptedFetch([run("SUCCEEDED", 0.02), { body: [{ a: 1 }] }]);
       await runImportActor("instagram", "u", { token: "t", fetchImpl: anonymous });
       expect(recordProviderCost).not.toHaveBeenCalled();

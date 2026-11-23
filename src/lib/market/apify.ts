@@ -22,7 +22,8 @@ type RunOpts = {
 /**
  * Runs one actor to the end and returns its dataset, with the errors the old run-sync call gave:
  * `Apify request failed: HTTP n`, and HTTP 408 (Request Timeout) for a run that outlived its wait.
- * The run's cost is recorded for `recordFor` (D537), whether it succeeded or failed.
+ * The run's cost is recorded for `recordFor` (D537), whether it succeeded, failed or was
+ * aborted at the deadline.
  */
 async function runToItems<T>(actorId: string, input: Record<string, unknown>, opts: RunOpts): Promise<T[]> {
   const { run, finished } = await runApifyActor(actorId, input, {
