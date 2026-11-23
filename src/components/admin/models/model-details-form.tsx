@@ -11,6 +11,7 @@ import {
   runSave,
 } from "./model-details-patch";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -135,8 +136,8 @@ export function ModelDetailsForm({
   const replacementLabel = replacementText(replacedBy, replacements, staleReplacement);
 
   return (
-    <section className="rounded-xl border bg-card p-6 shadow-card">
-      <h2 className="text-eyebrow mb-4 text-[0.7rem] text-muted-foreground/80">Details</h2>
+    <Card className="px-6">
+      <h2 className="text-eyebrow text-[0.7rem] text-muted-foreground/80">Details</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name" htmlFor="model-label">
           <Input id="model-label" value={label} onChange={(e) => setLabel(e.target.value)} />
@@ -199,7 +200,7 @@ export function ModelDetailsForm({
           </Field>
         )}
       </div>
-      <div className="mt-6 flex items-center gap-3">
+      <div className="mt-2 flex items-center gap-3">
         <Button type="button" disabled={!changed || !orderOk || saving} onClick={() => void save()}>
           {saving ? "Saving…" : "Save changes"}
         </Button>
@@ -208,7 +209,7 @@ export function ModelDetailsForm({
           {savedAt ? "Last changed" : updatedBy ? `Last changed by ${updatedBy}` : "Last changed"} {savedAt ? "just now" : formatRelativeTime(updatedAt)}
         </span>
       </div>
-      {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-    </section>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </Card>
   );
 }

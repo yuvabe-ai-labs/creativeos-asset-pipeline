@@ -15,10 +15,10 @@ import type { ConstraintRule } from "@/lib/video-gen/types";
 import { ModelDetailsForm } from "@/components/admin/models/model-details-form";
 import { ModelMonthStats } from "@/components/admin/models/model-month-stats";
 import { ModelDefinition } from "@/components/admin/models/model-definition";
+import { ModelProblems } from "@/components/admin/models/model-problems";
 import { PriceHistory, type PriceHistoryRow } from "@/components/admin/models/price-history";
 import { AddPriceSheet } from "@/components/admin/models/add-price-sheet";
 import { currentPriceRow } from "@/components/admin/models/price-draft";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -109,21 +109,7 @@ export default async function AdminModelPage({ params }: { params: Promise<{ id:
       </div>
 
       <div className="flex flex-col gap-6">
-        {row.problems.length > 0 && (
-          <Card className="px-2">
-            <CardHeader>
-              <CardTitle>This row fails its check</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              <ul className="list-disc pl-5 text-sm">
-                {row.problems.map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
-              </ul>
-              <p className="text-sm text-muted-foreground">The app leaves this model out until it is fixed.</p>
-            </CardContent>
-          </Card>
-        )}
+        {row.problems.length > 0 && <ModelProblems problems={row.problems} />}
 
         <ModelDetailsForm
           model={{

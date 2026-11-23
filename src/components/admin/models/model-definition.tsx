@@ -1,4 +1,5 @@
 import type { ParamSpec } from "@/lib/image-gen/types";
+import { Card } from "@/components/ui/card";
 import type { ConstraintRule } from "@/lib/video-gen/types";
 
 function flatten(value: unknown, prefix = ""): Array<[string, string]> {
@@ -44,9 +45,11 @@ export function ModelDefinition({
 }) {
   const limits = flatten(capabilities).filter(([k]) => k !== "");
   return (
-    <section className="rounded-xl border bg-card p-6 shadow-card">
-      <h2 className="font-display text-base font-semibold">Definition</h2>
-      <p className="mt-1 mb-5 text-sm text-muted-foreground">Changed by a migration. Editing here comes later.</p>
+    <Card className="px-6">
+      <div>
+        <h2 className="font-display text-base font-semibold">Definition</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Changed by a migration. Editing here comes later.</p>
+      </div>
       <div className="flex flex-col gap-6">
         <Section title="Settings">
           {params.length === 0 && <Empty>No settings.</Empty>}
@@ -83,6 +86,6 @@ export function ModelDefinition({
           ))}
         </Section>
       </div>
-    </section>
+    </Card>
   );
 }

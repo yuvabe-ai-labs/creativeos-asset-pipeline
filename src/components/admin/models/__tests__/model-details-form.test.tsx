@@ -64,6 +64,10 @@ describe("ModelDetailsForm", () => {
     expect(html).toMatch(/<button[^>]*disabled[^>]*>Save changes/);
   });
 
+  it("sits in a card like the other sections", () => {
+    expect(renderToStaticMarkup(<ModelDetailsForm {...props} />)).toMatch(/^<div data-slot="card"/);
+  });
+
   it("keeps the eyebrow style on its field labels", () => {
     const html = renderToStaticMarkup(<ModelDetailsForm {...props} />);
     expect(html).toMatch(/<label[^>]*class="[^"]*text-eyebrow[^"]*"[^>]*for="model-label"/);

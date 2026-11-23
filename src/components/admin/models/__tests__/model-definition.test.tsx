@@ -53,6 +53,10 @@ describe("ModelDefinition", () => {
     expect(html).toContain("imageInputs.maxReferenceImages");
   });
 
+  it("sits in a card like the other sections", () => {
+    expect(html).toMatch(/^<div data-slot="card"/);
+  });
+
   it("has no editable control", () => {
     expect(html).not.toContain("<input");
     expect(html).not.toContain("<select");
