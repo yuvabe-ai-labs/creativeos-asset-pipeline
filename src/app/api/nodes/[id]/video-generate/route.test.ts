@@ -183,6 +183,28 @@ describe("POST video-generate — retired models (D540)", () => {
   });
 });
 
+describe("POST video-generate — the default model (D542)", () => {
+  it("with no modelId runs the catalog's default, the first live video model", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    const { videoModelsFrom } = await import("@/lib/ai-models/model-lists");
+    const seeded = seededModelCatalog();
+    const first = videoModelsFrom(seeded).defaultId;
+    cat.value = withModel(seeded, first, { status: "hidden" });
+    const expected = videoModelsFrom(cat.value).defaultId;
+    expect(expected).not.toBe(first);
+    mocks.graph = {
+      vg: [{ nodeId: "vp", type: "video-prompt", data: {}, activeOutput: "A hand lifts the keys.", versionId: "v1" }],
+    };
+    const res = await post({ params: {}, imageRoles: {} });
+    // The run started on the new default, not the hidden one: that model's own input rule speaks
+    // (a hidden default would have answered "isn't available").
+    const { error } = await res.json();
+    expect(error).not.toBe("This model isn't available. Pick another.");
+    expect(error).toContain(videoModelsFrom(cat.value).get(expected)!.providerLabel);
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST video-generate — multishot server backstop (D236, D97)", () => {
   it("rejects a modelId that differs from the plan's targetModel, before any generation is recorded", async () => {
     mocks.graph = buildGraph(LEGAL_KLING_CUTS, KLING_OMNI_MODEL_ID, PLAN);

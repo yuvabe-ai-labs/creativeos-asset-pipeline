@@ -139,8 +139,7 @@ export const DEFAULT_MULTISHOT_MODEL = GEMINI_OMNI_12_MODEL_ID;
  *
  * An absent id is every Multishot node that existed before the field did, so the fallback is not
  * defensive padding — it IS the migration, and it is why no data is backfilled. An UNKNOWN id
- * (a model pruned from the roster) falls back the same way rather than throwing, mirroring
- * `resolveVideoModelId`.
+ * (a model pruned from the roster) falls back the same way rather than throwing.
  */
 export function multishotCapabilityFor(
   targetModel: string | undefined | null,

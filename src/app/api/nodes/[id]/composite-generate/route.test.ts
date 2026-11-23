@@ -20,10 +20,18 @@ const FILE_REF: CompositeRef = { nodeId: "n-file", name: "Sandals.png", role: "i
 const loadCompositeInputs = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({}) as unknown);
 vi.mock("@/lib/composite/load-inputs", () => ({ loadCompositeInputs: (...a: unknown[]) => loadCompositeInputs(...a) }));
 
-const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+const cat = vi.hoisted(() => ({
+  value: null as import("@/lib/ai-models/types").AiCatalog | null,
+  fail: null as Error | null,
+}));
 vi.mock("@/lib/ai-models/catalog", async () => {
   const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
-  return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
+  return {
+    getAiCatalog: async () => {
+      if (cat.fail) throw cat.fail;
+      return cat.value ?? seededModelCatalog();
+    },
+  };
 });
 vi.mock("@/lib/image-gen/adapters", async () => {
   const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
@@ -58,12 +66,24 @@ const sent = () => start.mock.calls[0][0] as { prompt: string; referenceUrls: st
 beforeEach(() => {
   vi.clearAllMocks();
   cat.value = null;
+  cat.fail = null;
   for (const k of Object.keys(stored)) delete stored[k];
   stored.instruction = "";
   loadCompositeInputs.mockResolvedValue({ ok: true, refs: [AVATAR_REF, SHEET_REF, FILE_REF], avatarIds: ["av-1"], contexts: [] });
 });
 
 describe("POST composite-generate (D312)", () => {
+  it("answers a catalog failure with plain copy and no raw message", async () => {
+    cat.fail = new Error("relation ai_models does not exist");
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await post({ instruction: "x" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "Could not load the models. Try again." });
+    expect(start).not.toHaveBeenCalled();
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
   it("refuses a retired model before anything starts (D540)", async () => {
     const res = await post({ instruction: "x", modelId: "openai:gpt-image-1" });
     expect(res.status).toBe(400);

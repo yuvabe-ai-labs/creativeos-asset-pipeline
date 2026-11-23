@@ -2,6 +2,8 @@ import { z } from "zod";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { videoRun } from "@/lib/video-gen/video-run";
 import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar } from "@/lib/db/avatars";
@@ -15,7 +17,7 @@ import { signAvatarVoicePreviewUrl, signAvatarVoiceSampleUrl } from "@/lib/stora
 import { AVATAR_VOICE_PREVIEW_LINE_MAX, AVATAR_VOICE_PREVIEW_SLOT } from "@/lib/avatars/constants";
 import {
   buildVoicePreviewPrompt, estimateVoicePreviewCredits, generationToVoicePreview,
-  voicePreviewBlocker, voicePreviewEngine, voicePreviewMode, voicePreviewParams, VOICE_PREVIEW_ENGINE,
+  voicePreviewBlocker, voicePreviewEngine, voicePreviewMode, voicePreviewParams, VOICE_PREVIEW_ENGINE, VOICE_PREVIEW_UNAVAILABLE_MESSAGE,
 } from "@/lib/avatars/voice-preview";
 import { loadVoicePreviewState, readLatestPreview } from "@/lib/avatars/studio-server";
 import type { AvatarVoicePreviewTaskPayload } from "@/lib/avatars/voice-preview-run";
@@ -84,10 +86,18 @@ export async function POST(req: Request, { params }: Ctx) {
       const line = parsed.data.line;
       const prompt = buildVoicePreviewPrompt(line, mode);
       const paramsSnapshot = voicePreviewParams(engine);
-      const [price, voiceChangePrice] = await Promise.all([
+      const [price, voiceChangePrice, catalog] = await Promise.all([
         priceForNewRun(VOICE_PREVIEW_ENGINE[engine].modelId),
         mode === "named" ? priceForNewRun(VOICE_CHANGE_PRICE_MODEL_ID) : Promise.resolve(null),
+        getAiCatalog(),
       ]);
+      // D542 — a preview belongs to no node, so an engine model that is hidden, retired or
+      // missing refuses it; nothing is recorded or reserved.
+      const run = videoRun(catalog, VOICE_PREVIEW_ENGINE[engine].modelId);
+      if (!run.ok) {
+        console.error("[voice-preview] engine model can't run", VOICE_PREVIEW_ENGINE[engine].modelId, run.reason);
+        return apiError(VOICE_PREVIEW_UNAVAILABLE_MESSAGE, 400);
+      }
       if (!price || (mode === "named" && !voiceChangePrice)) return apiError(NO_PRICE_MESSAGE, 409);
       const generation = await insertGeneration({
         avatarId,

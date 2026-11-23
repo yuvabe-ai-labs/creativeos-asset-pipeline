@@ -17,6 +17,15 @@ vi.mock("@/lib/ai-models/run-price", async () => {
     priceForGeneration: vi.fn(async (g: { model_used: string | null }) => (g.model_used ? seededPrice(g.model_used) : null)),
   };
 });
+const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
+});
+vi.mock("@/lib/video-gen/adapters", async () => {
+  const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
+  return { videoAdapters: stubAdapters("video", async () => { throw new Error("a route never generates"); }) };
+});
 vi.mock("@trigger.dev/sdk/v3", () => ({ tasks: { trigger: vi.fn() } }));
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn() }));
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() }));
@@ -65,6 +74,7 @@ const row = (overrides: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.resetAllMocks();
+  cat.value = null;
   process.env.ELEVEN_LABS_API_KEY = "key";
   vi.mocked(resolveOrgId).mockResolvedValue("org-1");
   vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "user-9", email: "op@x.com", orgId: "org-1" } as never);
@@ -132,6 +142,23 @@ describe("POST voice-preview", () => {
       vi.mocked(priceForNewRun).mockImplementation(async (id: string) => { try { return seededPrice(id); } catch { return null; } });
     }
   });
+
+  it.each(["hidden", "retired"] as const)(
+    "refuses a preview when the engine's model is %s, before anything is recorded (D542)",
+    async (status) => {
+      const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+      cat.value = withModel(seededModelCatalog(), VOICE_PREVIEW_ENGINE.omni.modelId, { status });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { POST } = await import("./route");
+      const res = await POST(post({ line: "Hello there." }), { params });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "Voice previews can't run right now. Try again later." });
+      expect(insertGeneration).not.toHaveBeenCalled();
+      expect(reserveCredits).not.toHaveBeenCalled();
+      expect(tasks.trigger).not.toHaveBeenCalled();
+      err.mockRestore();
+    },
+  );
 
   it("refuses a preview whose model has no price before anything is recorded (D534)", async () => {
     const { priceForNewRun } = await import("@/lib/ai-models/run-price");

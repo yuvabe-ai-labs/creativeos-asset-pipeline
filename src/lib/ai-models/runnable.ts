@@ -9,6 +9,7 @@ import type { AiCatalog, AiModel, AiModelKind } from "./types";
 export const MODEL_RETIRED_MESSAGE = "This model was retired. Pick another.";
 export const MODEL_UNAVAILABLE_MESSAGE = "This model isn't available. Pick another.";
 /** A run the model's schema rejects, or one its price can't estimate. Plain copy: log the id. */
+export const CATALOG_LOAD_FAILED_MESSAGE = "Could not load the models. Try again.";
 export const INVALID_PARAMS_MESSAGE = "These settings aren't valid for this model.";
 export const NO_ESTIMATE_MESSAGE = "This model can't be priced for these settings. Pick other settings or another model.";
 

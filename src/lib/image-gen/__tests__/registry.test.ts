@@ -2,13 +2,11 @@ import { describe, it, expect } from "vitest";
 import { imageGenRegistry, imageGenModelGroups, DEFAULT_MODEL_ID } from "../registry";
 import {
   imageGenClientModels,
-  imageGenClientModelGroups,
   imageGenClientModelMap,
-  defaultsForModel,
-  isImageModelDeprecated,
-  withoutDeprecatedImageModel,
   DEPRECATED_IMAGE_MODEL_FALLBACK_ID,
 } from "../client-models";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 
 const EXPECTED_IDS = [
   "openai:gpt-image-2",
@@ -73,7 +71,6 @@ describe("imageGenRegistry", () => {
       expect(client.maxReferenceSizeBytes).toBe(server.maxReferenceSizeBytes);
       expect(client.supportsMask ?? false).toBe(server.supportsMask ?? false);
     }
-    expect(imageGenClientModelGroups.map((g) => g.provider)).toEqual(["openai", "gemini", "seedream"]);
   });
 });
 
@@ -82,31 +79,13 @@ describe("deprecated image models (D467)", () => {
 
   it("deprecates GPT Image 1 only, and leaves Mini on offer", () => {
     expect(imageGenClientModels.filter((m) => m.deprecated).map((m) => m.id)).toEqual(["openai:gpt-image-1"]);
-    const offered = imageGenClientModelGroups.flatMap((g) => g.models.map((m) => m.id));
+    const offered = imageModelsFrom(seededModelCatalog()).groups().flatMap((g) => g.models.map((m) => m.id));
     expect(offered).not.toContain("openai:gpt-image-1");
     expect(offered).toContain("openai:gpt-image-1-mini");
   });
 
   it("falls back to a model that is on offer", () => {
     expect(DEPRECATED_IMAGE_MODEL_FALLBACK_ID).toBe(SUNBURST);
-    expect(isImageModelDeprecated(DEPRECATED_IMAGE_MODEL_FALLBACK_ID)).toBe(false);
-  });
-
-  it("moves a deprecated model to Sunburst with Sunburst's default params, dropping the old ones", () => {
-    const next = withoutDeprecatedImageModel({
-      title: "Hero",
-      modelId: "openai:gpt-image-1",
-      params: { aspect_ratio: "16:9", quality: "high", background: "transparent" },
-    });
-    expect(next.title).toBe("Hero");
-    expect(next.modelId).toBe(SUNBURST);
-    expect(next.params).toEqual(defaultsForModel(imageGenClientModelMap[SUNBURST]));
-  });
-
-  it("returns any other node's data as the same object", () => {
-    const data = { modelId: "openai:gpt-image-1-mini", params: { quality: "low" } };
-    expect(withoutDeprecatedImageModel(data)).toBe(data);
-    const noModel = { modelId: undefined, title: "Image" };
-    expect(withoutDeprecatedImageModel(noModel)).toBe(noModel);
+    expect(imageGenClientModelMap[DEPRECATED_IMAGE_MODEL_FALLBACK_ID].deprecated).not.toBe(true);
   });
 });

@@ -11,7 +11,7 @@ import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/cr
 import { getAiCatalog } from "@/lib/ai-models/catalog";
 import { nodeModelId, NO_ESTIMATE_MESSAGE } from "@/lib/ai-models/runnable";
 import { videoRun } from "@/lib/video-gen/video-run";
-import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { areFramesAndRefsExclusive, validateAgainstRules } from "@/lib/video-gen/constraints";
 import {
   assignImageRoles,
@@ -69,7 +69,7 @@ export async function POST(
     const [locked, catalog] = await Promise.all([editorLockResponse(nodeId), getAiCatalog()]);
     if (locked) return locked;
 
-    const modelId = body.modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID;
+    const modelId = body.modelId ?? videoModelsFrom(catalog).defaultId;
     // D540 — live runs; hidden only on the node that already uses it; anything else is refused.
     // The spec (params, rules, image inputs, label, provider) is the catalog row's.
     const run = videoRun(catalog, modelId, { existingNodeModelId: nodeModelId(node.data) });

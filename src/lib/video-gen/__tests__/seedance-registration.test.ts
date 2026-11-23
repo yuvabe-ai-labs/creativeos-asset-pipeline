@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { videoGenRegistry } from "../registry";
-import { videoGenClientModelMap, videoGenClientModelGroups, SEEDANCE_MODEL_ID } from "../client-models";
+import { videoGenClientModelMap, SEEDANCE_MODEL_ID } from "../client-models";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import { validateAgainstRules } from "../constraints";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { videoSecondsUsd } from "@/lib/ai-models/video-price";
@@ -36,7 +38,7 @@ describe("Seedance 2.5 registration", () => {
   });
 
   it("groups under Seedance in the picker", () => {
-    const g = videoGenClientModelGroups.find((x) => x.label === "Seedance");
+    const g = videoModelsFrom(seededModelCatalog()).groups().find((x) => x.label === "Seedance");
     expect(g?.models.map((m) => m.id)).toContain(SD);
   });
 

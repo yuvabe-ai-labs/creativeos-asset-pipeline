@@ -2,9 +2,9 @@ import { getImageGenUpstream } from "@/lib/avatars/presenter-server";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { getVersionById } from "@/lib/db/versions";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
-import { nodeModelId, INVALID_PARAMS_MESSAGE } from "@/lib/ai-models/runnable";
+import { nodeModelId, INVALID_PARAMS_MESSAGE, CATALOG_LOAD_FAILED_MESSAGE } from "@/lib/ai-models/runnable";
 import { imageRun } from "@/lib/image-gen/image-run";
-import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
 import {
   buildEditPrompt,
   assembleEditReferences,
@@ -47,10 +47,18 @@ export async function POST(
         }
       | null;
 
-    const modelId = typeof body?.modelId === "string" ? body.modelId : DEFAULT_CLIENT_MODEL_ID;
     // D540 — the catalog decides whether this model runs here and supplies its params, limits and
     // schema. Read beside the upstream nodes, which don't depend on it.
-    const [catalog, upstream] = await Promise.all([getAiCatalog(), getImageGenUpstream(nodeId)]);
+    const [catalog, upstream] = await Promise.all([
+      getAiCatalog().catch((e) => {
+        console.error("[image-generate] catalog read failed", e);
+        return null;
+      }),
+      getImageGenUpstream(nodeId),
+    ]);
+    if (!catalog) return apiError(CATALOG_LOAD_FAILED_MESSAGE, 500);
+    // D542 — no model named: the catalog's default, its first live image model.
+    const modelId = typeof body?.modelId === "string" ? body.modelId : imageModelsFrom(catalog).defaultId;
     const run = imageRun(catalog, modelId, { existingNodeModelId: nodeModelId(node.data) });
     if (!run.ok) return apiError(run.message, 400);
     const config = run.spec;

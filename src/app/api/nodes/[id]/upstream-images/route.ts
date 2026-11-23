@@ -12,7 +12,7 @@ import {
   singleTakeRefDialect,
   singleTakeTargetForProvider,
 } from "@/lib/nodes/ref-binding";
-import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
 import { usableModelId } from "@/lib/ai-models/runnable";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
@@ -55,7 +55,7 @@ export async function GET(
         // D540 — the stored row can still name a model that may no longer run on it.
         const modelId = usableModelId(catalog, typeof node.data?.modelId === "string" ? node.data.modelId : "", {
           kind: "video",
-          fallbackId: DEFAULT_VIDEO_CLIENT_MODEL_ID,
+          fallbackId: videoModelsFrom(catalog).defaultId,
         });
         const dialect = singleTakeRefDialect(
           singleTakeTargetForProvider(catalog.models.find((m) => m.id === modelId && m.kind === "video")?.provider),

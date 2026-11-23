@@ -1,3 +1,4 @@
+// Plan 1b-iii deletes this file. Browser and server code read models from the catalog (D542).
 // Client-safe model metadata. No generate functions — safe to import from React components.
 // Params are imported from providers (single source of truth, no Zod duplication).
 
@@ -136,22 +137,7 @@ export const imageGenClientModels: ClientModelSpec[] = [
 export const imageGenClientModelMap: Record<string, ClientModelSpec> =
   Object.fromEntries(imageGenClientModels.map((m) => [m.id, m]));
 
-// The models on offer, so a deprecated one is left out (D467).
-const offeredImageModels = imageGenClientModels.filter((m) => !m.deprecated);
-
-export const imageGenClientModelGroups: Array<{
-  provider: string;
-  label: string;
-  models: ClientModelSpec[];
-}> = [
-  { provider: "openai", label: "OpenAI", models: offeredImageModels.filter((m) => m.provider === "openai") },
-  { provider: "gemini", label: "Gemini", models: offeredImageModels.filter((m) => m.provider === "gemini") },
-  { provider: "seedream", label: "Seedream", models: offeredImageModels.filter((m) => m.provider === "seedream") },
-];
-
-export const DEFAULT_CLIENT_MODEL_ID = "gemini:gemini-3-pro-image";
-
-// Extract defaults from ParamSpec array (replaces defaultsForSchema)
+// Extract defaults from a model's ParamSpec array
 export function defaultsForModel(model: ClientModelSpec): Record<string, unknown> {
   return Object.fromEntries(
     model.params
@@ -162,30 +148,3 @@ export function defaultsForModel(model: ClientModelSpec): Record<string, unknown
 
 /** D467 — where a node saved on a deprecated image model goes. */
 export const DEPRECATED_IMAGE_MODEL_FALLBACK_ID = "openai:gpt-image-2.5-sunburst";
-
-export function isImageModelDeprecated(modelId: string): boolean {
-  return imageGenClientModelMap[modelId]?.deprecated === true;
-}
-
-/**
- * D467 — an Image Gen or Composite node's data with a deprecated model replaced by the fallback
- * and that model's default settings. The old model's settings don't carry over. Data on any other
- * model comes back untouched, the same object, so nothing re-renders or saves because of this.
- */
-export function withoutDeprecatedImageModel<T extends { modelId?: string; params?: Record<string, unknown> }>(
-  data: T,
-): T {
-  if (!data.modelId || !isImageModelDeprecated(data.modelId)) return data;
-  return {
-    ...data,
-    modelId: DEPRECATED_IMAGE_MODEL_FALLBACK_ID,
-    params: defaultsForModel(imageGenClientModelMap[DEPRECATED_IMAGE_MODEL_FALLBACK_ID]),
-  };
-}
-
-// Legacy alias kept until image-gen-focus-view.tsx is updated
-export function defaultsForSchema(schema: ClientModelSpec["schema"]): Record<string, unknown> {
-  const parsed = schema.safeParse({});
-  if (parsed.success) return parsed.data as Record<string, unknown>;
-  return {};
-}

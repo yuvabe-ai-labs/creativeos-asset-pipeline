@@ -1,5 +1,5 @@
 import { getAiCatalog } from "@/lib/ai-models/catalog";
-import { nodeModelId, INVALID_PARAMS_MESSAGE } from "@/lib/ai-models/runnable";
+import { nodeModelId, INVALID_PARAMS_MESSAGE, CATALOG_LOAD_FAILED_MESSAGE } from "@/lib/ai-models/runnable";
 import { imageRun } from "@/lib/image-gen/image-run";
 import { getStoryboardVersionInputs, getVersionById } from "@/lib/db/versions";
 import { STORYBOARD_PROMPT_ID, drawsAsSketch } from "@/lib/scripts/script-composites";
@@ -57,7 +57,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!rawInstruction.trim()) return apiError("Say what to make — the instruction is empty.", 400);
 
     // The catalog read doesn't depend on the inputs: side by side.
-    const [inputs, catalog] = await Promise.all([loadCompositeInputs(nodeId, clientId), getAiCatalog()]);
+    const [inputs, catalog] = await Promise.all([
+      loadCompositeInputs(nodeId, clientId),
+      getAiCatalog().catch((e) => {
+        console.error("[composite-generate] catalog read failed", e);
+        return null;
+      }),
+    ]);
+    if (!catalog) return apiError(CATALOG_LOAD_FAILED_MESSAGE, 500);
     if (!inputs.ok) return apiError(inputs.error, 400);
     const { refs, avatarIds, contexts } = inputs;
 

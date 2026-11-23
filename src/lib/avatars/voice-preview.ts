@@ -24,6 +24,8 @@ import type { Avatar, VoicePreview } from "./schema";
 //
 // Pure rules, shared by the Studio, the route, the task and completeGeneration.
 
+export const VOICE_PREVIEW_UNAVAILABLE_MESSAGE = "Voice previews can't run right now. Try again later.";
+
 export type VoicePreviewMode = "named" | "native";
 
 export type VoicePreviewEngine = "seedance" | "omni";

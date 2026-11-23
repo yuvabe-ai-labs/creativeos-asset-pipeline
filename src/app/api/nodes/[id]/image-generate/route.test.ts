@@ -23,10 +23,18 @@ vi.mock("@/lib/avatars/presenter-server", () => ({
 }));
 vi.mock("@/lib/db/versions", () => ({ getVersionById: m.getVersionById }));
 vi.mock("@/lib/image-gen/start-generation", () => ({ startImageGeneration: m.start }));
-const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+const cat = vi.hoisted(() => ({
+  value: null as import("@/lib/ai-models/types").AiCatalog | null,
+  fail: null as Error | null,
+}));
 vi.mock("@/lib/ai-models/catalog", async () => {
   const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
-  return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
+  return {
+    getAiCatalog: async () => {
+      if (cat.fail) throw cat.fail;
+      return cat.value ?? seededModelCatalog();
+    },
+  };
 });
 vi.mock("@/lib/image-gen/adapters", async () => {
   const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
@@ -43,6 +51,7 @@ const post = (body: unknown) =>
 beforeEach(() => {
   vi.clearAllMocks();
   cat.value = null;
+  cat.fail = null;
   m.nodeData = {};
   m.upstream = [
     { nodeId: "p1", type: "prompt", data: {}, activeOutput: "A mug on a desk", versionId: "pv1" },
@@ -65,6 +74,30 @@ describe("POST image-generate (D366)", () => {
     expect((await refused.json()).error).toBe("This model isn't available. Pick another.");
     m.nodeData = { modelId: "openai:gpt-image-2" };
     expect((await post({ modelId: "openai:gpt-image-2", params: {} })).status).toBe(202);
+  });
+
+  it("answers a catalog failure with plain copy and no raw message", async () => {
+    cat.fail = new Error("relation ai_models does not exist");
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await post({ modelId: "openai:gpt-image-2", params: {} });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "Could not load the models. Try again." });
+    expect(m.start).not.toHaveBeenCalled();
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it("with no modelId runs the catalog's default, the first live model (D542)", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    const { imageModelsFrom } = await import("@/lib/ai-models/model-lists");
+    const seeded = seededModelCatalog();
+    const first = imageModelsFrom(seeded).defaultId;
+    cat.value = withModel(seeded, first, { status: "hidden" });
+    const expected = imageModelsFrom(cat.value).defaultId;
+    expect(expected).not.toBe(first);
+    const res = await post({ params: {} });
+    expect(res.status).toBe(202);
+    expect(m.start).toHaveBeenCalledWith(expect.objectContaining({ modelId: expected }));
   });
 
   it("refuses an unknown model without naming it", async () => {

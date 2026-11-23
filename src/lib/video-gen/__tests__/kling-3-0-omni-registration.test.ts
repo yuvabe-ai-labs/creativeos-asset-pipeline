@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { videoGenRegistry } from "../registry";
-import { videoGenClientModelMap, videoGenClientModelGroups, KLING_OMNI_MODEL_ID } from "../client-models";
+import { videoGenClientModelMap, KLING_OMNI_MODEL_ID } from "../client-models";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import { validateAgainstRules } from "../constraints";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { videoSecondsUsd } from "@/lib/ai-models/video-price";
@@ -38,7 +40,7 @@ describe("Kling 3.0 Omni registration", () => {
   });
 
   it("groups under Kling in the picker", () => {
-    const kling = videoGenClientModelGroups.find((g) => g.label === "Kling");
+    const kling = videoModelsFrom(seededModelCatalog()).groups().find((g) => g.label === "Kling");
     expect(kling?.models.map((m) => m.id)).toContain(OMNI);
   });
 
