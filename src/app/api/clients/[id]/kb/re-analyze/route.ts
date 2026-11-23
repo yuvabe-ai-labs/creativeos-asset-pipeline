@@ -16,7 +16,7 @@ import {
 } from "@/lib/kb/schema";
 import { kbReanalyzePrompt } from "@/prompts/kb-reanalyze";
 import { z } from "zod";
-import { apiError, apiOk, withTryCatch, assertImpersonationWriteAllowed } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withTryCatch, withClient } from "@/lib/api/route-helpers";
 import { openAiCost, recordAfterResponse } from "@/lib/generations/record-for";
 
 type ModuleKey =
@@ -67,12 +67,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  await params; // clientId not needed for this route — versionId scopes the update
-
-  const blocked = await assertImpersonationWriteAllowed(req);
-  if (blocked) return blocked;
-
-  return withTryCatch("Re-analysis failed", async () => {
+  // withClient checks the client is in the caller's org and applies the impersonation write gate.
+  return withClient(req, params, (clientId, client) => withTryCatch("Re-analysis failed", async () => {
     const { versionId, module, fieldKey, comment } = await req.json() as {
       versionId: string;
       module: ModuleKey;
@@ -97,9 +93,10 @@ export async function POST(
     const supabase = createServerSupabase();
     const { data: versionData, error: versionErr } = await supabase
       .from("client_kb_versions")
-      // The client and org are read with the row, only to record the call's cost (D537).
-      .select("output, client_id, clients(org_id)")
+      .select("output")
       .eq("id", versionId)
+      // Only this client's versions: the id comes from the body.
+      .eq("client_id", clientId)
       .maybeSingle();
 
     if (versionErr) return apiError(versionErr.message, 500);
@@ -128,11 +125,9 @@ export async function POST(
       temperature: 0.3,
     });
     // D537 — paid once it answered, whatever the answer turns out to be.
-    const owner = versionData as unknown as { client_id: string; clients: { org_id: string } | { org_id: string }[] | null };
-    const orgId = (Array.isArray(owner.clients) ? owner.clients[0] : owner.clients)?.org_id;
-    if (orgId) {
-      recordAfterResponse(openAiCost({ orgId, clientId: owner.client_id }, "kb", kbReanalyzePrompt.model, response.usage, "responses"));
-    }
+    recordAfterResponse(
+      openAiCost({ orgId: client.org_id, clientId }, "kb", kbReanalyzePrompt.model, response.usage, "responses"),
+    );
 
     const updatedField = response.output_parsed as KBField<unknown> | null;
     if (!updatedField) return apiError("Model returned no output.", 500);
@@ -141,5 +136,5 @@ export async function POST(
     await setKBField(versionId, fieldPath, updatedField);
 
     return apiOk({ fieldKey, field: updatedField });
-  });
+  }));
 }
