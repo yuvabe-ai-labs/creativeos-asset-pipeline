@@ -53,7 +53,7 @@ export function ClientReviewNode({ id, data, selected, positionAbsoluteX, positi
     onUploaded: (versionNo) => setViewedVersionNo(versionNo),
   });
 
-  // D513 — a request naming a version (a row in the Client feedback chip) switches the view to
+  // D500 — a request naming a version (a row in the Client feedback chip) switches the view to
   // it. Adjusted while rendering, not in an effect, so the view opens on that version at once.
   const ownRequest = request?.nodeId === id ? request : null;
   if (ownRequest && ownRequest !== handledRequest) {

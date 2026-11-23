@@ -951,7 +951,7 @@ select count(*) from generations
 where type = 'transcribe' and status = 'running' and created_at < now() - interval '20 minutes';
 ```
 
-## Migration 0062 — five permissions, one owner, client members (D500–D509, 2026-11-13)
+## Migration 0062 — five permissions, one owner, client members (D538–D547, 2026-11-13)
 
 `supabase/migrations/0062_permission_based_access.sql`. Never applied before 13 Nov 2026, so it
 was rewritten in place; the 11 Nov presets version is not applied anywhere and never will be.
@@ -1065,7 +1065,7 @@ the capability, and someone invited has no account yet. The proxy also sets an `
 **Known limitation: Google Drive is one account for the whole platform.** The Drive picker returns
 that account's read-only access token, and the Drive file, folder and import routes use the same
 login. They need only Generate on any client, so anyone with Generate on one client, in any agency,
-can open every file that account can see, including folders other agencies use (D501).
+can open every file that account can see, including folders other agencies use (D539).
 
 **Old admin screens are gone with this code:** no temporary passwords, no role select. A new agency
 is "Add an agency" (name, owner email and monthly credit limit, Unlimited unless one is set); the
@@ -1145,7 +1145,7 @@ delete from org_memberships where org_id = '<agency>' and is_owner;
 rollback;
 ```
 
-## Migration 0063 — views off the public API, every invite send counted, foreign keys indexed (D501, D511, 2026-11-16)
+## Migration 0063 — views off the public API, every invite send counted, foreign keys indexed (D539, D549, 2026-11-16)
 
 `supabase/migrations/0063_close_views_and_count_resends.sql`. Apply after 0062, in the same window
 (staging before the staging deploy of this branch, production before the merge to `main`). Safe to
@@ -1288,7 +1288,7 @@ Staging's `0062_client_review_versions.sql` (client review versions, D495–D499
 different tables, so either can run first, and both are already applied on the development
 database. Neither is renamed, because both have been applied. On production, run both before 0063.
 
-## Migration 0065 — the browser's direct reads follow the client list (D512, 2026-11-18)
+## Migration 0065 — the browser's direct reads follow the client list (D550, 2026-11-18)
 
 Apply after 0064, in any order with the code: the app reads these tables through the service role,
 which policies don't affect, and the browser only uses them for Realtime.

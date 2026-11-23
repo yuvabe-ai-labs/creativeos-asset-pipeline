@@ -45,7 +45,7 @@ export async function setVersionApprovalAction(
     const refuse = (error: string) => ({ ok: false as const, error });
     const caller = ctx.caller;
 
-    // R2.1/R2.2, D507 — approving needs Approve on the version's client. D166 kept: refuse before
+    // R2.1/R2.2, D545 — approving needs Approve on the version's client. D166 kept: refuse before
     // any read when the person can approve on no client, so version ids can't be probed. The UI
     // also hides the control, but that is a courtesy on top of this, never the mechanism (R2.3).
     const access = accessOf(caller);

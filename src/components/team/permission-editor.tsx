@@ -5,7 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PERMISSIONS, isPermission, orderedPermissions, type Permission } from "@/lib/permissions/model";
 import { PERMISSION_HINTS, PERMISSION_LABELS } from "@/lib/people/constants";
 
-// D509: the only place permissions are set. The five permissions as toggles, in PERMISSIONS
+// D547: the only place permissions are set. The five permissions as toggles, in PERMISSIONS
 // order: click to turn one on or off, then the parent saves (Give access, or Save on a member).
 // None on is a valid answer (a member who only looks).
 export function PermissionEditor({

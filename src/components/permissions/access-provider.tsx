@@ -9,7 +9,7 @@ import { NO_ACCESS } from "@/lib/permissions/model";
 import type { MePayload } from "@/lib/me/types";
 import { AccessContext, type BrowserAccess } from "./access-context";
 
-// D504. The root layout hands over the payload it built for this request; it seeds the me query
+// D542. The root layout hands over the payload it built for this request; it seeds the me query
 // (so the first render already shows the right buttons, with no request) and becomes the ONE
 // Access for the whole app. Components read it from context (performance rules 1 and 2).
 export function AccessProvider({ initial, children }: { initial: MePayload | null; children: ReactNode }) {

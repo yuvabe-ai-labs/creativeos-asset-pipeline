@@ -14,7 +14,7 @@ import { accessFromRows, type MembershipAccessRow } from "@/lib/permissions/mode
 
 export type { CallerContext } from "./dal-logic";
 
-// D500/D508: ONE round trip returns the membership and everything access needs. Several rows
+// D538/D546: ONE round trip returns the membership and everything access needs. Several rows
 // = several agencies, which is not allowed yet (the one_org_per_user index).
 // cache() dedupes within one render (so both resolvers share one RPC per user id), not inside
 // route handlers. A failed read throws: it is an error page, never "no access" (spec §4.1).

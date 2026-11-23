@@ -12,7 +12,7 @@ function countLabel(n: number): string {
   return `${n} ${n === 1 ? "comment" : "comments"}`;
 }
 
-// D309/D310 + D513: the header's way into client feedback — the twin of the Review chip. The
+// D309/D310 + D500: the header's way into client feedback — the twin of the Review chip. The
 // count is the TOTAL of client comments on this canvas (operator decision; there is no
 // seen-state). It opens a list of versions, newest first, each with its own comment count; a
 // row opens the review's focus view on that version. Older canvases with several review nodes

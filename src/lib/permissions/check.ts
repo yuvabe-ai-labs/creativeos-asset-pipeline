@@ -22,7 +22,7 @@ export class ForbiddenError extends Error {
   }
 }
 
-// D504: the one checker (spec §4.2), on the server and in the browser. Every step is a Map or
+// D542: the one checker (spec §4.2), on the server and in the browser. Every step is a Map or
 // Set lookup. Rules that depend on the resource itself can be added behind this function later
 // without touching routes or screens.
 

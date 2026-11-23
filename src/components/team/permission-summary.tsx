@@ -4,7 +4,7 @@ import { EVERY_PERMISSION_LABEL, NO_PERMISSIONS_LABEL, NOT_SET_LABEL, PERMISSION
 const CHIP = "inline-flex items-center rounded-md border px-1.5 py-0.5 text-xs font-medium whitespace-nowrap";
 
 // A person's permissions, read-only, in PERMISSIONS order: "Everything" for the owner, "Can look"
-// (muted) when they have none, "Not set yet" while they wait for access. Edited only in the person panel's PermissionEditor (D509).
+// (muted) when they have none, "Not set yet" while they wait for access. Edited only in the person panel's PermissionEditor (D547).
 export function PermissionSummary({
   permissions,
   owner = false,

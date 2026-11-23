@@ -34,7 +34,7 @@ export function MarkFinalBar({ leading, openItems, canUndo, onUndo, onMarkFinal,
   onMarkFinal: () => void;
   pending: boolean;
   disabled: boolean;
-  /** False without Approve: Mark final and its confirm are not shown (D500). */
+  /** False without Approve: Mark final and its confirm are not shown (D538). */
   canMarkFinal?: boolean;
 }) {
   const [asking, setAsking] = useState(false);

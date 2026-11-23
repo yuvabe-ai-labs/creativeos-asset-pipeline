@@ -43,7 +43,7 @@ async function emailInvite(link: string, build: () => Email): Promise<boolean> {
 }
 
 /** The refusal for an email that already has a login elsewhere or an open invite in another
- *  agency (one agency per person, D508; the other agency is never named). Null: free to invite. */
+ *  agency (one agency per person, D546; the other agency is never named). Null: free to invite. */
 function loginOrInviteElsewhere(
   login: { orgId: string | null } | null,
   openElsewhere: boolean,
@@ -61,7 +61,7 @@ function isUniqueViolation(e: unknown): boolean {
 
 /** "Already invited", naming the open invite's client only when the caller may see it:
  *  `namedClientIds` null names any client (the owner, Admin); an Invite holder passes the clients
- *  they are on, so they never learn another client's name (D511). */
+ *  they are on, so they never learn another client's name (D549). */
 function alreadyInvited(
   open: { clientId: string | null; clientName: string | null } | null,
   agency: Agency,
@@ -90,7 +90,7 @@ export async function inviteToClient(
   ]);
   if (login?.orgId === agency.orgId) return refuse(409, REFUSALS.alreadyInAgency(agency.orgName));
   if (open) return alreadyInvited(open, agency, namedClientIds);
-  // One agency per person (D508): any other login can't join from the link, and of two open
+  // One agency per person (D546): any other login can't join from the link, and of two open
   // invites in two agencies the second accepted would fail at sign-up.
   const elsewhere = loginOrInviteElsewhere(login, openElsewhere, REFUSALS.loginWithoutAgency);
   if (elsewhere) return elsewhere;
@@ -214,7 +214,7 @@ export async function resendOwnerInvite(agency: Agency, by: Actor): Promise<OpRe
   return resendInvite(agency, open.id, by);
 }
 
-/** Admin's Invite an owner (spec §6.6, D505): for an existing agency with no owner and no open
+/** Admin's Invite an owner (spec §6.6, D543): for an existing agency with no owner and no open
  *  owner invite. The same refusals as Add an agency and an invite (another login, already invited,
  *  the daily limit); the link is emailed when it can be and always returned to copy. */
 export async function inviteOwner(agency: Agency, rawEmail: string, by: Actor): Promise<OpResult<InviteResult>> {

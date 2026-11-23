@@ -22,7 +22,7 @@ import type { Actor, OpResult } from "@/lib/people/ops";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyResponse = NextResponse<any>;
 
-// D501/D504: every handler names the one action it needs. Required, so TypeScript forces the
+// D539/D542: every handler names the one action it needs. Required, so TypeScript forces the
 // decision; route-coverage.test.ts fails on any handler that skips the chokepoints.
 export type Guard = { need: Action };
 

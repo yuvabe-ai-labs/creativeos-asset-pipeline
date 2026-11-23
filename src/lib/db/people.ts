@@ -268,7 +268,7 @@ export async function findOpenInviteByEmail(orgId: string, email: string): Promi
   return { id: row.id, clientId: row.client_id, clientName: unwrapEmbed(row.clients)?.name ?? null };
 }
 
-/** One agency per person (D508): an open, unexpired invite to this email in another agency
+/** One agency per person (D546): an open, unexpired invite to this email in another agency
  *  (any agency when exceptOrgId is null, for a new one). Only whether there is one: the caller
  *  must not learn which agency. A failed read throws; it is never "none". */
 export async function hasOpenInviteElsewhere(email: string, exceptOrgId: string | null): Promise<boolean> {

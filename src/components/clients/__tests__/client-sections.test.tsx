@@ -4,7 +4,7 @@ import { CLIENT_SECTIONS } from "../client-sections";
 import { ClientSectionLinks } from "../client-section-links";
 
 describe("client sections", () => {
-  it("are the same for everyone who can see the client (D507: being on the client covers every section)", () => {
+  it("are the same for everyone who can see the client (D545: being on the client covers every section)", () => {
     expect(CLIENT_SECTIONS.map((s) => s.label)).toEqual(["Scripts", "Brand KB", "Brand assets", "Market", "Avatars"]);
     expect(CLIENT_SECTIONS.some((s) => "need" in s)).toBe(false);
   });

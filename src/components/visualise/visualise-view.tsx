@@ -45,7 +45,7 @@ export function VisualiseView({ clientId, review }: { clientId: string; review?:
   const { data: { script, board }, panelModelId, setPanelModelId, draws, model } = useVisualiseBoardActions();
   const reopen = useReopenScript(clientId, script.id);
   const canReopen = useCan("approve", clientId);
-  // Typing the script's text is an edit: it needs Generate (D500), like every other change by hand.
+  // Typing the script's text is an edit: it needs Generate (D538), like every other change by hand.
   const canEditText = useCan("edit", clientId);
   const setField = useSetVisualiseField(clientId, script.id);
   // D489 — the script's text is typed here while it is in Visualise; In review it is read-only,

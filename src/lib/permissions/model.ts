@@ -1,10 +1,10 @@
 // src/lib/permissions/model.ts
-// D500, D507: five permissions. Being on a client (having its membership_clients row, once access
+// D538, D545: five permissions. Being on a client (having its membership_clients row, once access
 // is given) is what lets a person see it; an empty set there means "look only". `view` and `edit`
 // are actions, not permissions: `view` needs only the row, `edit` needs Generate. The owner sets a
 // person's agency-level set on the Team page; each client the person is on stores the effective
 // copy (migration 0062). No server-only imports: the browser builds the same Access from /api/me
-// and runs the same check() (D504), so the two cannot disagree.
+// and runs the same check() (D542), so the two cannot disagree.
 
 export const PERMISSIONS = ["generate", "approve", "share", "delete", "invite"] as const;
 export type Permission = (typeof PERMISSIONS)[number];
@@ -70,7 +70,7 @@ export type OrgAccess = {
 export type Access = {
   userId: string;
   isSuperAdmin: boolean;
-  /** One entry in this version (one agency per person, D508); keyed so several can follow. */
+  /** One entry in this version (one agency per person, D546); keyed so several can follow. */
   orgs: ReadonlyMap<string, OrgAccess>;
 };
 

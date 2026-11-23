@@ -29,9 +29,9 @@ Display name per login. *0012*
 ### org_memberships
 A login's membership in one agency, with agency-level permissions. *0012, 0062*
 - PK `(user_id, org_id)` · `user_id` → auth.users cascade · `org_id` → organizations cascade
-- `org_role` text check owner/senior/designer (legacy, kept in step until dropped, D510) · `joined_at`
+- `org_role` text check owner/senior/designer (legacy, kept in step until dropped, D548) · `joined_at`
 - `is_owner` bool · `permissions` text[] check ⊆ generate/approve/share/delete/invite · `access_given_at` (null = waiting) · `invited_by` → auth.users set null
-- Unique: `org_memberships_one_org_per_user (user_id)` (one agency per login, D508) · `org_memberships_one_owner (org_id) where is_owner`
+- Unique: `org_memberships_one_org_per_user (user_id)` (one agency per login, D546) · `org_memberships_one_owner (org_id) where is_owner`
 - Indexes: `org_id`, `invited_by`
 - RLS: select `own membership` (`user_id = auth.uid()`, 0018); used by `auth_org_ids()`.
 - Triggers: `org_memberships_last_owner` (0012, org_role based) · `org_memberships_cascade_permissions` (after update of permissions → every `membership_clients` row of the person) · `org_memberships_keep_owner` (constraint trigger, deferred: an agency can't lose its owner)
@@ -405,7 +405,7 @@ Dropped: `org_review_counts_for_types` (created 0062, dropped 0063).
 
 Kept on purpose for now; don't build on them.
 
-- Legacy columns: `node_versions.approved_by` (never read), `node_versions.operator` (still the fallback maker name) and `decision` (read by eval), `node_version_annotations.frame_path` (always null since D249), `org_memberships.org_role` with its `org_memberships_last_owner` trigger (until the drop in D510).
+- Legacy columns: `node_versions.approved_by` (never read), `node_versions.operator` (still the fallback maker name) and `decision` (read by eval), `node_version_annotations.frame_path` (always null since D249), `org_memberships.org_role` with its `org_memberships_last_owner` trigger (until the drop in D548).
 - `generations.version_id` → node_versions and `generations.client_id` → clients have no `on delete` action (the default, no action); left as they are. `generations.user_id` and `canvas_reviews.created_by` have no FK.
 - `node_versions.org_id` and `moodboard_items.org_id` are nullable and filled by trigger.
 - `NODE_FILE_BUCKET` (`src/lib/nodes/file-constants.ts`) names the legacy bucket and has no reader.

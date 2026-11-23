@@ -11,7 +11,7 @@ import { PermissionSummary } from "./permission-summary";
 const same = (a: readonly Permission[], b: readonly Permission[]) =>
   orderedPermissions(a).join() === orderedPermissions(b).join();
 
-// The person panel's Permissions (D509: the only place they are set). Someone waiting starts with
+// The person panel's Permissions (D547: the only place they are set). Someone waiting starts with
 // none and gets Give access, which works with none picked (they can then look but not change
 // anything); a member edits their set and saves. Either way the agency level changes and the
 // cascade applies it to every client they are on. The owner holds everything; nothing to edit.

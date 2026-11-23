@@ -54,7 +54,7 @@ function ann(over: Partial<AnnotationPayload> = {}): AnnotationPayload {
   };
 }
 
-// The acting caller carries the access the action checks (D504); tests without one fall back to
+// The acting caller carries the access the action checks (D542); tests without one fall back to
 // owner access through vitest.setup.ts.
 function setAccess(access: Access, userId = "u1") {
   mockCaller.mockResolvedValue({ ...caller("designer", userId), access });
@@ -133,7 +133,7 @@ describe("setVersionApprovalAction", () => {
     expect(mockResolveTarget).toHaveBeenCalledWith({ versionId: "v1" });
   });
 
-  it("approves any node type with Approve on its client (D507: no areas)", async () => {
+  it("approves any node type with Approve on its client (D545: no areas)", async () => {
     setAccess(testAccess({ permissions: ["approve"], clientIds: ["c1"] }));
     for (const nodeType of ["image-gen", "prompt", "video-gen", "video-prompt", "multishot-prompt", "dubbing"]) {
       stubDb("org-1", { nodeType });

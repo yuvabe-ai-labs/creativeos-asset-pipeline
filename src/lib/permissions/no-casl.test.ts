@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-// D504: one checker on server and browser; CASL, the area catalogue and presets are removed.
+// D542: one checker on server and browser; CASL, the area catalogue and presets are removed.
 const GONE = ["catalogue", "effective", "presets", "node-area", "ability", "browser", "downloads", "access"];
 
 function sourceFiles(dir: string): string[] {

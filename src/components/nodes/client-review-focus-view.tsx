@@ -42,7 +42,7 @@ export function ClientReviewFocusView({
   title: string;
   onCommitTitle: (title: string) => void;
   /** The version on screen, null for the newest. Held by the node, so the Client feedback chip
-   *  can open a given version (D513). */
+   *  can open a given version (D500). */
   viewedVersionNo: number | null;
   onViewVersion: (versionNo: number | null) => void;
   /** Held by the node, so its right-click "Upload new version" shares this progress. */

@@ -17,7 +17,7 @@ Sources:
   only on the Team page; one agency per person in this version; existing people keep their
   access on day one.
 
-ADRs: D500 to D509 in the roadmap §7.
+ADRs: D538 to D547 in the roadmap §7.
 
 ## 1. What changes
 
@@ -78,7 +78,7 @@ Each agency has exactly one owner, set up by Yuvabe (§6.6).
 - Only the owner can: use the Team page, give access and change a person's permissions, remove
   people from a client or the agency, resend or cancel invites, create and archive clients, and
   see credit usage (the agency's usage and limit). Everyone on a client sees each canvas's cost,
-  and renaming a client needs Generate, like the rest of its profile (D500).
+  and renaming a client needs Generate, like the rest of its profile (D538).
 - A new agency has no owner until the invited owner signs up.
 - The owner cannot be removed or demoted. Ownership moves only through the super admin
   (§6.6), which makes another member owner and the previous owner a member with all five

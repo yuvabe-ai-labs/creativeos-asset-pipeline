@@ -10,7 +10,7 @@ export type OrgRow = {
 };
 
 /** owned: has an owner. invited: no owner, an open owner invite (Resend). none: neither (Invite
- *  an owner). Spec §6.6, D505. */
+ *  an owner). Spec §6.6, D543. */
 export type OwnerStatus = "owned" | "invited" | "none";
 export type OrgWithCount = OrgRow & { client_count: number; owner_status: OwnerStatus };
 

@@ -269,7 +269,7 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
   });
 });
 
-describe("withClient guard (D504)", () => {
+describe("withClient guard (D542)", () => {
   beforeEach(() => {
     callerHolder.access = null;
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });

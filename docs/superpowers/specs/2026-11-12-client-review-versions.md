@@ -27,7 +27,7 @@ comments no one could follow from one place.
    ratio, then "vN · uploaded <date>". Right: the version's comments; a timecode seeks the
    video. The upload dialog has the file and the Allow download switch (on). The header's
    Client feedback chip lists every version with its comment count; a row opens that version
-   (D513).
+   (D500).
 6. **Older canvases.** Every existing review node is kept. Each becomes a node with one version
    (v1, download on) carrying all its comments; v1 keeps the exact link the client already has
    (no `-v1`). No combining. A canvas that has any review node cannot get another.

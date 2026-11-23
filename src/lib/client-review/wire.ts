@@ -107,7 +107,7 @@ export function toReviewVersion(row: ReviewVersionRow, videoUrl: string): Review
 // Canvas-level summary for the header's "Client feedback" chip: every Client review node on
 // the canvas with its comment count. The count is the TOTAL (operator decision 2026-10-06),
 // not "unseen" — there is no seen-state. Each node lists its versions newest first with their
-// own counts (D513), so the chip opens the version the comments are on.
+// own counts (D500), so the chip opens the version the comments are on.
 export type CanvasFeedbackVersion = { versionNo: number; title: string | null; count: number };
 export type CanvasFeedbackNode = {
   nodeId: string;
