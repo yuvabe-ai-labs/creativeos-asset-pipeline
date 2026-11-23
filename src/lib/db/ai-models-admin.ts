@@ -6,7 +6,7 @@ import {
   MODEL_COLUMNS,
   PRICE_COLUMNS,
   checkAiModelRow,
-  parseAiModelPriceRow,
+  checkAiModelPriceRow,
 } from "@/lib/ai-models/schema";
 import type { AiModel, AiModelPrice, PriceLine } from "@/lib/ai-models/types";
 
@@ -16,7 +16,21 @@ export type AdminModelRow = {
   problems: string[];
   updatedBy: string | null;
 };
-export type AdminPriceRow = AiModelPrice & { createdAt: string; createdBy: string | null; createdByName: string | null };
+// A price row that fails its check is kept (price null) so the admin can see it and cancel it.
+export type AdminPriceRow = {
+  price: AiModelPrice | null;
+  problems: string[];
+  id: string;
+  modelId: string;
+  effectiveFrom: string;
+  createdAt: string;
+  createdBy: string | null;
+  createdByName: string | null;
+  raw: Record<string, unknown>;
+};
+
+// The text the guard trigger in migration 0076 raises when a price that has started is deleted.
+export const PRICE_STARTED_DB_MESSAGE = "a price that has started cannot be deleted";
 export type ModelMonthStats = { modelId: string; runs: number; costUsd: number; credits: number; unpriced: number };
 
 function toAdminModel(raw: Record<string, unknown>): AdminModelRow {
@@ -67,14 +81,18 @@ export async function listAdminPrices(modelId?: string): Promise<AdminPriceRow[]
   const names = await displayNames(creators);
   const rows: AdminPriceRow[] = [];
   for (const raw of raws) {
-    const price = parseAiModelPriceRow(raw);
-    if (!price) continue;
+    const { price, problems } = checkAiModelPriceRow(raw);
     const createdBy = (raw.created_by as string | null) ?? null;
     rows.push({
-      ...price,
+      price,
+      problems,
+      id: String(raw.id),
+      modelId: String(raw.model_id),
+      effectiveFrom: String(raw.effective_from),
       createdAt: String(raw.created_at),
       createdBy,
       createdByName: createdBy ? (names.get(createdBy) ?? null) : null,
+      raw,
     });
   }
   return rows;
@@ -128,7 +146,7 @@ export async function insertAiModelPrice(
 export async function deleteAiModelPrice(id: string): Promise<{ deleted: boolean }> {
   const { data, error } = await createServerSupabase().from("ai_model_prices").delete().eq("id", id).select("id");
   if (error) {
-    if (error.message.includes("has started cannot be deleted")) return { deleted: false };
+    if (error.message.includes(PRICE_STARTED_DB_MESSAGE)) return { deleted: false };
     throw new Error(error.message);
   }
   return { deleted: ((data ?? []) as unknown[]).length > 0 };

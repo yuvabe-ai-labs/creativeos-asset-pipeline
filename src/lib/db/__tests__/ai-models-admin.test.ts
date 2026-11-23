@@ -71,6 +71,19 @@ describe("listAdminPrices", () => {
   });
 });
 
+describe("listAdminPrices broken rows", () => {
+  it("keeps a row that fails its check", async () => {
+    results.ai_model_prices = {
+      data: [{ id: "bad", model_id: "m", effective_from: "2026-02-01", lines: [], estimate: {}, source_url: null, note: null, created_at: "2026-02-02", created_by: null }],
+    };
+    const rows = await listAdminPrices("m");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].price).toBeNull();
+    expect(rows[0].problems.length).toBeGreaterThan(0);
+    expect([rows[0].id, rows[0].modelId, rows[0].effectiveFrom]).toEqual(["bad", "m", "2026-02-01"]);
+  });
+});
+
 describe("modelMonthStats", () => {
   it("calls the rpc and maps numeric strings", async () => {
     rpcResult = {

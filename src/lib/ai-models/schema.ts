@@ -176,17 +176,27 @@ export function parseAiModelRow(row: unknown): AiModel | null {
   return checkAiModelRow(row).model;
 }
 
-export function parseAiModelPriceRow(row: unknown): AiModelPrice | null {
+/** The one check a price row goes through. `problems` lists each issue as `path: message`. */
+export function checkAiModelPriceRow(row: unknown): { price: AiModelPrice | null; problems: string[] } {
   const parsed = aiModelPriceRowSchema.safeParse(row);
-  if (!parsed.success) return null;
+  if (!parsed.success) {
+    return { price: null, problems: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) };
+  }
   const r = parsed.data;
   return {
-    id: r.id,
-    modelId: r.model_id,
-    effectiveFrom: r.effective_from,
-    lines: r.lines as PriceLine[],
-    estimate: r.estimate,
-    sourceUrl: r.source_url,
-    note: r.note,
+    price: {
+      id: r.id,
+      modelId: r.model_id,
+      effectiveFrom: r.effective_from,
+      lines: r.lines as PriceLine[],
+      estimate: r.estimate,
+      sourceUrl: r.source_url,
+      note: r.note,
+    },
+    problems: [],
   };
+}
+
+export function parseAiModelPriceRow(row: unknown): AiModelPrice | null {
+  return checkAiModelPriceRow(row).price;
 }
