@@ -54,6 +54,12 @@ const ALLOWLIST: Record<string, string> = {
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
     "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
     "with the impersonation session's target org.",
+  updateAiModelAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546).",
+  addAiModelPriceAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546).",
+  cancelAiModelPriceAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546).",
 };
 
 function findActionFiles(dir: string): string[] {
