@@ -80,6 +80,9 @@ const GRAPH: Record<string, Row[]> = {
   // D450 — a single-shot clip: Shot -> Motion Prompt -> Video Gen, the script's product wired to the Shot.
   vg3: [{ nodeId: "vp3", type: "video-prompt", data: {}, activeOutput: "Hold on the pouch.", versionId: "v5" }],
   vp3: [{ nodeId: "sh", type: "shot", data: {}, activeOutput: null, versionId: null }],
+  // A Motion Prompt citing its composite, rendered in the Video Gen model's dialect.
+  vg4: [{ nodeId: "vp4", type: "video-prompt", data: {}, activeOutput: "She lifts @[Composite: comp.png](cmp).", versionId: "v6" }],
+  vp4: [{ nodeId: "cmp", type: "composite", data: {}, activeOutput: "https://img.example/comp.png", versionId: "v4" }],
   sh: [{
     nodeId: "pouch", type: "product", activeOutput: null, versionId: null,
     data: { scriptId: "s", productId: "pouch", name: "Chupps", images: [{ url: "https://img.example/p0.png" }, { url: "https://img.example/p1.png" }] },
@@ -148,6 +151,18 @@ describe("GET /api/nodes/[id]/upstream-images", () => {
       expect.objectContaining({ id: "pouch:1", filename: "Chupps, angle 2", asset: { kind: "product", nodeId: "pouch", angle: 1 } }),
     ]);
     expect(json.promptNode).toMatchObject({ assetMainIds: ["pouch"], assetAngleIds: ["pouch:1"] });
+  });
+
+  // The dialect comes from the video row's provider, never a row of another kind with the same id.
+  it("renders the prompt in the video model's dialect, ignoring a non-video row with that id", async () => {
+    const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+    const { DEFAULT_VIDEO_CLIENT_MODEL_ID } = await import("@/lib/video-gen/client-models");
+    const seeded = seededModelCatalog();
+    const video = seeded.models.find((m) => m.id === DEFAULT_VIDEO_CLIENT_MODEL_ID && m.kind === "video")!;
+    cat.value = { ...seeded, models: [{ ...video, kind: "image", provider: "openai" }, ...seeded.models] };
+    const { GET } = await import("./route");
+    const res = await GET(new NextRequest("http://localhost/api/nodes/vg4/upstream-images"), { params: Promise.resolve({ id: "vg4" }) });
+    expect((await res.json()).promptNode.text).toBe("She lifts <IMAGE_REF_0>.");
   });
 
   it("surfaces a generated image wired into a Motion Prompt node", async () => {

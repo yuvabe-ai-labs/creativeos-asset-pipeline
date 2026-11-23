@@ -61,8 +61,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         getAiCatalog(),
       ]);
       if (locked) return locked;
-      // D540 — the edit model goes through the same check as a generation.
-      const run = videoRun(catalog, modelId, { existingNodeModelId: nodeModelId(node.data) });
+      // D540 — the edit model goes through the same check as a generation. A hidden edit model
+      // keeps running on a take last edited with it; a take never edited falls back to the node's model.
+      const editedWith = readVideoEdit(base?.inputs_used?.videoEdit)?.modelId ?? nodeModelId(node.data);
+      const run = videoRun(catalog, modelId, { existingNodeModelId: editedWith });
       if (!run.ok) return apiError(run.message, 400);
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
       if (!base || base.node_id !== nodeId) return apiError("That version isn't on this node.", 400);

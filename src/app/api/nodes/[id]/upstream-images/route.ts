@@ -58,7 +58,7 @@ export async function GET(
           fallbackId: DEFAULT_VIDEO_CLIENT_MODEL_ID,
         });
         const dialect = singleTakeRefDialect(
-          singleTakeTargetForProvider(catalog.models.find((m) => m.id === modelId)?.provider),
+          singleTakeTargetForProvider(catalog.models.find((m) => m.id === modelId && m.kind === "video")?.provider),
           refIds,
         );
         promptText = stored !== null && dialect ? renderRefs(stored, dialect).text : stored;

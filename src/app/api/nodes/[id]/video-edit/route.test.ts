@@ -77,6 +77,41 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     expect(mocks.trigger).not.toHaveBeenCalled();
   });
 
+  // D540 — "the node already uses it" for an edit is the model the base take was last edited with.
+  describe("a hidden edit model", () => {
+    const editedWith = (modelId: string) => ({
+      ...BASE,
+      inputs_used: { videoEdit: { baseVersionId: "v2", rootVersionId: "v1", instruction: "i", editPrompt: "e", referenceNodeIds: [], referenceUrls: [], resolution: "720p", modelId } },
+    });
+    beforeEach(async () => {
+      const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+      cat.value = withModel(seededModelCatalog(), GEMINI_OMNI_11_MODEL_ID, { status: "hidden" });
+    });
+
+    it("runs on a take already edited with it, whatever the node generates with", async () => {
+      mocks.node = { type: "video-gen", canvas_id: "c1", data: { modelId: GEMINI_OMNI_12_MODEL_ID } };
+      mocks.getVersionById.mockResolvedValueOnce(editedWith(GEMINI_OMNI_11_MODEL_ID));
+      const res = await post({ ...BODY, modelId: GEMINI_OMNI_11_MODEL_ID });
+      expect(res.status).toBe(202);
+    });
+
+    it("is refused on a take edited with another model, even when the node's model is it", async () => {
+      mocks.node = { type: "video-gen", canvas_id: "c1", data: { modelId: GEMINI_OMNI_11_MODEL_ID } };
+      mocks.getVersionById.mockResolvedValueOnce(editedWith(GEMINI_OMNI_12_MODEL_ID));
+      const res = await post({ ...BODY, modelId: GEMINI_OMNI_11_MODEL_ID });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe("This model isn't available. Pick another.");
+      expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    });
+
+    it("is refused on a take never edited, unless the node's own model is it", async () => {
+      mocks.node = { type: "video-gen", canvas_id: "c1", data: { modelId: GEMINI_OMNI_12_MODEL_ID } };
+      expect((await post({ ...BODY, modelId: GEMINI_OMNI_11_MODEL_ID })).status).toBe(400);
+      mocks.node = { type: "video-gen", canvas_id: "c1", data: { modelId: GEMINI_OMNI_11_MODEL_ID } };
+      expect((await post({ ...BODY, modelId: GEMINI_OMNI_11_MODEL_ID })).status).toBe(202);
+    });
+  });
+
   it("refuses a model with no price before anything is recorded (D534)", async () => {
     const { priceForNewRun } = await import("@/lib/ai-models/run-price");
     vi.mocked(priceForNewRun).mockResolvedValueOnce(null);

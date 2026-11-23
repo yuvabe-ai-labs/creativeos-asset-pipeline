@@ -71,6 +71,22 @@ describe("POST composite-generate (D312)", () => {
     expect(start).not.toHaveBeenCalled();
   });
 
+  // D540 — a hidden model keeps running on the node that already uses it (its data.modelId).
+  it("runs a hidden model on the node that already uses it, and refuses it on any other", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withModel(seededModelCatalog(), "gemini:gemini-3-pro-image", { status: "hidden" });
+    loadCompositeInputs.mockResolvedValue({ ok: true, refs: [FILE_REF], avatarIds: [], contexts: [] });
+
+    stored.modelId = "gemini:gemini-3-pro-image";
+    expect((await post({ instruction: "on a desk", modelId: "gemini:gemini-3-pro-image" })).status).toBe(202);
+
+    stored.modelId = SEEDANCE_FACE_MODEL_ID;
+    const refused = await post({ instruction: "on a desk", modelId: "gemini:gemini-3-pro-image" });
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error).toBe("This model isn't available. Pick another.");
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
   it("refuses with no instruction, before reserving", async () => {
     const res = await post({ instruction: "   " });
     expect(res.status).toBe(400);
