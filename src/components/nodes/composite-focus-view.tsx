@@ -10,7 +10,7 @@ import { normalizeTitle } from "@/lib/nodes/title";
 import { imageGenClientModelMap, defaultsForModel } from "@/lib/image-gen/client-models";
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
 import { imageEstimateUsd } from "@/lib/ai-models/image-price";
-import { useModelPrice } from "@/hooks/queries/ai-models";
+import { useImageModels, useModelPrice } from "@/hooks/queries/ai-models";
 import { validateReferenceImages } from "@/lib/image-gen/validate";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
@@ -65,12 +65,13 @@ type Props = {
 // settings. Right: the image, always visible.
 export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl, instruction, modelId, params, storyboardPanel, onPatch }: Props) {
   const editable = useCanvasEditable();
+  const images = useImageModels();
   const upstream = useCompositeUpstream(nodeId);
   const mentionUpstream = useMemo(() => compositeMentionUpstream(upstream), [upstream]);
   const hasAvatar = upstream.some((u) => u.type === "avatar");
   const upstreamNodeIds = useMemo(() => upstream.map((u) => u.id), [upstream]);
   // A stored id the client map no longer lists (a retired model) falls back to the default.
-  const model = imageGenClientModelMap[compositePickerModelId(modelId)];
+  const model = imageGenClientModelMap[compositePickerModelId(images, modelId)];
   const modelNote = compositeModelNote(model.id, hasAvatar);
   const [draft, setDraft] = useState(instruction);
   const [selected, setSelected] = useState<CompositeRailSelection>("compose");

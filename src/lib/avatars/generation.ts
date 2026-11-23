@@ -1,4 +1,4 @@
-import { defaultsForModel, imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { paramDefaults, type ImageModels } from "@/lib/ai-models/model-lists";
 import { imageEstimateUsd } from "@/lib/ai-models/image-price";
 import type { AiModelPrice } from "@/lib/ai-models/types";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -42,25 +42,23 @@ export function familyClause(relatives: string[]): string {
 
 /** D395 — the sheet is one 16:9 image with the front as its reference; its four views are cut
  *  from it at no further cost. */
-export function estimateSheetCredits(price: AiModelPrice | null, modelId: string): number | null {
-  return estimateAvatarImageCredits(price, { modelId, aspect: AVATAR_SHEET_ASPECT, referenceCount: 1 });
+export function estimateSheetCredits(images: ImageModels, price: AiModelPrice | null, modelId: string): number | null {
+  return estimateAvatarImageCredits(images, price, { modelId, aspect: AVATAR_SHEET_ASPECT, referenceCount: 1 });
 }
 
-/** The model's own defaults with the aspect ratio forced. Null for an unknown model. */
-export function avatarImageParams(
-  modelId: string,
-  aspect: string,
-): Record<string, unknown> | null {
-  const model = imageGenClientModelMap[modelId];
+/** The model's own defaults with the aspect ratio forced. Null for a model the catalog lacks. */
+export function avatarImageParams(images: ImageModels, modelId: string, aspect: string): Record<string, unknown> | null {
+  const model = images.get(modelId);
   if (!model) return null;
-  return { ...defaultsForModel(model), aspect_ratio: aspect };
+  return { ...paramDefaults(model.params), aspect_ratio: aspect };
 }
 
 export function estimateAvatarImageCostUsd(
+  images: ImageModels,
   price: AiModelPrice | null,
   input: { modelId: string; aspect: string; referenceCount: number },
 ): number | null {
-  const params = avatarImageParams(input.modelId, input.aspect);
+  const params = avatarImageParams(images, input.modelId, input.aspect);
   if (!params || !price) return null;
   return imageEstimateUsd(price, {
     modelId: input.modelId,
@@ -72,10 +70,11 @@ export function estimateAvatarImageCostUsd(
 }
 
 export function estimateAvatarImageCredits(
+  images: ImageModels,
   price: AiModelPrice | null,
   input: { modelId: string; aspect: string; referenceCount: number },
 ): number | null {
-  const usd = estimateAvatarImageCostUsd(price, input);
+  const usd = estimateAvatarImageCostUsd(images, price, input);
   return usd === null ? null : usdToFinalCredits(usd);
 }
 
@@ -83,9 +82,9 @@ export function isSeedanceFaceModel(modelId: string): boolean {
   return modelId === SEEDANCE_FACE_MODEL_ID;
 }
 
-/** The display name of the one model Seedance accepts — derived, so it is named once. */
-export function seedanceFaceModelLabel(): string {
-  return imageGenClientModelMap[SEEDANCE_FACE_MODEL_ID]?.label ?? SEEDANCE_FACE_MODEL_ID;
+/** The display name of the one model Seedance accepts — from the catalog, so it is named once. */
+export function seedanceFaceModelLabel(images: ImageModels): string {
+  return images.get(SEEDANCE_FACE_MODEL_ID)?.label ?? "Seedream 5.0 Lite";
 }
 
 // ── Batches (the Studio's candidate grid) ─────────────────────────────────────

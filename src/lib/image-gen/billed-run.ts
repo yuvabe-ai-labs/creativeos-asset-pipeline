@@ -1,6 +1,7 @@
 import "server-only";
 import sharp from "sharp";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
 import {
   MODEL_UNAVAILABLE_MESSAGE, INVALID_PARAMS_MESSAGE, NO_ESTIMATE_MESSAGE, ModelRefusedError,
 } from "@/lib/ai-models/runnable";
@@ -41,9 +42,11 @@ export async function runBilledImageGeneration(
   args: BilledImageArgs,
 ): Promise<{ generation: GenerationRow; creditsCharged: number }> {
   // D540 — the same check every route makes; an avatar or panel has no node, so hidden is refused.
-  const run = imageRun(await getAiCatalog(), args.modelId);
+  const catalog = await getAiCatalog();
+  const images = imageModelsFrom(catalog);
+  const run = imageRun(catalog, args.modelId);
   if (!run.ok) throw new ModelRefusedError(run.message);
-  const params = avatarImageParams(args.modelId, args.aspect);
+  const params = avatarImageParams(images, args.modelId, args.aspect);
   if (!params) throw new ModelRefusedError(MODEL_UNAVAILABLE_MESSAGE);
   const parsed = run.spec.schema.safeParse(params);
   if (!parsed.success) {
@@ -70,7 +73,7 @@ export async function runBilledImageGeneration(
   });
 
   try {
-    const estimateUsd = estimateAvatarImageCostUsd(price, {
+    const estimateUsd = estimateAvatarImageCostUsd(images, price, {
       modelId: args.modelId, aspect: args.aspect, referenceCount: args.referenceUrls.length,
     });
     if (estimateUsd === null) {

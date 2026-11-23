@@ -9,19 +9,21 @@ import { shotKey } from "../keys";
 import type { ScriptDoc } from "@/lib/scripts/schema";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { estimateAvatarImageCredits } from "@/lib/avatars/generation";
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
-import { isPanelModel, PANEL_MODEL_ID, PANEL_MODEL_IDS } from "../constants";
+import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
+import { isPanelModel, panelModelIds, PANEL_MODEL_ID } from "../constants";
 import {
   avatarMap, HUSBAND_AVATAR, linkedDoc, MEENAKSHI_AVATAR, readyAvatar, reel01Doc,
 } from "./fixtures";
 
+const images = imageModelsFrom(seededModelCatalog());
 const KITS = parseRegionalKits(
   "Regional kits\n| Region | At the table | Kitchen and home | Wardrobe |\n| **Tamil Nadu** | Idli and dosa | Iron tawa, kolam, steel dabba | Cotton saree; veshti |",
 );
 const doc = linkedDoc();
 const shot = (id: string) => doc.shots.find((s) => s.id === id)!;
 const avatars = avatarMap(readyAvatar(MEENAKSHI_AVATAR, "meenakshi"), readyAvatar(HUSBAND_AVATAR, "husband"));
-const inputs = (id: string, cap = panelReferenceCap(), map = avatars, d = doc) =>
+const inputs = (id: string, cap = panelReferenceCap(images), map = avatars, d = doc) =>
   panelInputs({ doc: d, shot: d.shots.find((s) => s.id === id)!, avatars: map, kits: KITS, cap });
 
 describe("castReadyForPanels (D341)", () => {
@@ -88,11 +90,11 @@ describe("panelInputs on Reel 01 (D342)", () => {
   });
 
   it("keeps one reference slot for the house style image", () => {
-    expect(panelReferenceCap()).toBe(imageGenClientModelMap[PANEL_MODEL_ID]!.maxReferenceImages! - 1);
+    expect(panelReferenceCap(images)).toBe(images.get(PANEL_MODEL_ID)!.maxReferenceImages! - 1);
   });
 
   it("prices the house style image in, so the cost shown is what is reserved", () => {
-    expect(estimatePanelCredits(seededPrice(PANEL_MODEL_ID), 8, "9:16")).toBe(estimateAvatarImageCredits(seededPrice(PANEL_MODEL_ID), { modelId: PANEL_MODEL_ID, aspect: "9:16", referenceCount: 9 }));
+    expect(estimatePanelCredits(images, seededPrice(PANEL_MODEL_ID), 8, "9:16")).toBe(estimateAvatarImageCredits(images, seededPrice(PANEL_MODEL_ID), { modelId: PANEL_MODEL_ID, aspect: "9:16", referenceCount: 9 }));
   });
 
   it("draws the setting, the kit, the sketch style, and never any text or brand", () => {
@@ -165,27 +167,47 @@ describe("panelInputs on Reel 01 (D342)", () => {
   });
 
   it("prices a panel like any Nano Banana 2 image, by its reference count", () => {
-    expect(estimatePanelCredits(seededPrice(PANEL_MODEL_ID), 8, "9:16")).toBeGreaterThan(0);
+    expect(estimatePanelCredits(images, seededPrice(PANEL_MODEL_ID), 8, "9:16")).toBeGreaterThan(0);
   });
 
   it("is null before a price is known", () => {
-    expect(estimatePanelCredits(null, 0, "9:16")).toBeNull();
+    expect(estimatePanelCredits(images, null, 0, "9:16")).toBeNull();
   });
 });
 
 describe("the panel model (D424: Nano Banana 2.1 by default, changeable under Advanced)", () => {
   it("draws with Nano Banana 2.1 unless another is chosen, from OpenAI or Gemini only", () => {
     expect(PANEL_MODEL_ID).toBe("gemini:gemini-nano-banana-2.1");
-    expect(PANEL_MODEL_IDS).toContain(PANEL_MODEL_ID);
-    expect(PANEL_MODEL_IDS).toContain("openai:gpt-image-2");
-    expect(PANEL_MODEL_IDS.some((id) => id.startsWith("seedream:"))).toBe(false);
-    expect(isPanelModel("seedream:seedream-5-0-lite")).toBe(false);
+    expect(panelModelIds(images)).toContain(PANEL_MODEL_ID);
+    expect(panelModelIds(images)).toContain("openai:gpt-image-2");
+    expect(panelModelIds(images).some((id) => id.startsWith("seedream:"))).toBe(false);
+    expect(isPanelModel(images, "seedream:seedream-5-0-lite")).toBe(false);
+  });
+
+  it("panelReferenceCap reads the catalog's maxReferenceImages, less the style slot", () => {
+    const c = seededModelCatalog();
+    const id = "gemini:gemini-nano-banana-2.1";
+    const row = c.models.find((m) => m.id === id)!;
+    const five = imageModelsFrom(withModel(c, id, { capabilities: { ...row.capabilities, maxReferenceImages: 5 } }));
+    expect(panelReferenceCap(five, id)).toBe(4);
+    expect(panelReferenceCap(five, "nope:nope")).toBe(0);
+  });
+
+  it("offers live OpenAI and Gemini models, and a hidden one only to its own panel", () => {
+    const id = "gemini:gemini-nano-banana-2.1";
+    const hidden = imageModelsFrom(withModel(seededModelCatalog(), id, { status: "hidden" }));
+    expect(panelModelIds(hidden)).not.toContain(id);
+    expect(panelModelIds(hidden, id)).toContain(id);
+    expect(panelModelIds(hidden).every((m) => /^(openai|gemini):/.test(m))).toBe(true);
+    expect(panelModelIds(hidden)).not.toContain("openai:gpt-image-1");
+    expect(isPanelModel(hidden, id)).toBe(false);
+    expect(isPanelModel(hidden, id, id)).toBe(true);
   });
 
   it("sizes the reference cap and the price to the chosen model", () => {
     const nb2 = "gemini:gemini-3.1-flash-image";
-    expect(panelReferenceCap(nb2)).toBe(imageGenClientModelMap[nb2]!.maxReferenceImages! - 1);
-    expect(estimatePanelCredits(seededPrice(nb2), 8, "9:16", nb2)).toBe(estimateAvatarImageCredits(seededPrice(nb2), { modelId: nb2, aspect: "9:16", referenceCount: 9 }));
+    expect(panelReferenceCap(images, nb2)).toBe(images.get(nb2)!.maxReferenceImages! - 1);
+    expect(estimatePanelCredits(images, seededPrice(nb2), 8, "9:16", nb2)).toBe(estimateAvatarImageCredits(images, seededPrice(nb2), { modelId: nb2, aspect: "9:16", referenceCount: 9 }));
   });
 });
 
@@ -208,7 +230,7 @@ describe("panels with the script's products and locations", () => {
   };
 
   it("sends faces first, then the place and the product, then other views and angles", () => {
-    const s06 = inputs("s06", panelReferenceCap(), avatars, withAssets());
+    const s06 = inputs("s06", panelReferenceCap(images), avatars, withAssets());
     expect(s06.references.map(refLabel)).toEqual([
       "meenakshi:front", "husband:front", "location:kitchen", "product:pouch",
       "meenakshi:left", "meenakshi:right", "meenakshi:back", "husband:left", "husband:right", "husband:back",
@@ -222,7 +244,7 @@ describe("panels with the script's products and locations", () => {
   });
 
   it("tells the model the place and the products by reference number, and blanks only a product with no picture", () => {
-    const { prompt } = inputs("s06", panelReferenceCap(), avatars, withAssets());
+    const { prompt } = inputs("s06", panelReferenceCap(images), avatars, withAssets());
     expect(prompt).toContain("The shot is set in Home kitchen: reference image 3 shows this exact place, empty.");
     expect(prompt).toContain("- Brandname flour pouch: reference images 4 and 11 show it. Draw exactly this product");
     expect(prompt).toContain(PANEL_ONE_PRODUCT_CLAUSE);
@@ -233,7 +255,7 @@ describe("panels with the script's products and locations", () => {
 
   it("names a location with no plate in words", () => {
     const d = withAssets((x) => { x.locations[0].image = null; });
-    const { prompt, references } = inputs("s06", panelReferenceCap(), avatars, d);
+    const { prompt, references } = inputs("s06", panelReferenceCap(images), avatars, d);
     expect(references.some((r) => "asset" in r && r.asset === "location")).toBe(false);
     expect(prompt).toContain("The shot is set in Home kitchen: Teal walls, a wooden counter.");
   });

@@ -121,6 +121,15 @@ describe("POST …/panels/:shotId", () => {
     expect(insertPanelTake).not.toHaveBeenCalled();
   });
 
+  it("refuses a model that is not a panel model, before anything is reserved or stored", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(post({ kind: "draw", modelId: "seedream:seedream-5-0-lite" }), ctx("s06"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This model isn't available. Pick another.");
+    expect(insertPanelTake).not.toHaveBeenCalled();
+    expect(runPanelGeneration).not.toHaveBeenCalled();
+  });
+
   it("draws a B-roll shot with no avatars at all", async () => {
     vi.mocked(getScript).mockResolvedValue(makeScript(reel01Doc()));
     vi.mocked(loadVisualiseBoard).mockResolvedValue({ avatars: [], takes: [], picks: {}, kits: [] });

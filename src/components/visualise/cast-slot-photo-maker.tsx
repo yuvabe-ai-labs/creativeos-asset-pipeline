@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AvatarCreditCost } from "@/components/avatars/avatar-credit-cost";
 import { AvatarImageDropzone } from "@/components/avatars/avatar-image-dropzone";
 import { AvatarLikenessConsent } from "@/components/avatars/avatar-likeness-consent";
-import { useModelPrice } from "@/hooks/queries/ai-models";
+import { useImageModels, useModelPrice } from "@/hooks/queries/ai-models";
 import { estimateSheetCredits } from "@/lib/avatars/generation";
 import type { Avatar } from "@/lib/avatars/schema";
 import { nextMakerStep } from "@/lib/scripts/visualise/maker";
@@ -26,9 +26,10 @@ export function CastSlotPhotoMaker({ name, castId, modelId, avatar, uploading, c
   onFinish: () => void;
 }) {
   const { price } = useModelPrice(modelId);
+  const images = useImageModels();
   const photo = avatar?.front?.source.kind === "upload" ? avatar.front : null;
   const next = avatar && photo ? nextMakerStep(avatar) : null;
-  const sheetCredits = estimateSheetCredits(price, modelId);
+  const sheetCredits = estimateSheetCredits(images, price, modelId);
   return (
     <div className="flex flex-wrap items-start gap-4">
       <div className="w-full max-w-[9rem]">

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  avatarImageParams, avatarWorksWith, buildAvatarFrontPrompt, estimateSheetCredits,
+  avatarImageParams, seedanceFaceModelLabel, avatarWorksWith, buildAvatarFrontPrompt, estimateSheetCredits,
   estimateAvatarImageCostUsd, estimateAvatarImageCredits, groupCandidatesByBatch,
   imageModelWorksWith, isSeedanceFaceModel, listSentence, mergeCandidates,
 } from "../generation";
@@ -9,8 +9,26 @@ import {
   AVATAR_SHEET_ASPECT, SEEDANCE_FACE_MODEL_ID,
 } from "../constants";
 import { seededPrice } from "@/lib/ai-models/test-prices";
+import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
+import { imageModelsFrom, paramDefaults } from "@/lib/ai-models/model-lists";
+
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
 import type { AvatarCandidate } from "../schema";
+
+const images = imageModelsFrom(seededModelCatalog());
+
+describe("avatar image helpers read the catalog's list", () => {
+  it("avatarImageParams: the model's catalog defaults with the aspect forced; null when unknown", () => {
+    const id = "gemini:gemini-3-pro-image";
+    expect(avatarImageParams(images, id, "16:9")).toEqual({ ...paramDefaults(images.get(id)!.params), aspect_ratio: "16:9" });
+    expect(avatarImageParams(images, "nope:nope", "16:9")).toBeNull();
+  });
+
+  it("seedanceFaceModelLabel: the catalog's label", () => {
+    const renamed = imageModelsFrom(withModel(seededModelCatalog(), SEEDANCE_FACE_MODEL_ID, { label: "Renamed" }));
+    expect(seedanceFaceModelLabel(renamed)).toBe("Renamed");
+  });
+});
 
 describe("buildAvatarFrontPrompt", () => {
   it("states who the person is first, then the description, the style and the fixed framing", () => {
@@ -37,51 +55,51 @@ describe("buildAvatarFrontPrompt", () => {
 
 describe("estimateSheetCredits (D395)", () => {
   it("is one 16:9 image with the front as its reference, whatever it holds", () => {
-    expect(estimateSheetCredits(seededPrice("gemini:gemini-3.1-flash-image"), "gemini:gemini-3.1-flash-image")).toBe(estimateAvatarImageCredits(seededPrice("gemini:gemini-3.1-flash-image"), {
+    expect(estimateSheetCredits(images, seededPrice("gemini:gemini-3.1-flash-image"), "gemini:gemini-3.1-flash-image")).toBe(estimateAvatarImageCredits(images, seededPrice("gemini:gemini-3.1-flash-image"), {
       modelId: "gemini:gemini-3.1-flash-image", aspect: AVATAR_SHEET_ASPECT, referenceCount: 1,
     }));
-    expect(estimateSheetCredits(seededPrice("gemini:gemini-3.1-flash-image"), "gemini:gemini-3.1-flash-image")).toBeGreaterThan(0);
-    expect(estimateSheetCredits(null, "nope:none")).toBeNull();
+    expect(estimateSheetCredits(images, seededPrice("gemini:gemini-3.1-flash-image"), "gemini:gemini-3.1-flash-image")).toBeGreaterThan(0);
+    expect(estimateSheetCredits(images, null, "nope:none")).toBeNull();
   });
 });
 
 describe("avatarImageParams", () => {
   it("uses the model's defaults with the aspect ratio forced", () => {
-    const params = avatarImageParams(SEEDANCE_FACE_MODEL_ID, AVATAR_FRONT_ASPECT);
+    const params = avatarImageParams(images, SEEDANCE_FACE_MODEL_ID, AVATAR_FRONT_ASPECT);
     expect(params).toMatchObject({ aspect_ratio: "3:4" });
     expect(params).toHaveProperty("image_size");
   });
 
   it("is null for a model that is not in the registry", () => {
-    expect(avatarImageParams("nope:none", AVATAR_FRONT_ASPECT)).toBeNull();
+    expect(avatarImageParams(images, "nope:none", AVATAR_FRONT_ASPECT)).toBeNull();
   });
 });
 
 describe("estimates", () => {
   it("prices a Seedream front at its flat per-image rate, in credits", () => {
-    const usd = estimateAvatarImageCostUsd(seededPrice(SEEDANCE_FACE_MODEL_ID), {
+    const usd = estimateAvatarImageCostUsd(images, seededPrice(SEEDANCE_FACE_MODEL_ID), {
       modelId: SEEDANCE_FACE_MODEL_ID, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0,
     });
     expect(usd).toBeCloseTo(0.035, 5);
-    expect(estimateAvatarImageCredits(seededPrice(SEEDANCE_FACE_MODEL_ID), {
+    expect(estimateAvatarImageCredits(images, seededPrice(SEEDANCE_FACE_MODEL_ID), {
       modelId: SEEDANCE_FACE_MODEL_ID, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0,
     })).toBe(35);
   });
 
   it("prices a sheet with one reference image above zero", () => {
-    const credits = estimateAvatarImageCredits(seededPrice(AVATAR_DEFAULT_SHEET_MODEL_ID), {
+    const credits = estimateAvatarImageCredits(images, seededPrice(AVATAR_DEFAULT_SHEET_MODEL_ID), {
       modelId: AVATAR_DEFAULT_SHEET_MODEL_ID, aspect: AVATAR_SHEET_ASPECT, referenceCount: 1,
     });
     expect(credits).toBeGreaterThan(0);
   });
 
   it("is null for an unknown model, so the caller can fail closed", () => {
-    expect(estimateAvatarImageCredits(null, { modelId: "nope:none", aspect: "3:4", referenceCount: 0 })).toBeNull();
+    expect(estimateAvatarImageCredits(images, null, { modelId: "nope:none", aspect: "3:4", referenceCount: 0 })).toBeNull();
   });
 });
 
 it("is null before a price is known", () => {
-  expect(estimateAvatarImageCredits(null, { modelId: "gemini:gemini-3-pro-image", aspect: "1:1", referenceCount: 0 })).toBeNull();
+  expect(estimateAvatarImageCredits(images, null, { modelId: "gemini:gemini-3-pro-image", aspect: "1:1", referenceCount: 0 })).toBeNull();
 });
 
 describe("isSeedanceFaceModel", () => {

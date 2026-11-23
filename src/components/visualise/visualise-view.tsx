@@ -8,13 +8,14 @@ import { ScriptSheetFrame } from "@/components/scripts/script-sheet-frame";
 import { usePickTake, useReopenScript, useSetVisualiseField, useVisualiseBoard, type BoardData } from "@/hooks/queries/visualise";
 import { ScriptEditProvider, type ScriptEdit } from "@/components/scripts/script-edit-context";
 import { usePanelDraws } from "@/hooks/use-panel-draws";
+import { useImageModels } from "@/hooks/queries/ai-models";
 import { useVisualiseModel } from "@/hooks/use-visualise-model";
 import { errorMessage } from "@/lib/avatars/utils";
 import { formatRange, timeShots } from "@/lib/scripts/timeline";
 import { Label } from "@/components/ui/label";
 import { AvatarAdvancedSettings } from "@/components/avatars/avatar-advanced-settings";
 import { AvatarModelSelect } from "@/components/avatars/avatar-model-select";
-import { PANEL_MODEL_ID, PANEL_MODEL_IDS } from "@/lib/scripts/visualise/constants";
+import { PANEL_MODEL_ID, panelModelIds } from "@/lib/scripts/visualise/constants";
 import { BoardChips } from "./board-chips";
 import { GenerateAllDialog } from "./generate-all-dialog";
 import { PanelDialog } from "./panel-dialog";
@@ -43,6 +44,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
   const query = useVisualiseBoard(clientId, initial.script.id, initial);
   const { script, board } = query.data;
   const [panelModelId, setPanelModelId] = useState(PANEL_MODEL_ID);
+  const images = useImageModels();
   const draws = usePanelDraws(clientId, script.id, panelModelId);
   const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt, panelModelId);
   const reopen = useReopenScript(clientId, script.id);
@@ -104,7 +106,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
           settings={
             <AvatarAdvancedSettings className="max-w-sm">
               <Label htmlFor="panel-model" className="text-xs text-muted-foreground">Image model for panels</Label>
-              <AvatarModelSelect id="panel-model" value={panelModelId} onChange={setPanelModelId} modelIds={PANEL_MODEL_IDS} />
+              <AvatarModelSelect id="panel-model" value={panelModelId} onChange={setPanelModelId} modelIds={panelModelIds(images, panelModelId)} />
             </AvatarAdvancedSettings>
           }
           action={

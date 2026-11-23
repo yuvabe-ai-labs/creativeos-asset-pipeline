@@ -1,11 +1,11 @@
-import { defaultsForModel } from "../client-models";
+import { paramDefaults } from "@/lib/ai-models/model-lists";
 import type { ClientModelSpec } from "../types";
 
 export function smartMergeParams(
   currentParams: Record<string, unknown>,
   newModel: ClientModelSpec,
 ): Record<string, unknown> {
-  const newDefaults = defaultsForModel(newModel);
+  const newDefaults = paramDefaults(newModel.params);
   const result: Record<string, unknown> = {};
 
   for (const param of newModel.params) {

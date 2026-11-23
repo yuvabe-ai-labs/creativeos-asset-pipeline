@@ -6,6 +6,8 @@ import {
 } from "../maker";
 import { MEENAKSHI_AVATAR, readyAvatar, reel01Doc } from "./fixtures";
 import { seededPrice } from "@/lib/ai-models/test-prices";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
 import { estimateAvatarImageCredits, estimateSheetCredits } from "@/lib/avatars/generation";
 import { estimateMakeCredits } from "../maker";
 import { VISUALISE_AVATAR_MODEL_ID } from "../constants";
@@ -137,15 +139,16 @@ describe("Make avatar shows its first step at once (testing: no loading, repeat 
 });
 
 describe("estimateMakeCredits for the chosen model", () => {
+  const images = imageModelsFrom(seededModelCatalog());
   it("is one face plus one sheet, on that model", () => {
     const gpt = "openai:gpt-image-2";
-    const face = estimateAvatarImageCredits(seededPrice(gpt), { modelId: gpt, aspect: "3:4", referenceCount: 0 })!;
-    const sheet = estimateSheetCredits(seededPrice(gpt), gpt)!;
-    expect(estimateMakeCredits(seededPrice(gpt), gpt)).toBe(face + sheet);
+    const face = estimateAvatarImageCredits(images, seededPrice(gpt), { modelId: gpt, aspect: "3:4", referenceCount: 0 })!;
+    const sheet = estimateSheetCredits(images, seededPrice(gpt), gpt)!;
+    expect(estimateMakeCredits(images, seededPrice(gpt), gpt)).toBe(face + sheet);
   });
 
   it("is null before a price is known", () => {
-    expect(estimateMakeCredits(null)).toBeNull();
+    expect(estimateMakeCredits(images, null)).toBeNull();
   });
 
   it("makes Visualise avatars with GPT Image 2 by default", () => {

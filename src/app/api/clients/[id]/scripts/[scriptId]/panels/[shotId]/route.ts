@@ -13,7 +13,8 @@ import { promptForDraw, waitingMessage } from "@/lib/scripts/visualise/state";
 import { runPanelGeneration } from "@/lib/scripts/visualise/run-panel";
 import { isPanelModel, PANEL_MODEL_ID } from "@/lib/scripts/visualise/constants";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
-import { ModelRefusedError } from "@/lib/ai-models/runnable";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
+import { MODEL_UNAVAILABLE_MESSAGE, ModelRefusedError } from "@/lib/ai-models/runnable";
 import { imageRun } from "@/lib/image-gen/image-run";
 
 // One Nano Banana 2 image with up to 14 references.
@@ -29,8 +30,8 @@ const KindSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("change"), note: z.string().trim().min(1).max(500) }),
   z.object({ kind: z.literal("fresh"), note: z.string().trim().max(500) }),
 ]);
-// The model chosen under Advanced, if any: only the ones offered for panels.
-const DrawSchema = KindSchema.and(z.object({ modelId: z.string().refine(isPanelModel).optional() }));
+// The model chosen under Advanced, if any; the route checks it against the catalog's panel models.
+const DrawSchema = KindSchema.and(z.object({ modelId: z.string().optional() }));
 
 // POST /api/clients/:id/scripts/:scriptId/panels/:shotId — D342–D346: draw one shot's panel.
 // The take is stored "running" with what it is drawn from (prompt, shot fingerprint, faces)
@@ -43,7 +44,13 @@ export async function POST(req: Request, { params }: Ctx) {
       const body = DrawSchema.safeParse(await req.json().catch(() => null));
       if (!body.success) return apiError("Invalid request body.", 400);
 
-      const script = await getScript(clientId, scriptId);
+      // One catalog read per request, in parallel with the script. A panel keeps no model of its
+      // own, so a hidden model is refused too; nothing is reserved or stored before this.
+      const [script, catalog] = await Promise.all([getScript(clientId, scriptId), getAiCatalog()]);
+      const images = imageModelsFrom(catalog);
+      if (body.data.modelId !== undefined && !isPanelModel(images, body.data.modelId, null)) {
+        return apiError(MODEL_UNAVAILABLE_MESSAGE, 400);
+      }
       if (!script) return apiError("Script not found.", 404);
       if (!isVisualiseStage(script.stage)) {
         return apiError("Panels can be drawn only while the script is in Visualise or In review.", 409);
@@ -54,7 +61,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const board = await loadVisualiseBoard(clientId, script);
       const changing = body.data.kind === "change" ? body.data.note : null;
       // D469 — a change sends the picked take first, so the shot's own references get one less slot.
-      const cap = panelReferenceCap(body.data.modelId) - (changing !== null ? 1 : 0);
+      const cap = panelReferenceCap(images, body.data.modelId) - (changing !== null ? 1 : 0);
       const inputs = panelInputs({
         doc: script.doc, shot, avatars: new Map(board.avatars.map((a) => [a.id, a])),
         kits: board.kits, cap: Math.max(0, cap),
@@ -82,7 +89,7 @@ export async function POST(req: Request, { params }: Ctx) {
 
       // D540 — refuse a model the catalog won't run before the take is stored (a panel has no
       // node, so hidden is refused too). The billed run checks again; this keeps no failed take.
-      const [catalog, caller] = await Promise.all([getAiCatalog(), resolveCallerContext()]);
+      const caller = await resolveCallerContext();
       const run = imageRun(catalog, body.data.modelId ?? PANEL_MODEL_ID);
       if (!run.ok) return apiError(run.message, 400);
       const take = await insertPanelTake({
