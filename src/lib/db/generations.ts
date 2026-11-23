@@ -203,23 +203,15 @@ export async function listLatestGenerations(
   return out;
 }
 
-export async function listGenerations(nodeId: string): Promise<GenerationRow[]> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("generations")
-    .select("*")
-    .eq("node_id", nodeId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as GenerationRow[];
-}
-
+// The admin org page lists jobs. Record-only rows (D537: a Copilot reply, a KB build) charge
+// nothing and are not jobs, so the count and the list both leave them out.
 export async function countGenerationsForOrg(orgId: string): Promise<number> {
   const supabase = createServerSupabase();
   const { count, error } = await supabase
     .from("generations")
     .select("*", { count: "exact", head: true })
-    .eq("org_id", orgId);
+    .eq("org_id", orgId)
+    .eq("record_only", false);
   if (error) throw error;
   return count ?? 0;
 }
@@ -262,7 +254,8 @@ export async function listGenerationsForOrgPage(
   let q = supabase
     .from("generations")
     .select("*", { count: "exact" })
-    .eq("org_id", orgId);
+    .eq("org_id", orgId)
+    .eq("record_only", false);
   if (query?.trim()) q = q.ilike("model_used", `%${query.trim()}%`);
   q =
     sort === "name"
@@ -297,6 +290,9 @@ export async function listGenerationsForOrgPage(
 // real settled credit amount. `credits_charged` is therefore what the view wants, and it
 // is carried under that name rather than aliased back — reviving the old name is exactly
 // the confusion 0019 existed to end.
+//
+// Record-only rows (D537) are kept here, unlike the admin list: the audit shows every provider
+// call the operator made while impersonating, and a Copilot reply or a KB build is one of them.
 export async function listGenerationsInWindowForOrg(
   orgId: string,
   fromISO: string,
@@ -340,6 +336,8 @@ export async function listAvatarGenerations(avatarId: string): Promise<Generatio
     .from("generations")
     .select("*")
     .eq("avatar_id", avatarId)
+    // D537: a record-only row is a cost record, not one of the avatar's pictures.
+    .eq("record_only", false)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as GenerationRow[];

@@ -34,7 +34,7 @@ function row(overrides: Partial<GenerationRow> = {}): GenerationRow {
       voiceName: "Surabhi", priceMultiplier: 1, frontUrl: FRONT,
     },
     output_snapshot: "https://storage.googleapis.com/b/preview.mp4",
-    tokens_used: null, cost_usd: 0.61, credits_charged: 615, version_id: null, user_id: "u1",
+    tokens_used: null, cost_usd: 0.61, credits_charged: 615, record_only: false, version_id: null, user_id: "u1",
     error: null, meta: null,
     created_at: "2026-09-30T10:00:00.000Z", updated_at: "2026-09-30T10:01:00.000Z",
     ...overrides,

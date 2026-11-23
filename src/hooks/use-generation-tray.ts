@@ -12,7 +12,7 @@ import type { GenerationRow } from "@/lib/db/types";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { completionEffect, completionEffects, type CompletionEffect } from "@/lib/generations/node-status";
 import { revalidateCanvasGenerations } from "@/hooks/use-canvas-generations";
-import { loadGenerationFeed } from "@/lib/generations/canvas-feed";
+import { isLiveFeedRow, loadGenerationFeed } from "@/lib/generations/canvas-feed";
 
 /**
  * Canvas-level Generation Tray data source. One Realtime channel per canvas on the
@@ -96,9 +96,9 @@ export function useGenerationTray(canvasId: string): void {
             { event: "*", schema: "public", table: "generations" },
             (payload: RealtimePostgresChangesPayload<GenerationRow>) => {
               const row = payload.new as GenerationRow;
-              if (!row?.id) return;
               const state = storeApi.getState();
-              if (row.node_id === null || !state.nodes.some((n) => n.id === row.node_id)) return;
+              // Ignores record-only rows (D537) and other canvases' nodes.
+              if (!isLiveFeedRow(row, (id) => state.nodes.some((n) => n.id === id))) return;
               const effect = completionEffect(state.trayJobs[row.id], row);
               upsertTrayJob(row);
               if (effect) applyCompletion(row.node_id, effect);

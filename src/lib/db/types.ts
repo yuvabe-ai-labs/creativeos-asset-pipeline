@@ -147,6 +147,8 @@ export type GenerationRow = {
   credits_charged: number | null;
   // D534 — the ai_model_prices row the run was reserved and is charged with (migration 0076).
   model_price_id?: string | null;
+  // D537 — a provider call a free feature made, kept for what it cost us; never a job (migration 0081).
+  record_only: boolean;
   version_id: string | null;
   user_id: string | null;
   error: string | null;
