@@ -9,6 +9,9 @@ import { recordAfterResponse } from "@/lib/generations/record-for";
 // the client, one refresh would freeze every other sub-tab for an hour.
 const MIN_INTERVAL_MS = 60 * 60 * 1000;
 
+// The Apify run can use its full 280 s; the dataset read and thumbnails come after it.
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withClient(req, params, async (clientId, client) =>
     withTryCatch("Could not refresh performance data.", async () => {

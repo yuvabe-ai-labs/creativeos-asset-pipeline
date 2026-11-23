@@ -5,6 +5,7 @@ vi.mock("./thumbnail", () => ({ ogImage: vi.fn(), resolveThumbnailSource: vi.fn(
 vi.mock("./apify", () => ({ fetchPostMedia: vi.fn(), fetchYouTubeDownload: vi.fn() }));
 
 import { ogImage } from "./thumbnail";
+import { fetchPostMedia, fetchYouTubeDownload } from "./apify";
 import { resolveMediaSource, pinterestOriginal } from "./media";
 import type { ReferenceKind } from "./constants";
 
@@ -77,6 +78,35 @@ describe("resolveMediaSource — pinterest", () => {
       fetchImpl: probeFetch([]) as unknown as typeof fetch,
     });
     expect(out).toBeNull();
+  });
+});
+
+describe("resolveMediaSource — the paid rungs (D537)", () => {
+  beforeEach(() => vi.resetAllMocks());
+  const recordFor = { orgId: "org-1", clientId: "client-1" };
+  const fetchImpl = vi.fn() as unknown as typeof fetch;
+
+  it("passes whom an Instagram run is recorded for", async () => {
+    vi.mocked(fetchPostMedia).mockResolvedValue({ videoUrl: "https://cdn/v.mp4", displayUrl: "https://cdn/d.jpg" });
+    const out = await resolveMediaSource(item("instagram", "https://www.instagram.com/reel/x/"), {
+      fetchImpl,
+      token: "tok",
+      recordFor,
+    });
+    expect(out).toEqual({ url: "https://cdn/v.mp4", thumbnailUrl: "https://cdn/d.jpg" });
+    expect(fetchPostMedia).toHaveBeenCalledWith("https://www.instagram.com/reel/x/", { token: "tok", fetchImpl, recordFor });
+  });
+
+  it("passes whom a YouTube run is recorded for", async () => {
+    vi.mocked(fetchYouTubeDownload).mockResolvedValue("https://kv/y.mp4");
+    await resolveMediaSource(item("youtube", "https://youtu.be/x"), { fetchImpl, token: "tok", recordFor });
+    expect(fetchYouTubeDownload).toHaveBeenCalledWith("https://youtu.be/x", { token: "tok", fetchImpl, recordFor });
+  });
+
+  it("names no one when the caller names no one", async () => {
+    vi.mocked(fetchYouTubeDownload).mockResolvedValue(null);
+    await resolveMediaSource(item("youtube", "https://youtu.be/x"), { fetchImpl, token: "tok" });
+    expect(vi.mocked(fetchYouTubeDownload).mock.calls[0][1].recordFor).toBeUndefined();
   });
 });
 

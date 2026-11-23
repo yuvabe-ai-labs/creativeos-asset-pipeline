@@ -193,6 +193,31 @@ export async function getItem(itemId: string): Promise<MoodboardItem | null> {
 }
 
 /**
+ * The item the archive works on, with its board's client and that client's org read in the
+ * same query (D537: a paid archive call is recorded for them). Both are null when the board or
+ * client row is gone.
+ */
+export async function getArchiveItem(
+  itemId: string,
+): Promise<(MoodboardItem & { client_id: string | null; org_id: string | null }) | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("moodboard_items")
+    .select("*, moodboards(client_id, clients(org_id))")
+    .eq("id", itemId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  type One<T> = T | T[] | null;
+  const first = <T,>(v: One<T>) => (Array.isArray(v) ? v[0] : v) ?? null;
+  const { moodboards, ...item } = data as unknown as MoodboardItem & {
+    moodboards: One<{ client_id: string; clients: One<{ org_id: string }> }>;
+  };
+  const board = first(moodboards);
+  return { ...item, client_id: board?.client_id ?? null, org_id: first(board?.clients ?? null)?.org_id ?? null };
+}
+
+/**
  * Take ownership of a row before the slow work.
  *
  * `attempts` is passed in rather than incremented here because the caller has just

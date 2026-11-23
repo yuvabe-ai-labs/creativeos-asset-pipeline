@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/moodboards", () => ({
-  getItem: vi.fn(),
+  getArchiveItem: vi.fn(),
   claimArchive: vi.fn(),
   completeArchive: vi.fn(),
   failArchive: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock("@/lib/storage", () => ({
 vi.mock("./media", () => ({ resolveMediaSource: vi.fn() }));
 
 import {
-  getItem,
+  getArchiveItem,
   claimArchive,
   completeArchive,
   failArchive,
@@ -47,6 +47,8 @@ function row(over: Record<string, unknown> = {}) {
     archive_attempts: 0,
     archive_started_at: null,
     archived_at: null,
+    client_id: "c-db",
+    org_id: "org-1",
     ...over,
   };
 }
@@ -67,7 +69,7 @@ describe("archiveItem", () => {
   });
 
   it("downloads, uploads and marks the row ready", async () => {
-    vi.mocked(getItem).mockResolvedValue(row() as never);
+    vi.mocked(getArchiveItem).mockResolvedValue(row() as never);
     vi.mocked(resolveMediaSource).mockResolvedValue({ url: "https://cdn/a.mp4" });
     vi.mocked(uploadMarketMedia).mockResolvedValue({ url: "https://gcs/m.mp4", path: "p" });
 
@@ -82,7 +84,7 @@ describe("archiveItem", () => {
   });
 
   it("claims the row with an incremented attempt count before the slow work", async () => {
-    vi.mocked(getItem).mockResolvedValue(row({ archive_attempts: 2 }) as never);
+    vi.mocked(getArchiveItem).mockResolvedValue(row({ archive_attempts: 2 }) as never);
     vi.mocked(resolveMediaSource).mockResolvedValue({ url: "https://cdn/a.mp4" });
     vi.mocked(uploadMarketMedia).mockResolvedValue({ url: "https://gcs/m.mp4", path: "p" });
 
@@ -94,7 +96,7 @@ describe("archiveItem", () => {
   // The sweep, the ingest enqueue and a manual retry can all land on one row.
   // Re-downloading a file we already own would be pure waste.
   it("is a no-op when the row is already ready", async () => {
-    vi.mocked(getItem).mockResolvedValue(row({ archive_status: "ready" }) as never);
+    vi.mocked(getArchiveItem).mockResolvedValue(row({ archive_status: "ready" }) as never);
     const fetchImpl = bodyFetch(1);
 
     const out = await archiveItem("i1", "c1", { fetchImpl: fetchImpl as never });
@@ -105,7 +107,7 @@ describe("archiveItem", () => {
   });
 
   it("skips a kind with no media of ours to own", async () => {
-    vi.mocked(getItem).mockResolvedValue(row({ kind: "link" }) as never);
+    vi.mocked(getArchiveItem).mockResolvedValue(row({ kind: "link" }) as never);
     vi.mocked(resolveMediaSource).mockResolvedValue(null);
 
     const out = await archiveItem("i1", "c1", { fetchImpl: bodyFetch(1) as never });
@@ -116,7 +118,7 @@ describe("archiveItem", () => {
   });
 
   it("records a reason instead of throwing when the download fails", async () => {
-    vi.mocked(getItem).mockResolvedValue(row() as never);
+    vi.mocked(getArchiveItem).mockResolvedValue(row() as never);
     vi.mocked(resolveMediaSource).mockResolvedValue({ url: "https://cdn/a.mp4" });
 
     const out = await archiveItem("i1", "c1", {
@@ -128,7 +130,7 @@ describe("archiveItem", () => {
   });
 
   it("records a reason when the provider itself throws", async () => {
-    vi.mocked(getItem).mockResolvedValue(row() as never);
+    vi.mocked(getArchiveItem).mockResolvedValue(row() as never);
     vi.mocked(resolveMediaSource).mockRejectedValue(new Error("Apify request failed: HTTP 402"));
 
     const out = await archiveItem("i1", "c1", { fetchImpl: bodyFetch(1) as never });
@@ -138,7 +140,7 @@ describe("archiveItem", () => {
   });
 
   it("rejects a response past the size limit without uploading it", async () => {
-    vi.mocked(getItem).mockResolvedValue(row() as never);
+    vi.mocked(getArchiveItem).mockResolvedValue(row() as never);
     vi.mocked(resolveMediaSource).mockResolvedValue({ url: "https://cdn/a.mp4" });
 
     const out = await archiveItem("i1", "c1", {
@@ -150,7 +152,7 @@ describe("archiveItem", () => {
   });
 
   it("rejects an empty response", async () => {
-    vi.mocked(getItem).mockResolvedValue(row() as never);
+    vi.mocked(getArchiveItem).mockResolvedValue(row() as never);
     vi.mocked(resolveMediaSource).mockResolvedValue({ url: "https://cdn/a.mp4" });
 
     const out = await archiveItem("i1", "c1", { fetchImpl: bodyFetch(0) as never });
@@ -162,7 +164,7 @@ describe("archiveItem", () => {
   // The Instagram CDN rejects ranged GETs outright (verified 2026-09-11): the first
   // spike failed with a bare `fetch failed` until the Range header was dropped.
   it("sends no Range header and no custom User-Agent", async () => {
-    vi.mocked(getItem).mockResolvedValue(row() as never);
+    vi.mocked(getArchiveItem).mockResolvedValue(row() as never);
     vi.mocked(resolveMediaSource).mockResolvedValue({ url: "https://cdn/a.mp4" });
     vi.mocked(uploadMarketMedia).mockResolvedValue({ url: "https://gcs/m.mp4", path: "p" });
     const fetchImpl = bodyFetch(64);
@@ -173,15 +175,33 @@ describe("archiveItem", () => {
     expect(init?.headers ?? {}).toEqual({});
   });
 
+  // D537 — the paid provider call is recorded for the item's own client and org, read with
+  // the item, never for the client id the task was handed.
+  it("names the item's org and client for the provider call's cost", async () => {
+    vi.mocked(getArchiveItem).mockResolvedValue(row({ kind: "instagram" }) as never);
+    vi.mocked(resolveMediaSource).mockResolvedValue(null);
+    await archiveItem("i1", "c1", { fetchImpl: bodyFetch(1) as never });
+    expect(vi.mocked(resolveMediaSource).mock.calls[0][1]).toMatchObject({
+      recordFor: { orgId: "org-1", clientId: "c-db" },
+    });
+  });
+
+  it("names no one when the item's org could not be read", async () => {
+    vi.mocked(getArchiveItem).mockResolvedValue(row({ kind: "instagram", org_id: null }) as never);
+    vi.mocked(resolveMediaSource).mockResolvedValue(null);
+    await archiveItem("i1", "c1", { fetchImpl: bodyFetch(1) as never });
+    expect(vi.mocked(resolveMediaSource).mock.calls[0][1]?.recordFor).toBeUndefined();
+  });
+
   it("reports a missing item rather than throwing", async () => {
-    vi.mocked(getItem).mockResolvedValue(null);
+    vi.mocked(getArchiveItem).mockResolvedValue(null);
     const out = await archiveItem("gone", "c1", { fetchImpl: bodyFetch(1) as never });
     expect(out).toEqual({ ok: false, reason: "item not found" });
   });
 
   describe("thumbnail backfill (D272)", () => {
     it("fills a null thumbnail from the same payload", async () => {
-      vi.mocked(getItem).mockResolvedValue(
+      vi.mocked(getArchiveItem).mockResolvedValue(
         row({ kind: "instagram", thumbnail_url: null }) as never,
       );
       vi.mocked(resolveMediaSource).mockResolvedValue({
@@ -197,7 +217,7 @@ describe("archiveItem", () => {
     });
 
     it("leaves an existing thumbnail alone", async () => {
-      vi.mocked(getItem).mockResolvedValue(row({ thumbnail_url: "https://gcs/old.jpg" }) as never);
+      vi.mocked(getArchiveItem).mockResolvedValue(row({ thumbnail_url: "https://gcs/old.jpg" }) as never);
       vi.mocked(resolveMediaSource).mockResolvedValue({
         url: "https://cdn/a.mp4",
         thumbnailUrl: "https://cdn/d.jpg",
@@ -212,7 +232,7 @@ describe("archiveItem", () => {
     // A media archive that succeeded must not be reported as failed because its
     // decorative preview did not — the same rule ingest applies at capture time.
     it("still reports success when the thumbnail step throws", async () => {
-      vi.mocked(getItem).mockResolvedValue(row({ thumbnail_url: null }) as never);
+      vi.mocked(getArchiveItem).mockResolvedValue(row({ thumbnail_url: null }) as never);
       vi.mocked(resolveMediaSource).mockResolvedValue({
         url: "https://cdn/a.mp4",
         thumbnailUrl: "https://cdn/d.jpg",
@@ -227,7 +247,7 @@ describe("archiveItem", () => {
     });
 
     it("does nothing when the payload carried no still", async () => {
-      vi.mocked(getItem).mockResolvedValue(row({ thumbnail_url: null }) as never);
+      vi.mocked(getArchiveItem).mockResolvedValue(row({ thumbnail_url: null }) as never);
       vi.mocked(resolveMediaSource).mockResolvedValue({ url: "https://cdn/a.mp4" });
       vi.mocked(uploadMarketMedia).mockResolvedValue({ url: "https://gcs/m.mp4", path: "p" });
 

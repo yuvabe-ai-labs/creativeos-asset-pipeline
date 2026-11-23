@@ -38,6 +38,12 @@ const req = (body: unknown = { handle: "prakritisattva" }) =>
 const agoMinutes = (m: number) => new Date(Date.now() - m * 60 * 1000).toISOString();
 
 describe("POST /api/clients/[id]/performance/refresh", () => {
+  // The Apify run may use its full 280 s, then the dataset read and thumbnails follow.
+  it("allows the function 300 s", async () => {
+    const { maxDuration } = await import("./route");
+    expect(maxDuration).toBe(300);
+  });
+
   beforeEach(() => vi.resetAllMocks());
 
   it("requires a handle", async () => {

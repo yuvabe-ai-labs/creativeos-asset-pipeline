@@ -9,7 +9,7 @@
 // by Instagram's (design spec §1.1).
 import "server-only";
 import {
-  getItem,
+  getArchiveItem,
   claimArchive,
   completeArchive,
   failArchive,
@@ -18,6 +18,7 @@ import {
 } from "@/lib/db/moodboards";
 import { uploadMarketMedia, uploadMarketThumbnail } from "@/lib/storage";
 import { resolveMediaSource } from "./media";
+import type { RecordFor } from "@/lib/generations/record-for";
 import { MARKET_MEDIA_SIZE_LIMIT, THUMBNAIL_SIZE_LIMIT } from "./constants";
 
 export type ArchiveResult =
@@ -33,8 +34,11 @@ export async function archiveItem(
 ): Promise<ArchiveResult> {
   const fetchImpl = opts.fetchImpl ?? fetch;
 
-  const item = await getItem(itemId);
+  const item = await getArchiveItem(itemId);
   if (!item) return { ok: false, reason: "item not found" };
+  // D537 — a paid provider call is recorded for the item's own client and org, read with the
+  // item above; never for the task's clientId. Without an org nothing is recorded.
+  const recordFor: RecordFor | undefined = item.org_id ? { orgId: item.org_id, clientId: item.client_id } : undefined;
 
   // Idempotent by design: the ingest enqueue, the sweep and a manual retry can all
   // land on the same row, and re-downloading a file we already own is pure waste.
@@ -46,6 +50,7 @@ export async function archiveItem(
     const source = await resolveMediaSource(item, {
       fetchImpl,
       token: process.env.APIFY_TOKEN,
+      recordFor,
     });
     if (!source) {
       // Terminal and correct, not a failure — there is nothing here to own.
