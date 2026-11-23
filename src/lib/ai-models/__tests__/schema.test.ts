@@ -71,6 +71,12 @@ describe("parseAiModelRow", () => {
     const bad = { ...ROW, rules: [{ ...ROW.rules[0], when: { field: "colour", op: "eq", value: true } }] };
     expect(parseAiModelRow(bad)).toBeNull();
   });
+
+  it("refuses an empty provider model name, but keeps a missing one", () => {
+    expect(parseAiModelRow({ ...ROW, provider_model_id: "" })).toBeNull();
+    expect(parseAiModelRow({ ...ROW, provider_model_id: null })).not.toBeNull();
+    expect(parseAiModelRow({ ...ROW, provider_model_id: "gemini-omni-1.2-flash" })?.providerModelId).toBe("gemini-omni-1.2-flash");
+  });
 });
 
 const PRICE = {

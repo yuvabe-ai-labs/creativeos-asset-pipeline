@@ -116,7 +116,7 @@ const aiModelRowSchema = z.object({
   replaced_by: z.string().nullable(),
   sort_order: z.number().int(),
   adapter_key: z.string().min(1),
-  provider_model_id: z.string().nullable(),
+  provider_model_id: z.string().min(1).nullable(),
   params: z.array(paramSpecSchema),
   rules: z.array(constraintRuleSchema),
   capabilities: z.record(z.string(), z.unknown()),
