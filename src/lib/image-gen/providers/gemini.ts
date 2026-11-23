@@ -22,7 +22,7 @@ async function urlToInlineData(url: string): Promise<{ mimeType: string; data: s
 
 // ── Generate function ─────────────────────────────────────────────────────────
 
-async function generateWithGemini(
+export async function generateWithGemini(
   apiModelId: string,
   input: ImageGenInput,
 ): Promise<ImageGenResult> {
@@ -90,7 +90,7 @@ async function generateWithGemini(
 // Nano Banana 2.1 is served through the Interactions API only, not generateContent
 // (https://ai.google.dev/gemini-api/docs/image-generation). Same contract as above: images
 // first, the prompt text last, one image back.
-async function generateWithGeminiInteractions(
+export async function generateWithGeminiInteractions(
   apiModelId: string,
   input: ImageGenInput,
 ): Promise<ImageGenResult> {

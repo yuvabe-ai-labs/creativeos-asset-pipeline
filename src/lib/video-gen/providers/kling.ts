@@ -317,7 +317,7 @@ async function pollKlingTask(taskId: string): Promise<VideoGenResult> {
   }
 }
 
-type KlingEndpointConfig = {
+export type KlingEndpointConfig = {
   endpointPath: string;
   /** The same model on fal (D484). */
   falModel: KlingFalModel;
@@ -335,12 +335,12 @@ type KlingEndpointConfig = {
   requiresStartFrame: boolean;
 };
 
-type KlingSettingsBuilder = (
+export type KlingSettingsBuilder = (
   params: Record<string, unknown>,
   ctx: { hasStartFrame: boolean },
 ) => Record<string, unknown>;
 
-async function generateWithKling(
+export async function generateWithKling(
   config: KlingEndpointConfig,
   buildSettings: KlingSettingsBuilder,
   input: VideoGenInput,
@@ -423,6 +423,14 @@ export const KLING_VENDOR_MODELS = {
   "kling-3-0-omni": "kling-3.0-omni",
 } as const satisfies Record<KlingFalModel, string>;
 
+/** D538 — a Kling model's endpoint. `vendorModel` is Kling's name for it (the row's provider_model_id). */
+export function klingEndpoint(model: KlingFalModel, vendorModel: string): KlingEndpointConfig {
+  if (model === "kling-3-0") {
+    return { endpointPath: `/image-to-video/${vendorModel}`, falModel: model, supportsReferences: false, requiresStartFrame: true };
+  }
+  return { endpointPath: `/omni-video/${vendorModel}`, falModel: model, supportsReferences: true, requiresStartFrame: false };
+}
+
 export const kling30: VideoGenModelSpec = {
   id: "kling:kling-3-0",
   provider: "kling",
@@ -432,16 +440,7 @@ export const kling30: VideoGenModelSpec = {
   imageInputs: KLING_30_IMAGE_INPUTS,
   params: kling30Params,
   generate: (input) =>
-    generateWithKling(
-      {
-        endpointPath: `/image-to-video/${KLING_VENDOR_MODELS["kling-3-0"]}`,
-        falModel: "kling-3-0",
-        supportsReferences: false,
-        requiresStartFrame: true,
-      },
-      build3_0Settings,
-      input,
-    ),
+    generateWithKling(klingEndpoint("kling-3-0", KLING_VENDOR_MODELS["kling-3-0"]), build3_0Settings, input),
 };
 
 // D484 — on fal, O1 is 1080p only, silent and 5 or 10 s; klingO1Params follows fal. On the native
@@ -455,16 +454,7 @@ export const klingO1: VideoGenModelSpec = {
   imageInputs: KLING_O1_IMAGE_INPUTS,
   params: klingO1Params,
   generate: (input) =>
-    generateWithKling(
-      {
-        endpointPath: `/omni-video/${KLING_VENDOR_MODELS["kling-o1"]}`,
-        falModel: "kling-o1",
-        supportsReferences: true,
-        requiresStartFrame: false,
-      },
-      buildO1Settings,
-      input,
-    ),
+    generateWithKling(klingEndpoint("kling-o1", KLING_VENDOR_MODELS["kling-o1"]), buildO1Settings, input),
 };
 
 // Kling's flagship, and the second model that cuts between shots natively (D235/D236). A new
@@ -484,14 +474,5 @@ export const kling30Omni: VideoGenModelSpec = {
   imageInputs: KLING_O1_IMAGE_INPUTS,
   params: kling30OmniParams,
   generate: (input) =>
-    generateWithKling(
-      {
-        endpointPath: `/omni-video/${KLING_VENDOR_MODELS["kling-3-0-omni"]}`,
-        falModel: "kling-3-0-omni",
-        supportsReferences: true,
-        requiresStartFrame: false,
-      },
-      build30OmniSettings,
-      input,
-    ),
+    generateWithKling(klingEndpoint("kling-3-0-omni", KLING_VENDOR_MODELS["kling-3-0-omni"]), build30OmniSettings, input),
 };

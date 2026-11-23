@@ -109,3 +109,8 @@ export type VideoGenModelSpec = {
 };
 
 export type VideoGenClientModelSpec = Omit<VideoGenModelSpec, "generate">;
+
+/** D538 — what an adapter is given besides the request: the catalog's spec and the provider's
+ *  own name for the model (the row's provider_model_id). */
+export type VideoAdapterContext = { spec: VideoGenClientModelSpec; providerModelId: string };
+export type VideoAdapter = (input: VideoGenInput, ctx: VideoAdapterContext) => Promise<VideoGenResult>;

@@ -158,7 +158,7 @@ export function omniRefusalMessage(raw: string): string | null {
 }
 
 /** What differs between Omni versions on the wire. Everything else is one request shape. */
-type OmniVersion = {
+export type OmniVersion = {
   apiModel: string;
   maxSeconds: number;
   /** Set when a first + last frame pair has a shorter ceiling than the model (1.2: 10s). */
@@ -312,7 +312,7 @@ async function waitForFileReady(fileName: string): Promise<void> {
   logger.info("Omni file still not ACTIVE after polling — continuing", { fileName });
 }
 
-async function generateWithOmni(input: VideoGenInput, version: OmniVersion): Promise<VideoGenResult> {
+export async function generateWithOmni(input: VideoGenInput, version: OmniVersion): Promise<VideoGenResult> {
   // D483 — an edit of a stored take. Routed before anything generation-specific runs.
   if (input.editVideoUrl) return editWithOmni({ ...input, editVideoUrl: input.editVideoUrl }, version);
 
@@ -420,8 +420,8 @@ async function generateWithOmni(input: VideoGenInput, version: OmniVersion): Pro
   return omniResult(interaction, videoUrl, durationSeconds);
 }
 
-const OMNI_11: OmniVersion = { apiModel: OMNI_11_API_MODEL, maxSeconds: GEMINI_OMNI_11_MAX_SECONDS };
-const OMNI_12: OmniVersion = {
+export const OMNI_11: OmniVersion = { apiModel: OMNI_11_API_MODEL, maxSeconds: GEMINI_OMNI_11_MAX_SECONDS };
+export const OMNI_12: OmniVersion = {
   apiModel: OMNI_12_API_MODEL,
   maxSeconds: GEMINI_OMNI_12_MAX_SECONDS,
   framePairMaxSeconds: OMNI_12_FRAME_PAIR_MAX_SECONDS,

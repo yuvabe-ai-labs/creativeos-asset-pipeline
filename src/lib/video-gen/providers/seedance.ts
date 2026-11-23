@@ -71,10 +71,14 @@ function buildSeedanceContent(input: VideoGenInput, maxRefs: number): SeedanceCo
 }
 
 /** Exported for its tests: the request's shape is the thing worth pinning down. */
-export function buildSeedanceBody(input: VideoGenInput, maxRefs: number): Record<string, unknown> {
+export function buildSeedanceBody(
+  input: VideoGenInput,
+  maxRefs: number,
+  vendorModel: string = SEEDANCE_VENDOR_MODEL,
+): Record<string, unknown> {
   const duration = Number(input.params.duration ?? 5);
   return {
-    model: SEEDANCE_VENDOR_MODEL,
+    model: vendorModel,
     content: buildSeedanceContent(input, maxRefs),
     resolution: String(input.params.resolution ?? "720p"),
     // `ratio` is omitted when a first frame is present: the vendor derives the ratio from that
@@ -306,6 +310,15 @@ async function pollSeedanceTask(taskId: string): Promise<VideoGenResult> {
   }
 }
 
+/** D538 — one Seedance clip. `vendorModel` is BytePlus's dated name (the row's provider_model_id).
+ *  Images are brought inside the vendor's limits BEFORE the body is built (seedance-images.ts):
+ *  an out-of-range image otherwise fails the whole paid request at task creation. */
+export function generateWithSeedance(input: VideoGenInput, maxRefs: number, vendorModel: string): Promise<VideoGenResult> {
+  return fitSeedanceImages(input, maxRefs)
+    .then((fitted) => createSeedanceTask(buildSeedanceBody(fitted, maxRefs, vendorModel)))
+    .then(pollSeedanceTask);
+}
+
 // Server-side twin of the client shape in client-models.ts (SEEDANCE_IMAGE_INPUTS). Same D99
 // split as Kling: this module is server-only and client-models.ts (safe for React) cannot import
 // it, so the shape is declared once on each side. maxReferenceImages MUST match the client copy —
@@ -325,12 +338,6 @@ export const seedance25: VideoGenModelSpec = {
   maxDurationSeconds: 30,
   imageInputs: SEEDANCE_IMAGE_INPUTS_SERVER,
   params: seedanceParams,
-  // Images are brought inside the vendor's limits BEFORE the body is built (seedance-images.ts):
-  // an out-of-range image otherwise fails the whole paid request at task creation.
   generate: (input) =>
-    fitSeedanceImages(input, SEEDANCE_IMAGE_INPUTS_SERVER.maxReferenceImages)
-      .then((fitted) =>
-        createSeedanceTask(buildSeedanceBody(fitted, SEEDANCE_IMAGE_INPUTS_SERVER.maxReferenceImages)),
-      )
-      .then(pollSeedanceTask),
+    generateWithSeedance(input, SEEDANCE_IMAGE_INPUTS_SERVER.maxReferenceImages, SEEDANCE_VENDOR_MODEL),
 };

@@ -78,5 +78,10 @@ export type MediaGenModelSpec = {
 // Client-safe subset (no generate function)
 export type ClientModelSpec = Omit<MediaGenModelSpec, "generate">;
 
+/** D538 — what an adapter is given besides the request: the catalog's spec and the provider's
+ *  own name for the model (the row's provider_model_id). */
+export type ImageAdapterContext = { spec: ClientModelSpec; providerModelId: string };
+export type ImageAdapter = (input: ImageGenInput, ctx: ImageAdapterContext) => Promise<ImageGenResult>;
+
 // Legacy alias — keeps existing imports in registry.ts and API routes compiling
 export type ImageGenModelConfig = MediaGenModelSpec;
