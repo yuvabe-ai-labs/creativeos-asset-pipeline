@@ -23,6 +23,13 @@ describe("billing at a glance", () => {
     expect(s).toMatchObject({ state: "free", freeLeft: 48_000, freeEndsAt: "2026-12-03T18:30:00.000Z", planEndsAt: null });
   });
 
+  it("dates free credits by the grants that still have credits, not an emptied one", () => {
+    const emptied = grant("free", 0, 0, "2026-12-01T18:30:00.000Z");
+    const s = summarizeBilling("plans", [emptied, grant("free", 2_000, 2_000, "2026-12-15T18:30:00.000Z")], null);
+    expect(s).toMatchObject({ state: "free", freeLeft: 2_000, freeEndsAt: "2026-12-15T18:30:00.000Z" });
+    expect(summarizeBilling("plans", [emptied], null).freeEndsAt).toBeNull();
+  });
+
   it("stops at a due payment even with credits left", () => {
     const s = summarizeBilling("plans", [grant("plan", 100_000, 90_000)], { ...plan, status: "payment_due" });
     expect(s.state).toBe("payment_due");

@@ -33,7 +33,9 @@ export function summarizeBilling(mode: BillingMode, grants: OpenGrant[], subscri
   const total = grants.reduce((s, g) => s + g.credits, 0);
   const free = grants.filter((g) => g.kind === "free");
   const freeLeft = free.reduce((s, g) => s + g.left, 0);
-  const freeEndsAt = free.length ? free.map((g) => g.endsAt).sort()[0] : null;
+  // The soonest end among free grants that still have credits; an emptied grant ends nothing.
+  const freeWithCredits = free.filter((g) => g.left > 0);
+  const freeEndsAt = freeWithCredits.length ? freeWithCredits.map((g) => g.endsAt).sort()[0] : null;
   const paidPlan = !!subscription && subscription.status !== "created";
   const base = { mode, left, total, freeLeft, freeEndsAt, planEndsAt: paidPlan ? subscription.currentPeriodEnd : null };
 

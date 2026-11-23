@@ -82,6 +82,9 @@ describe("the owner's billing page", () => {
     expect(grants).toContain("Top-up");
     expect(grants).toContain("20,000 of 25,000 left");
     expect(grants).toContain("until 20 Dec 2026");
+    const emptied = { id: "e", kind: "free" as const, credits: 0, used: 0, left: 0, endsAt: "2026-12-01T18:30:00.000Z" };
+    expect(renderToStaticMarkup(<CreditGrantList grants={[emptied]} empty="No credits right now." />)).toContain("No credits right now.");
+    expect(renderToStaticMarkup(<CreditGrantList grants={[emptied, { ...emptied, id: "f", credits: 2_000, left: 2_000 }]} empty="none" />)).not.toContain("0 of 0 left");
     const payments = renderToStaticMarkup(<PaymentsList payments={[{ id: "x", kind: "renewal", status: "paid", amountMinor: 1_200_000, taxMinor: 216_000, totalMinor: 1_416_000, credits: 100_000, paidAt: "2026-11-21T06:00:00Z", createdAt: "2026-11-21T06:00:00Z", name: "Starter" }]} />);
     expect(payments).toContain("Monthly renewal · Starter");
     expect(payments).toContain("₹14,160");

@@ -13,12 +13,15 @@ const n = (v: number) => v.toLocaleString("en-IN");
 
 // An agency's open credits, the one ending first at the top: the same list on the owner's billing
 // page and in Admin, where `actions` adds Take back and Change end date to each row (D523).
+// A grant whose credits were all taken back (0 of 0) is left out: nothing to show or act on, and the
+// billing log keeps the record.
 export function CreditGrantList({ grants, actions, empty }: { grants: OpenGrant[]; actions?: (g: OpenGrant) => ReactNode; empty: string }) {
-  if (grants.length === 0) return <p className="text-sm text-muted-foreground">{empty}</p>;
+  const shown = grants.filter((g) => g.credits > 0);
+  if (shown.length === 0) return <p className="text-sm text-muted-foreground">{empty}</p>;
   return (
     <>
       <ul className="flex flex-col divide-y divide-border">
-        {grants.map((g) => (
+        {shown.map((g) => (
           <li key={g.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <div className="flex items-baseline justify-between gap-3">

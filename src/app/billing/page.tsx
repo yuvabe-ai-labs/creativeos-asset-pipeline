@@ -8,6 +8,7 @@ import { PlanSummary } from "@/components/billing/owner/plan-summary";
 import { TopUpSection } from "@/components/billing/owner/top-up-section";
 import { PaymentsList } from "@/components/billing/owner/payments-list";
 import { UsageSection } from "@/components/billing/owner/usage-section";
+import { RefreshOnBillingChange } from "@/components/billing/owner/refresh-on-billing-change";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Billing · CreativeOS" };
@@ -27,6 +28,7 @@ export default async function BillingPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-14">
+      <RefreshOnBillingChange />
       <div className="mb-8 flex flex-col gap-1">
         <h1 className="font-display text-2xl font-semibold tracking-tight">Billing</h1>
         <p className="text-sm text-muted-foreground">Your plan, your credits and your payments. Only you can see this page.</p>
