@@ -31,10 +31,11 @@ describe("AvatarModelSelect", () => {
     expect(html).not.toMatch(/GPT Image 1</);
   });
 
-  it("keeps the selected hidden model in the list, and names it on the trigger", () => {
+  it("never lists a hidden model, even the selected one (avatars and panels store no model), but names it on the trigger", () => {
     state.images = hiddenPro();
     const html = renderToStaticMarkup(<AvatarModelSelect id="m" value="gemini:gemini-3-pro-image" onChange={() => {}} />);
-    expect(html.match(/Pro Hidden/g)?.length).toBe(2);
+    expect(html.match(/Pro Hidden/g)?.length).toBe(1);
+    expect(html).not.toMatch(/data-item=""><span[^>]*>Pro Hidden/);
   });
 
   it("still narrows to the given model ids", () => {

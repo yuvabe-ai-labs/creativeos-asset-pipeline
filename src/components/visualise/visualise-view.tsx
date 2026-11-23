@@ -43,8 +43,9 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
   const router = useRouter();
   const query = useVisualiseBoard(clientId, initial.script.id, initial);
   const { script, board } = query.data;
-  const [panelModelId, setPanelModelId] = useState(PANEL_MODEL_ID);
   const images = useImageModels();
+  // D543 — the panel default while it is live, else the catalog's.
+  const [panelModelId, setPanelModelId] = useState(() => images.liveOr(PANEL_MODEL_ID));
   const draws = usePanelDraws(clientId, script.id, panelModelId);
   const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt, panelModelId);
   const reopen = useReopenScript(clientId, script.id);
@@ -106,7 +107,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
           settings={
             <AvatarAdvancedSettings className="max-w-sm">
               <Label htmlFor="panel-model" className="text-xs text-muted-foreground">Image model for panels</Label>
-              <AvatarModelSelect id="panel-model" value={panelModelId} onChange={setPanelModelId} modelIds={panelModelIds(images, panelModelId)} />
+              <AvatarModelSelect id="panel-model" value={panelModelId} onChange={setPanelModelId} modelIds={panelModelIds(images, null)} />
             </AvatarAdvancedSettings>
           }
           action={

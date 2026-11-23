@@ -19,8 +19,9 @@ export function AvatarModelSelect({
   modelIds?: readonly string[];
 }) {
   const images = useImageModels();
-  // Live models, plus the selected one while it is hidden; a retired model is never offered.
-  const groups = images.groups(value)
+  // Live models only: an avatar or a panel stores no model, so a hidden one is never its own
+  // (the server refuses it). The trigger still names whatever is selected.
+  const groups = images.groups(null)
     .map((g) => ({ ...g, models: modelIds ? g.models.filter((m) => modelIds.includes(m.id)) : g.models }))
     .filter((g) => g.models.length > 0);
   return (
