@@ -28,7 +28,8 @@ const MODEL = {
   id: "kling:kling-3-0-omni", provider: "kling", kind: "video", label: "Kling 3.0 Omni",
   picker_label: null, provider_label: "Kling", description: null, status: "live", replaced_by: null,
   sort_order: 0, adapter_key: "video:kling", provider_model_id: null, params: [], rules: [],
-  capabilities: { maxDurationSeconds: 15 }, updated_at: "2026-11-21T00:00:00Z",
+  capabilities: { maxDurationSeconds: 15, imageInputs: { startFrame: true, endFrame: true, maxReferenceImages: 5 } },
+  updated_at: "2026-11-21T00:00:00Z",
 };
 const PRICE = (id: string, from: string) => ({
   id, model_id: MODEL.id, effective_from: from, lines: [{ meter: "provider_unit", unit_usd: 0.1508 }],

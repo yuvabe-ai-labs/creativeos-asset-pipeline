@@ -105,3 +105,41 @@ describe("parseAiModelPriceRow", () => {
     expect(parseAiModelPriceRow({ ...PRICE, lines: [] })).toBeNull();
   });
 });
+
+describe("capabilities by kind (D539)", () => {
+  const IMAGE = {
+    ...ROW,
+    id: "openai:gpt-image-2",
+    kind: "image",
+    rules: [],
+    capabilities: { maxReferenceImages: 16, maxReferenceSizeBytes: 52428800, maxImageEdgePx: 3840, supportsMask: true },
+  };
+
+  it("keeps an image row's capabilities", () => {
+    expect(parseAiModelRow(IMAGE)?.capabilities).toEqual(IMAGE.capabilities);
+  });
+
+  it("refuses an image row with no reference limit, or one that is not a number", () => {
+    expect(parseAiModelRow({ ...IMAGE, capabilities: { maxReferenceSizeBytes: 0 } })).toBeNull();
+    expect(parseAiModelRow({ ...IMAGE, capabilities: { ...IMAGE.capabilities, maxReferenceImages: "16" } })).toBeNull();
+    expect(parseAiModelRow({ ...IMAGE, capabilities: { ...IMAGE.capabilities, supportsMask: "yes" } })).toBeNull();
+  });
+
+  it("refuses a video row with no image inputs, or a frame flag that is not a boolean", () => {
+    expect(parseAiModelRow({ ...ROW, capabilities: { maxDurationSeconds: 15 } })).toBeNull();
+    expect(
+      parseAiModelRow({
+        ...ROW,
+        capabilities: { maxDurationSeconds: 15, imageInputs: { startFrame: "yes", endFrame: true, maxReferenceImages: 3 } },
+      }),
+    ).toBeNull();
+  });
+
+  it("drops a key it does not know instead of refusing the row", () => {
+    expect(parseAiModelRow({ ...IMAGE, capabilities: { ...IMAGE.capabilities, futureFlag: 1 } })?.capabilities).toEqual(IMAGE.capabilities);
+  });
+
+  it("leaves the other kinds' capabilities as they are", () => {
+    expect(parseAiModelRow({ ...ROW, id: "sarvam:dub", kind: "dub", params: [], rules: [], capabilities: {} })?.capabilities).toEqual({});
+  });
+});

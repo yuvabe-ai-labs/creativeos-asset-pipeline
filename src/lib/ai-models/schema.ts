@@ -3,7 +3,7 @@
 import { z } from "zod";
 import type { ParamSpec } from "@/lib/image-gen/types";
 import type { ConstraintRule } from "@/lib/video-gen/types";
-import { AI_MODEL_KINDS, AI_MODEL_STATUSES, METERS, type AiModel, type AiModelPrice, type PriceLine } from "./types";
+import { AI_MODEL_KINDS, AI_MODEL_STATUSES, METERS, type AiModel, type AiModelKind, type AiModelPrice, type PriceLine } from "./types";
 
 export const MODEL_COLUMNS =
   "id, provider, kind, label, picker_label, provider_label, description, status, replaced_by, " +
@@ -64,6 +64,46 @@ const constraintRuleSchema = z.object({
   reason: z.string(),
 });
 
+// D539 — what a model can take, by kind: ClientModelSpec's limits for an image model, and
+// VideoGenClientModelSpec's maxDurationSeconds / imageInputs for a video model, field for field.
+// A key this build doesn't know is dropped rather than refused, so a row written by a newer
+// build still loads in an older one.
+const imageCapabilitiesSchema = z.object({
+  maxReferenceImages: z.number().int().nonnegative(),
+  maxReferenceSizeBytes: z.number().nonnegative(),
+  maxTotalReferenceSizeBytes: z.number().positive().optional(),
+  maxImageEdgePx: z.number().positive().optional(),
+  maxAspectRatio: z.number().positive().optional(),
+  minDimensionMultiple: z.number().int().positive().optional(),
+  supportsMask: z.boolean().optional(),
+});
+
+const videoCapabilitiesSchema = z.object({
+  maxDurationSeconds: z.number().positive(),
+  imageInputs: z.object({
+    startFrame: z.boolean(),
+    endFrame: z.boolean(),
+    maxReferenceImages: z.number().int().nonnegative(),
+    maxImagesWithFrames: z.number().int().positive().optional(),
+  }),
+});
+
+export type ImageCapabilities = z.infer<typeof imageCapabilitiesSchema>;
+export type VideoCapabilities = z.infer<typeof videoCapabilitiesSchema>;
+
+/** Image and video rows are checked; the other kinds carry no capabilities today. */
+function parseCapabilities(kind: AiModelKind, value: Record<string, unknown>): Record<string, unknown> | null {
+  if (kind === "image") {
+    const parsed = imageCapabilitiesSchema.safeParse(value);
+    return parsed.success ? parsed.data : null;
+  }
+  if (kind === "video") {
+    const parsed = videoCapabilitiesSchema.safeParse(value);
+    return parsed.success ? parsed.data : null;
+  }
+  return value;
+}
+
 const aiModelRowSchema = z.object({
   id: z.string().min(1),
   provider: z.string().min(1),
@@ -103,6 +143,8 @@ export function parseAiModelRow(row: unknown): AiModel | null {
   const parsed = aiModelRowSchema.safeParse(row);
   if (!parsed.success) return null;
   const r = parsed.data;
+  const capabilities = parseCapabilities(r.kind, r.capabilities);
+  if (!capabilities) return null;
   return {
     id: r.id,
     provider: r.provider,
@@ -119,7 +161,7 @@ export function parseAiModelRow(row: unknown): AiModel | null {
     // The Zod shapes above mirror ParamSpec and ConstraintRule field for field.
     params: r.params as ParamSpec[],
     rules: r.rules as ConstraintRule[],
-    capabilities: r.capabilities,
+    capabilities,
     updatedAt: r.updated_at,
   };
 }

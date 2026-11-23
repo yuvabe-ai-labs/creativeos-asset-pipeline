@@ -3,17 +3,10 @@
 import type { ClientModelSpec } from "@/lib/image-gen/types";
 import type { VideoGenClientModelSpec } from "@/lib/video-gen/types";
 import { buildZodFromParams } from "@/lib/image-gen/schema-builder";
+import type { ImageCapabilities, VideoCapabilities } from "./schema";
 import type { AiModel } from "./types";
 
-type ImageCapabilities = Omit<
-  ClientModelSpec,
-  "id" | "provider" | "mediaType" | "label" | "providerLabel" | "deprecated" | "params" | "schema"
->;
-type VideoCapabilities = Omit<
-  VideoGenClientModelSpec,
-  "id" | "provider" | "label" | "pickerLabel" | "providerLabel" | "deprecated" | "params" | "rules"
->;
-
+// D539 — checked on load (schema.ts), so these casts hold.
 export function toImageClientSpec(model: AiModel): ClientModelSpec {
   return {
     ...(model.capabilities as ImageCapabilities),
