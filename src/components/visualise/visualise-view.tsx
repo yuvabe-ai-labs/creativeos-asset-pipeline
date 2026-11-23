@@ -19,6 +19,7 @@ import { PanelDialog } from "./panel-dialog";
 import { PanelTile } from "./panel-tile";
 import { StoryboardGrid } from "./storyboard-grid";
 import { VisualiseReadiness } from "./visualise-readiness";
+import { useCan } from "@/components/permissions/use-can";
 import { useVisualiseBoardActions } from "./visualise-board-context";
 import { FollowTarget } from "./script-follow-context";
 
@@ -43,10 +44,13 @@ export function VisualiseView({ clientId, review }: { clientId: string; review?:
   const router = useRouter();
   const { data: { script, board }, panelModelId, setPanelModelId, draws, model } = useVisualiseBoardActions();
   const reopen = useReopenScript(clientId, script.id);
+  const canReopen = useCan("approve", clientId);
+  // Typing the script's text is an edit: it needs Generate (D538), like every other change by hand.
+  const canEditText = useCan("edit", clientId);
   const setField = useSetVisualiseField(clientId, script.id);
   // D489 — the script's text is typed here while it is in Visualise; In review it is read-only,
   // as the client was sent it. Adding or removing shots stays with the copilot (Reopen).
-  const edit: ScriptEdit | null = script.stage === "visualise"
+  const edit: ScriptEdit | null = script.stage === "visualise" && canEditText
     ? {
         commit: (path, value) => setField.mutate({ path, value }, { onError: (e) => toast.error(errorMessage(e, "Could not save that change")) }),
         busyPath: null,
@@ -72,6 +76,7 @@ export function VisualiseView({ clientId, review }: { clientId: string; review?:
     <MaybeScriptEdit edit={edit}>
     <div className="flex flex-col gap-6">
       <VisualiseReadiness
+        canReopen={canReopen}
         stage={script.stage}
         readiness={model.readiness}
         kitsFound={board.kits.length > 0}

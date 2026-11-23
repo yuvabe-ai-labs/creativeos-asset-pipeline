@@ -9,7 +9,6 @@ import {
   listBrandImages,
 } from "@/lib/db/kb";
 import { getClientById } from "@/lib/db/clients";
-import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { approveKB } from "@/lib/kb/approve";
 import { removeObject } from "@/lib/storage";
 import {
@@ -27,7 +26,7 @@ export async function patchKBFieldAction(
   path: string[],
   patch: Record<string, unknown>,
 ): Promise<void> {
-  return withAction("patchKBFieldAction", async () => {
+  return withAction("patchKBFieldAction", { need: "edit", on: { kbVersionId: versionId } }, async () => {
     const supabase = createServerSupabase();
     const { data, error } = await supabase
       .from("client_kb_versions")
@@ -51,12 +50,12 @@ export async function markKBReadyAction(
   versionId: string,
   clientSlug: string,
 ): Promise<{ ok: true } | { error: string }> {
-  return withAction("markKBReadyAction", async () => {
-    // The client id comes from the browser: it must be one the caller may open.
-    const [client, orgId, { userId }] = await Promise.all([getClientById(clientId), resolveOrgId(), resolveCallerContext()]);
-    if (!client || client.org_id !== orgId || client.slug !== clientSlug) return { error: "Client not found." };
+  return withAction("markKBReadyAction", { need: "edit", on: { clientId } }, async (ctx) => {
+    // The guard checked the caller may edit this client; the slug from the browser must be its own.
+    const client = await getClientById(clientId);
+    if (!client || client.slug !== clientSlug) return { error: "Client not found." };
     // The same approval the copilot's gate card reaches (src/lib/kb/approve.ts).
-    return approveKB({ client, userId, versionId });
+    return approveKB({ client, userId: ctx.caller.userId, versionId });
   });
 }
 
@@ -67,7 +66,7 @@ export async function deleteKBDocumentAction(
   clientId: string,
   docId: string,
 ): Promise<void> {
-  return withAction("deleteKBDocumentAction", async () => {
+  return withAction("deleteKBDocumentAction", { need: "delete", on: { clientId } }, async () => {
     const supabase = createServerSupabase();
     const { data, error } = await supabase
       .from("client_kb_documents")
@@ -95,7 +94,7 @@ export async function deleteBrandImageAction(
   clientId: string,
   imageId: string,
 ): Promise<void> {
-  return withAction("deleteBrandImageAction", async () => {
+  return withAction("deleteBrandImageAction", { need: "delete", on: { clientId } }, async () => {
     const supabase = createServerSupabase();
     const { data, error } = await supabase
       .from("client_brand_images")
@@ -122,11 +121,13 @@ export async function deleteBrandImageAction(
 
 export async function startKBBuildJob(clientId: string): Promise<{ jobId: string }> {
   // The same start the brand KB copilot uses (src/lib/kb/start-build.ts), so both behave alike.
-  return withAction("startKBBuildJob", () => startKBBuild(clientId));
+  return withAction("startKBBuildJob", { need: "generate", on: { clientId } }, () => startKBBuild(clientId));
 }
 
+// Needs Generate, like startKBBuildJob: it marks any unfinished job failed with no staleness
+// check, so on a build that is still running it throws away the credits spent on it.
 export async function markStuckJobFailed(jobId: string): Promise<void> {
-  return withAction("markStuckJobFailed", async () => {
+  return withAction("markStuckJobFailed", { need: "generate", on: { kbJobId: jobId } }, async () => {
     const job = await getKBJob(jobId);
     if (!job) throw new Error("Job not found.");
     await markKBJobStuckIfRunning(jobId);

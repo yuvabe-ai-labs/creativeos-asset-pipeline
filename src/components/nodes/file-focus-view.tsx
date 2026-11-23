@@ -22,6 +22,7 @@ import { nextFileNodeTitle } from "@/lib/nodes/title";
 import { fileNodeService } from "@/services/file-node.service";
 import { useGooglePicker } from "@/hooks/use-google-picker";
 import { DriveIcon } from "@/components/ui/drive-icon";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { FileEmptyState } from "./file-empty-state";
 import { EditableField } from "./editable-field";
 import { FilePreview } from "./file-preview";
@@ -67,6 +68,8 @@ export function FileFocusView({
   onPatch,
   onUploadingChange,
 }: FileFocusViewProps) {
+  // View-only (no canvas edit right, or someone else holds the lock): the file can be looked at, never uploaded, replaced, removed or extracted.
+  const canEdit = useCanvasEditable();
   const [loading, setLoading] = useState(false);
   const [replacing, setReplacing] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -233,7 +236,7 @@ export function FileFocusView({
                   )}
                 </div>
 
-                {mode === "ready" && (
+                {mode === "ready" && canEdit && (
                   <div className="flex shrink-0 items-center gap-2">
                     <input
                       ref={replaceInputRef}
@@ -288,17 +291,23 @@ export function FileFocusView({
                 </div>
               )}
 
-              {mode === "empty" && (
+              {mode === "empty" && canEdit && (
                 <FileEmptyState onUpload={handleUpload} onPickFromDrive={handleOpenPicker} />
+              )}
+
+              {mode === "empty" && !canEdit && (
+                <p className="py-24 text-center text-sm text-muted-foreground">No file attached yet.</p>
               )}
 
               {mode === "ready" && (
                 <div
                   className={cn(
                     "flex-1 min-h-0 grid gap-8 h-full",
-                    fileKind === "document"
-                      ? "grid-cols-[2fr_3fr]"
-                      : "grid-cols-[3fr_2fr]",
+                    !canEdit
+                      ? "grid-cols-1"
+                      : fileKind === "document"
+                        ? "grid-cols-[2fr_3fr]"
+                        : "grid-cols-[3fr_2fr]",
                   )}
                 >
                   <div className="flex flex-col min-h-0">
@@ -310,6 +319,7 @@ export function FileFocusView({
                       fileExt={fileExt}
                     />
                   </div>
+                  {canEdit && (
                   <div className="flex flex-col min-h-0">
                     <LlmPromptPanel
                       localPrompt={localPrompt}
@@ -321,6 +331,7 @@ export function FileFocusView({
                       onClear={handleClearLlm}
                     />
                   </div>
+                  )}
                 </div>
               )}
             </div>

@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { insertCopilotMessages } from "@/lib/db/copilot-messages";
 import { patchKBFields } from "@/lib/db/kb";
 import { ensureOpening } from "@/lib/journey/thread/opening";
@@ -20,7 +19,7 @@ const bodySchema = z.object({
 // writes an older copy of the KB over a field the copilot or a teammate filled in the meantime.
 // The save is then said in the copilot thread, which is how the copilot learns of it.
 export async function PATCH(req: Request, { params }: Ctx) {
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "edit" }, async (clientId, client, caller) =>
     withTryCatch("Failed to save changes", async () => {
       const body = bodySchema.safeParse(await req.json().catch(() => null));
       if (!body.success) return apiError("Nothing to save.", 400);
@@ -33,7 +32,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
       // Best effort: the save stands even if the thread cannot be written.
       try {
-        const [{ userId }] = await Promise.all([resolveCallerContext(), ensureOpening(client)]);
+        const { userId } = caller;
+        await ensureOpening(client);
         const n = patches.length;
         await insertCopilotMessages(clientId, ONBOARDING, userId, [
           { role: "assistant", content: `Manual edits saved: ${n} field${n === 1 ? "" : "s"}.`, card: { kind: "note" }, suggestions: [], createdBy: userId },

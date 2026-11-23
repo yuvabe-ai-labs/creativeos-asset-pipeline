@@ -4,8 +4,7 @@ import { useRef, useState } from "react";
 import { updateOrgCreditLimitAction } from "@/lib/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-type Mode = "unlimited" | "set";
+import { CreditLimitToggle, type CreditLimitMode as Mode } from "@/components/admin/credit-limit-toggle";
 
 // Segmented Unlimited/Set-limit toggle. "Unlimited" is a single unambiguous action and
 // saves immediately; "Set limit" reveals an input with explicit Save/Cancel — no
@@ -67,26 +66,7 @@ export function CreditLimitEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="inline-flex w-fit gap-1 rounded-lg border border-border bg-muted/40 p-1">
-        <Button
-          type="button"
-          size="sm"
-          variant={mode === "unlimited" ? "default" : "ghost"}
-          disabled={saving}
-          onClick={selectUnlimited}
-        >
-          Unlimited
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={mode === "set" ? "default" : "ghost"}
-          disabled={saving}
-          onClick={selectSet}
-        >
-          Set limit
-        </Button>
-      </div>
+      <CreditLimitToggle mode={mode} disabled={saving} onUnlimited={selectUnlimited} onSet={selectSet} />
 
       {mode === "set" && (
         <div className="flex items-center gap-2">

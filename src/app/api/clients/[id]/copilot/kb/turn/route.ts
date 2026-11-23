@@ -5,7 +5,6 @@ import { apiError, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { IMPORT_SOURCES } from "@/lib/asset-import/constants";
 import { setImportTarget, startAssetImports } from "@/lib/asset-import/start";
 import { importTargetEditValue } from "@/lib/asset-import/utils";
-import { resolveCallerContext } from "@/lib/dal";
 import { insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-messages";
 import { insertTurnTrace } from "@/lib/db/copilot-traces";
 import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
@@ -46,7 +45,7 @@ const bodySchema = z.object({
 // a turn that starts answers as newline-delimited JSON events (turn-events.ts). Attachments are already uploaded as brand KB sources; their
 // ids are checked against this client's own documents and images.
 export async function POST(req: Request, { params }: Ctx) {
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("The copilot could not answer.", async () => {
       const body = bodySchema.safeParse(await req.json().catch(() => null));
       if (!body.success) return apiError("Write a message first.", 400);
@@ -61,8 +60,8 @@ export async function POST(req: Request, { params }: Ctx) {
       // about its fields and may fill the ones still unreviewed; a reviewed field it only proposes
       // to change, on a change card made against this version (D517).
       const reviewing = client.kb_status === "in_review" && client.active_kb_version_id !== null;
-      const [{ userId }, { ctx, sources }, stored, version] = await Promise.all([
-        resolveCallerContext(),
+      const { userId } = caller;
+      const [{ ctx, sources }, stored, version] = await Promise.all([
         loadKbContext(client),
         // A failed read fails the turn here: it must never look like an empty thread.
         listCopilotMessages(clientId, ONBOARDING),

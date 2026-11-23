@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { resetMemberPasswordAction } from "@/lib/actions/admin";
 import { Button } from "@/components/ui/button";
-import { CopyRow } from "@/components/admin/copy-row";
+import { CopyRow } from "@/components/shared/copy-row";
 import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
@@ -23,12 +23,20 @@ export function ResetPasswordDialog({
   orgId,
   userId,
   displayName,
+  open,
+  onOpenChange: setOpenFromParent,
 }: {
   orgId: string;
   userId: string;
   displayName: string;
+  /** Given: opened from a person row's ⋯ menu, with no button of its own. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = open !== undefined;
+  const isOpen = controlled ? open : ownOpen;
+  const setOpen = (next: boolean) => (controlled ? setOpenFromParent?.(next) : setOwnOpen(next));
   const [mode, setMode] = useState<Mode>("auto");
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -63,10 +71,12 @@ export function ResetPasswordDialog({
 
   return (
     <>
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-        Reset password
-      </Button>
-      <AlertDialog open={open} onOpenChange={onOpenChange}>
+      {!controlled && (
+        <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+          Reset password
+        </Button>
+      )}
+      <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
         <AlertDialogContent>
           {tempPassword ? (
             <>

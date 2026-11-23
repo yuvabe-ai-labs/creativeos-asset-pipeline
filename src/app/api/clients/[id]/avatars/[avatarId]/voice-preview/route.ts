@@ -1,13 +1,12 @@
 import { z } from "zod";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar } from "@/lib/db/avatars";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
-import { VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
+import { VOICE_CHECK_FAILED_MESSAGE, VOICE_GONE_MESSAGE, VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
 import { signAvatarVoicePreviewUrl, signAvatarVoiceSampleUrl } from "@/lib/storage";
 import { AVATAR_VOICE_PREVIEW_LINE_MAX, AVATAR_VOICE_PREVIEW_SLOT } from "@/lib/avatars/constants";
@@ -30,7 +29,7 @@ const BodySchema = z.object({
 // while one is running) and what the next one would cost.
 export async function GET(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "view" }, async (clientId) =>
     withTryCatch("Could not load the voice preview.", async () => {
       const avatar = await getAvatar(clientId, avatarId);
       if (!avatar) return apiError("Avatar not found.", 404);
@@ -45,7 +44,7 @@ export async function GET(req: Request, { params }: Ctx) {
 // signs its uploads and queues the task; the generation webhook settles or refunds.
 export async function POST(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("Could not start the voice preview.", async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) {
@@ -73,12 +72,11 @@ export async function POST(req: Request, { params }: Ctx) {
       let voice: { voiceId: string; name: string; priceMultiplier: number } | null = null;
       if (mode === "named" && avatar.voice?.mode === "named") {
         const found = await getVoiceCached(avatar.voice.voiceId).catch(() => undefined);
-        if (found === undefined) return apiError("Could not reach ElevenLabs to check the voice. Try again.", 400);
-        if (!found) return apiError("That voice is no longer on the ElevenLabs account. Choose another voice.", 400);
+        if (found === undefined) return apiError(VOICE_CHECK_FAILED_MESSAGE, 400);
+        if (!found) return apiError(VOICE_GONE_MESSAGE, 400);
         voice = found;
       }
 
-      const caller = await resolveCallerContext();
       const line = parsed.data.line;
       const prompt = buildVoicePreviewPrompt(line, mode);
       const paramsSnapshot = voicePreviewParams(engine);

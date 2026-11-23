@@ -1,6 +1,6 @@
+import { loadClientPage } from "@/lib/permissions/page";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { getClientBySlug } from "@/lib/db/clients";
+import { notFound } from "next/navigation";
 import { getScript } from "@/lib/db/scripts";
 import { getScriptCanvas } from "@/lib/db/canvases";
 import { ScriptCanvasButton } from "@/components/scripts/script-canvas-button";
@@ -8,7 +8,6 @@ import { getGenerateScript, listCopilotAvatars, listScriptMessages, loadGenerate
 import { scriptWaiting } from "@/lib/scripts/copilot/waiting";
 import { CopilotChat } from "@/components/scripts/generate/copilot-chat";
 import { listAvatars } from "@/lib/db/avatars";
-import { resolveOrgId } from "@/lib/dal";
 import { scriptsLocked } from "@/lib/journey/stages";
 import { redirectUnlessKbReady } from "@/lib/clients/kb-gate";
 import { ScriptView } from "@/components/scripts/script-view";
@@ -28,9 +27,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ScriptPage({ params }: { params: Promise<{ id: string; scriptId: string }> }) {
   const { id, scriptId } = await params; // `id` is the client slug
-  const client = await getClientBySlug(id);
-  const effectiveOrgId = await resolveOrgId();
-  if (!client || client.org_id !== effectiveOrgId) redirect("/");
+  const { client } = await loadClientPage(id, "view");
   // D503: no scripts or avatars until the Brand KB is set up, the same rule as the canvases page.
   redirectUnlessKbReady(client);
 

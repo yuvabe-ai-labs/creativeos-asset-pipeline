@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeRefreshToken } from "@/lib/drive/client";
-import { apiError } from "@/lib/api/route-helpers";
+import { apiError, withAccess } from "@/lib/api/route-helpers";
 
-export async function GET(
+async function readDrive(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // TODO D14: No auth check — relies on the Drive file IDs being unguessable (security-through-obscurity).
-  // Add proper session auth once D14 (auth) is implemented.
   const { id } = await params;
 
   let accessToken: string;
@@ -50,4 +48,10 @@ export async function GET(
       "Cache-Control": "private, max-age=300",
     },
   });
+}
+
+// Every agency reads Drive through ONE platform-wide token (known limitation, plan 1), so the
+// Drive routes need canvas edit, checked through withAccess.
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  return withAccess(req, { need: "edit" }, () => readDrive(req, ctx));
 }

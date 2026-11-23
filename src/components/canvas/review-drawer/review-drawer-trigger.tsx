@@ -10,8 +10,8 @@ import type { ReviewCounts } from "@/lib/review/queue";
 // R5.3: the canvas-level control — how many of THIS canvas's assets await review, and the
 // way into the drawer.
 //
-// R6.7/R5.6: shown to every role. A designer sees how much is outstanding and can open the
-// drawer read-only; only a senior can act on it. Counts are not a privilege.
+// R6.7/R5.6: shown to everyone on the client. Someone without Approve sees how much is
+// outstanding and can open the drawer read-only; only Approve can act on it. Counts are not a privilege.
 export function ReviewDrawerTrigger({
   canvasId,
   initialCounts,

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({
+  resolveCallerContext: vi.fn(async () => ({ userId: "user-1", orgId: "org-1" })),
   resolveCallerContextOrNull: vi.fn(async () => ({ userId: "user-1" })),
   resolveOrgId: vi.fn(async () => "org-1"),
 }));

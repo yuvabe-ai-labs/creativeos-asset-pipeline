@@ -12,7 +12,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, (clientId) =>
+  return withClient(req, params, { need: "manage_clients" }, (clientId) =>
     withTryCatch("Archive update failed", async () => {
       const archived = parseArchivedBody(await req.json().catch(() => null));
       if (archived === null) {

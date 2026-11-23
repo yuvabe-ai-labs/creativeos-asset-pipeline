@@ -127,6 +127,15 @@ Helpers live in `src/lib/api/route-helpers.ts`. Key rules:
 - Use `parseFormFile` / `validateFileExtension` / `validateFileSize` for uploads.
 <!-- END:api-routes -->
 
+<!-- BEGIN:database -->
+# Database & tables
+
+Before adding or changing a table, column, index, view, RLS policy, SQL function or migration,
+load the **`database-schema`** skill. The schema map is **[docs/database-schema.md](docs/database-schema.md)**.
+Create a new table only when it is genuinely needed, and put new data where it belongs. Never run
+SQL or apply migrations.
+<!-- END:database -->
+
 <!-- BEGIN:react-flow -->
 # React Flow (`@xyflow/react`)
 

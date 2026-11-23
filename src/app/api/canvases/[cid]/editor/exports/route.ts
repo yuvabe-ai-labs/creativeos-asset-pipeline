@@ -15,7 +15,7 @@ const BodySchema = z.object({ nodeId: z.uuid() });
 
 export async function POST(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId, canvas) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "share" }, async (canvasId, canvas) =>
     withTryCatch("Couldn't start the export.", async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Say which Editor to export.", 400);

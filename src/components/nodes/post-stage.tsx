@@ -30,11 +30,13 @@ type Props = {
   // no state for it. The actual natural-size map is held by a later integration task in
   // post-focus-view.tsx.
   onImageLoaded: (layerId: string, naturalW: number, naturalH: number) => void;
+  /** View-only: nothing can be selected, moved, resized or edited. */
+  readOnly?: boolean;
 };
 
 export function PostStage({
   layers, containerW, containerH, selectedIds, onSelect, onToggleSelect, onSelectMany,
-  resolveNodeImageUrl, updateLayerLive, commitLayerChange, stageRef, onCommitText, onImageLoaded,
+  resolveNodeImageUrl, updateLayerLive, commitLayerChange, stageRef, onCommitText, onImageLoaded, readOnly = false,
 }: Props) {
   const nodeRefs = useRef<Map<string, Konva.Node>>(new Map());
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -159,6 +161,7 @@ export function PostStage({
   // currently being moved — draws a selection rect. A plain click with no drag never grows
   // past the `> 4`px guard in mouseup, so it does nothing extra.
   function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
+    if (readOnly) return;
     const stage = e.target.getStage();
     if (!stage) return;
     // Primary button only. A right-click fires mousedown too, and this whole path used to run
@@ -345,7 +348,7 @@ export function PostStage({
                 else nodeRefs.current.delete(layer.id);
               }}
               onSelect={(evt) => {
-                if (layer.locked) return;
+                if (readOnly || layer.locked) return;
                 // Konva synthesizes `click` for ANY button — Stage._pointerdown arms it with
                 // `ListenClick = true` and _pointerup fires it whenever the gesture started
                 // and ended on the same shape, neither checking `button`. So a right-click on
@@ -365,7 +368,7 @@ export function PostStage({
                 else onSelect(layer.id);
               }}
               onDragEnd={(node) => commitNodeGeometry(layer.id, node)}
-              onDblClickText={() => layer.kind === "text" && !layer.locked && setEditingTextId(layer.id)}
+              onDblClickText={() => !readOnly && layer.kind === "text" && !layer.locked && setEditingTextId(layer.id)}
               onImageLoaded={onImageLoaded}
               // Grouped text (every template CTA label) registers here and opens the same
               // inline editor, so a button can be reworded without ungrouping it first.
@@ -373,7 +376,7 @@ export function PostStage({
                 if (node) nodeRefs.current.set(id, node);
                 else nodeRefs.current.delete(id);
               }}
-              onDblClickTextFor={setEditingTextId}
+              onDblClickTextFor={readOnly ? undefined : setEditingTextId}
               editingLayerId={editingTextId}
             />
           ))}

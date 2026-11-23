@@ -12,7 +12,6 @@ vi.mock("@/lib/dal", () => ({
     userId: "user-1",
     platformRole: "member",
     orgId: "org-1",
-    orgRole: "owner",
     mustChangePassword: false,
   })),
   resolveOrgId: vi.fn(async () => "org-1"),
@@ -31,7 +30,7 @@ vi.mock("@/lib/supabase/server", () => ({
       select: () => ({
         eq: () => ({
           maybeSingle: async () => ({
-            data: boardOrgId === null ? null : { id: "board-1", clients: { org_id: boardOrgId } },
+            data: boardOrgId === null ? null : { id: "board-1", client_id: "client-1", clients: { org_id: boardOrgId } },
             error: null,
           }),
         }),

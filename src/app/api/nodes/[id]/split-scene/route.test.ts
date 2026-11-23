@@ -9,7 +9,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
   );
   return {
     ...actual,
-    withNode: (_req: Request, _params: unknown, fn: (nodeId: string) => Promise<Response>) =>
+    withNode: (_req: Request, _params: unknown, _guard: unknown, fn: (nodeId: string) => Promise<Response>) =>
       fn("node-1"),
   };
 });

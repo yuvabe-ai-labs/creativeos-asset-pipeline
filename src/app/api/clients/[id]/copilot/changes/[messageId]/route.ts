@@ -1,7 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { claimChangeCard, getCopilotMessage, setMessageCard } from "@/lib/db/copilot-messages";
 import { patchKBFields, readKBFieldValues } from "@/lib/db/kb";
 import { resolveDisplayNames } from "@/lib/db/profiles";
@@ -25,12 +24,13 @@ const SETTLED = "That change was already settled.";
 // stays approved. Who decided is kept on the card.
 export async function POST(req: Request, { params }: Ctx) {
   const { messageId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "edit" }, async (clientId, client, caller) =>
     withTryCatch("Could not apply that change.", async () => {
       const body = bodySchema.safeParse(await req.json().catch(() => null));
       if (!body.success) return apiError("Approve or discard.", 400);
 
-      const [message, { userId }] = await Promise.all([getCopilotMessage(clientId, messageId), resolveCallerContext()]);
+      const { userId } = caller;
+      const message = await getCopilotMessage(clientId, messageId);
       const card = message?.card?.kind === "change" ? message.card : null;
       if (!card) return apiError("That change is not in this client's thread.", 404);
       if (card.status !== "pending") return apiError(SETTLED, 409);

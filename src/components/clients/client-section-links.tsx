@@ -1,8 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { CLIENT_SECTIONS } from "@/components/clients/client-sections";
-
-const PINNED = CLIENT_SECTIONS.filter((s) => s.pinned);
 
 /**
  * A tile's action row: the pinned sections (Scripts, Avatars) as labelled links, so the
@@ -10,12 +10,14 @@ const PINNED = CLIENT_SECTIONS.filter((s) => s.pinned);
  * tile's ⋯ menu. Each action takes an equal share of the row, split by a hairline.
  */
 export function ClientSectionLinks({ slug, clientName }: { slug: string; clientName: string }) {
+  const pinned = CLIENT_SECTIONS.filter((s) => s.pinned);
+  if (pinned.length === 0) return null;
   return (
     <nav
       aria-label={`${clientName} sections`}
       className="flex items-stretch divide-x border-t"
     >
-      {PINNED.map((section) => (
+      {pinned.map((section) => (
         <Button
           key={section.label}
           variant="ghost"

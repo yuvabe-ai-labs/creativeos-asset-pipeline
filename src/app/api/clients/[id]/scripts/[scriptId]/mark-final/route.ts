@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // happens only on the version read here, so an edit landing meanwhile stops it.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "approve" }, async (clientId) =>
     withTryCatch("Could not mark the script final.", async () => {
       const script = await getGenerateScript(clientId, scriptId);
       if (!script) return apiError("Script not found.", 404);

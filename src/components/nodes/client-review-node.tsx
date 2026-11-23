@@ -18,6 +18,7 @@ import { useClientReviewUpload } from "@/hooks/use-client-review-upload";
 import { copyVersionLink } from "@/lib/client-review/copy-link";
 import type { ClientReviewNodeData } from "@/lib/canvas-nodes";
 import { useClientFeedback, type FeedbackRequest } from "@/components/canvas/client-feedback-drawer/client-feedback-context";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { ClientReviewFocusView } from "./client-review-focus-view";
 import { NodeCardHeader } from "./node-card-header";
 import { NodeContextMenu } from "./node-context-menu";
@@ -38,10 +39,13 @@ export function ClientReviewNode({ id, data, selected, positionAbsoluteX, positi
   const d = data as ClientReviewNodeData;
   const { data: current, isPending: loading, isError, refetch } = useNodeClientReview(id);
   const [focusOpen, setFocusOpen] = useState(false);
+  // Spec §5: uploading the cut makes the client's review link, so the prompt to upload needs Share.
+  const editable = useCanvasEditable();
+  const { share: canShare } = useCanvasPermissions();
+  const canShareCut = editable && canShare;
   // The version the focus view shows; null is the newest.
   const [viewedVersionNo, setViewedVersionNo] = useState<number | null>(null);
   const [handledRequest, setHandledRequest] = useState<FeedbackRequest | null>(null);
-  const editable = useCanvasEditable();
   // One upload per node, shared by the right-click menu and the focus view's button. The card
   // shows a skeleton while it runs; once saved, the (open or next-opened) focus view shows the
   // new version. Uploading from the card does not open the focus view.
@@ -90,7 +94,7 @@ export function ClientReviewNode({ id, data, selected, positionAbsoluteX, positi
         onDelete={() => deleteNode(id)}
         extraItems={
           <>
-            <ContextMenuItem disabled={!editable || upload.uploading || !current} onClick={upload.choose}>
+            <ContextMenuItem disabled={!canShareCut || upload.uploading || !current} onClick={upload.choose}>
               <Upload className="mr-2 size-3.5" strokeWidth={1.5} />
               {latest ? "Upload new version" : "Upload first version"}
             </ContextMenuItem>
@@ -180,7 +184,7 @@ export function ClientReviewNode({ id, data, selected, positionAbsoluteX, positi
                   Retry
                 </Button>
               </>
-            ) : editable ? (
+            ) : canShareCut ? (
               // The empty node's one action: pick the first cut right here.
               <Button
                 variant="ghost"

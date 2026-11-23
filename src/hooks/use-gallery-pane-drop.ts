@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useReactFlow } from "@xyflow/react";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useGalleryDrawer as useGalleryCommit } from "./use-gallery-drawer";
 import { GALLERY_DRAG_MIME } from "@/components/canvas/gallery-drawer/gallery-drawer";
 import type { GalleryImage } from "@/components/canvas/gallery-drawer/types";
@@ -29,16 +30,19 @@ export function useGalleryPaneDrop(): GalleryPaneDropHandlers {
   const addAvatarNode = useAddAvatarNode();
   const addScriptNode = useAddScriptNode();
   const reactFlow = useReactFlow();
+  const canEdit = useCanvasEditable();
 
   const onDragOver = useCallback((e: React.DragEvent) => {
+    if (!canEdit) return; // view-only or locked by someone else: not a drop target
     const types = e.dataTransfer.types;
     if (!types.includes(GALLERY_DRAG_MIME) && !types.includes(AVATAR_DRAG_MIME) && !types.includes(SCRIPT_DRAG_MIME)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
-  }, []);
+  }, [canEdit]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
+      if (!canEdit) return;
       // Spec 1 §5.2 — an approved script from the gallery's Scripts tab: a parsed Script node.
       const script = parseScriptDragPayload(e.dataTransfer.getData(SCRIPT_DRAG_MIME));
       if (script) {
@@ -66,7 +70,7 @@ export function useGalleryPaneDrop(): GalleryPaneDropHandlers {
         console.warn("[gallery] pane drop payload malformed:", err);
       }
     },
-    [handleAdd, addAvatarNode, addScriptNode, reactFlow],
+    [canEdit, handleAdd, addAvatarNode, addScriptNode, reactFlow],
   );
 
   return { onDragOver, onDrop };

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { exchangeRefreshToken } from "@/lib/drive/client";
-import { apiError, apiOk } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withAccess } from "@/lib/api/route-helpers";
 
 export type DriveFileItem = {
   id: string;
@@ -58,7 +58,7 @@ async function queryDrive(
   return { items: json.files ?? [], nextPageToken: json.nextPageToken };
 }
 
-export async function GET(req: NextRequest) {
+async function readDrive(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const folderId = searchParams.get("folderId") ?? "root";
   const pageToken = searchParams.get("pageToken") ?? undefined;
@@ -146,4 +146,10 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     return apiError(e instanceof Error ? e.message : "Drive API error", 502);
   }
+}
+
+// Every agency reads Drive through ONE platform-wide token (known limitation, plan 1), so the
+// Drive routes need canvas edit, checked through withAccess.
+export async function GET(req: NextRequest) {
+  return withAccess(req, { need: "edit" }, () => readDrive(req));
 }

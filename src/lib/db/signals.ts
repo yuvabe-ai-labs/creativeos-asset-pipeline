@@ -39,6 +39,22 @@ export async function listSignalsWithItems(clientId: string): Promise<SignalWith
   });
 }
 
+/** True when every id is an item on one of this client's boards. The ids come from the request
+ *  body, and the signal list embeds a signal's items, so another client's item must never be
+ *  linked into this client's signal. */
+async function itemsBelongToClient(clientId: string, itemIds: string[]): Promise<boolean> {
+  const unique = [...new Set(itemIds)];
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("moodboard_items")
+    .select("id, moodboards!inner(client_id)")
+    .in("id", unique)
+    .eq("moodboards.client_id", clientId);
+  if (error) throw error;
+  return (data ?? []).length === unique.length;
+}
+
+/** Null when an item is not on this client's boards: nothing is written. */
 export async function createSignal(
   clientId: string,
   input: {
@@ -48,7 +64,8 @@ export async function createSignal(
     createdBy?: string;
     itemIds: string[];
   },
-): Promise<Signal> {
+): Promise<Signal | null> {
+  if (input.itemIds.length && !(await itemsBelongToClient(clientId, input.itemIds))) return null;
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("signals")
@@ -76,20 +93,32 @@ export async function createSignal(
   return signal;
 }
 
+// Both are scoped to the client the route checked: the signal id comes from the URL beside it.
+// False when no signal of this client has that id (another client's, or gone).
 export async function updateSignal(
+  clientId: string,
   id: string,
   patch: { name?: string; tags?: string[]; description?: string },
-): Promise<void> {
+): Promise<boolean> {
   const supabase = createServerSupabase();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("signals")
     .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("client_id", clientId)
+    .select("id");
   if (error) throw error;
+  return (data ?? []).length > 0;
 }
 
-export async function deleteSignal(id: string): Promise<void> {
+export async function deleteSignal(clientId: string, id: string): Promise<boolean> {
   const supabase = createServerSupabase();
-  const { error } = await supabase.from("signals").delete().eq("id", id);
+  const { data, error } = await supabase
+    .from("signals")
+    .delete()
+    .eq("id", id)
+    .eq("client_id", clientId)
+    .select("id");
   if (error) throw error;
+  return (data ?? []).length > 0;
 }

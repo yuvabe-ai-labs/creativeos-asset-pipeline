@@ -11,7 +11,8 @@ export type ImpersonationEventType =
   | "session_started"
   | "elevated_mode_entered"
   | "write_action"
-  | "session_ended";
+  | "session_ended"
+  | "admin_action";
 
 export type ImpersonationEvent = {
   operatorId: string;

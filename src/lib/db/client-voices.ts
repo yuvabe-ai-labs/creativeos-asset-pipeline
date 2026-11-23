@@ -16,6 +16,22 @@ export async function listClientVoiceIds(clientId: string): Promise<string[]> {
   return ((data ?? []) as { elevenlabs_voice_id: string }[]).map((r) => r.elevenlabs_voice_id);
 }
 
+/** The voices recorded for one agency's clients: all of them (clientIds null, the owner) or only
+ *  the clients the caller can see. For the account-wide picker list and voice lookup, which have
+ *  no client in the URL: they must never show another agency's clones. */
+export async function listAgencyVoiceIds(orgId: string, clientIds: readonly string[] | null): Promise<string[]> {
+  if (clientIds !== null && clientIds.length === 0) return [];
+  const supabase = createServerSupabase();
+  let query = supabase
+    .from("client_voices")
+    .select("elevenlabs_voice_id, clients!inner(org_id)")
+    .eq("clients.org_id", orgId);
+  if (clientIds !== null) query = query.in("client_id", clientIds);
+  const { data, error } = await query;
+  if (error) throw error;
+  return [...new Set(((data ?? []) as { elevenlabs_voice_id: string }[]).map((r) => r.elevenlabs_voice_id))];
+}
+
 /** Records a voice for a client. Recording the same voice twice is a no-op. */
 export async function addClientVoice(args: {
   clientId: string;

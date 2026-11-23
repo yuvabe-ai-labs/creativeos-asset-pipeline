@@ -48,8 +48,8 @@ export function InlineApprovalBar({
   status: ApprovalStatus;
   note: string;
   saving: boolean;
-  // R2.3: hides the control from a designer as a COURTESY. The real gate is the role
-  // check inside setVersionApprovalAction, which resolves the caller server-side (D166) —
+  // R2.3: hides the control from someone without Approve as a COURTESY. The real gate is the
+  // Approve check inside setVersionApprovalAction, which resolves the caller server-side (D542) —
   // this prop is not, and must never become, the mechanism.
   canApprove: boolean;
   onSet: (status: ApprovalStatus, note: string | null) => void;
@@ -262,7 +262,7 @@ export function InlineApprovalBar({
   );
 }
 
-// What a designer sees. It used to render the status label and NOTHING else, which meant
+// What someone without Approve sees. It used to render the status label and NOTHING else, which meant
 // the reviewer's note — the entire payload of the return path — was invisible to the one
 // person it is written for: they knew they had been rejected, but not why.
 function ApprovalReadout({

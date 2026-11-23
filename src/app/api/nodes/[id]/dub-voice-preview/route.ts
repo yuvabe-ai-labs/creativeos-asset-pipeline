@@ -11,7 +11,7 @@ const BodySchema = z.object({ voice: z.string().refine(isDubVoice), language: z.
 // D379 — a preset voice's preview, in the language being dubbed into. Made once with the
 // vendor's text-to-speech and kept in storage; every later request is the stored file.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, (_nodeId, node) =>
+  return withNode(req, params, { need: "generate" }, (_nodeId, node) =>
     withTryCatch("Couldn't load the preview. Try again.", async () => {
       if (node.type !== "dubbing") return apiError("Node not found.", 404);
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));

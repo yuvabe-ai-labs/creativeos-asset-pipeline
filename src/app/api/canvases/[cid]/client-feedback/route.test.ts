@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({
-  resolveCallerContext: vi.fn(async () => ({ userId: "u1", orgId: "org-1", orgRole: "owner" })),
+  resolveCallerContext: vi.fn(async () => ({ userId: "u1", orgId: "org-1" })),
   resolveOrgId: vi.fn(async () => "org-1"),
 }));
 vi.mock("@/lib/auth/impersonation", () => ({
@@ -19,7 +19,7 @@ vi.mock("@/lib/supabase/server", () => ({
       select: () => ({
         eq: () => ({
           maybeSingle: async () => ({
-            data: { id: "cv1", clients: { org_id: canvasOrg.value } },
+            data: { id: "cv1", client_id: "cl1", clients: { org_id: canvasOrg.value } },
             error: null,
           }),
         }),

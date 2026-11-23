@@ -11,7 +11,7 @@ const ONLY_VISUALISE = "Only a script in Visualise can be reopened.";
 // shots that change are marked out of date when the script comes back (D344).
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "approve" }, async (clientId) =>
     withTryCatch("Could not reopen the script.", async () => {
       const script = await getScript(clientId, scriptId);
       if (!script) return apiError("Script not found.", 404);

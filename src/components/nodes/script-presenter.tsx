@@ -4,6 +4,7 @@ import { Plus, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useClientId } from "@/components/canvas/client-id-context";
 import { useGalleryDrawer } from "@/components/canvas/gallery-drawer-context";
 import { useAvatar } from "@/hooks/queries/avatars";
@@ -46,6 +47,7 @@ export function ScriptPresenterRow({ scriptId, parsed }: { scriptId: string; par
   const presenter = usePresenter(scriptId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const { openDrawer } = useGalleryDrawer();
+  const canEdit = useCanvasEditable();
 
   if (presenter) {
     return (
@@ -60,7 +62,7 @@ export function ScriptPresenterRow({ scriptId, parsed }: { scriptId: string; par
       </Button>
     );
   }
-  if (!parsed) return null;
+  if (!parsed || !canEdit) return null;
   return (
     <Button
       variant="ghost"
@@ -79,14 +81,17 @@ export function ScriptPresenterRow({ scriptId, parsed }: { scriptId: string; par
 export function ScriptPresenterBlock({ scriptId, onOpenGallery }: { scriptId: string; onOpenGallery: () => void }) {
   const presenter = usePresenter(scriptId);
   const disconnectNodes = useCanvasStore((s) => s.disconnectNodes);
+  const canEdit = useCanvasEditable();
 
   if (!presenter) {
     return (
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" onClick={onOpenGallery} className={ADD_CHIP}>
-          <Plus className="size-3" strokeWidth={1.5} />
-          Add an avatar
-        </Button>
+        {canEdit && (
+          <Button variant="ghost" onClick={onOpenGallery} className={ADD_CHIP}>
+            <Plus className="size-3" strokeWidth={1.5} />
+            Add an avatar
+          </Button>
+        )}
         <span className="text-xs text-muted-foreground">
           Optional. The avatar whose face and voice this script&apos;s stills and videos use.
         </span>
@@ -111,6 +116,7 @@ export function ScriptPresenterBlock({ scriptId, onOpenGallery }: { scriptId: st
       <span className="min-w-0 max-w-[360px] text-xs leading-relaxed text-muted-foreground">
         On-camera shots from this script use {avatar.name}&apos;s face and voice when they&apos;re made into stills and videos.
       </span>
+      {canEdit && (
       <div className="ml-2 flex shrink-0 items-center gap-1">
         <Button variant="outline" size="sm" onClick={onOpenGallery}>Change</Button>
         <Button
@@ -122,6 +128,7 @@ export function ScriptPresenterBlock({ scriptId, onOpenGallery }: { scriptId: st
           Remove
         </Button>
       </div>
+      )}
     </div>
   );
 }

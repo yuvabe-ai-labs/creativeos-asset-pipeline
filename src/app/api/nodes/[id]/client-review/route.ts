@@ -56,7 +56,7 @@ async function ensureReview(input: { canvasId: string; nodeId: string; createdBy
 // GET /api/nodes/:id/client-review — the node's versions and every version's comments (team view).
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not load the review.", () =>
-    logClientReviewErrors("read", req, () => withNode(req, params, async (nodeId, node) => {
+    logClientReviewErrors("read", req, () => withNode(req, params, { need: "view" }, async (nodeId, node) => {
       if (node.type !== "client-review") return apiError("Node not found.", 404);
       return apiOk(await clientReviewPayload(await getReviewByNodeId(nodeId)));
     })),
@@ -69,7 +69,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // starts off unless the uploader turns it on (D497, D501).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withTryCatch("Could not save the cut.", () =>
-    logClientReviewErrors("finalize", req, () => withNode(req, params, async (nodeId, node, caller, clientId) => {
+    logClientReviewErrors("finalize", req, () => withNode(req, params, { need: "share" }, async (nodeId, node, caller, clientId) => {
       if (node.type !== "client-review") return apiError("Node not found.", 404);
       const body = (await req.json().catch(() => null)) as
         | { path?: unknown; filename?: unknown; allowDownload?: unknown }

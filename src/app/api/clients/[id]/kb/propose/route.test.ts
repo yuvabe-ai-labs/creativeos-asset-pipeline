@@ -27,7 +27,7 @@ describe("POST /api/clients/:id/kb/propose", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(resolveOrgId).mockResolvedValue("o1");
-    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1" } as never);
+    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", orgId: "o1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", org_id: "o1", kb_status: "ready", active_kb_version_id: "v1" } as never);
     vi.mocked(listKBDocuments).mockResolvedValue([{ id: D1, filename: "guide.pdf" }] as never);

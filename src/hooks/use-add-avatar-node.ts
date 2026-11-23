@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import type { XYPosition } from "@xyflow/react";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { leadAvatarPosition, presenterAvatarId, scriptKbNode } from "@/lib/avatars/canvas";
 
 // D298 — the one way an Avatar node is added: from the gallery's tile, a drop on the canvas, or a
@@ -14,9 +15,11 @@ export function useAddAvatarNode() {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const connectNodes = useCanvasStore((s) => s.connectNodes);
   const storeApi = useCanvasStoreApi();
+  const canEdit = useCanvasEditable();
 
   return useCallback(
     (avatarId: string, opts: { position: XYPosition; presenterOf?: string }) => {
+      if (!canEdit) return; // view-only or locked by someone else
       const { nodes, edges } = storeApi.getState();
       let position = opts.position;
       if (opts.presenterOf) {
@@ -29,6 +32,6 @@ export function useAddAvatarNode() {
       updateNodeData(nodeId, { avatarId });
       if (opts.presenterOf) connectNodes(nodeId, opts.presenterOf);
     },
-    [addNode, updateNodeData, connectNodes, storeApi],
+    [canEdit, addNode, updateNodeData, connectNodes, storeApi],
   );
 }

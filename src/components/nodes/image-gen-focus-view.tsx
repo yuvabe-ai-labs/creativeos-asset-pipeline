@@ -76,7 +76,7 @@ import {
   setVersionApprovalAction,
   markVersionApprovalSeenAction,
 } from "@/lib/actions/approval";
-import { useIdentity } from "@/hooks/use-identity";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import {
   useNodeVersions,
@@ -330,7 +330,7 @@ export function ImageGenFocusView({
   const [approvedByName, setApprovedByName] = useState<string | null>(null);
   const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
-  const { identity } = useIdentity();
+  const { approve: canApprove } = useCanvasPermissions();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   // The connected Prompt node's active output — the text this image is generated from. Read
   // through the same versions cache as the Prompt node's own focus view, so a prompt just
@@ -690,7 +690,7 @@ export function ImageGenFocusView({
   // D244 read path: the standing change request on the ACTIVE version, and the
   // annotations attached to it. Derived from the versions list the history panel
   // already fetched — no second request, and it re-derives whenever fetchVersions
-  // lands (including right after the senior's own Send back).
+  // lands (including right after the reviewer's own Send back).
   // Only the request still in force (BUG-001) — the same rule the video view uses.
   const latestChangeRequest = useMemo(
     () =>
@@ -1374,7 +1374,7 @@ export function ImageGenFocusView({
                         />
                         {/* R7.1/D160: canApprove is NOT gated on `editable`. Approval
                             writes only to node_versions, so it is not in the class of
-                            writes the D33 lock serialises — a senior signs off while a
+                            writes the D33 lock serialises — a reviewer signs off while a
                             junior keeps editing. */}
                         <InlineApprovalBar
                           status={approvalStatus}
@@ -1382,7 +1382,7 @@ export function ImageGenFocusView({
                           approvedByName={approvedByName}
                           approvedAt={approvedAt}
                           saving={approvalSaving}
-                          canApprove={identity?.role === "senior" && !viewing.isViewingOther}
+                          canApprove={canApprove && !viewing.isViewingOther}
                           onSet={saveApproval}
                           annotationCount={reviewDrafts.drafts.length}
                           annotating={reviewAnnotating}
@@ -1406,7 +1406,7 @@ export function ImageGenFocusView({
                           groups={groupByTimecode(reviewDrafts.drafts)}
                           onRemove={reviewDrafts.remove}
                         />
-                        {/* What the senior sent, as the maker reads it. Rendered for
+                        {/* What the reviewer sent, as the maker reads it. Rendered for
                             both roles: the reviewer returning to the node needs to see
                             their own standing request, not just the note. */}
                         {approvalStatus === "changes_requested" && (
@@ -1564,7 +1564,7 @@ export function ImageGenFocusView({
                     )}
 
                     {mode === "result" && imageUrl && reviewAnnotating && (
-                      // The senior paints on the RESULT here - same component as edit
+                      // The reviewer paints on the RESULT here - same component as edit
                       // mode, different consumer. Pins and the note card go through the
                       // `overlay` slot so they position against the picture itself.
                       <ReviewAnnotationCanvas

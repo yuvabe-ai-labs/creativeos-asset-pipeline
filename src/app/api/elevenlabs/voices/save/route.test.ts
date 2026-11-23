@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   getAccountVoicesCached: vi.fn(),
   getVoiceCached: vi.fn(),
   invalidateAccountVoices: vi.fn(),
-  resolveCallerContextOrNull: vi.fn(async (): Promise<{ userId: string } | null> => ({ userId: "u1" })),
 }));
 vi.mock("@/lib/elevenlabs/voice-catalog", () => ({ saveLibraryVoice: mocks.saveLibraryVoice }));
 vi.mock("@/lib/elevenlabs/voices-cache", () => ({
@@ -13,7 +12,13 @@ vi.mock("@/lib/elevenlabs/voices-cache", () => ({
   getVoiceCached: mocks.getVoiceCached,
   invalidateAccountVoices: mocks.invalidateAccountVoices,
 }));
-vi.mock("@/lib/dal", () => ({ resolveCallerContextOrNull: mocks.resolveCallerContextOrNull }));
+// The chokepoint (agency, permission) has its own tests; here it just runs the handler.
+vi.mock("@/lib/api/route-helpers", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
+  return { ...actual, withAccess: (_req: Request, _guard: unknown, fn: (caller: unknown, orgId: string) => Promise<Response>) => fn({ userId: "u1" }, "org-1") };
+});
+const agency = vi.hoisted(() => ({ agencyVoiceIds: vi.fn(async (): Promise<string[]> => []) }));
+vi.mock("@/lib/elevenlabs/agency-voices", () => agency);
 
 import { POST } from "./route";
 import { ElevenLabsHttpError } from "@/lib/elevenlabs/client";
@@ -45,6 +50,16 @@ describe("POST /api/elevenlabs/voices/save", () => {
     expect(mocks.saveLibraryVoice).not.toHaveBeenCalled();
   });
 
+  // The same match finds an account voice by its own id: another agency's clone is not returned
+  // (its name carries that agency's client name), and nothing is saved.
+  it("404s on another agency's cloned voice id", async () => {
+    mocks.getAccountVoicesCached.mockResolvedValue([{ ...SAVED, voiceId: "theirs", category: "cloned", originalVoiceId: undefined }]);
+    agency.agencyVoiceIds.mockResolvedValueOnce(["mine"]);
+    const res = await post({ ...BODY, voiceId: "theirs" });
+    expect(res.status).toBe(404);
+    expect(mocks.saveLibraryVoice).not.toHaveBeenCalled();
+  });
+
   it("passes ElevenLabs' refusal through", async () => {
     mocks.saveLibraryVoice.mockRejectedValue(new ElevenLabsHttpError(403, "Voice not allowed", "voice save"));
     const res = await post(BODY);
@@ -54,10 +69,5 @@ describe("POST /api/elevenlabs/voices/save", () => {
 
   it("400s on an invalid body", async () => {
     expect((await post({ voiceId: "x" })).status).toBe(400);
-  });
-
-  it("401s without a session", async () => {
-    mocks.resolveCallerContextOrNull.mockResolvedValueOnce(null);
-    expect((await post(BODY)).status).toBe(401);
   });
 });

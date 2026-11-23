@@ -58,6 +58,7 @@ import { useShotCollapse } from "./use-shot-collapse";
 import { ShotHiddenCountProvider } from "./shot-collapse-context";
 import { CollapseShotsPanel } from "./collapse-shots-panel";
 import { useCanvasLock } from "@/hooks/use-canvas-lock";
+import { ClientPermissionsProvider, useClientPermissions } from "@/components/permissions/client-permissions";
 import { useCanvasApprovalSync } from "./use-canvas-approval-sync";
 import { useCanvasCostLiveUpdates } from "@/hooks/queries/canvas-cost";
 import { usePrefetchNodeVersions, useNodeVersionsLiveSync } from "@/hooks/queries/node-versions";
@@ -176,10 +177,12 @@ export function Canvas({
   // included) keep firing behind it unless we explicitly stand down.
   const anyFocusViewOpen = useAnyFocusViewOpen();
 
-  const { canEdit, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
-    useCanvasLock(canvasId);
+  // Spec §5: without Generate (the edit action) the canvas is view only: no lock, no dragging or connecting, no add menu, fields render plain (everything below reads canEdit). The answers are worked out here once; nodes read them from ClientPermissionsProvider.
+  const permissions = useClientPermissions(clientId);
+  const { canEdit, viewOnly, heldByName, canTakeOver, sessionId, takeOver, reportLockLost } =
+    useCanvasLock(canvasId, { acquire: permissions.edit });
 
-  // R8.3: keep every node's ApprovalBadge live while the canvas is open, so a senior's
+  // R8.3: keep every node's ApprovalBadge live while the canvas is open, so a reviewer's
   // decision made elsewhere lands here without a reload.
   useCanvasApprovalSync(canvasId);
   // Every cost figure on the canvas reads one shared query; this is its one live refresh.
@@ -490,6 +493,7 @@ export function Canvas({
   return (
     <ReactFlowProvider>
     <ClientIdProvider value={clientId}>
+    <ClientPermissionsProvider value={permissions}>
     <ClientSlugProvider value={clientSlug}>
     <CanvasIdProvider value={canvasId}>
     <CanvasEditableProvider value={canEdit}>
@@ -533,7 +537,7 @@ export function Canvas({
           and right-side like the review drawer, so feedback and the canvas share the screen. */}
 
       {!canEdit && (
-        <LockBanner heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
+        <LockBanner viewOnly={viewOnly} heldByName={heldByName} canTakeOver={canTakeOver} onTakeOver={takeOver} />
       )}
 
       <DeleteConfirmDialog {...deleteDialog} />
@@ -562,6 +566,7 @@ export function Canvas({
         nodeTypes={nodeTypes}
         nodesDraggable={canEdit}
         nodesConnectable={canEdit}
+        edgesReconnectable={canEdit}
         onBeforeDelete={onBeforeDelete}
         // null tears React Flow's document keydown listener down entirely (useKeyPress
         // no-ops on a null keyCode) rather than us swallowing the event after the fact.
@@ -647,6 +652,7 @@ export function Canvas({
     </CanvasEditableProvider>
     </CanvasIdProvider>
     </ClientSlugProvider>
+    </ClientPermissionsProvider>
     </ClientIdProvider>
     </ReactFlowProvider>
   );
