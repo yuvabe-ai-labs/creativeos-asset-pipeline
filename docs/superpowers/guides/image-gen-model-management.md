@@ -1,7 +1,7 @@
 # Image Gen — Model Management & Architecture Guide
 
 **Date:** 2026-06-18 (model sections rewritten 2026-11-23)
-**Covers:** Where model data lives · Adding models · Pricing calculation · Future: credits · Future: job queue
+**Covers:** Where model data lives · Adding models · How a run is charged
 
 ---
 
@@ -129,26 +129,15 @@ select count(*) from ai_model_prices where model_id = 'provider:name';
 
 ---
 
-## 4. How Pricing is Calculated
-
-### Token tracking
-
-Every generation records token usage in `node_versions.params_used.tokensUsed` (JSONB). The shape:
-
-```typescript
-type ImageTokenUsage = {
-  text_input_tokens: number;    // tokens used by the text prompt
-  image_input_tokens: number;   // tokens used by reference images
-  image_output_tokens: number;  // tokens used by the generated image
-  total_tokens: number;
-};
-```
-
-This is written once at generation time and **never mutated**. The charge for a run is worked out from these tokens and the model's price row.
+## 4. How a Run is Charged
 
 ### Prices
 
-What a model costs lives in the `ai_model_prices` table, one dated row per model, and a price change is a new row, so past runs keep the price they were billed at. A model with no row cannot run. Adding or changing a price is described in `docs/superpowers/specs/2026-11-21-model-catalog-design.md`.
+What a model costs lives in the `ai_model_prices` table: dated rows, each a list of lines priced per meter (`input_token`, `image_output_token`, `video_second`, `output_image` and the rest in `src/lib/ai-models/types.ts`), with optional `when` conditions on the request's params. A price change is a new row with a later `effective_from`, so a run keeps the row it reserved with. A model with no row valid now cannot run. Adding or changing a price is described in `docs/superpowers/specs/2026-11-21-model-catalog-design.md`.
+
+### Estimate, reserve, settle
+
+The route estimates the run from the model's current price row and reserves that many credits. When the provider returns, the adapter reports a `ProviderBill` (what the provider charged or the usage it reported, as meters). Completion prices the bill with the same row and settles, storing `model_price_id`, `provider_bill`, `cost_usd` and `credits_charged` on the `generations` row. On failure the reservation is refunded.
 
 ### Gemini output token reference
 
@@ -160,189 +149,3 @@ Gemini maps output image size to token counts:
 | 1K | ~1,120 |
 | 2K | ~1,680 |
 | 4K | ~2,520 |
-
-### Text model pricing
-
-Text model pricing (`MODEL_PRICING` in `src/lib/pricing.ts`) is separate from image pricing and is not used by the image gen system. It covers GPT models used by Prompt nodes.
-
----
-
-## 5. Future: Per-User Credit Management
-
-Auth is currently deferred (decision D14 — no `auth.uid()` in routes). Per-user credits require identity, so this section describes what to build once auth ships.
-
-### Database additions
-
-```sql
--- User credit balance (one row per user)
-create table user_credits (
-  user_id     uuid primary key references auth.users(id),
-  balance_usd numeric(12, 6) not null default 0,
-  updated_at  timestamptz not null default now()
-);
-
--- Append-only transaction log
-create table credit_transactions (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references auth.users(id),
-  amount_usd  numeric(12, 6) not null,   -- negative = spend, positive = topup
-  type        text not null,              -- 'topup' | 'spend'
-  node_id     uuid references nodes(id),
-  version_id  uuid references node_versions(id),
-  created_at  timestamptz not null default now()
-);
-```
-
-### API route changes (`image-generate/route.ts`)
-
-```typescript
-// 1. Resolve user identity
-const userId = req.headers.get("x-user-id"); // or from Supabase auth session
-
-// 2. Pre-flight balance check (worst-case estimate per model)
-const MAX_SPEND_USD = getMaxSpendEstimate(modelId); // e.g. $0.10 for high-quality
-const { data: credits } = await supabase
-  .from("user_credits").select("balance_usd").eq("user_id", userId).single();
-if (!credits || credits.balance_usd < MAX_SPEND_USD) {
-  return apiError("Insufficient credits", 402);
-}
-
-// 3. After generation — deduct actual cost
-const cost = computeImageCost(modelId, result.tokensUsed);
-if (cost) {
-  await supabase.rpc("deduct_credits", {
-    p_user_id: userId,
-    p_amount_usd: cost.usd,
-    p_node_id: nodeId,
-    p_version_id: version.id,
-  });
-}
-```
-
-The `deduct_credits` function should run in a Postgres transaction to prevent double-spend.
-
-### Estimated cost before generation
-
-Token counts are only known after the API call, so exact cost cannot be checked upfront. The practical approach: keep a per-model worst-case spend table and require balance ≥ that threshold before proceeding.
-
-### UI additions needed
-
-- Credit balance display in the top nav or user settings
-- Low-balance inline warning in the Image Gen focus view (shown when balance < 3× worst-case for selected model)
-- Transaction history page under account settings
-
----
-
-## 6. Future: Job Queue Migration
-
-### Current limitation
-
-The route `POST /api/nodes/[id]/image-generate` awaits the full provider call + Supabase Storage upload inline. For high-quality OpenAI generations this can take 20–60 seconds. Vercel serverless functions have a 10s limit on Hobby plans and 60s on Pro — making large generations unreliable without a Pro plan and `maxDuration` export.
-
-The sync approach also provides no mid-flight feedback: the user sees a skeleton until the response arrives or times out.
-
-### Short-term workaround (Pro plan only)
-
-Add to `src/app/api/nodes/[id]/image-generate/route.ts`:
-
-```typescript
-export const maxDuration = 300; // 5 minutes, Vercel Pro only
-```
-
-This extends the timeout but does not fix retries, progress, or background execution.
-
-### Recommended approach: Inngest
-
-[Inngest](https://inngest.com) integrates with Next.js via `@inngest/next`. Functions run as durable step-based workflows outside Vercel's request timeout, with built-in retry and real-time event streaming.
-
-**Install:**
-
-```bash
-npm install inngest @inngest/next
-```
-
-**New files to create:**
-
-`src/lib/inngest/client.ts`
-```typescript
-import { Inngest } from "inngest";
-export const inngest = new Inngest({ id: "creativeos" });
-```
-
-`src/lib/inngest/image-generate.ts`
-```typescript
-import { inngest } from "./client";
-import { imageAdapters } from "@/lib/image-gen/adapters";
-import { insertVersion, setActiveVersion } from "@/lib/db/versions";
-// ... storage upload helpers
-
-export const imageGenerateJob = inngest.createFunction(
-  { id: "image-generate", retries: 2 },
-  { event: "image/generate.requested" },
-  async ({ event, step }) => {
-    const { nodeId, modelId, adapterKey, spec, providerModelId, params, prompt, referenceUrls } = event.data;
-
-    const result = await step.run("call-provider", () =>
-      imageAdapters[adapterKey]({ prompt, referenceUrls, params }, { spec, providerModelId })
-    );
-
-    const imageUrl = await step.run("upload-to-storage", () =>
-      uploadGeneratedImage(nodeId, result)
-    );
-
-    const version = await step.run("insert-version", () =>
-      insertVersion({ nodeId, output: imageUrl, modelUsed: modelId, ... })
-    );
-
-    await step.run("set-active-version", () =>
-      setActiveVersion(nodeId, version.id)
-    );
-
-    return { imageUrl, versionId: version.id };
-  }
-);
-```
-
-**Route becomes a thin dispatcher:**
-
-```typescript
-// POST /api/nodes/[id]/image-generate
-const { ids } = await inngest.send({
-  name: "image/generate.requested",
-  data: { nodeId, modelId, params, prompt, referenceUrls },
-});
-return apiOk({ jobId: ids[0], status: "queued" });
-```
-
-**Client-side polling:**
-
-The focus view can poll `GET /api/nodes/[id]/versions` every 2s until a new version appears (the skeleton shimmer already handles this state). Alternatively, subscribe to Inngest's realtime channel for push updates.
-
-**Register the Inngest endpoint** in `src/app/api/inngest/route.ts`:
-
-```typescript
-import { serve } from "inngest/next";
-import { inngest } from "@/lib/inngest/client";
-import { imageGenerateJob } from "@/lib/inngest/image-generate";
-
-export const { GET, POST, PUT } = serve({ client: inngest, functions: [imageGenerateJob] });
-```
-
-**Add env var:**
-
-```bash
-INNGEST_SIGNING_KEY=signkey-...
-INNGEST_EVENT_KEY=...
-```
-
-### Migration checklist (when ready to ship)
-
-- [ ] Install `inngest @inngest/next`
-- [ ] Create `src/lib/inngest/client.ts`
-- [ ] Create `src/lib/inngest/image-generate.ts` (step function)
-- [ ] Create `src/app/api/inngest/route.ts` (serve endpoint)
-- [ ] Update `image-generate/route.ts` to send event instead of awaiting inline
-- [ ] Update focus view to poll `/api/nodes/[id]/versions` while `status === "queued"`
-- [ ] Remove `maxDuration` export if added as a stopgap
-- [ ] Add Inngest env vars to Vercel and `.env.local`
-- [ ] Verify end-to-end: generate → canvas card updates → version history shows new entry
