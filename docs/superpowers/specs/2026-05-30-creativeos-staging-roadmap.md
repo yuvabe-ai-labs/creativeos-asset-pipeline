@@ -9003,3 +9003,23 @@ A new run reads the row valid now from the cached catalog and records it as `gen
 **Rejected.** Keeping the registries as test fixtures: they would drift from the rows the app really runs on.
 
 **Originated →** [2026-11-23-model-catalog-1b-cleanup.md](../plans/2026-11-23-model-catalog-1b-cleanup.md).
+
+### D546 — One guarded path for every model and price edit *(recorded 2026-11-23; follows D529, D540)*
+
+**Decision.** The super admin changes models and prices only through three server actions (`src/lib/actions/ai-models.ts`), and each runs the same pure checks (`src/lib/ai-models/model-edit.ts`) before it writes. Phase 1 edits a model's labels, description, order, status and replacement, and adds or cancels a dated price row. An edited row must pass the catalog's own row check; a model's param names and their types never change through the admin; every price line's condition must name a setting the model has and a value it can take (or a price dimension the estimators add); an image or video model may be live only when this build has an adapter for its key; a replacement must be a live model of the same kind and is kept only while the model is retired. A price row is never edited, starts now or later, and can be cancelled only before it starts. After a write the action clears the catalog cache on its server; others pick the change up within 60 s. A later params editor adds a form on the same path, not new checks.
+
+**Why.** A row that fails its check is left out of the catalog, so one bad edit would make a model vanish everywhere; and code reads params by name, so a renamed param breaks runs silently.
+
+**Rejected.** Editing params, rules and capabilities in phase 1 (the checks are built for it; the form comes later). A free JSON editor (it bypasses the param-type and price-condition checks).
+
+**Originated →** [2026-11-23-model-catalog-4-admin.md](../plans/2026-11-23-model-catalog-4-admin.md).
+
+### D547 — The admin sees rows the catalog leaves out *(recorded 2026-11-23; refines D529)*
+
+**Decision.** The admin pages read `ai_models` directly and run the row check themselves, so a row that fails it is listed with "Fails its check" and its problems, and can be fixed through D546's path (the edit starts from the stored row, not the catalog's copy). The models list's month figures come from one SQL function, `ai_model_month_stats` (migration 0085): runs, provider cost, credits charged and unpriced runs per model, where unpriced means no price row or a bill with meters the row did not price.
+
+**Why.** The catalog drops a broken row with only a log line; without this the admin would see a model disappear and have no way to find out why.
+
+**Rejected.** One query per model for its numbers (performance rule 1).
+
+**Originated →** [2026-11-23-model-catalog-4-admin.md](../plans/2026-11-23-model-catalog-4-admin.md).
