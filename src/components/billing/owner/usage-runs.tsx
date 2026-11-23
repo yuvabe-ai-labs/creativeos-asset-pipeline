@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { useUsageRuns } from "@/hooks/queries/billing-usage";
-import { USAGE_RUNS_PAGE_SIZE } from "@/lib/billing/usage-page-size";
+import { USAGE_RUNS_PAGE_SIZE, pageCount } from "@/lib/billing/usage-page-size";
+import { HistoryPager } from "../history-pager";
 import type { UsageBy, UsagePeriod } from "@/lib/billing/usage-period";
 
 // generations.type (GenerationRow in src/lib/db/types.ts) in plain words.
@@ -24,7 +24,7 @@ const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "nume
 export function UsageRuns({ by, rowKey, period }: { by: UsageBy; rowKey: string | null; period: UsagePeriod }) {
   const [page, setPage] = useState(1);
   const { data, isPending, isError, isFetching } = useUsageRuns(by, rowKey, period, page, true);
-  const pages = data ? Math.max(1, Math.ceil(data.total / USAGE_RUNS_PAGE_SIZE)) : 1;
+  const pages = data ? pageCount(data.total, USAGE_RUNS_PAGE_SIZE) : 1;
 
   if (isPending) return <p className="px-5 pb-4 text-xs text-muted-foreground">Loading runs…</p>;
   if (isError) return <p className="px-5 pb-4 text-xs text-muted-foreground">The runs couldn&apos;t be loaded.</p>;
@@ -48,17 +48,7 @@ export function UsageRuns({ by, rowKey, period }: { by: UsageBy; rowKey: string 
           </li>
         ))}
       </ul>
-      {pages > 1 && (
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            Page {page} of {pages}
-          </span>
-          <span className="flex gap-1">
-            <Button variant="ghost" size="sm" disabled={page <= 1 || isFetching} onClick={() => setPage((p) => p - 1)}>Newer</Button>
-            <Button variant="ghost" size="sm" disabled={page >= pages || isFetching} onClick={() => setPage((p) => p + 1)}>Older</Button>
-          </span>
-        </div>
-      )}
+      <HistoryPager page={page} pages={pages} busy={isFetching} onChange={setPage} />
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { CreditLimitEditor } from "@/app/admin/orgs/[id]/credit-limit-editor";
 import type { BillingMode, OpenGrant } from "@/lib/billing/grants";
-import type { BillingLogEntry } from "@/lib/db/billing-admin";
+import type { BillingLogPage } from "@/lib/db/billing-admin";
 import type { LiveSubscription } from "@/lib/db/billing-subscriptions";
 import { PlanLine } from "./plan-line";
 import { BillingModeHeader } from "./billing-mode-card";
@@ -26,7 +26,7 @@ export function BillingTab({
   planType: string;
   monthlyLimit: number | null;
   grants: OpenGrant[];
-  log: BillingLogEntry[];
+  log: BillingLogPage;
   subscription?: LiveSubscription | null;
 }) {
   return (
@@ -46,7 +46,7 @@ export function BillingTab({
           </>
         )}
       </Card>
-      <BillingLog entries={log} />
+      <BillingLog orgId={orgId} initial={log} />
     </div>
   );
 }

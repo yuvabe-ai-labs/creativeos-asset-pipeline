@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { endsAtFromDay } from "@/lib/billing/dates";
+import { BILLING_LOG_PAGE_SIZE } from "@/lib/billing/usage-page-size";
 
 // Yuvabe's billing changes (migration 0067). Each RPC locks the agency, makes the change and logs
 // it in one transaction. Spec 2026-11-20-admin-agency-billing-design.md.
@@ -71,16 +72,19 @@ export type BillingLogEntry = {
 
 type LogRow = { id: string; action: string; before: BillingLogEntry["before"]; after: BillingLogEntry["after"]; reason: string | null; created_at: string; actor_id: string | null };
 
-// Newest first. Names come from profiles in a second query (billing_log points at auth.users, so
-// the two can't be joined in one request).
-export async function listBillingLog(orgId: string, limit = 50): Promise<BillingLogEntry[]> {
+export type BillingLogPage = { entries: BillingLogEntry[]; total: number };
+
+// One page, newest first, with the total from the same request (D529). Names come from profiles
+// in a second query (billing_log points at auth.users, so the two can't be joined in one request).
+export async function listBillingLog(orgId: string, page = 1): Promise<BillingLogPage> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  const from = (page - 1) * BILLING_LOG_PAGE_SIZE;
+  const { data, error, count } = await supabase
     .from("billing_log")
-    .select("id, action, before, after, reason, created_at, actor_id")
+    .select("id, action, before, after, reason, created_at, actor_id", { count: "exact" })
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(from, from + BILLING_LOG_PAGE_SIZE - 1);
   if (error) throw error;
   const rows = (data ?? []) as LogRow[];
   const ids = [...new Set(rows.map((r) => r.actor_id).filter((id): id is string => !!id))];
@@ -92,7 +96,7 @@ export async function listBillingLog(orgId: string, limit = 50): Promise<Billing
       if (p.display_name) names.set(p.user_id, p.display_name);
     }
   }
-  return rows.map((r) => ({
+  const entries = rows.map((r) => ({
     id: r.id,
     action: r.action,
     before: r.before,
@@ -101,4 +105,5 @@ export async function listBillingLog(orgId: string, limit = 50): Promise<Billing
     createdAt: r.created_at,
     actorName: r.actor_id ? names.get(r.actor_id) ?? null : null,
   }));
+  return { entries, total: count ?? entries.length };
 }

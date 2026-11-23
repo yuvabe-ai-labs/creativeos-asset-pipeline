@@ -1703,3 +1703,31 @@ select tablename from pg_publication_tables
 ```sql
 alter publication supabase_realtime drop table credit_grants, billing_subscriptions;
 ```
+
+## Migration 0076 — billing history a page at a time (D529, 2026-11-23)
+
+Apply after 0075, before or with the code (the paged lists work without it, only slower).
+
+- Adds indexes for the paged billing lists: an agency's billing log and payments newest first,
+  Admin › Payments across agencies, and plans renewing or ending soon.
+- Drops `billing_log_org_id_idx` and `billing_payments_org_id_idx`; the new indexes lead with
+  `org_id` and serve the same lookups.
+- Safe to apply: re-runnable; no table or row changes.
+
+**Verify after running:**
+
+```sql
+-- expect four rows
+select indexname from pg_indexes
+ where indexname in ('billing_log_org_id_created_at_idx', 'billing_payments_org_id_created_at_idx',
+                     'billing_payments_listed_created_at_idx', 'billing_subscriptions_status_period_end_idx');
+```
+
+**Rollback:**
+
+```sql
+create index if not exists billing_log_org_id_idx on billing_log (org_id);
+create index if not exists billing_payments_org_id_idx on billing_payments (org_id);
+drop index if exists billing_log_org_id_created_at_idx, billing_payments_org_id_created_at_idx,
+  billing_payments_listed_created_at_idx, billing_subscriptions_status_period_end_idx;
+```

@@ -6,6 +6,7 @@ import { getLiveSubscription, type LiveSubscription } from "@/lib/db/billing-sub
 import { listOpenGrants } from "@/lib/db/credit-grants";
 import type { OpenGrant } from "@/lib/billing/grants";
 import type { BillingMode } from "@/lib/billing/grants";
+import { OWNER_PAYMENTS_PAGE_SIZE } from "@/lib/billing/usage-page-size";
 
 // What the owner's billing screens need (spec 2026-11-21-owner-billing-design.md, D523), read in
 // one parallel batch: five queries whatever the number of grants or payments.
@@ -29,7 +30,7 @@ export type OwnerBilling = {
   mode: BillingMode;
   subscription: LiveSubscription | null;
   grants: OpenGrant[];
-  payments: OwnerPayment[];
+  payments: OwnerPaymentsPage;
   plans: OfferPrice[];
   packs: OfferPrice[];
 };
@@ -47,17 +48,21 @@ type PaymentRow = {
   price: { product: { name: string } | null } | null;
 };
 
-/** The agency's paid and failed payments, newest first (started-but-unpaid ones are left out). */
-export async function listOwnerPayments(orgId: string, limit = 24): Promise<OwnerPayment[]> {
-  const { data, error } = await createServerSupabase()
+export type OwnerPaymentsPage = { payments: OwnerPayment[]; total: number };
+
+/** One page of the agency's paid and failed payments, newest first, with the total (D529).
+ *  Started-but-unpaid ones are left out. */
+export async function listOwnerPayments(orgId: string, page = 1): Promise<OwnerPaymentsPage> {
+  const from = (page - 1) * OWNER_PAYMENTS_PAGE_SIZE;
+  const { data, error, count } = await createServerSupabase()
     .from("billing_payments")
-    .select("id, kind, status, amount_paise, tax_minor, total_minor, credits, paid_at, created_at, price:billing_prices(product:billing_products(name))")
+    .select("id, kind, status, amount_paise, tax_minor, total_minor, credits, paid_at, created_at, price:billing_prices(product:billing_products(name))", { count: "exact" })
     .eq("org_id", orgId)
     .neq("status", "created")
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(from, from + OWNER_PAYMENTS_PAGE_SIZE - 1);
   if (error) throw error;
-  return ((data ?? []) as unknown as PaymentRow[]).map((r) => ({
+  const payments = ((data ?? []) as unknown as PaymentRow[]).map((r) => ({
     id: r.id,
     kind: r.kind,
     status: r.status,
@@ -69,6 +74,7 @@ export async function listOwnerPayments(orgId: string, limit = 24): Promise<Owne
     createdAt: r.created_at,
     name: r.price?.product?.name ?? null,
   }));
+  return { payments, total: count ?? payments.length };
 }
 
 /** Plans (monthly) and packs an agency can buy now: shown, standard or its own custom one. */

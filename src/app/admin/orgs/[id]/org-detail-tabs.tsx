@@ -24,7 +24,7 @@ import type {
 import type { GenerationsPage } from "@/lib/db/generations";
 import type { ImpersonationSessionPage } from "@/lib/db/impersonation-audit";
 import type { OpenGrant } from "@/lib/billing/grants";
-import type { BillingLogEntry } from "@/lib/db/billing-admin";
+import type { BillingLogPage } from "@/lib/db/billing-admin";
 import type { LiveSubscription } from "@/lib/db/billing-subscriptions";
 import { BillingTab } from "@/components/admin/billing/billing-tab";
 
@@ -83,7 +83,7 @@ export function OrgDetailTabs({
   breakdownByModel: CreditBreakdownRow[];
   impersonationSessions: ImpersonationSessionPage;
   grants: OpenGrant[];
-  billingLog: BillingLogEntry[];
+  billingLog: BillingLogPage;
   subscription: LiveSubscription | null;
 }) {
   // The tab and the focused person live in the URL (Set permissions in the Clients tab links to

@@ -46,7 +46,7 @@ export default async function BillingPage() {
         </Card>
         <TopUpSection packs={billing.packs} planRunning={planRunning} />
         <UsageSection />
-        <PaymentsList payments={billing.payments} />
+        <PaymentsList initial={billing.payments} />
       </div>
     </main>
   );

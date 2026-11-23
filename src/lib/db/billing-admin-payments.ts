@@ -1,5 +1,6 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { ADMIN_PAYMENTS_PAGE_SIZE } from "@/lib/billing/usage-page-size";
 
 // Admin › Payments (spec 2026-11-21-admin-payments-design.md, D525): money across every agency.
 // Three reads in parallel, each bounded, whatever the number of agencies.
@@ -19,7 +20,7 @@ export type AttentionPlan = {
   orgId: string;
   orgName: string;
   planName: string | null;
-  status: "payment_due" | "active" | "cancelling";
+  status: "payment_due" | "cancelling";
   periodEnd: string | null;
 };
 
@@ -36,17 +37,20 @@ type PaymentRow = {
   price: { product: { name: string } | null } | null;
 };
 
-/** The latest payments that went through or failed, newest first. */
-export async function listRecentPayments(limit = 50): Promise<AdminPayment[]> {
-  const { data, error } = await createServerSupabase()
+export type AdminPaymentsPage = { payments: AdminPayment[]; total: number };
+
+/** One page of payments that went through or failed, newest first, with the total (D529). */
+export async function listRecentPayments(page = 1): Promise<AdminPaymentsPage> {
+  const from = (page - 1) * ADMIN_PAYMENTS_PAGE_SIZE;
+  const { data, error, count } = await createServerSupabase()
     .from("billing_payments")
-    .select("id, org_id, kind, status, amount_paise, total_minor, paid_at, created_at, org:organizations(name), price:billing_prices(product:billing_products(name))")
+    .select("id, org_id, kind, status, amount_paise, total_minor, paid_at, created_at, org:organizations(name), price:billing_prices(product:billing_products(name))", { count: "exact" })
     .neq("status", "created")
     .neq("kind", "test")
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(from, from + ADMIN_PAYMENTS_PAGE_SIZE - 1);
   if (error) throw error;
-  return ((data ?? []) as unknown as PaymentRow[]).map((r) => ({
+  const payments = ((data ?? []) as unknown as PaymentRow[]).map((r) => ({
     id: r.id,
     orgId: r.org_id,
     orgName: r.org?.name ?? "Agency",
@@ -56,6 +60,7 @@ export async function listRecentPayments(limit = 50): Promise<AdminPayment[]> {
     name: r.price?.product?.name ?? null,
     at: r.paid_at ?? r.created_at,
   }));
+  return { payments, total: count ?? payments.length };
 }
 
 /** What was paid since a moment (this month), in paise. */
@@ -79,13 +84,14 @@ type SubRow = {
   price: { product: { name: string } | null } | null;
 };
 
-/** Plans with a payment due, then plans renewing (or ending) within `days`, soonest first. */
+/** Plans that need a person (D529): a payment due, then plans ending (cancelled) within `days`,
+ *  soonest first. Plans that simply renew need nothing and are only counted (countRenewingWithin). */
 export async function listPlansNeedingAttention(days = 7): Promise<AttentionPlan[]> {
   const until = new Date(Date.now() + days * 86_400_000).toISOString();
   const { data, error } = await createServerSupabase()
     .from("billing_subscriptions")
     .select("org_id, status, current_period_end, org:organizations(name), price:billing_prices!billing_subscriptions_price_id_fkey(product:billing_products(name))")
-    .or(`status.eq.payment_due,and(status.in.(active,cancelling),current_period_end.lte.${until})`)
+    .or(`status.eq.payment_due,and(status.eq.cancelling,current_period_end.lte.${until})`)
     .order("current_period_end", { ascending: true })
     .limit(100);
   if (error) throw error;
@@ -97,4 +103,16 @@ export async function listPlansNeedingAttention(days = 7): Promise<AttentionPlan
     periodEnd: r.current_period_end,
   }));
   return [...rows.filter((r) => r.status === "payment_due"), ...rows.filter((r) => r.status !== "payment_due")];
+}
+
+/** How many active plans renew within `days` — a count only, exact at any number of agencies. */
+export async function countRenewingWithin(days = 7): Promise<number> {
+  const until = new Date(Date.now() + days * 86_400_000).toISOString();
+  const { count, error } = await createServerSupabase()
+    .from("billing_subscriptions")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "active")
+    .lte("current_period_end", until);
+  if (error) throw error;
+  return count ?? 0;
 }

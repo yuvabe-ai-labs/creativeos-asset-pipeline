@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ListToolbar } from "@/components/ui/list-toolbar";
+import { Pagination } from "@/components/ui/pagination";
 import { filterAndSort, type SortKey } from "@/lib/list/filter-sort";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { initials } from "@/lib/format/initials";
@@ -10,11 +11,16 @@ import type { OrgWithCount } from "@/lib/db/organizations";
 import { ResendOwnerInviteButton } from "./resend-owner-invite-button";
 import { InviteOwnerDialog } from "./invite-owner-dialog";
 
+// 25 agencies a page (D529): search and sort run over every agency, then the page is cut, so a
+// search always finds an agency whatever page it would sit on. A new search or sort starts at page 1.
+const PAGE_SIZE = 25;
+
 export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("recent");
+  const [page, setPage] = useState(1);
 
-  const rows = useMemo(
+  const matches = useMemo(
     () =>
       filterAndSort(orgs, query, sort, {
         name: (o) => o.name,
@@ -22,14 +28,17 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
       }),
     [orgs, query, sort],
   );
+  const pageCount = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
+  const shownPage = Math.min(page, pageCount);
+  const rows = matches.slice((shownPage - 1) * PAGE_SIZE, shownPage * PAGE_SIZE);
 
   return (
     <div>
       <ListToolbar
         query={query}
-        onQueryChange={setQuery}
+        onQueryChange={(q) => { setQuery(q); setPage(1); }}
         sort={sort}
-        onSortChange={setSort}
+        onSortChange={(s) => { setSort(s); setPage(1); }}
         placeholder="Search agencies…"
       />
 
@@ -86,6 +95,7 @@ export function OrgsTable({ orgs }: { orgs: OrgWithCount[] }) {
             ))}
           </ul>
         )}
+        <Pagination page={shownPage} pageCount={pageCount} onPageChange={setPage} className="border-t" />
       </div>
     </div>
   );

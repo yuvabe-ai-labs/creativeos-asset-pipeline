@@ -6,7 +6,9 @@ import { isAction } from "./model";
 // D501/D504: every API handler names its action through a chokepoint or withAccess, or is on this
 // list with a reason. Extend the list only with a one-line reason.
 const ALLOWLIST: Record<string, string> = {
+  "admin/orgs/[id]/billing-log": "super admin (requireSuperAdmin)",
   "admin/orgs/[id]/generations": "super admin (requireSuperAdmin)",
+  "admin/payments": "super admin (requireSuperAdmin)",
   "admin/orgs/[id]/impersonation-sessions": "super admin (requireSuperAdmin)",
   "image-proxy": "signed in; proxies a public image URL, no agency data",
   me: "signed in; the caller's own identity and access",
@@ -20,6 +22,7 @@ const ALLOWLIST: Record<string, string> = {
   "r/s/[token]/comments/[commentId]": "share token, no account (withScriptShareToken)",
   "webhooks/generation": "shared secret (isAuthorizedWebhook)",
   "webhooks/kb-build": "shared secret (isAuthorizedWebhook)",
+  "webhooks/razorpay": "Razorpay signature (HMAC of the raw body, handleRazorpayWebhook)",
 };
 
 const API_ROOT = join(process.cwd(), "src/app/api");

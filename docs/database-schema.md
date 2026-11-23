@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0075** (`supabase/migrations/0001_init.sql` … `0075_billing_realtime.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
+Generated from migrations up to **0076** (`supabase/migrations/0001_init.sql` … `0076_billing_history_indexes.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -184,7 +184,7 @@ The credit ledger: reservation, consumption, refund, adjustment. *0019* · org_i
 One row per Razorpay payment: the test top-up (D514), then plans, renewals and top-ups (0068). *0066, 0068* · org_id
 - `id` uuid PK · `org_id` → organizations cascade · `razorpay_order_id` text unique · `razorpay_payment_id` text unique (set when paid) · `amount_paise` integer > 0 (before discount and tax) · `credits` integer > 0 · `status` check created/paid/failed/refunded (default created) · `created_by` → auth.users set null · `created_at` · `paid_at`
 - 0068: `kind` check test/plan/renewal/topup (default test) · `price_id` → billing_prices set null · `subscription_id` → billing_subscriptions set null · `discount_id` → billing_discounts set null · `currency` (default INR) · `discount_minor`, `tax_minor` (default 0) · `total_minor` · `inr_per_usd` (the rate in force) · `razorpay_invoice_id`
-- Indexes: `org_id`, `price_id`, `subscription_id`, `discount_id`
+- Indexes: `(org_id, created_at desc)` (0076), `created_at desc` where status <> created and kind <> test (0076), `price_id`, `subscription_id`, `discount_id`
 - RLS: select `owners read`, owners of the agency only. Written by the server (service role) and `record_razorpay_payment`.
 
 ### credit_grants
@@ -202,7 +202,7 @@ How much of each grant a run holds, then used once settled. *0067*
 ### billing_log
 Every billing change Yuvabe makes: to an agency, or to the catalog and settings (no agency, 0069). *0067, 0069* · org_id
 - `id` uuid PK · `org_id` → organizations cascade (nullable since 0069) · `actor_id` → auth.users set null · `action` text · `before`, `after` jsonb · `reason`
-- Indexes: `org_id`
+- Indexes: `(org_id, created_at desc)` (0076)
 - RLS: service role only.
 
 ### billing_products
@@ -237,7 +237,7 @@ An agency’s billing details for Razorpay and GST invoices. *0068*
 ### billing_subscriptions
 An agency’s plan. One live subscription per agency. *0068* · org_id · *Realtime* (0075)
 - `id` uuid PK · `org_id` → organizations cascade · `price_id` → billing_prices · `next_price_id` → billing_prices (change from the next payment) · `discount_id` → billing_discounts set null · `discount_cycles_left` · `status` check created/active/payment_due/cancelling/ended · `current_period_start`, `current_period_end` · `next_credit_at` (next credit drop) · `cancel_at_period_end` · `razorpay_subscription_id` unique · `ended_at` · `payment_due_since` (0074; set when a payment first becomes due, cleared when paid)
-- Indexes: unique `org_id` where status <> ended, `org_id`, `status`, `next_credit_at`, `price_id`, `next_price_id`, `discount_id`, `payment_due_since` where set (0074)
+- Indexes: unique `org_id` where status <> ended, `org_id`, `status`, `next_credit_at`, `price_id`, `next_price_id`, `discount_id`, `payment_due_since` where set (0074), `(status, current_period_end)` (0076)
 - RLS: select `owners read`, owners of the agency only.
 
 ### razorpay_events

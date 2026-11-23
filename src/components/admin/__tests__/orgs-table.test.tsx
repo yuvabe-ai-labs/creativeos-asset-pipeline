@@ -23,4 +23,12 @@ describe("OrgsTable (spec §6.6)", () => {
     expect(html).not.toContain("Resend");
     expect((html.match(/Invite an owner/g) ?? []).length).toBe(1);
   });
+
+  it("shows 25 agencies a page, with a pager only when there are more", () => {
+    const many = Array.from({ length: 30 }, (_, i) => org({ id: `o${i}`, name: `Agency ${i}`, created_at: `2026-11-${String(i + 1).padStart(2, "0")}T00:00:00Z` }));
+    const html = renderToStaticMarkup(<OrgsTable orgs={many} />);
+    expect((html.match(/href="\/admin\/orgs\//g) ?? []).length).toBe(25);
+    expect(html).toContain("Page 1 of 2");
+    expect(renderToStaticMarkup(<OrgsTable orgs={many.slice(0, 3)} />)).not.toContain("Page 1 of");
+  });
 });

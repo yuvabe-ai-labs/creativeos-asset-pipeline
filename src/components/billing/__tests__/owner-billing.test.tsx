@@ -6,6 +6,7 @@ vi.mock("@/hooks/queries/billing", () => {
   const m = () => ({ mutateAsync: vi.fn(), isPending: false });
   return { useSubscribe: m, useConfirmSubscription: m, useStartTopUp: m, useConfirmTopUp: m, useCancelPlan: m, useChangePlan: m, usePayNow: m };
 });
+vi.mock("@/hooks/queries/billing-history", () => ({ useOwnerPaymentsPage: () => ({ data: undefined, isFetching: false, isError: false }) }));
 
 import { ownerLine } from "../billing-bar";
 import { PlansGrid } from "../owner/plans-grid";
@@ -85,7 +86,10 @@ describe("the owner's billing page", () => {
     const emptied = { id: "e", kind: "free" as const, credits: 0, used: 0, left: 0, endsAt: "2026-12-01T18:30:00.000Z" };
     expect(renderToStaticMarkup(<CreditGrantList grants={[emptied]} empty="No credits right now." />)).toContain("No credits right now.");
     expect(renderToStaticMarkup(<CreditGrantList grants={[emptied, { ...emptied, id: "f", credits: 2_000, left: 2_000 }]} empty="none" />)).not.toContain("0 of 0 left");
-    const payments = renderToStaticMarkup(<PaymentsList payments={[{ id: "x", kind: "renewal", status: "paid", amountMinor: 1_200_000, taxMinor: 216_000, totalMinor: 1_416_000, credits: 100_000, paidAt: "2026-11-21T06:00:00Z", createdAt: "2026-11-21T06:00:00Z", name: "Starter" }]} />);
+    const payment = { id: "x", kind: "renewal" as const, status: "paid" as const, amountMinor: 1_200_000, taxMinor: 216_000, totalMinor: 1_416_000, credits: 100_000, paidAt: "2026-11-21T06:00:00Z", createdAt: "2026-11-21T06:00:00Z", name: "Starter" };
+    const payments = renderToStaticMarkup(<PaymentsList initial={{ payments: [payment], total: 1 }} />);
+    expect(payments).not.toContain("Page 1 of");
+    expect(renderToStaticMarkup(<PaymentsList initial={{ payments: [payment], total: 25 }} />)).toContain("Page 1 of 3");
     expect(payments).toContain("Monthly renewal · Starter");
     expect(payments).toContain("₹14,160");
     expect(payments).toContain("incl. GST");

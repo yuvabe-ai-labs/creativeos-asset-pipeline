@@ -12,8 +12,8 @@ beforeEach(() => { m.rpc.mockReset(); m.from.mockReset(); });
 function builder(rows: unknown[]) {
   const calls: unknown[][] = [];
   const b: Record<string, unknown> = {};
-  for (const name of ["select", "eq", "in", "order", "limit"]) b[name] = (...a: unknown[]) => { calls.push([name, ...a]); return b; };
-  b.then = (resolve: (v: unknown) => void) => resolve({ data: rows, error: null });
+  for (const name of ["select", "eq", "in", "order", "limit", "range"]) b[name] = (...a: unknown[]) => { calls.push([name, ...a]); return b; };
+  b.then = (resolve: (v: unknown) => void) => resolve({ data: rows, error: null, count: rows.length });
   return { b, calls };
 }
 
@@ -53,20 +53,24 @@ describe("billing admin data", () => {
     await expect(setBillingMode("org", "plans", "a", "r")).rejects.toThrow("down");
   });
 
-  it("lists the log newest first with who made each change, in two queries", async () => {
+  it("lists a page of the log newest first, with the total and who made each change, in two queries", async () => {
     const log = builder([
       { id: "l1", action: "grant", before: null, after: { kind: "free" }, reason: "Trial", created_at: "2026-11-20T06:00:00Z", actor_id: "u1" },
       { id: "l2", action: "billing_mode", before: {}, after: {}, reason: "x", created_at: "2026-11-19T06:00:00Z", actor_id: null },
     ]);
     const names = builder([{ user_id: "u1", display_name: "Yuva" }]);
     m.from.mockImplementation((t: string) => (t === "billing_log" ? log.b : names.b));
-    await expect(listBillingLog("org")).resolves.toEqual([
-      { id: "l1", action: "grant", before: null, after: { kind: "free" }, reason: "Trial", createdAt: "2026-11-20T06:00:00Z", actorName: "Yuva" },
-      { id: "l2", action: "billing_mode", before: {}, after: {}, reason: "x", createdAt: "2026-11-19T06:00:00Z", actorName: null },
-    ]);
+    await expect(listBillingLog("org", 2)).resolves.toEqual({
+      entries: [
+        { id: "l1", action: "grant", before: null, after: { kind: "free" }, reason: "Trial", createdAt: "2026-11-20T06:00:00Z", actorName: "Yuva" },
+        { id: "l2", action: "billing_mode", before: {}, after: {}, reason: "x", createdAt: "2026-11-19T06:00:00Z", actorName: null },
+      ],
+      total: 2,
+    });
     expect(log.calls).toContainEqual(["eq", "org_id", "org"]);
     expect(log.calls).toContainEqual(["order", "created_at", { ascending: false }]);
-    expect(log.calls).toContainEqual(["limit", 50]);
+    expect(log.calls).toContainEqual(["range", 10, 19]);
+    expect(log.calls).toContainEqual(["select", "id, action, before, after, reason, created_at, actor_id", { count: "exact" }]);
     expect(names.calls).toContainEqual(["in", "user_id", ["u1"]]);
   });
 });
