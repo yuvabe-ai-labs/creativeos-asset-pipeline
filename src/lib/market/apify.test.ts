@@ -1,4 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("@/lib/generations/record-cost", () => ({ recordProviderCost: vi.fn() }));
+
+import { recordProviderCost } from "@/lib/generations/record-cost";
 import { fetchProfileDetails, fetchPostMedia, fetchYouTubeDownload } from "./apify";
 
 function mockFetch(status: number, body: unknown) {
@@ -10,25 +14,80 @@ function mockFetch(status: number, body: unknown) {
 }
 
 describe("fetchProfileDetails", () => {
-  it("POSTs the profile URL to the sync dataset endpoint with a bearer token", async () => {
-    const fetchImpl = mockFetch(201, [{ username: "prakritisattva", followersCount: 144 }]);
-    const item = await fetchProfileDetails("prakritisattva", { token: "tok", fetchImpl });
+  type Reply = { status?: number; body: unknown };
+  /** Answers each fetch with the next reply. */
+  function scriptedFetch(replies: Reply[]) {
+    const queue = [...replies];
+    return vi.fn(async () => {
+      const r = queue.shift() ?? { body: {} };
+      const status = r.status ?? 200;
+      return { ok: status < 300, status, json: async () => r.body };
+    }) as unknown as typeof fetch;
+  }
+  const run = (status: string, usageTotalUsd?: number) => ({
+    body: { data: { id: "run9", status, defaultDatasetId: "ds9", ...(usageTotalUsd !== undefined && { usageTotalUsd }) } },
+  });
+  const recordFor = { orgId: "org-1", clientId: "client-1" };
+  const urls = (f: typeof fetch) => vi.mocked(f).mock.calls.map((c) => String(c[0]));
+
+  beforeEach(() => vi.mocked(recordProviderCost).mockReset());
+
+  it("starts an async run of the profile, polls until it succeeds, and returns the first item", async () => {
+    const fetchImpl = scriptedFetch([
+      run("READY"),
+      run("RUNNING"),
+      run("SUCCEEDED", 0.0042),
+      { body: [{ username: "prakritisattva", followersCount: 144 }] },
+    ]);
+    const item = await fetchProfileDetails("prakritisattva", { token: "tok", fetchImpl, recordFor });
     expect(item?.username).toBe("prakritisattva");
+
     const [url, init] = vi.mocked(fetchImpl).mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toContain("apify~instagram-scraper/run-sync-get-dataset-items");
+    expect(url).toBe("https://api.apify.com/v2/acts/apify~instagram-scraper/runs?timeout=280");
+    expect(init.method).toBe("POST");
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer tok");
     const body = JSON.parse(init.body as string);
     expect(body.directUrls).toEqual(["https://www.instagram.com/prakritisattva/"]);
     expect(body.resultsType).toBe("details");
+    expect(urls(fetchImpl)[1]).toContain("/actor-runs/run9?waitForFinish=");
+    expect(urls(fetchImpl)[3]).toContain("/datasets/ds9/items");
+
+    expect(recordProviderCost).toHaveBeenCalledTimes(1);
+    expect(recordProviderCost).toHaveBeenCalledWith({
+      ...recordFor,
+      type: "scrape",
+      modelId: "apify:actor",
+      meters: { usd: 0.0042 },
+      raw: { runId: "run9", actorId: "apify~instagram-scraper", usageTotalUsd: 0.0042 },
+    });
   });
+
   it("returns null for an empty dataset", async () => {
-    const item = await fetchProfileDetails("nobody", { token: "tok", fetchImpl: mockFetch(201, []) });
-    expect(item).toBeNull();
+    const fetchImpl = scriptedFetch([run("SUCCEEDED"), { body: [] }]);
+    expect(await fetchProfileDetails("nobody", { token: "tok", fetchImpl })).toBeNull();
   });
+
   it("throws on an HTTP error", async () => {
+    const fetchImpl = scriptedFetch([{ status: 402, body: { error: "quota" } }]);
+    await expect(fetchProfileDetails("x", { token: "tok", fetchImpl })).rejects.toThrow(/402/);
+  });
+
+  it("fails as before when the run outlives the deadline, aborts it, and records nothing", async () => {
+    const fetchImpl = scriptedFetch([run("RUNNING", 0.01), { body: {} }]);
     await expect(
-      fetchProfileDetails("x", { token: "tok", fetchImpl: mockFetch(402, { error: "quota" }) }),
-    ).rejects.toThrow(/402/);
+      fetchProfileDetails("x", { token: "tok", fetchImpl, recordFor, deadlineMs: -1 }),
+    ).rejects.toThrow("Apify request failed: HTTP 408");
+    expect(urls(fetchImpl)[1]).toContain("/actor-runs/run9/abort");
+    expect(recordProviderCost).not.toHaveBeenCalled();
+  });
+
+  it("records a failed run that Apify still billed, then throws", async () => {
+    const fetchImpl = scriptedFetch([run("FAILED", 0.003)]);
+    await expect(fetchProfileDetails("x", { token: "tok", fetchImpl, recordFor })).rejects.toThrow(
+      /Apify request failed/,
+    );
+    expect(recordProviderCost).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(recordProviderCost).mock.calls[0][0]).toMatchObject({ meters: { usd: 0.003 } });
   });
 });
 

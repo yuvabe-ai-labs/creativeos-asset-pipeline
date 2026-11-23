@@ -90,6 +90,17 @@ describe("runAssetImport", () => {
     vi.mocked(latestImportedPostAt).mockResolvedValue(null);
   });
 
+  it("records each Apify run's cost for the job's org, client and user (D537)", async () => {
+    vi.mocked(getJob).mockResolvedValue({ ...job("instagram"), org_id: "org-1", created_by: "user-1" } as never);
+    vi.mocked(runImportActor).mockResolvedValue([post(1)]);
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(vi.mocked(runImportActor).mock.calls[0][2].recordFor).toEqual({
+      orgId: "org-1",
+      clientId: "client-1",
+      userId: "user-1",
+    });
+  });
+
   it("downloads, stores and records each new asset, then succeeds with the count", async () => {
     vi.mocked(getJob).mockResolvedValue(job("instagram") as never);
     vi.mocked(runImportActor).mockResolvedValue([post(1), post(2)]);

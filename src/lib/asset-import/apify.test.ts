@@ -1,4 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("@/lib/generations/record-cost", () => ({ recordProviderCost: vi.fn() }));
+
+import { recordProviderCost } from "@/lib/generations/record-cost";
 import { buildActorInput, runImportActor } from "./apify";
 
 type Reply = { status?: number; body: unknown };
@@ -13,7 +17,11 @@ function scriptedFetch(replies: Reply[]) {
   }) as unknown as typeof fetch;
 }
 
-const run = (status: string) => ({ body: { data: { id: "run1", status, defaultDatasetId: "ds1" } } });
+const run = (status: string, usageTotalUsd?: number) => ({
+  body: { data: { id: "run1", status, defaultDatasetId: "ds1", ...(usageTotalUsd !== undefined && { usageTotalUsd }) } },
+});
+
+beforeEach(() => vi.mocked(recordProviderCost).mockReset());
 
 describe("buildActorInput", () => {
   it("asks Instagram and Facebook for every post from the last 3 months", () => {
@@ -111,5 +119,45 @@ describe("runImportActor", () => {
     const fetchImpl = scriptedFetch([{ status: 404, body: {} }, run("SUCCEEDED"), { body: [{ a: 1 }] }]);
     await runImportActor("instagram", "u", { token: "t", fetchImpl, resumeRunId: "gone", onStarted });
     expect(onStarted).toHaveBeenCalledWith("run1");
+  });
+
+  describe("records what the run cost (D537)", () => {
+    const recordFor = { orgId: "org-1", clientId: "client-1", userId: "user-1" };
+
+    it("records the finished run's usageTotalUsd once, with only the run's ids in raw", async () => {
+      const fetchImpl = scriptedFetch([run("RUNNING"), run("SUCCEEDED", 0.031), { body: [{ a: 1 }] }]);
+      await runImportActor("instagram", "u", { token: "t", fetchImpl, recordFor });
+      expect(recordProviderCost).toHaveBeenCalledTimes(1);
+      expect(recordProviderCost).toHaveBeenCalledWith({
+        ...recordFor,
+        type: "scrape",
+        modelId: "apify:actor",
+        meters: { usd: 0.031 },
+        raw: { runId: "run1", actorId: "apify~instagram-scraper", usageTotalUsd: 0.031 },
+      });
+    });
+
+    it("records a run that failed but was billed", async () => {
+      const fetchImpl = scriptedFetch([run("FAILED", 0.012), { body: [] }]);
+      await expect(runImportActor("facebook", "u", { token: "t", fetchImpl, recordFor })).rejects.toThrow(/did not finish/);
+      expect(recordProviderCost).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(recordProviderCost).mock.calls[0][0]).toMatchObject({ meters: { usd: 0.012 } });
+    });
+
+    it("records nothing for a run cut off at the deadline, or when no one is named", async () => {
+      const late = scriptedFetch([run("RUNNING", 0.02), { body: {} }, { body: [{ a: 1 }] }]);
+      await runImportActor("instagram", "u", { token: "t", fetchImpl: late, deadlineMs: -1, recordFor });
+      const anonymous = scriptedFetch([run("SUCCEEDED", 0.02), { body: [{ a: 1 }] }]);
+      await runImportActor("instagram", "u", { token: "t", fetchImpl: anonymous });
+      expect(recordProviderCost).not.toHaveBeenCalled();
+    });
+
+    it("hands the record to the caller's writer when one is given", async () => {
+      const record = vi.fn();
+      const fetchImpl = scriptedFetch([run("SUCCEEDED", 0.031), { body: [{ a: 1 }] }]);
+      await runImportActor("instagram", "u", { token: "t", fetchImpl, recordFor, record });
+      expect(record).toHaveBeenCalledTimes(1);
+      expect(recordProviderCost).not.toHaveBeenCalled();
+    });
   });
 });

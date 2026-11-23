@@ -22,9 +22,11 @@ vi.mock("@/lib/db/performance", () => ({
   getLatestSnapshot: vi.fn(),
 }));
 vi.mock("@/lib/market/snapshot", () => ({ snapshotHandle: vi.fn() }));
+vi.mock("@/lib/generations/record-for", () => ({ recordAfterResponse: vi.fn() }));
 
 import { isHandleTracked, getLatestSnapshot } from "@/lib/db/performance";
 import { snapshotHandle } from "@/lib/market/snapshot";
+import { recordAfterResponse } from "@/lib/generations/record-for";
 
 const params = Promise.resolve({ id: "client-1" });
 const req = (body: unknown = { handle: "prakritisattva" }) =>
@@ -72,7 +74,7 @@ describe("POST /api/clients/[id]/performance/refresh", () => {
     const res = await POST(req({ handle: "other" }) as never, { params });
     expect(res.status).toBe(200);
     expect(vi.mocked(getLatestSnapshot)).toHaveBeenCalledWith("client-1", "other");
-    expect(vi.mocked(snapshotHandle)).toHaveBeenCalledWith("client-1", "other");
+    expect(vi.mocked(snapshotHandle)).toHaveBeenCalledWith("client-1", "other", expect.anything());
   });
 
   it("runs the snapshot when the latest is old enough", async () => {
@@ -83,6 +85,18 @@ describe("POST /api/clients/[id]/performance/refresh", () => {
     const res = await POST(req() as never, { params });
     expect(res.status).toBe(200);
     expect((await res.json()).postCount).toBe(12);
+  });
+
+  it("records the Apify run's cost for the client's org after the response (D537)", async () => {
+    vi.mocked(isHandleTracked).mockResolvedValue(true);
+    vi.mocked(getLatestSnapshot).mockResolvedValue(null);
+    vi.mocked(snapshotHandle).mockResolvedValue({ ok: true, handle: "prakritisattva", postCount: 1 });
+    const { POST } = await import("./route");
+    await POST(req() as never, { params });
+    expect(vi.mocked(snapshotHandle)).toHaveBeenCalledWith("client-1", "prakritisattva", {
+      recordFor: { orgId: "org-1", clientId: "client-1" },
+      record: recordAfterResponse,
+    });
   });
 
   it("maps no-data to 409", async () => {

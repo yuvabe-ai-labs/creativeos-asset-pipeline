@@ -54,6 +54,17 @@ describe("snapshotHandle", () => {
     );
   });
 
+  it("passes whom the run's cost is recorded for, and how, to the scrape (D537)", async () => {
+    vi.mocked(fetchProfileDetails).mockResolvedValue(null);
+    const record = vi.fn();
+    const recordFor = { orgId: "org-1", clientId: "client-1" };
+    await snapshotHandle("client-1", "prakritisattva", { recordFor, record });
+    expect(vi.mocked(fetchProfileDetails)).toHaveBeenCalledWith(
+      "prakritisattva",
+      expect.objectContaining({ recordFor, record }),
+    );
+  });
+
   it("returns no-data when the actor finds nothing", async () => {
     vi.mocked(fetchProfileDetails).mockResolvedValue(null);
     const r = await snapshotHandle("client-1", "nobody");

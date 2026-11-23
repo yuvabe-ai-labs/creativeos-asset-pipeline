@@ -1,30 +1,54 @@
-// Thin client for the one Apify call the performance pipeline makes (D235).
-// run-sync-get-dataset-items runs the actor and returns dataset items in one request
-// (~9s for a profile in the 2026-09-03 spike; server-side cap via ?timeout=).
+// Thin client for the Apify calls the performance pipeline makes (D235).
+// The profile snapshot runs the actor asynchronously and polls it, through the same flow asset
+// import uses (runApifyActor), because only a run reports what it cost (D537). Its old run-sync
+// call capped the run at 280 s; that is still the run's timeout and our deadline.
 import type { ApifyProfileItem } from "./performance";
+import { readApifyDataset, runApifyActor, type RecordApifyCost } from "@/lib/asset-import/apify";
+import type { RecordFor } from "@/lib/generations/record-for";
 
-const ENDPOINT =
-  "https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?timeout=280";
+const PROFILE_ACTOR = "apify~instagram-scraper";
+const PROFILE_TIMEOUT_S = 280;
+const requestFailed = (status: number) => `Apify request failed: HTTP ${status}`;
 
+/**
+ * One profile's details. `recordFor` names whom the run's cost is recorded for (D537); a request
+ * passes `record: recordAfterResponse`, a Trigger task leaves the default, which awaits the insert.
+ */
 export async function fetchProfileDetails(
   handle: string,
-  opts: { token: string; fetchImpl?: typeof fetch },
+  opts: {
+    token: string;
+    fetchImpl?: typeof fetch;
+    deadlineMs?: number;
+    recordFor?: RecordFor;
+    record?: RecordApifyCost;
+  },
 ): Promise<ApifyProfileItem | null> {
-  const fetchImpl = opts.fetchImpl ?? fetch;
-  const res = await fetchImpl(ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${opts.token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  const { run, finished } = await runApifyActor(
+    PROFILE_ACTOR,
+    {
       directUrls: [`https://www.instagram.com/${handle}/`],
       resultsType: "details",
       addParentData: false,
-    }),
-  });
-  if (!res.ok) throw new Error(`Apify request failed: HTTP ${res.status}`);
-  const items = (await res.json()) as ApifyProfileItem[];
+    },
+    {
+      token: opts.token,
+      fetchImpl: opts.fetchImpl,
+      deadlineMs: opts.deadlineMs ?? PROFILE_TIMEOUT_S * 1000,
+      query: `?timeout=${PROFILE_TIMEOUT_S}`,
+      startError: requestFailed,
+      recordFor: opts.recordFor,
+      record: opts.record,
+    },
+  );
+  // The message run-sync gave when the run outlived its wait (Request Timeout).
+  if (!finished) throw new Error(requestFailed(408));
+  if (run.status !== "SUCCEEDED") throw new Error(`Apify request failed: run ${run.status.toLowerCase()}`);
+  const items = (await readApifyDataset(run, {
+    token: opts.token,
+    fetchImpl: opts.fetchImpl,
+    error: requestFailed,
+  })) as ApifyProfileItem[];
   return items[0] ?? null;
 }
 

@@ -119,16 +119,22 @@ export async function isHandleTracked(clientId: string, handle: string): Promise
 }
 
 /** The daily sweep's entire work list (D252) — every enrolled handle, all clients. */
-export async function listAllTrackedHandles(): Promise<{ clientId: string; handle: string }[]> {
+export async function listAllTrackedHandles(): Promise<{ clientId: string; orgId: string | null; handle: string }[]> {
   const supabase = createServerSupabase();
+  // The client's org rides along in the same query (D537: the sweep records each Apify run's
+  // cost for it), so the sweep makes no extra lookup per handle.
   const { data, error } = await supabase
     .from("tracked_handles")
-    .select("client_id, handle")
+    .select("client_id, handle, clients(org_id)")
     .eq("platform", PLATFORM)
     .order("added_at", { ascending: true });
   if (error) throw error;
-  const rows = (data ?? []) as { client_id: string; handle: string }[];
-  return rows.map((row) => ({ clientId: row.client_id, handle: row.handle }));
+  type Row = { client_id: string; handle: string; clients: { org_id: string } | { org_id: string }[] | null };
+  const rows = (data ?? []) as unknown as Row[];
+  return rows.map((row) => {
+    const client = Array.isArray(row.clients) ? row.clients[0] : row.clients;
+    return { clientId: row.client_id, orgId: client?.org_id ?? null, handle: row.handle };
+  });
 }
 
 /* ── Writes (unchanged by D252/D253) ──────────────────────────────────────── */
