@@ -8913,3 +8913,13 @@ A new run reads the row valid now from the cached catalog and records it as `gen
 **Rejected.** Settling at the token cost, because the charge would differ from the price shown before the run.
 
 **Originated →** [2026-11-22-model-catalog-2b-remaining-prices.md](../plans/2026-11-22-model-catalog-2b-remaining-prices.md).
+
+### D537 — Free features record what each provider call cost us *(recorded 2026-11-23; follows D532)*
+
+**Decision.** The script writer and script Copilot, canvas Copilot, KB extraction, re-extract, re-analyze and website research, image analysis, avatar brief, compose, parse, split scene, file extract, and every Apify run (asset import, market profile snapshots, archive media downloads) write one `generations` row per paid provider call. The row has `record_only = true`, the model, its price row, `cost_usd` and `provider_bill`, `credits_charged` 0 and no ledger rows. The rows need no node, avatar or script (migration 0081). The text models and Apify are in `ai_models` (0082) with published prices in `ai_model_prices` (0083), including Gemini 3.8 Flash's price after its introductory rate, from 1 January 2027. `provider_bill.raw` holds only the provider's usage block (Apify: run id, actor and its USD cost), never a reply, prompt or file. Inside a request the row is written through `after()` with a promise, so nobody waits for it and it survives a client that has left. A Trigger task awaits it. A failure to record is logged and never shown. A model with no price row is still recorded with `cost_usd` null. Apify runs moved from the synchronous endpoint to async runs, because only a run reports its cost. A resumed asset import does not record a run twice.
+
+**Why.** The credit audit (19 to 21 Nov) found these calls billed to us with no record at all.
+
+**Rejected.** Charging credits for them (user, 21 Nov: record the cost, don't deduct). Storing the reply text with the bill (user, 23 Nov: usage only, to keep rows small).
+
+**Originated →** [2026-11-22-model-catalog-2b-record-only.md](../plans/2026-11-22-model-catalog-2b-record-only.md).
