@@ -85,4 +85,28 @@ describe("POST /api/copilot cost record", () => {
     expect((await POST(request())).status).toBe(404);
     expect(create).not.toHaveBeenCalled();
   });
+  it("is a 400 with plain copy when canvasId is not a string: no canvas read", async () => {
+    const res = await POST(new Request("http://x", { method: "POST", body: JSON.stringify({ ...body, canvasId: 42 }) }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Open a canvas to use the copilot." });
+    expect(canvasRow).not.toHaveBeenCalled();
+  });
+
+  it("is a plain 500 when the canvas read returns an error: no OpenAI call", async () => {
+    canvasRow.mockResolvedValue({ data: null, error: { message: "canceling statement due to statement timeout" } });
+    const res = await POST(request());
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "We couldn't open this canvas. Please try again." });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("is a plain 500 when the canvas context cannot be built: no OpenAI call, nothing recorded", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(buildCopilotContext).mockRejectedValueOnce(new Error("nodes read failed"));
+    const res = await POST(request());
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).not.toContain("nodes read failed");
+    expect(create).not.toHaveBeenCalled();
+    expect(recordProviderCost).not.toHaveBeenCalled();
+  });
 });

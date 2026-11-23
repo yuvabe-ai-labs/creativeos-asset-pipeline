@@ -16,15 +16,15 @@ export async function POST(req: Request) {
   const history = Array.isArray(body?.messages) ? body.messages : [];
   const canvasId = body?.canvasId;
   if (history.length === 0) return apiError("A 'messages' history is required.", 400);
-  if (!canvasId) return apiError("A 'canvasId' is required.", 400);
+  if (typeof canvasId !== "string" || !canvasId) return apiError("Open a canvas to use the copilot.", 400);
 
   // The canvas must be in the caller's org before anything of it is read (withBodyCanvas).
   return withBodyCanvas(canvasId, async (canvas, caller) => {
     const recordFor = copilotRecordFor(canvas, caller);
-    // Grounding (Lesson 2), now with handles + the human's @-referenced nodes spotlighted.
-    const canvasContext = await buildCopilotContext(canvas.id, body?.mentionedIds ?? []);
 
     try {
+      // Grounding (Lesson 2), now with handles + the human's @-referenced nodes spotlighted.
+      const canvasContext = await buildCopilotContext(canvas.id, body?.mentionedIds ?? []);
       const openai = createOpenAI();
       const completion = await openai.chat.completions.create({
         model: MODEL,
@@ -68,7 +68,8 @@ export async function POST(req: Request) {
         headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" },
       });
     } catch (e) {
-      return apiError(e instanceof Error ? e.message : "Copilot request failed.", 500);
+      console.error("[copilot]", e instanceof Error ? e.message : e);
+      return apiError("The copilot couldn't answer just now. Please try again.", 500);
     }
   });
 }

@@ -101,6 +101,12 @@ type CanvasWithOrg = CanvasRow & {
   clients: { org_id: string } | { org_id: string }[] | null;
 };
 
+/** A canvas lookup that Supabase answered with an error: logged, and a plain 500 for the user. */
+function canvasReadFailed(error: { message: string }): NextResponse<{ error: string }> {
+  console.error("[canvas-read]", error.message);
+  return apiError("We couldn't open this canvas. Please try again.", 500);
+}
+
 // Same org-isolation shape as withClient(), for the handful of routes rooted at a
 // canvas id instead of a client id (/api/canvas/[id]/*, /api/canvases/[cid]/*) —
 // these never went through withClient() at all, since it only guards
@@ -118,7 +124,7 @@ export async function withCanvas(
     .select("*, clients!inner(org_id)")
     .eq("id", canvasId)
     .maybeSingle();
-  if (error) throw error;
+  if (error) return canvasReadFailed(error);
   if (!data) return apiError("Canvas not found.", 404);
 
   const row = data as unknown as CanvasWithOrg;
@@ -174,7 +180,7 @@ export async function withBodyCanvas(
     resolveCallerContext(),
     resolveImpersonationState(),
   ]);
-  if (error) throw error;
+  if (error) return canvasReadFailed(error);
   if (!data) return apiError("Canvas not found.", 404);
   // Same rule as resolveOrgId(): the impersonation target while a session is active (D81).
   const effectiveOrgId = impersonation.isImpersonating ? impersonation.targetOrgId : caller.orgId;

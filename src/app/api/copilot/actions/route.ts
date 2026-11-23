@@ -209,14 +209,13 @@ export async function POST(req: Request) {
   const history = Array.isArray(body?.messages) ? body.messages : [];
   const canvasId = body?.canvasId;
   if (history.length === 0) return apiError("A 'messages' history is required.", 400);
-  if (!canvasId) return apiError("A 'canvasId' is required.", 400);
+  if (typeof canvasId !== "string" || !canvasId) return apiError("Open a canvas to use the copilot.", 400);
 
   // Same grounding as the other calls (handles + @-referenced nodes spotlighted) — so
   // "add a prompt like @PRM-A3F9" has the exact node in view.
   // The canvas must be in the caller's org before anything of it is read (withBodyCanvas).
   return withBodyCanvas(canvasId, async (canvas, caller) => {
     const recordFor = copilotRecordFor(canvas, caller);
-    const canvasContext = await buildCopilotContext(canvas.id, body?.mentionedIds ?? []);
     const model = "gpt-4o-mini";
 
     // Elicitation fallback (runner spec §2.2): the client couldn't resolve a slot answer
@@ -227,6 +226,7 @@ export async function POST(req: Request) {
         : null;
 
     try {
+      const canvasContext = await buildCopilotContext(canvas.id, body?.mentionedIds ?? []);
       const openai = createOpenAI();
       const completion = await openai.chat.completions.create({
         model,
@@ -359,7 +359,8 @@ export async function POST(req: Request) {
 
       return apiOk({ action: null });
     } catch (e) {
-      return apiError(e instanceof Error ? e.message : "Actions lookup failed.", 500);
+      console.error("[copilot/actions]", e instanceof Error ? e.message : e);
+      return apiError("The copilot couldn't work out what to do. Please try again.", 500);
     }
   });
 }

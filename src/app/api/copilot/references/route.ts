@@ -34,15 +34,15 @@ export async function POST(req: Request) {
     | { message?: string; canvasId?: string; reply?: string }
     | null;
   const canvasId = body?.canvasId;
-  if (!canvasId) return apiError("A 'canvasId' is required.", 400);
+  if (typeof canvasId !== "string" || !canvasId) return apiError("Open a canvas to use the copilot.", 400);
 
   // The canvas must be in the caller's org before anything of it is read (withBodyCanvas).
   return withBodyCanvas(canvasId, async (canvas, caller) => {
     const recordFor = copilotRecordFor(canvas, caller);
-    const canvasContext = await buildCopilotContext(canvas.id);
     const model = "gpt-4o-mini";
 
     try {
+      const canvasContext = await buildCopilotContext(canvas.id);
       const openai = createOpenAI();
       const completion = await openai.chat.completions.create({
         model,
@@ -74,7 +74,8 @@ export async function POST(req: Request) {
       };
       return apiOk({ referencedNodes: parsed.referencedNodes ?? [] });
     } catch (e) {
-      return apiError(e instanceof Error ? e.message : "References lookup failed.", 500);
+      console.error("[copilot/references]", e instanceof Error ? e.message : e);
+      return apiError("The copilot couldn't find the nodes it mentioned. Please try again.", 500);
     }
   });
 }

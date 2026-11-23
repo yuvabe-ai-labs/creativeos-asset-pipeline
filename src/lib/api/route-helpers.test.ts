@@ -49,6 +49,7 @@ const { nodeOrgIdHolder, nodeQueryGate } = vi.hoisted(() => ({
 const { canvasRowHolder } = vi.hoisted(() => ({
   canvasRowHolder: {
     row: null as null | { client_id: string; source_script_id: string | null; clients: { org_id: string } },
+    error: null as null | { message: string },
   },
 }));
 vi.mock("@/lib/supabase/server", () => ({
@@ -85,7 +86,7 @@ vi.mock("@/lib/supabase/server", () => ({
       if (table === "canvases") {
         return {
           select: () => ({
-            eq: () => ({ maybeSingle: async () => ({ data: canvasRowHolder.row, error: null }) }),
+            eq: () => ({ maybeSingle: async () => ({ data: canvasRowHolder.row, error: canvasRowHolder.error }) }),
           }),
         };
       }
@@ -95,7 +96,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { resolveOrgId, resolveCallerContext } from "@/lib/dal";
-import { withBodyCanvas, withClient, withNode } from "./route-helpers";
+import { withBodyCanvas, withCanvas, withClient, withNode } from "./route-helpers";
 
 const params = Promise.resolve({ id: "client-1" });
 function req(method: string) {
@@ -269,7 +270,30 @@ describe("withBodyCanvas", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     canvasRowHolder.row = { client_id: "client-1", source_script_id: "script-1", clients: { org_id: "org-1" } };
+    canvasRowHolder.error = null;
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+  });
+
+  it("is a plain 500 when the canvas read returns an error, and the handler never runs", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    canvasRowHolder.row = null;
+    canvasRowHolder.error = { message: "canceling statement due to statement timeout" };
+    const handler = ok();
+    const res = await withBodyCanvas("canvas-1", handler);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "We couldn't open this canvas. Please try again." });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("withCanvas answers the same plain 500 when its canvas read returns an error", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    canvasRowHolder.row = null;
+    canvasRowHolder.error = { message: "canceling statement due to statement timeout" };
+    const handler = ok();
+    const res = await withCanvas(req("GET"), Promise.resolve({ id: "canvas-1" }), handler);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "We couldn't open this canvas. Please try again." });
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("hands the handler the verified canvas and the caller, resolving the caller once", async () => {

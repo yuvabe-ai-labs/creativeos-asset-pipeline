@@ -14,8 +14,7 @@ export async function buildCopilotContext(
   canvasId: string,
   mentionedIds: string[] = [],
 ): Promise<string> {
-  const nodes = await listNodes(canvasId);
-  const edges = await listEdges(canvasId);
+  const [nodes, edges] = await Promise.all([listNodes(canvasId), listEdges(canvasId)]);
   if (nodes.length === 0) {
     return "The canvas is currently empty (it has no nodes).";
   }
