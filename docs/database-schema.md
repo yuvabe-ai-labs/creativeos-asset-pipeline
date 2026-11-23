@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0065** (`supabase/migrations/0001_init.sql` … `0065_client_scoped_reads.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
+Generated from migrations up to **0066** (`supabase/migrations/0001_init.sql` … `0066_copilot_turn_traces.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied. 0063, 0064 and 0065 are pairs too: the permission work's `0063_close_views_and_count_resends`, `0064_lock_node_files_bucket`, `0065_client_scoped_reads`, and the copilot journey's `0063_client_market_status`, `0064_client_copilot_messages`, `0065_kb_review_writes` (then `0066_copilot_turn_traces`). A bare number below means the permission work's file; the copilot journey's are named in full.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -59,6 +59,7 @@ An invite link, sent from inside a client (owner invites have no client). *0062*
 ### clients
 A brand an agency works for. *0001* · org_id
 - `id` uuid PK · `slug` text unique · `name` text · `logo_url` text · `kb_status` text check pending/in_review/ready · `active_kb_version_id` → client_kb_versions set null · `archived_at` · `website_url` · `drive_root_folder_id` text · `org_id` → organizations (not null) · `brand_details` jsonb default `{}` (0027)
+- `market_status` text check pending/approved, default pending (clients that existed before it were set approved) (`0063_client_market_status`): market research approved unlocks Scripts
 - Unique: `slug`; `clients_id_org_unique (id, org_id)` (target of the composite FKs, 0062)
 - Indexes: `archived_at`, `org_id`
 - RLS: service role only.
@@ -72,7 +73,7 @@ Uploaded brand documents (pdf/docx/pptx/md/txt). *0002*
 Each extracted Brand KB (full JSON). *0002*
 - `id` uuid PK · `client_id` → clients cascade · `output` jsonb · `model_used` · `doc_ids_used` uuid[] · `fill_rate` float · `note`
 - Index: `client_id` · RLS: service role only.
-- Written field-by-field through `set_kb_field`, `set_kb_image_analysis`, `save_kb_output_keep_image_analysis`.
+- Written field-by-field through `set_kb_field`, `set_kb_image_analysis`, `save_kb_output_keep_image_analysis`, and in batches through `patch_kb_fields` (`0065_kb_review_writes`).
 
 ### client_kb_jobs
 A background KB build (research + extract). *0008* · org_id · *Realtime*
@@ -96,6 +97,16 @@ One AI analysis card per brand image. *0048, 0049*
 Brand kit files: logos, backgrounds, products. *0027_brand_kit*
 - `id` uuid PK · `client_id` → clients cascade · `category` check logo/background/product · `name` · `storage_url` · `position` int
 - Index: `(client_id, category)` · RLS: service role only.
+
+### client_copilot_messages
+The client-level copilot chat (the Brand KB / market research panel); `thread` is `onboarding`. *`0064_client_copilot_messages`*
+- `id` uuid PK · `seq` bigint identity · `client_id` → clients cascade · `thread` check onboarding · `role` check user/assistant · `content` · `card` jsonb · `attachments` jsonb default `[]` · `suggestions` jsonb default `[]` · `is_opening` bool · `created_by` → auth.users set null
+- Indexes: `(client_id, thread, seq)`; unique `(client_id, thread) where is_opening` (one opening message per thread) · RLS: service role only.
+
+### copilot_turn_traces
+What each copilot turn sent, called and took, for debugging and evals; swept by age. *`0066_copilot_turn_traces`*
+- `id` uuid PK · `client_id` → clients cascade · `thread` check onboarding · `message_id` → client_copilot_messages set null · `created_by` → auth.users set null · `sent_text` · `tools`, `marks` text[] · `duration_ms` int · `trace` jsonb
+- Indexes: `(client_id, created_at desc)`, `created_at`, `message_id` · RLS: service role only.
 
 ---
 
@@ -357,6 +368,8 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `set_kb_image_analysis` | version_id, value → void | invoker | 0048 |
 | `save_kb_output_keep_image_analysis` | version_id, output → void | invoker | 0050 |
 | `set_kb_field` | version_id, path text[], value → void | invoker | 0050 |
+| `patch_kb_fields` | version_id, patches jsonb `[{path, patch}]`, only_unreviewed=false → int applied (locks the version row; merges each patch into its field) | invoker | `0065_kb_review_writes` |
+| `kb_unreviewed_fields` | version_id → text[] (`section.field` still `needs_review`, in review order) | invoker | `0065_kb_review_writes` |
 | `script_review_move` | script_id, client_id, from, to, kind, actor_name → bool | invoker | 0054 |
 | `script_review_share` | review_id, expected_latest, scope, doc, visuals, changes, shared_by, actor_name → jsonb | invoker | 0054 |
 | `script_review_approve` | review_id, version_number, actor_name → text (any scope since 0058) | invoker | 0054, 0058 |
