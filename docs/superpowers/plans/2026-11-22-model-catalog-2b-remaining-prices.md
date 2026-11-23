@@ -1210,6 +1210,8 @@ git commit -m "feat(credits): auto captions priced from its row and charged by E
 
 ### Task 8: Prompt runs reserve the flat estimate and settle real token cost
 
+Superseded: this part is replaced by the D535 and D536 entries in the roadmap ADR log and by `.superpowers/sdd/2b/overrides.md`.
+
 **Files:**
 - Modify: `src/lib/api/prompt-run.ts`
 - Modify: `src/app/api/nodes/[id]/generate/route.ts`, `src/app/api/nodes/[id]/video-prompt/route.ts`, `src/app/api/nodes/[id]/multishot-prompt/route.ts`
@@ -1324,6 +1326,8 @@ Grep `src/` and `trigger/` for every symbol in the deleted files (`computeDubCos
 - [ ] **Step 3: ADR entries**
 
 Append to `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (plain wording, no taglines):
+
+Superseded: this part is replaced by the D535 and D536 entries in the roadmap ADR log and by `.superpowers/sdd/2b/overrides.md`.
 
 ```markdown
 ### D535 — Dub, lip sync, voice change, auto captions and Kling are charged from price rows and what the provider billed *(recorded 2026-11-23; follows D531, D534)*

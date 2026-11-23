@@ -27,7 +27,7 @@ spending limits and a run markup, none of which are built now.
 |---|---|---|
 | Gemini, OpenAI, BytePlus (Seedance, Seedream) | tokens or images used | usage × the model's price lines |
 | Kling | `billing[].amount`, the units deducted | units × the price per unit |
-| ElevenLabs | `character-cost` header (credits); speech to text also sends `fiat-cost-before-overages` in USD | credits × the price per credit, or the USD amount |
+| ElevenLabs | `character-cost` header (credits); speech to text also sends `fiat-cost-before-overages` in USD | credits × the price per credit; speech to text's `fiat-cost-before-overages` is kept in the bill but not charged |
 | Apify | `usageTotalUsd` | read as is |
 | fal (Kling on fal, lip sync), Sarvam | nothing | seconds or minutes from the request × the price |
 
