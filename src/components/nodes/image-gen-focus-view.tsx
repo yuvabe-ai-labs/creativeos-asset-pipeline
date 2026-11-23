@@ -97,7 +97,7 @@ import { useImageModels } from "@/hooks/queries/ai-models";
 import { paramDefaults } from "@/lib/ai-models/model-lists";
 import { RetiredModelNotice } from "@/components/models/retired-model-notice";
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
-import { paramsForRestore } from "@/lib/generations/version-params";
+import { imageVersionRestore } from "@/lib/generations/version-params";
 import { ImageGenOutputSettingsBody } from "./image-gen-output-settings-body";
 import { GenerateFooter } from "./generate-footer";
 import { imageGenerateBlocker, imageGenerateDisabled } from "@/lib/image-gen/generate-blocker";
@@ -882,28 +882,16 @@ export function ImageGenFocusView({
     const toastId = toast.loading("Restoring version…");
     try {
       const json = await restoreVersion.mutateAsync(versionId);
-      // params_used carries its own modelId for image versions (the image-generate route writes
-      // it there); model_used is the same value, and the fallback covers either being absent.
-      const restoredModelId =
-        (typeof json.paramsUsed?.modelId === "string" ? json.paramsUsed.modelId : null) ??
-        json.modelUsed ??
-        null;
       // D467/D542 — a version made on a model no longer offered (retired, or hidden and not this
-      // node's own) brings back its picture, not its model.
-      const restoredParams = restoredModelId && images.isOffered(restoredModelId, modelId)
-        ? paramsForRestore(images.get(restoredModelId)!.params, json.paramsUsed ?? {})
-        : null;
-      if (restoredModelId && restoredParams) {
-        seenModelIdRef.current = restoredModelId;
+      // node's own) brings back its picture, not its model. A move to another model clears the
+      // retired notice (D544).
+      const restored = imageVersionRestore(images, json, modelId);
+      const restoredParams = restored.params;
+      if (restored.modelId && restoredParams) {
+        seenModelIdRef.current = restored.modelId;
         setParamValues(restoredParams);
-        onPatch({
-          ...(json.output ? { parsed: json.output } : {}),
-          modelId: restoredModelId,
-          params: restoredParams,
-        });
-      } else if (json.output) {
-        onPatch({ parsed: json.output });
       }
+      if (Object.keys(restored.patch).length > 0) onPatch(restored.patch);
       setActiveVersionId(versionId);
       setHasMaskRegion(false); // restored a different base — drop any stale mask-region flag
       // The restored version carries its OWN approval state (D29 reads the badge off the

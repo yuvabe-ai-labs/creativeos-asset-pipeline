@@ -11,7 +11,7 @@ import {
 } from "@/hooks/queries/node-versions";
 import { useGenerationStatus } from "@/hooks/use-generation-status";
 import { useImageModels } from "@/hooks/queries/ai-models";
-import { paramsForRestore } from "@/lib/generations/version-params";
+import { imageVersionRestore } from "@/lib/generations/version-params";
 import {
   useStartCompositeGeneration,
   useRestoreNodeVersion,
@@ -92,19 +92,12 @@ export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Pat
     const toastId = toast.loading("Restoring version…");
     try {
       const json = await restoreVersion.mutateAsync(versionId);
-      const restoredModelId =
-        (typeof json.paramsUsed?.modelId === "string" ? json.paramsUsed.modelId : null) ??
-        json.modelUsed ??
-        null;
       // D467/D542 — a version made on a model no longer offered (retired, or hidden and not the
-      // composite's own) brings back its picture, not its model.
-      const restoredParams = restoredModelId && images.isOffered(restoredModelId, modelId)
-        ? paramsForRestore(images.get(restoredModelId)!.params, json.paramsUsed ?? {})
-        : null;
-      onPatch({
-        ...(json.output ? { parsed: json.output } : {}),
-        ...(restoredModelId && restoredParams ? { modelId: restoredModelId, params: restoredParams } : {}),
-      });
+      // composite's own) brings back its picture, not its model. A move to another model clears
+      // the retired notice (D544).
+      const restored = imageVersionRestore(images, json, modelId);
+      const restoredParams = restored.params;
+      onPatch(restored.patch);
       setActiveVersionId(versionId);
       toast.success(
         restoredParams ? "Version restored with its model and settings" : "Image restored. Its settings are no longer available.",

@@ -79,7 +79,8 @@ export function VideoGenRequestPanel({
   labelById: Map<string, string>;
 }) {
   const videos = useVideoModels();
-  const model = version.modelUsed ? videos.specOrDefault(version.modelUsed) : undefined;
+  // No catalog row: the settings by their raw names, and no model label (never the id).
+  const model = videos.get(version.modelUsed);
   const images = requestImages(version.inputsUsed);
   const params = describeAllVersionParams(model?.params, version.paramsUsed);
   const prompt = version.inputsUsed?.prompt?.trim() ?? "";
@@ -159,11 +160,7 @@ export function VideoGenRequestPanel({
 
       <LeftSection icon={SlidersHorizontal} label="Settings">
         <dl className="flex flex-col gap-px overflow-hidden rounded-lg border border-border bg-border shadow-card">
-          <ParamRow
-            label="Model"
-            value={model?.label ?? version.modelUsed ?? "—"}
-            note={model?.providerLabel}
-          />
+          {model && <ParamRow label="Model" value={model.label} note={model.providerLabel} />}
           {params.map((p) =>
             p.longForm ? (
               <div key={p.name} className="flex flex-col gap-1 bg-card px-3 py-2.5">

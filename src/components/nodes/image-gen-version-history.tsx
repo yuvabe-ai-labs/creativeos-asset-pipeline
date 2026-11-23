@@ -56,7 +56,8 @@ export function ImageGenVersionHistory({ versions, activeVersionId, viewedVersio
 
   const rows = versions.map((v) => {
     const versionModelId = v.paramsUsed?.modelId ?? v.modelUsed ?? "";
-    const modelLabel = versionModelId.split(":")[1] ?? "";
+    // The catalog's label; a model it doesn't hold shows none (never the id).
+    const modelLabel = images.get(versionModelId)?.label ?? "";
     // YUV-295: what this version was actually generated with. Without it two rows for the
     // same prompt are indistinguishable — and since restoring one now also restores its
     // model and params, the row has to show what restoring would apply.

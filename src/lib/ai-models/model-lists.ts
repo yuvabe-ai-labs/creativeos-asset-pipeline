@@ -97,6 +97,12 @@ export function videoModelsFrom(catalog: AiCatalog): VideoModels {
   return list;
 }
 
+/** Any catalog model's label (text models too), or null: a screen never shows the id instead. */
+export function catalogModelLabel(catalog: AiCatalog | undefined, id: string | null | undefined): string | null {
+  if (!catalog || !id) return null;
+  return catalog.models.find((m) => m.id === id)?.label ?? null;
+}
+
 /** A model's params with a default value, as `{ name: default }`. */
 export function paramDefaults(params: readonly ParamSpec[]): Record<string, unknown> {
   return Object.fromEntries(

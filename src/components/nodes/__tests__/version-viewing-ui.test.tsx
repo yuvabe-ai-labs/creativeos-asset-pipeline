@@ -119,7 +119,7 @@ describe("VideoGenVersionHistory", () => {
 describe("ImageGenVersionHistory", () => {
   it("renders through the shared list with a real-shape image thumb", () => {
     const versions = [
-      { id: "b", output: "https://x/b.png", error: null, paramsUsed: { modelId: "openai:GPT Image" }, createdAt: now, decision: null, note: null },
+      { id: "b", output: "https://x/b.png", error: null, paramsUsed: { modelId: "openai:gpt-image-2" }, createdAt: now, decision: null, note: null },
       { id: "a", output: null, error: "x", paramsUsed: {}, createdAt: now, decision: null, note: null },
     ];
     const html = renderToStaticMarkup(
@@ -127,7 +127,7 @@ describe("ImageGenVersionHistory", () => {
     );
     expect(html).toContain('role="listbox"');
     expect(html).toContain('<img src="https://x/b.png"');
-    expect(text(html)).toContain("GPT Image");
+    expect(text(html)).toContain("GPT Image 2");
     expect(text(html)).toContain("Failed");
   });
 });

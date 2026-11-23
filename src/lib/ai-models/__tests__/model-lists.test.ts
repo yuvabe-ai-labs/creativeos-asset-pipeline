@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
 import {
-  imageModelsFrom, videoModelsFrom, paramDefaults, modelPickerLabel, withoutRetiredModel, replacementFor,
+  imageModelsFrom, videoModelsFrom, paramDefaults, modelPickerLabel, withoutRetiredModel, replacementFor, catalogModelLabel,
 } from "@/lib/ai-models/model-lists";
 import { DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai-models/default-models";
 
@@ -132,5 +132,15 @@ describe("replacementFor", () => {
     const hidden = imageModelsFrom(withModel(seededModelCatalog(), SUNBURST, { status: "hidden" }));
     expect(replacementFor(hidden, GPT1, NANO_PRO)).toBe(NANO_PRO);
     expect(replacementFor(images, "nope:nope", NANO_PRO)).toBe(NANO_PRO);
+  });
+});
+
+describe("catalogModelLabel", () => {
+  it("is the label of any model the catalog holds (a text model too), else null: never the id", () => {
+    const catalog = seededModelCatalog();
+    expect(catalogModelLabel(catalog, "openai:gpt-5")).toBe(catalog.models.find((m) => m.id === "openai:gpt-5")!.label);
+    expect(catalogModelLabel(catalog, "gpt-5.4-mini")).toBeNull();
+    expect(catalogModelLabel(undefined, "openai:gpt-5")).toBeNull();
+    expect(catalogModelLabel(catalog, null)).toBeNull();
   });
 });
