@@ -1,22 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { seedRowsFromRegistries, seedSql, SEED_JSON_TAG } from "../seed";
 
-// D529 — migration 0077 must hold exactly today's registries until Plan 1b deletes them.
-// After 0077 is applied anywhere, a registry change needs a new migration, not a rewrite of 0077.
-// Vitest runs from the repo root.
+// D529, D538 — migration 0077 has been applied, so it is frozen history and never regenerated.
+// Model data changes since then go in later migrations (0084 re-syncs from the registries).
 const FILE = resolve(process.cwd(), "supabase/migrations/0077_ai_models_seed.sql");
+const FROZEN_SHA256 = "6e252006ec4cb79043c66befe5517df5644e11e5df78197c33b1c9e61728e88d";
 
 describe("migration 0077 (ai_models seed)", () => {
-  it("matches the registries", () => {
-    const rows = seedRowsFromRegistries();
-    if (process.env.UPDATE_SEED === "1") writeFileSync(FILE, seedSql(rows));
-
-    expect(existsSync(FILE), "run with UPDATE_SEED=1 to write it").toBe(true);
-    const sql = readFileSync(FILE, "utf8");
-    const json = sql.slice(sql.indexOf(SEED_JSON_TAG) + SEED_JSON_TAG.length, sql.lastIndexOf(SEED_JSON_TAG));
-    expect(JSON.parse(json)).toEqual(JSON.parse(JSON.stringify(rows)));
-    expect(sql.replace(/\r\n/g, "\n")).toBe(seedSql(rows));
+  it("is unchanged", () => {
+    const sql = readFileSync(FILE, "utf8").replace(/\r\n/g, "\n");
+    expect(createHash("sha256").update(sql).digest("hex")).toBe(FROZEN_SHA256);
   });
 });

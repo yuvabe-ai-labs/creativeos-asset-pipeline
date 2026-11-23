@@ -9,7 +9,7 @@ import { veoParams, veoLiteParams } from "../params/veo";
 import { fetchAsBase64 } from "./fetch-as-base64";
 import { avoidClause } from "./avoid-clause";
 
-const VEO_MODEL_IDS = {
+export const VEO_MODEL_IDS = {
   lite: "veo-3.1-lite-generate-preview",
   fast: "veo-3.1-fast-generate-preview",
   quality: "veo-3.1-generate-preview",

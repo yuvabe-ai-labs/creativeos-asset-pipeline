@@ -1046,3 +1046,26 @@ select count(*) from ai_models where kind in ('text','scrape');
 -- expect 7
 select count(*) from ai_model_prices where note in ('Published rate (D537).', 'Published rate after the introductory price (D537).', 'Apify reports each run''s cost in USD (D537).');
 ```
+
+## Migration 0084 — each image and video model names its own adapter (D538, 2026-11-23)
+
+`supabase/migrations/0084_ai_models_adapters.sql`. Paste into the Supabase SQL editor → Run, after 0083.
+Apply **before** the 1b-i code deploys to Vercel and Trigger.dev. Without it every image and video row still has a
+family key (`image:openai`, `video:kling`, …) and no provider model name, so no adapter resolves and every image
+and video run is refused with "This model isn't available. Pick another."
+It sets `adapter_key` and `provider_model_id` and re-writes label, params, rules and capabilities from the code.
+It never touches `status`, `replaced_by` or `sort_order`.
+**Safe to re-run:** an `update … where id = …`; running it again writes the same values.
+
+```sql
+-- expect 20 20: twenty image and video rows, each with its own adapter key
+select count(*), count(distinct adapter_key) from ai_models where kind in ('image','video');
+-- expect 0: no family key and no missing provider model name left
+select count(*) from ai_models
+where kind in ('image','video')
+  and (adapter_key in ('image:openai','image:gemini','image:seedream','video:kling','video:seedance','video:gemini','video:veo')
+       or provider_model_id is null);
+-- expect video:gemini-omni-1.2-flash / gemini-omni-1.2-flash, video:seedance-2-5 / dreamina-seedance-2-5-260628
+select id, adapter_key, provider_model_id from ai_models
+where id in ('gemini:gemini-omni-1.2-flash', 'seedance:seedance-2-5');
+```

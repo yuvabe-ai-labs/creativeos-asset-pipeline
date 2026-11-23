@@ -415,6 +415,14 @@ const KLING_O1_IMAGE_INPUTS = {
   maxReferenceImages: 5,
 } as const;
 
+/** D538 — Kling's own name for each model, the last part of its endpoint path. Seeded into the
+ *  catalog as provider_model_id by migration 0084; the adapter reads it from the row. */
+export const KLING_VENDOR_MODELS = {
+  "kling-3-0": "kling-3.0",
+  "kling-o1": "kling-o1",
+  "kling-3-0-omni": "kling-3.0-omni",
+} as const satisfies Record<KlingFalModel, string>;
+
 export const kling30: VideoGenModelSpec = {
   id: "kling:kling-3-0",
   provider: "kling",
@@ -426,7 +434,7 @@ export const kling30: VideoGenModelSpec = {
   generate: (input) =>
     generateWithKling(
       {
-        endpointPath: "/image-to-video/kling-3.0",
+        endpointPath: `/image-to-video/${KLING_VENDOR_MODELS["kling-3-0"]}`,
         falModel: "kling-3-0",
         supportsReferences: false,
         requiresStartFrame: true,
@@ -449,7 +457,7 @@ export const klingO1: VideoGenModelSpec = {
   generate: (input) =>
     generateWithKling(
       {
-        endpointPath: "/omni-video/kling-o1",
+        endpointPath: `/omni-video/${KLING_VENDOR_MODELS["kling-o1"]}`,
         falModel: "kling-o1",
         supportsReferences: true,
         requiresStartFrame: false,
@@ -478,7 +486,7 @@ export const kling30Omni: VideoGenModelSpec = {
   generate: (input) =>
     generateWithKling(
       {
-        endpointPath: "/omni-video/kling-3.0-omni",
+        endpointPath: `/omni-video/${KLING_VENDOR_MODELS["kling-3-0-omni"]}`,
         falModel: "kling-3-0-omni",
         supportsReferences: true,
         requiresStartFrame: false,

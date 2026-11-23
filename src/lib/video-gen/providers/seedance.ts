@@ -21,7 +21,8 @@ class RetryablePollError extends Error {}
 // revises the model; our own id (`seedance:seedance-2-5`, client-models.ts) is what persists on
 // nodes and version rows. Keeping them separate makes a vendor bump a one-line edit rather than a
 // migration of every saved node.
-const VENDOR_MODEL = "dreamina-seedance-2-5-260628";
+// D538 — also seeded into the catalog as provider_model_id (migration 0084).
+export const SEEDANCE_VENDOR_MODEL = "dreamina-seedance-2-5-260628";
 
 function getApiKey(): string {
   const key = process.env.BYTEPLUS_API_KEY;
@@ -73,7 +74,7 @@ function buildSeedanceContent(input: VideoGenInput, maxRefs: number): SeedanceCo
 export function buildSeedanceBody(input: VideoGenInput, maxRefs: number): Record<string, unknown> {
   const duration = Number(input.params.duration ?? 5);
   return {
-    model: VENDOR_MODEL,
+    model: SEEDANCE_VENDOR_MODEL,
     content: buildSeedanceContent(input, maxRefs),
     resolution: String(input.params.resolution ?? "720p"),
     // `ratio` is omitted when a first frame is present: the vendor derives the ratio from that
