@@ -2,7 +2,7 @@ import { getImageGenUpstream } from "@/lib/avatars/presenter-server";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { getVersionById } from "@/lib/db/versions";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
-import { nodeModelId } from "@/lib/ai-models/runnable";
+import { nodeModelId, INVALID_PARAMS_MESSAGE } from "@/lib/ai-models/runnable";
 import { imageRun } from "@/lib/image-gen/image-run";
 import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import {
@@ -58,7 +58,8 @@ export async function POST(
     // Validate params with the model's Zod schema
     const parseResult = config.schema.safeParse(body?.params ?? {});
     if (!parseResult.success) {
-      return apiError(`Invalid params: ${parseResult.error.message}`, 400);
+      console.error("[image-generate] invalid params", { modelId, issues: parseResult.error.issues });
+      return apiError(INVALID_PARAMS_MESSAGE, 400);
     }
     const validatedParams = parseResult.data as Record<string, unknown>;
 

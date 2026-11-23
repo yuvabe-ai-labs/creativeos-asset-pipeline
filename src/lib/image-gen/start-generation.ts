@@ -5,6 +5,7 @@ import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db
 import { insertVersion } from "@/lib/db/versions";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { NO_ESTIMATE_MESSAGE } from "@/lib/ai-models/runnable";
 import { imageEstimateUsd } from "@/lib/ai-models/image-price";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { prepareImageGenUploads } from "@/lib/storage";
@@ -66,7 +67,10 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
       imageSize: params.image_size as string | undefined,
       referenceCount: referenceUrls.length,
     });
-    if (costUsd === null) throw new Error(`No cost estimate available for ${modelId} at this quality/size.`);
+    if (costUsd === null) {
+      console.error("[image-gen] no cost estimate", { modelId, params });
+      throw new Error(NO_ESTIMATE_MESSAGE);
+    }
     // Independent, so in parallel (AGENTS.md rule 5). Nothing is started until both succeed; a
     // failure of either lands in the catch, which refunds.
     const [reservation, { uploads, maskUrl }] = await Promise.all([

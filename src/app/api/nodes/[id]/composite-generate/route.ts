@@ -1,5 +1,5 @@
 import { getAiCatalog } from "@/lib/ai-models/catalog";
-import { nodeModelId } from "@/lib/ai-models/runnable";
+import { nodeModelId, INVALID_PARAMS_MESSAGE } from "@/lib/ai-models/runnable";
 import { imageRun } from "@/lib/image-gen/image-run";
 import { getStoryboardVersionInputs, getVersionById } from "@/lib/db/versions";
 import { STORYBOARD_PROMPT_ID, drawsAsSketch } from "@/lib/scripts/script-composites";
@@ -74,7 +74,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const config = run.spec;
 
     const parsed = config.schema.safeParse(body?.params ?? {});
-    if (!parsed.success) return apiError(`Invalid params: ${parsed.error.message}`, 400);
+    if (!parsed.success) {
+      console.error("[composite-generate] invalid params", { modelId, issues: parsed.error.issues });
+      return apiError(INVALID_PARAMS_MESSAGE, 400);
+    }
     const validatedParams = parsed.data as Record<string, unknown>;
 
     const compositeRun = { nodeId, clientId, orgId: effectiveOrgId, caller, modelId, config, params: validatedParams };
