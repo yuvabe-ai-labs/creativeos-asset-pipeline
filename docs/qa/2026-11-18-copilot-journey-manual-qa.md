@@ -2,7 +2,7 @@
 
 **For:** whoever runs manual QA on the copilot journey before it is merged.
 **Build:** branch `feat/copilot-journey`. Kept up to date while the branch is built; the last section is the newest work.
-**Last updated:** 2026-11-20 (section 10 added; rows 9.5–9.7, 9.10 and 9.11 corrected for 5.1).
+**Last updated:** 2026-11-23 (rows 8.1, 8.4–8.6, 8.9 and 10.1: no "Copilot is asking" mark, D528). Before that 2026-11-20 (section 10 added; rows 9.5–9.7, 9.10 and 9.11 corrected for 5.1).
 
 ## Before you start
 
@@ -154,15 +154,15 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 
 | # | Do | Expected |
 |---|---|---|
-| 8.1 | *(client in review)* Answer five review questions with the buttons, without touching the page. | Each time the page is already on the field's tab with the field in view, marked "Copilot is asking". Each answer sweeps, then lands with a short highlight; the mark moves to the next field. |
+| 8.1 | *(client in review)* Answer five review questions with the buttons, without touching the page. | Each time the page is already on the field's tab with the field in view. The field asked about carries no mark (D528). Each answer sweeps, then lands with a short highlight; the page moves on to the next field. |
 | 8.2 | *(client in review)* Go to another tab on the right. Type an answer for the waiting field. | The page switches to that field's tab, the field sweeps, and the answer lands. |
 | 8.3 | *(client in review)* Edit the waiting field on the page and do not save. Edit a second field too. Answer the waiting field in the chat. | The waiting field shows the chat answer. Pressing Save does not bring your edit of it back. Your unsaved edit of the second field is still there. |
-| 8.4 | *(client in review)* With a question waiting, go to another tab and ask "what is our tone of voice?" | The page does not move. The mark stays on the waiting field. |
-| 8.5 | *(two people)* B watches the Brand KB page while A answers questions. | B's page never moves by itself. B sees the "Copilot is asking" mark move (within about 20 seconds). |
-| 8.6 | *(client in review)* Reload with a question waiting. Then open Brand KB from the client's Canvases tab. | Both times the page lands on the waiting field, marked. |
+| 8.4 | *(client in review)* With a question waiting, go to another tab and ask "what is our tone of voice?" | The page does not move. |
+| 8.5 | *(two people)* B watches the Brand KB page while A answers questions. | B's page never moves by itself. B sees A's answers land in the fields (within about 20 seconds). |
+| 8.6 | *(client in review)* Reload with a question waiting. Then open Brand KB from the client's Canvases tab. | Both times the page lands on the waiting field. |
 | 8.7 | *(new client)* Send the website in the chat, then "instagram is @acme". | Each form field comes into view, sweeps, and the value lands with a highlight. |
 | 8.8 | *(new client)* Attach a PDF in the chat. | It appears in the form's document list with the highlight. |
-| 8.9 | Turn on "reduce motion" in the operating system and repeat 8.1. | No sweep and no animated scroll. The tint, the "Copilot is asking" label and the highlight still show. |
+| 8.9 | Turn on "reduce motion" in the operating system and repeat 8.1. | No sweep and no animated scroll. The highlight still shows when an answer lands. |
 | 8.10 | *(approved client)* Approve a change card. | The page does not move. Changed fields that are on screen highlight briefly. |
 | 8.11 | *(client in review)* Stop the model (an invalid key) and type an answer. | No sweep is left running after the failure reply. |
 
@@ -186,7 +186,7 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 
 | # | Do | Expected |
 |---|---|---|
-| 10.1 | Mark a script final whose characters have no avatar. | Visualise opens with the panel open. At the foot of the thread: "Who plays {lead}?" with the client's avatars as buttons; the lead's cast slot on the board says "Copilot is asking". The rail reads "Waiting for you: choose who plays {lead}". |
+| 10.1 | Mark a script final whose characters have no avatar. | Visualise opens with the panel open. At the foot of the thread: "Who plays {lead}?" with the client's avatars as buttons; the lead's cast slot on the board carries no mark (D528). The rail reads "Waiting for you: choose who plays {lead}". |
 | 10.2 | Press an avatar on that card. | The cast slot fills and highlights; the card moves to the next character, or on. |
 | 10.3 | With a location used by shots still to draw and no picture. | The card: "The café has no picture. Panels drawn now would need redrawing once it does.", with Attach a picture and Draw it, and "Draw N panels without them". |
 | 10.4 | Press Attach a picture on that card and choose an image. Send with no words. | The picture shows in the thread; the copilot answers "Added it to the café." with no model wait; the café chip shows the picture and highlights. It is in the script's folder, not in Brand assets. |

@@ -221,8 +221,9 @@ Spec: [docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md](docs/sup
 
 # The page shows the copilot's work
 
-**Whatever the copilot changes on a page, the page shows it happening** (D520): it goes there, marks
-what is asked about ("Copilot is asking"), shimmers what is being changed, and shows the change land.
+**Whatever the copilot changes on a page, the page shows it happening** (D520): it goes there, shimmers
+what is being changed, and shows the change land. A field is marked only when its value changes,
+never while the copilot just asks about it (D528).
 Spec: [docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md](docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md).
 
 - A page names what the copilot can work on as **targets**: wrap each in `CopilotTarget` and call

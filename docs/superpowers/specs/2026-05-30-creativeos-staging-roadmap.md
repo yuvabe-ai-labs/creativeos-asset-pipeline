@@ -9047,3 +9047,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 **Rejected.** Saving every attached picture to brand assets. Letting the model decide the target (code can, from the item pressed or named, and asks otherwise). An "Also add to brand assets" button: maybe later.
 
 **Originated →** as D524.
+
+### D528 — A field is marked only when the copilot changes it, not while it asks about it *(recorded 2026-11-23; refines D520)*
+
+**Decision.** A target the copilot is asking about carries no mark: no "Copilot is asking" label, no tint, no ring. It shows the copilot's work only when its value changes: the sweep while it is written, then the landed highlight. The page still brings the asked field into view; that is a move, not a mark. This holds everywhere CopilotTarget is used (brand KB review fields, the pre-build form, Visualise's cast slots).
+
+**Why.** Cyril, 2026-11-23, testing on staging: the label is not needed; the highlight belongs only to an edit.
+
+**Rejected.** Keeping the tint without the label (Cyril: highlight only when the value is edited). Removing the scroll to the asked field (not raised; it moves the page, it does not mark it).
+
+**Originated →** QA on staging, 2026-11-23 (rows 8.1, 8.5, 8.9, 10.1).
