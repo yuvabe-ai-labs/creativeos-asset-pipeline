@@ -1,4 +1,5 @@
 import "server-only";
+import { isPatchablePath } from "@/lib/kb/field-patch";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { removeObject } from "@/lib/storage";
 import type {
@@ -322,30 +323,11 @@ export async function insertKBVersion(input: {
   return data as ClientKBVersionRow;
 }
 
-/**
- * Saves a KB version's output from the review screen, all but Image Analysis, in one statement:
- * that section is kept as stored, because a background run may have rewritten it since the screen
- * loaded (D318). saveKBOutputAction lays the screen's Image Analysis reviews over it separately.
- */
-export async function saveKBOutputKeepingImageAnalysis(versionId: string, output: TraceableBrandKB): Promise<void> {
-  const supabase = createServerSupabase();
-  const { error } = await supabase.rpc("save_kb_output_keep_image_analysis", { p_version_id: versionId, p_output: output });
-  if (error) throw error;
-}
-
 /** Writes one field of a KB version, and nothing else, in one statement (D318). */
 export async function setKBField(versionId: string, path: string[], field: unknown): Promise<void> {
   const supabase = createServerSupabase();
   const { error } = await supabase.rpc("set_kb_field", { p_version_id: versionId, p_path: path, p_value: field });
   if (error) throw error;
-}
-
-/** The Image Analysis section as stored on one KB version. */
-export async function getKBImageAnalysis(versionId: string): Promise<TraceableBrandKB["image_analysis"] | null> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase.from("client_kb_versions").select("output->image_analysis").eq("id", versionId).maybeSingle();
-  if (error) throw error;
-  return ((data as { image_analysis?: TraceableBrandKB["image_analysis"] } | null)?.image_analysis) ?? null;
 }
 
 export async function setActiveKBVersion(
@@ -394,4 +376,49 @@ export async function getActiveKBVersion(
     .maybeSingle();
   if (error) throw error;
   return (data as ClientKBVersionRow) ?? null;
+}
+
+// ── Field reviews (copilot journey, piece 2 part 2) ───────────────────────────
+
+type KBFieldPatch = import("@/lib/kb/field-patch").KBFieldPatch;
+
+/** Merges each patch into its own field, all in one statement, and touches nothing else: a review
+ *  saved from one place never undoes a field filled from another (migration 0065).
+ *
+ *  `onlyUnreviewed` is for the copilot: a field somebody has reviewed since is left alone, checked
+ *  in the database at the moment of the write. Returns how many fields were written. */
+export async function patchKBFields(versionId: string, patches: KBFieldPatch[], opts: { onlyUnreviewed?: boolean } = {}): Promise<number> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.rpc("patch_kb_fields", {
+    p_version_id: versionId, p_patches: patches, p_only_unreviewed: opts.onlyUnreviewed ?? false,
+  });
+  if (error) throw error;
+  return typeof data === "number" ? data : 0;
+}
+
+/** The dotted paths of the fields still to review, Image Analysis left out, without downloading the
+ *  KB. Throws when the read fails or the version is gone: that is never "nothing left to review". */
+export async function listUnreviewedFields(versionId: string): Promise<string[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.rpc("kb_unreviewed_fields", { p_version_id: versionId });
+  if (error) throw error;
+  if (data === null || data === undefined) throw new Error("KB version not found");
+  return data as string[];
+}
+
+/** The stored values at these dotted field paths of one KB version (D517), read by JSON path so the
+ *  KB itself is never downloaded. Each path is checked to name a KB field before it reaches the
+ *  query. Throws when the read fails or the version is gone: an unknown value is never "empty". */
+export async function readKBFieldValues(versionId: string, paths: string[]): Promise<Record<string, unknown>> {
+  if (paths.length === 0) return {};
+  for (const path of paths) {
+    if (!isPatchablePath(path.split("."))) throw new Error(`Not a KB field: ${path}`);
+  }
+  const columns = paths.map((path, i) => `f${i}:output->${path.split(".").join("->")}->value`).join(",");
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.from("client_kb_versions").select(columns).eq("id", versionId).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("That brand KB version is gone.");
+  const row = data as unknown as Record<string, unknown>;
+  return Object.fromEntries(paths.map((path, i) => [path, row[`f${i}`] ?? null]));
 }

@@ -113,8 +113,15 @@ export const messageCardSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("confirmation"), card: confirmationCardSchema }),
   proposalCardSchema,
   importCardSchema,
+  /** Piece 5.1 — a button the copilot offers at Visualise; the person presses it. What it shows (how
+   *  many panels, what is missing) is worked out when it is shown, never stored. */
+  z.object({ kind: z.literal("offer"), action: z.enum(["draw", "send", "reopen"]) }),
+  /** Piece 5.1 — a picture the person attached, and the product or location it went to. */
+  z.object({ kind: z.literal("picture"), url: z.string(), name: z.string(), target: z.string() }),
 ]);
 export type MessageCard = z.infer<typeof messageCardSchema>;
+export type OfferCard = Extract<MessageCard, { kind: "offer" }>;
+export type PictureCard = Extract<MessageCard, { kind: "picture" }>;
 
 export type ScriptMessage = {
   id: string;

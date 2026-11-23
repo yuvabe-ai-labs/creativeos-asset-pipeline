@@ -15,7 +15,9 @@ type Filter = "all" | ScriptStage;
 
 // Spec 1 §3, with spec 2's New script and the scripts the copilot has not written yet, and spec 4's
 // client-feedback count on each card.
-export function ScriptsLibrary({ clientId, clientName, clientSlug, scripts, unwritten, feedback, deleteBlocks }: {
+export function ScriptsLibrary({ clientId, clientName, clientSlug, scripts, unwritten, feedback, deleteBlocks, locked = false }: {
+  /** Copilot journey spec §5.3 — new scripts wait for market research approval; a paste does not. */
+  locked?: boolean;
   clientId: string;
   clientName: string;
   clientSlug: string;
@@ -37,6 +39,7 @@ export function ScriptsLibrary({ clientId, clientName, clientSlug, scripts, unwr
       count: scripts.filter((s) => s.stage === stage).length + (stage === "generate" ? unwritten.length : 0),
     })),
   ];
+  const newScript = <NewScriptButton clientId={clientId} clientSlug={clientSlug} label={locked ? "Paste a script" : undefined} />;
 
   return (
     <section className="animate-rise mt-4 flex flex-col gap-8">
@@ -45,15 +48,20 @@ export function ScriptsLibrary({ clientId, clientName, clientSlug, scripts, unwr
           <span className="text-eyebrow">{clientName}</span>
           <h1 className="font-display text-3xl font-medium">Scripts</h1>
           <p className="max-w-xl text-muted-foreground">Every reel script for this client, from first draft to client sign-off.</p>
+          {locked && (
+            <p className="max-w-xl text-sm text-muted-foreground">
+              New scripts open once market research is approved. You can still paste a script you already have.
+            </p>
+          )}
         </div>
-        <NewScriptButton clientId={clientId} clientSlug={clientSlug} />
+        {newScript}
       </header>
 
       {scripts.length === 0 && unwritten.length === 0 ? (
         <EmptyState
           title="No scripts yet"
           body="Scripts are written with the copilot, then visualised and sent to the client for sign-off."
-          action={<NewScriptButton clientId={clientId} clientSlug={clientSlug} />}
+          action={newScript}
         />
       ) : (
         <>

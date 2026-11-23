@@ -205,6 +205,42 @@ Every resource is split into three layers, and nothing skips one:
 <!-- END:data-fetching -->
 
 <!-- BEGIN:performance -->
+# Streaming — a copilot shows its work as it happens
+
+**Anything a copilot does that a person waits on is shown as it happens, not when it is finished** (D514).
+This holds for every copilot surface: brand KB, market research, scripts, and the stages still to come.
+Spec: [docs/superpowers/specs/2026-11-17-copilot-streaming-design.md](docs/superpowers/specs/2026-11-17-copilot-streaming-design.md).
+
+- **Its words appear as they are written.** A reply never arrives whole after a silent wait.
+- **Each thing it does shows at the moment it is done.** A save the copilot makes is on the page then, not at the end of the turn.
+- **A line always says what it is doing now**, from the moment the person presses send.
+- **Showing early never changes what is stored.** After a turn the thread reads the same as after a reload, and the page never shows a value that was not saved.
+- **A new copilot surface is built this way from the start.** An existing one that does not yet do it moves when it is next substantially changed, not in passing.
+- Background work that runs for minutes (a build, a collection) is not part of this: it reports through the live status lines.
+# Turn traces — every copilot turn leaves a trace
+
+**Every agent turn keeps a trace of exactly what the model was sent, each tool call and what it
+returned, and what code did around it** (D521), seen in the copilot panel behind the "Turns" switch.
+Spec: [docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md](docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md).
+
+- An agent on the shared loop passes a `traceRecorder()` to `runAgent` (`trace:`), reports any
+  choice carried out by code and any refusal it says in a sentence, and its route stores the row
+  **after** the answer has gone, inside its own try/catch. Never trace by hand; never skip it.
+- A trace keeps the exact input, never a summary. A trace that cannot be kept never fails a turn.
+
+# The page shows the copilot's work
+
+**Whatever the copilot changes on a page, the page shows it happening** (D520): it goes there, marks
+what is asked about ("Copilot is asking"), shimmers what is being changed, and shows the change land.
+Spec: [docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md](docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md).
+
+- A page names what the copilot can work on as **targets**: wrap each in `CopilotTarget` and call
+  `useFollowCopilot(clientId, reveal)` once per page. The agent reports each change by target id
+  (`on.target`). Never build a separate follow mechanism per page.
+- The page moves only for this browser's own turns; the "asking" mark is for everyone.
+- The copilot's change wins over an unsaved edit of the same thing; every other unsaved edit is kept.
+- No new request and no new polling: the page reads what the panel already holds.
+
 # Performance — rules we never break
 
 Learned the hard way (October 2026: one cost request per node, auth checked twice per request,

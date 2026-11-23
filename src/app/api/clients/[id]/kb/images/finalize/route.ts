@@ -15,6 +15,8 @@ export async function POST(
       path?: string;
       filename?: string;
       size?: number;
+      /** Set by the copilot chat: the image is studied when the message carrying it is sent. */
+      studyLater?: boolean;
     } | null;
     if (!body?.path || !body.filename || typeof body.size !== "number") {
       return apiError("path, filename and size are required.", 400);
@@ -37,7 +39,7 @@ export async function POST(
       storageUrl: publicUrlFor(body.path),
       sizeBytes: body.size,
     });
-    await startImageAnalysisQuietly(clientId);
+    if (!body.studyLater) await startImageAnalysisQuietly(clientId);
 
     return apiOk({ image });
   });

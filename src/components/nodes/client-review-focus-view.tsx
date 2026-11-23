@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, History, MessageSquare, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -9,12 +9,11 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { CommentList } from "@/components/client-review/comment-list";
-import { clientReviewKeys, useNodeClientReview, useUpdateReviewVersion } from "@/hooks/queries/client-reviews";
-import type { NodeClientReview } from "@/lib/client-review/wire";
+import { useNodeClientReview, useUpdateReviewVersion } from "@/hooks/queries/client-reviews";
+import type { ClientReviewUpload } from "@/hooks/use-client-review-upload";
 import { ClientReviewEmptyStage } from "./client-review-empty-stage";
 import { ClientReviewLinkActions } from "./client-review-link-actions";
 import { ClientReviewStage } from "./client-review-stage";
-import { ClientReviewUploadDialog } from "./client-review-upload-dialog";
 import { ClientReviewVersionColumn } from "./client-review-version-column";
 import { EditableField } from "./editable-field";
 import { LeftSection } from "./focus-left-section";
@@ -23,8 +22,9 @@ import { LeftSection } from "./focus-left-section";
 const NOTE = "rounded-lg border border-dashed border-border px-3 py-3 text-xs leading-relaxed text-muted-foreground";
 
 // D498 — the Client review node's focus view (replaces the D309 drawer). Header: the viewed
-// version's title, its link (copy / open as client) and Upload first / new version. Left: the
-// versions. Centre: the video and its Allow download switch. Right: that version's comments; a
+// version's title, its link (copy) and Allow download switch, and Upload first / new version
+// (straight to the file picker). Left: the
+// versions. Centre: the video. Right: that version's comments; a
 // timecode seeks the video. Each column scrolls on its own.
 export function ClientReviewFocusView({
   open,
@@ -34,6 +34,7 @@ export function ClientReviewFocusView({
   onCommitTitle,
   viewedVersionNo,
   onViewVersion,
+  upload,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,6 +45,8 @@ export function ClientReviewFocusView({
    *  can open a given version (D513). */
   viewedVersionNo: number | null;
   onViewVersion: (versionNo: number | null) => void;
+  /** Held by the node, so its right-click "Upload new version" shares this progress. */
+  upload: ClientReviewUpload;
 }) {
   const editable = useCanvasEditable();
   // Spec §5: uploading a version makes or changes the client's review link, and the download
@@ -53,7 +56,6 @@ export function ClientReviewFocusView({
   const queryClient = useQueryClient();
   const { data, isPending: loading, isError, refetch } = useNodeClientReview(nodeId);
   const updateVersion = useUpdateReviewVersion(nodeId);
-  const [uploadOpen, setUploadOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Fresh comments whenever the view opens (spec §5), and the header chip's canvas total with
@@ -70,7 +72,6 @@ export function ClientReviewFocusView({
   // The row picked, else the newest version.
   const version = versions.find((v) => v.versionNo === viewedVersionNo) ?? versions[0] ?? null;
   const versionComments = version ? comments.filter((c) => c.versionId === version.id) : [];
-  const nextVersionNo = (versions[0]?.versionNo ?? 0) + 1;
   // Each version carries its own name (its file's); the header follows the version on screen.
   const title = version?.title || nodeTitle;
 
@@ -79,12 +80,6 @@ export function ClientReviewFocusView({
     if (!video) return;
     video.currentTime = ms / 1000;
     video.pause();
-  }
-
-  function handleUploaded(next: NodeClientReview, versionNo: number) {
-    queryClient.setQueryData(clientReviewKeys.node(nodeId), next);
-    void queryClient.invalidateQueries({ queryKey: ["client-review", "canvas"] });
-    onViewVersion(versionNo);
   }
 
   function patchVersion(patch: { allowDownload?: boolean; title?: string }) {
@@ -150,9 +145,13 @@ export function ClientReviewFocusView({
                   />
                 )}
                 {canShareCut && data && (
-                  <Button size="lg" onClick={() => setUploadOpen(true)}>
+                  <Button size="lg" disabled={upload.uploading} onClick={upload.choose}>
                     <Upload className="size-4" strokeWidth={1.5} />
-                    {versions.length ? "Upload new version" : "Upload first version"}
+                    {upload.uploading
+                      ? "Uploading…"
+                      : versions.length
+                        ? "Upload new version"
+                        : "Upload first version"}
                   </Button>
                 )}
               </div>
@@ -191,7 +190,7 @@ export function ClientReviewFocusView({
                   <Button variant="ghost" onClick={() => void refetch()}>Retry</Button>
                 </div>
               ) : (
-                <ClientReviewEmptyStage editable={canShareCut} onUpload={() => setUploadOpen(true)} />
+                <ClientReviewEmptyStage editable={canShareCut} uploading={upload.uploading} onUpload={upload.choose} />
               )}
             </main>
             <aside className="min-h-0 bg-muted/20 px-6 py-6 lg:overflow-y-auto">
@@ -211,14 +210,6 @@ export function ClientReviewFocusView({
             </aside>
           </div>
         </div>
-
-        <ClientReviewUploadDialog
-          nodeId={nodeId}
-          open={uploadOpen}
-          onOpenChange={setUploadOpen}
-          nextVersionNo={nextVersionNo}
-          onUploaded={handleUploaded}
-        />
       </SheetContent>
     </Sheet>
   );

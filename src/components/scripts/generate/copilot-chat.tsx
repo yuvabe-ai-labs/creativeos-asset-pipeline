@@ -1,89 +1,86 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { PanelLeftClose, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { JourneyPanelShell } from "@/components/journey/journey-panel-shell";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCopilotCollapsed } from "@/hooks/use-copilot-collapsed";
-import { cn } from "@/lib/utils";
+import { scriptFoldKey } from "@/lib/journey/frame";
+import { SCRIPT_STAGE_LABEL, type ScriptStage } from "@/lib/scripts/constants";
 import type { CopilotAvatar, ScriptMessage } from "@/lib/scripts/copilot/schema";
 import type { Suggestion } from "@/lib/scripts/copilot/suggestions";
+import type { ScriptWaiting } from "@/lib/scripts/copilot/waiting";
 import { CopilotChatMessage, type ChatActions } from "./copilot-chat-message";
 import { CopilotComposer } from "./copilot-composer";
 import { CopilotSuggestions } from "./copilot-suggestions";
 import { CopilotThinking } from "./copilot-thinking";
-import { CopilotRail } from "./copilot-rail";
 
-/** Spec 2 §3 — the left pane. The conversation is kept with the script. From lg up it folds to a
- *  rail on request, so a written script can take the page (kept per script in this browser). */
-export function CopilotChat({ scriptId, messages, actions, suggestions, avatars }: {
+/** The script's copilot panel, kept with the script and shown at every stage (scripting-panel spec
+ *  §3.2), in the same shell as the client's panel. At Generate it is the live chat; after it, the
+ *  saved thread read-only (`live: null`), folded until opened, with what the script is waiting on. */
+export function CopilotChat({ client, scriptId, stage, messages, avatars, waiting, live, footer, renderComposer }: {
+  client: { name: string; slug: string };
   scriptId: string;
+  stage: ScriptStage;
   messages: ScriptMessage[];
-  actions: ChatActions;
-  suggestions: Suggestion[];
   avatars: CopilotAvatar[];
+  waiting: ScriptWaiting | null;
+  /** Generate only: the composer, the suggestions and the cards' buttons. null is read-only. */
+  live: { actions: ChatActions; suggestions: Suggestion[] } | null;
+  /** Piece 5.1 — at Visualise, the walk's current step under the thread. Hidden while answering. */
+  footer?: ReactNode;
+  /** Piece 5.1 — at Visualise, the message box that also takes a picture. */
+  renderComposer?: (box: { busy: boolean; text: string; onTextChange: (text: string) => void }) => ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useCopilotCollapsed(scriptId);
+  const generate = stage === "generate";
+  // Piece 5.1 — the copilot leads at Visualise, so it starts open there; In review and Approved
+  // start folded so the board keeps its room. A stored choice wins either way.
+  const foldedByDefault = stage !== "generate" && stage !== "visualise";
+  const foldKey = scriptFoldKey(scriptId, stage);
+  const busy = live?.actions.busy ?? false;
+  // The shell owns the fold; read here only so the thread scrolls when it unfolds (same store).
+  const [collapsed] = useCopilotCollapsed(foldKey, foldedByDefault);
   const end = useRef<HTMLDivElement>(null);
   const [text, setText] = useState("");
   // Follow the conversation: scroll to the newest message, or the working line, when either appears,
   // and again when the copilot unfolds (a hidden scroll area does not keep its place).
-  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages.length, actions.busy, collapsed]);
+  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages.length, busy, collapsed]);
+  // A question or a card already in the thread says what it waits on; the foot says the rest.
+  const foot = waiting && (waiting.kind === "task" || waiting.kind === "client") ? waiting : null;
 
   return (
-    <section
-      aria-label="Copilot"
-      className={cn(
-        "flex min-h-[32rem] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card lg:sticky lg:top-6 lg:h-[calc(100vh-9rem)]",
-        "transition-[width] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-        collapsed ? "lg:w-12" : "lg:w-[29rem]",
-      )}
+    <JourneyPanelShell
+      foldKey={foldKey}
+      foldedByDefault={foldedByDefault}
+      waitingLine={waiting?.line ?? null}
+      busy={busy}
+      back={{ label: client.name, href: `/clients/${client.slug}/scripts` }}
+      placement="page"
+      narrow={generate || stage === "visualise" ? "stacked" : "hidden"}
     >
-      {collapsed && <CopilotRail onExpand={() => setCollapsed(false)} />}
-      {/* Kept mounted while folded, so a half-typed message survives. Held at the open width, so
-          unfolding reveals it rather than reflowing every line mid-animation. */}
-      <div className={cn("flex min-h-0 flex-1 flex-col lg:w-[calc(29rem-2px)] lg:shrink-0", collapsed && "lg:hidden")}>
-        <header className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <Sparkles className="size-4 text-primary" strokeWidth={1.5} aria-hidden />
-          <h2 className="font-display text-base font-medium">Copilot</h2>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Hide copilot"
-                    // Never hide a reply the copilot is still writing.
-                    disabled={actions.busy}
-                    onClick={() => setCollapsed(true)}
-                    className="ml-auto hidden text-muted-foreground lg:inline-flex"
-                  />
-                }
-              >
-                <PanelLeftClose strokeWidth={1.5} />
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Hide copilot</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </header>
-        <ScrollArea className="min-h-0 flex-1">
-          <ol className="flex flex-col gap-4 p-4" aria-live="polite">
-            {messages.map((m) => <CopilotChatMessage key={m.id} message={m} actions={actions} avatars={avatars} />)}
-            {actions.busy && (
-              <li>
-                <CopilotThinking writing={actions.writing} />
-              </li>
-            )}
-          </ol>
-          {/* Under the newest message, so the options sit right below the question they answer. Hidden
-              while the copilot works: the thinking line stands in their place. */}
-          {!actions.busy && <CopilotSuggestions suggestions={suggestions} onSend={actions.send} onFill={setText} onLink={actions.link} />}
-          <div ref={end} />
-        </ScrollArea>
-        <CopilotComposer busy={actions.busy} text={text} onTextChange={setText} onSend={actions.send} />
-      </div>
-    </section>
+      <ScrollArea className="min-h-0 flex-1">
+        <ol className="flex flex-col gap-4 p-4" aria-live="polite">
+          {messages.map((m) => <CopilotChatMessage key={m.id} message={m} actions={live?.actions ?? null} avatars={avatars} />)}
+          {footer && !busy && <li>{footer}</li>}
+          {busy && (
+            <li>
+              <CopilotThinking writing={live?.actions.writing} />
+            </li>
+          )}
+        </ol>
+        {/* Under the newest message, so the options sit right below the question they answer. Hidden
+            while the copilot works: the thinking line stands in their place. */}
+        {live && !busy && <CopilotSuggestions suggestions={live.suggestions} onSend={live.actions.send} onFill={setText} onLink={live.actions.link} />}
+        <div ref={end} />
+      </ScrollArea>
+      {foot && (
+        <div aria-label="Waiting" className="flex flex-col gap-1 border-t border-border px-4 py-3">
+          {!generate && <p className="text-eyebrow text-muted-foreground">{SCRIPT_STAGE_LABEL[stage]}</p>}
+          <p className="text-sm">{foot.line}</p>
+        </div>
+      )}
+      {live && (renderComposer
+        ? renderComposer({ busy, text, onTextChange: setText })
+        : <CopilotComposer busy={busy} text={text} onTextChange={setText} onSend={live.actions.send} />)}
+    </JourneyPanelShell>
   );
 }

@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import type { Piece, SourceView } from "@/lib/editor/types";
 import { EditorCaptionsPanel, type CaptionsTab } from "./editor-captions-panel";
 import { EditorClipCaptionsTab } from "./editor-clip-captions-tab";
-import { EditorClipQuiet } from "./editor-clip-quiet";
 import { EditorDubTask } from "./editor-dub-task";
 import { EditorLipTask } from "./editor-lip-task";
 import { useEditorStore } from "./editor-store-provider";
@@ -16,11 +15,26 @@ import { useEditorUi } from "./editor-ui-context";
 import { TASK_LABEL, useEditorTasks } from "./use-editor-tasks";
 
 export function EditorInspector() {
-  const piece = useEditorStore((s) => (s.selection?.kind === "piece" ? s.doc.pieces.find((p) => p.id === s.selection!.id) : undefined)) ?? null;
+  // A selected caption counts as its clip, so its Captions task (and the caption's own style) opens
+  // instead of the reel-wide style (D505).
+  const pieceId = useEditorStore((s) => {
+    const sel = s.selection;
+    if (!sel) return null;
+    return sel.kind === "piece" ? sel.id : (s.doc.captions.find((c) => c.id === sel.id)?.pieceId ?? null);
+  });
+  const piece = useEditorStore((s) => (pieceId ? s.doc.pieces.find((p) => p.id === pieceId) : undefined)) ?? null;
+  const captionSelected = useEditorStore((s) => s.selection?.kind === "caption");
+  const select = useEditorStore((s) => s.select);
   const source = useEditorStore((s) => (piece ? s.sources.find((x) => x.nodeId === piece.sourceNodeId) : undefined));
   const index = useEditorStore((s) => (piece ? s.doc.pieces.findIndex((p) => p.id === piece.id) : -1));
   const count = useEditorStore((s) => s.doc.pieces.length);
-  const { task, closeTask } = useEditorUi();
+  const { task: openTask, closeTask } = useEditorUi();
+  // Selecting a caption shows its clip's Captions task even when no task is open.
+  const task = openTask ?? (captionSelected && piece ? "captions" : null);
+  const back = () => {
+    closeTask();
+    if (captionSelected && piece) select({ kind: "piece", id: piece.id });
+  };
   // Style is the default captions tab, and selecting a caption doesn't switch away from it (D413).
   const [captionsTab, setCaptionsTab] = useState<CaptionsTab>("style");
   const clipName = piece ? `${index + 1}. ${source?.handle ?? "Missing clip"}` : null;
@@ -29,7 +43,7 @@ export function EditorInspector() {
     return (
       <div className="flex min-h-0 flex-col gap-3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon-sm" aria-label="Back to the task list" onClick={closeTask}>
+          <Button variant="ghost" size="icon-sm" aria-label="Back to the task list" onClick={back}>
             <ChevronLeft className="size-4" strokeWidth={1.5} />
           </Button>
           <div className="flex min-w-0 flex-col">
@@ -47,7 +61,6 @@ export function EditorInspector() {
   return (
     <div className="flex min-h-0 flex-col gap-3">
       <TaskList piece={piece} title={clipName} count={count} />
-      {piece && source && <EditorClipQuiet piece={piece} source={source} />}
     </div>
   );
 }

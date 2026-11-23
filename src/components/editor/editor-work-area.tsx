@@ -49,7 +49,7 @@ export function EditorWorkArea({ layout }: { layout: EditorLayoutApi }) {
   const panel = open ? (
     <EditorSidePanel key="panel" dock={panelDock} onCollapse={toggleInspector} dockDrag={dockDrag} />
   ) : (
-    <EditorPanelRail key="panel" label="Side panel" side={panelDock} shortcut="Ctrl 2" onExpand={toggleInspector} />
+    <EditorPanelRail key="panel" label="Side panel" side={panelDock} shortcut="Ctrl H" onExpand={toggleInspector} />
   );
   const stage = <EditorStageWithCaption key="stage" />;
   const resizer = open && <EditorPanelResizer key="resizer" rowRef={rowRef} dock={panelDock} share={panelShare} onShare={setPanelShare} />;

@@ -11,6 +11,7 @@ import { MAX_LOCATIONS, MAX_PRODUCTS, type ScriptDoc } from "@/lib/scripts/schem
 import { shotsUsing } from "@/lib/scripts/utils";
 import { AssetChip } from "./asset-chip";
 import { CastChip } from "./cast-chip";
+import { FollowTarget } from "./script-follow-context";
 
 const ADD = "h-auto self-stretch rounded-2xl border border-dashed border-primary/40 px-4 text-primary hover:bg-primary/5";
 
@@ -42,30 +43,32 @@ export function BoardChips({ clientId, scriptId, doc, avatars, faces, castMarker
     <div className="flex flex-col gap-4">
       <Row label={`Cast · ${doc.cast.length}`}>
         {doc.cast.map((member) => (
-          <CastChip
-            key={member.id}
-            clientId={clientId}
-            scriptId={scriptId}
-            member={member}
-            avatar={member.avatarId ? avatars.get(member.avatarId) ?? null : null}
-            faceUrl={member.avatarId ? faces[member.avatarId] ?? null : null}
-            takenIds={doc.cast.filter((c) => c.id !== member.id && c.avatarId).map((c) => c.avatarId!)}
-            marker={castMarker?.(member.id)}
-          />
+          <FollowTarget key={member.id} id={`cast:${member.id}`}>
+            <CastChip
+              clientId={clientId}
+              scriptId={scriptId}
+              member={member}
+              avatar={member.avatarId ? avatars.get(member.avatarId) ?? null : null}
+              faceUrl={member.avatarId ? faces[member.avatarId] ?? null : null}
+              takenIds={doc.cast.filter((c) => c.id !== member.id && c.avatarId).map((c) => c.avatarId!)}
+              marker={castMarker?.(member.id)}
+            />
+          </FollowTarget>
         ))}
       </Row>
       <Row label={`Locations · ${doc.locations.length}`}>
         {doc.locations.map((l) => (
-          <AssetChip
-            key={l.id}
-            kind="location"
-            name={l.name}
-            thumbUrl={l.image?.url ?? null}
-            usedIn={shotsUsing(doc, { locationId: l.id })}
-            working={working(l.id, "location")}
-          >
-            <ScriptLocationCard location={l} large />
-          </AssetChip>
+          <FollowTarget key={l.id} id={`location:${l.id}`}>
+            <AssetChip
+              kind="location"
+              name={l.name}
+              thumbUrl={l.image?.url ?? null}
+              usedIn={shotsUsing(doc, { locationId: l.id })}
+              working={working(l.id, "location")}
+            >
+              <ScriptLocationCard location={l} large />
+            </AssetChip>
+          </FollowTarget>
         ))}
         {assets && doc.locations.length < MAX_LOCATIONS && (
           <Button variant="ghost" size="sm" className={ADD} onClick={() => assets.op({ op: "add_location", name: "New location", description: "" })}>
@@ -76,17 +79,18 @@ export function BoardChips({ clientId, scriptId, doc, avatars, faces, castMarker
       </Row>
       <Row label={`Products · ${doc.products.length}`}>
         {doc.products.map((p) => (
-          <AssetChip
-            key={p.id}
-            kind="product"
-            name={p.name}
-            thumbUrl={p.images[0]?.url ?? null}
-            usedIn={shotsUsing(doc, { productId: p.id })}
-            needsPicture={p.images.length === 0}
-            working={working(p.id, "product")}
-          >
-            <ScriptProductCard product={p} />
-          </AssetChip>
+          <FollowTarget key={p.id} id={`product:${p.id}`}>
+            <AssetChip
+              kind="product"
+              name={p.name}
+              thumbUrl={p.images[0]?.url ?? null}
+              usedIn={shotsUsing(doc, { productId: p.id })}
+              needsPicture={p.images.length === 0}
+              working={working(p.id, "product")}
+            >
+              <ScriptProductCard product={p} />
+            </AssetChip>
+          </FollowTarget>
         ))}
         {assets && doc.products.length < MAX_PRODUCTS && (
           <Button variant="ghost" size="sm" className={ADD} onClick={() => assets.op({ op: "add_product", name: "New product" })}>

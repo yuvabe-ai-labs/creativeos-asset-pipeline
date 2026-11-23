@@ -3,29 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabase } from "@/lib/supabase/server";
 import {
-  getKBImageAnalysis,
-  saveKBOutputKeepingImageAnalysis,
   setKBField,
   deleteKBDocument,
   deleteBrandImage,
-  listKBDocuments,
   listBrandImages,
 } from "@/lib/db/kb";
-import { setKBStatus, getClientById } from "@/lib/db/clients";
-import { computeReadyStatus } from "@/lib/kb/fill-rate";
-import type { TraceableBrandKB } from "@/lib/kb/schema";
+import { getClientById } from "@/lib/db/clients";
+import { approveKB } from "@/lib/kb/approve";
 import { removeObject } from "@/lib/storage";
-import { tasks } from "@trigger.dev/sdk/v3";
 import {
-  insertKBJob,
-  setKBJobTriggerRunId,
   markKBJobStuckIfRunning,
   getKBJob,
 } from "@/lib/db/kb-jobs";
 import { withAction } from "@/lib/actions/with-action";
-import { setKBImageAnalysis } from "@/lib/db/image-cards";
-import { mergeImageAnalysis } from "@/lib/image-analysis/merge";
 import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
+import { startKBBuild } from "@/lib/kb/start-build";
 
 // ── Field Patch ───────────────────────────────────────────────────────────────
 // Replaces PATCH /api/clients/:id/kb/field
@@ -51,26 +43,6 @@ export async function patchKBFieldAction(
   });
 }
 
-// ── Bulk Save ─────────────────────────────────────────────────────────────────
-// Persists the reviewed KB output. Mirrors the Script focus view's buffered Save: the client edits
-// a local draft and commits it here once, rather than auto-saving every field change.
-//
-// Image Analysis is rewritten in the background (D312), so the draft's copy may be older than the
-// stored one. Every other section is saved as sent; Image Analysis keeps the stored section and
-// lays the team's reviews over it (D318), so a Save never puts back an older analysis.
-export async function saveKBOutputAction(
-  versionId: string,
-  output: TraceableBrandKB,
-): Promise<void> {
-  return withAction("saveKBOutputAction", { need: "edit", on: { kbVersionId: versionId } }, async () => {
-    const stored = await getKBImageAnalysis(versionId);
-    await saveKBOutputKeepingImageAnalysis(versionId, output);
-    if (stored && JSON.stringify(stored) !== JSON.stringify(output.image_analysis)) {
-      await setKBImageAnalysis(versionId, mergeImageAnalysis(output.image_analysis, stored));
-    }
-  });
-}
-
 // ── Mark KB Ready ─────────────────────────────────────────────────────────────
 // Replaces POST /api/clients/:id/kb/ready
 export async function markKBReadyAction(
@@ -78,27 +50,12 @@ export async function markKBReadyAction(
   versionId: string,
   clientSlug: string,
 ): Promise<{ ok: true } | { error: string }> {
-  return withAction("markKBReadyAction", { need: "edit", on: { kbVersionId: versionId } }, async (ctx) => {
-    // The guard resolved the version's own client; the caller-supplied clientId must match it.
-    if (ctx.target?.clientId !== clientId) return { error: "Version not found." };
-    const supabase = createServerSupabase();
-    const { data, error } = await supabase
-      .from("client_kb_versions")
-      .select("output")
-      .eq("id", versionId)
-      .maybeSingle();
-
-    if (error || !data) return { error: "Version not found." };
-
-    if (!computeReadyStatus(data.output as TraceableBrandKB)) {
-      return { error: "All fields must be reviewed before marking KB ready." };
-    }
-
-    await setKBStatus(clientId, "ready");
-    revalidatePath(`/clients/${clientSlug}`);
-    revalidatePath(`/clients/${clientSlug}/kb`);
-
-    return { ok: true };
+  return withAction("markKBReadyAction", { need: "edit", on: { clientId } }, async (ctx) => {
+    // The guard checked the caller may edit this client; the slug from the browser must be its own.
+    const client = await getClientById(clientId);
+    if (!client || client.slug !== clientSlug) return { error: "Client not found." };
+    // The same approval the copilot's gate card reaches (src/lib/kb/approve.ts).
+    return approveKB({ client, userId: ctx.caller.userId, versionId });
   });
 }
 
@@ -163,43 +120,8 @@ export async function deleteBrandImageAction(
 // ── KB Build Job ──────────────────────────────────────────────────────────────
 
 export async function startKBBuildJob(clientId: string): Promise<{ jobId: string }> {
-  return withAction("startKBBuildJob", { need: "generate", on: { clientId } }, async () => {
-    const client = await getClientById(clientId);
-    if (!client) throw new Error("Client not found.");
-
-    const docs = await listKBDocuments(clientId);
-
-    if (!client.website_url && docs.length === 0) {
-      throw new Error("Add a website URL or upload at least one document.");
-    }
-
-    let job;
-    try {
-      job = await insertKBJob({
-        clientId,
-        orgId: client.org_id,
-        websiteUrl: client.website_url,
-        docIdsUsed: docs.map((d) => d.id),
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : JSON.stringify(e);
-      if (msg.includes("client_kb_jobs_one_running_idx") || msg.includes("23505")) {
-        throw new Error("A KB build is already running for this client.");
-      }
-      throw e;
-    }
-
-    const run = await tasks.trigger("kb-build", {
-      jobId: job.id,
-      clientId,
-      websiteUrl: client.website_url,
-      docIds: docs.map((d) => d.id),
-    });
-
-    await setKBJobTriggerRunId(job.id, run.id);
-    revalidatePath(`/clients/${client.slug}/kb`);
-    return { jobId: job.id };
-  });
+  // The same start the brand KB copilot uses (src/lib/kb/start-build.ts), so both behave alike.
+  return withAction("startKBBuildJob", { need: "generate", on: { clientId } }, () => startKBBuild(clientId));
 }
 
 // Needs Generate, like startKBBuildJob: it marks any unfinished job failed with no staleness

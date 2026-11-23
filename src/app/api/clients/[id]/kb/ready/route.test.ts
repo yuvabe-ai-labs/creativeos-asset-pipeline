@@ -1,61 +1,52 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const { guards } = vi.hoisted(() => ({ guards: [] as unknown[] }));
+const client = { id: "client-a", slug: "acme", active_kb_version_id: "ver-a" };
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
   return {
     ...actual,
-    withClient: (_r: Request, _p: unknown, _g: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
-      fn("client-a", { id: "client-a", slug: "acme" }, { userId: "u1" }, "org-1"),
+    withClient: (_r: Request, _p: unknown, guard: unknown, fn: (...a: unknown[]) => Promise<Response>) => {
+      guards.push(guard);
+      return fn("client-a", client, { userId: "u1" }, "org-1");
+    },
   };
 });
-vi.mock("@/lib/db/clients", () => ({ setKBStatus: vi.fn() }));
-vi.mock("@/lib/kb/fill-rate", () => ({ computeReadyStatus: vi.fn(() => true) }));
+vi.mock("@/lib/kb/approve", () => ({ approveKB: vi.fn() }));
 
-// The version read: records its filters, and finds a row only when it is client-a's version.
-const { eqs } = vi.hoisted(() => ({ eqs: [] as Array<[string, unknown]> }));
-vi.mock("@/lib/supabase/server", () => ({
-  createServerSupabase: () => {
-    const chain = {
-      from: () => chain,
-      select: () => chain,
-      eq: (col: string, val: unknown) => {
-        eqs.push([col, val]);
-        return chain;
-      },
-      maybeSingle: async () => {
-        const mine = eqs.some(([c, v]) => c === "client_id" && v === "client-a") && eqs.some(([c, v]) => c === "id" && v === "ver-a");
-        return { data: mine ? { output: {} } : null, error: null };
-      },
-    };
-    return chain;
-  },
-}));
-
-import { setKBStatus } from "@/lib/db/clients";
+import { approveKB } from "@/lib/kb/approve";
 import { POST } from "./route";
 
-const post = (versionId: string) =>
-  POST(new Request("http://x/api/clients/client-a/kb/ready", { method: "POST", body: JSON.stringify({ versionId }) }), {
+const post = (body: unknown) =>
+  POST(new Request("http://x/api/clients/client-a/kb/ready", { method: "POST", body: JSON.stringify(body) }), {
     params: Promise.resolve({ id: "client-a" }),
   });
 
+const VERSION = "8a4c2f1e-3b5d-4c6e-9f70-1a2b3c4d5e6f";
+
 beforeEach(() => {
   vi.clearAllMocks();
-  eqs.length = 0;
+  guards.length = 0;
+  vi.mocked(approveKB).mockResolvedValue({ ok: true });
 });
 
 describe("POST /api/clients/[id]/kb/ready", () => {
-  it("marks the client ready from its own reviewed version", async () => {
-    expect((await post("ver-a")).status).toBe(200);
-    expect(setKBStatus).toHaveBeenCalledWith("client-a", "ready");
+  it("needs Edit on the client and approves as the caller, for the version they were looking at", async () => {
+    expect((await post({ versionId: VERSION })).status).toBe(200);
+    expect(guards).toEqual([{ need: "edit" }]);
+    expect(approveKB).toHaveBeenCalledWith({ client, userId: "u1", versionId: VERSION });
   });
 
-  // The version id comes from the body. Another client's reviewed version must not mark
-  // this client's brand kit ready.
-  it("404s on another client's version and marks nothing", async () => {
-    expect((await post("ver-b")).status).toBe(404);
-    expect(setKBStatus).not.toHaveBeenCalled();
+  it("passes on why the approval was refused", async () => {
+    vi.mocked(approveKB).mockResolvedValue({ error: "The brand KB was rebuilt. Reload to see the new one." });
+    const res = await post({ versionId: VERSION });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("The brand KB was rebuilt. Reload to see the new one.");
+  });
+
+  it("refuses a version id that is not an id, without approving anything", async () => {
+    expect((await post({ versionId: "ver-b" })).status).toBe(400);
+    expect(approveKB).not.toHaveBeenCalled();
   });
 });

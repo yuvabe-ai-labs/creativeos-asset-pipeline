@@ -3,7 +3,7 @@
 // at the first piece's picture rate, read from the file (CreativeOS clips are 24 fps, never an
 // assumed 25). A piece never asks for frames past the end of the file it shows.
 import { captionFont, type CaptionFontKey } from "./caption-fonts";
-import { BOX_OPACITY, boxPadPx, dimColor, displayText, sizePx, strokePx } from "./caption-style";
+import { BOX_OPACITY, boxPadPx, captionLook, dimColor, displayText, sizePx, strokePx, type CaptionStyle } from "./caption-style";
 import { wordFrames } from "./caption-words";
 import { captionTimes } from "./captions";
 import { pieceSoundFile } from "./playback";
@@ -197,14 +197,14 @@ export function planSequence(doc: EditDoc, sources: SourceView[], opts: { pauses
       cursor += len;
     }
 
-    // D398 — the reel's one caption style; with word by word, one title per word, each holding the
-    // whole line with the word being said coloured and the words not said yet dimmed or hidden.
+    // D398 — each caption in its look (the reel's, with the caption's own keys over it, D505); with
+    // word by word, one title per word, each holding the whole line with the word being said
+    // coloured and the words not said yet dimmed or hidden.
     const titles: PlanTitle[] = [];
     const lines: PlanLine[] = [];
     const reel = { ...doc, pieces };
-    const style = doc.captionStyle;
     const shortEdge = Math.min(frame.width, frame.height);
-    const look = {
+    const titleLook = (style: CaptionStyle) => ({
       fontKey: style.font,
       fontPostScript: captionFont(style.font).postScript,
       sizePx: sizePx(style, shortEdge),
@@ -214,9 +214,11 @@ export function planSequence(doc: EditDoc, sources: SourceView[], opts: { pauses
       ...(style.outline ? { stroke: { color: "#000000", widthPx: strokePx(style, shortEdge) } } : {}),
       ...(style.box ? { box: { color: style.boxColor, opacity: BOX_OPACITY, sizePx: boxPadPx(style, shortEdge) } } : {}),
       track: 0,
-    };
-    const dim = dimColor(style);
+    });
     for (const c of doc.captions) {
+      const style = captionLook(doc, c);
+      const look = titleLook(style);
+      const dim = dimColor(style);
       const t = captionTimes(reel, c);
       if (!t) continue;
       const start = Math.round(t.start * fps);

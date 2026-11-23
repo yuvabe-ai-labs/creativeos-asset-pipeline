@@ -1,16 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { XIcon, SparklesIcon, CheckIcon } from "lucide-react";
+import { XIcon, CheckIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EditableField } from "@/components/nodes/editable-field";
 import { KBColorSwatches } from "@/components/kb/kb-color-swatches";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import type { KBField } from "@/lib/kb/schema";
 import { COLOUR_FIELD_KEYS } from "@/lib/kb/constants";
 import { isListField } from "@/lib/kb/utils";
@@ -25,25 +19,19 @@ type Props = {
   fieldKey: string;
   label: string;
   field: KBField<unknown>;
-  isReanalyzing?: boolean;
   onEdit: (newValue: string | string[]) => void;
   onApprove: () => void;
   onReject: () => void;
-  onReanalyze: (comment: string) => void;
 };
 
 export function KBFieldRow({
   fieldKey,
   label,
   field,
-  isReanalyzing = false,
   onEdit,
   onApprove,
   onReject,
-  onReanalyze,
 }: Props) {
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiComment, setAiComment] = useState("");
 
   const isArray = isListField(fieldKey, field.value);
   const displayValue = formatValue(field.value);
@@ -59,21 +47,6 @@ export function KBFieldRow({
       ? next.split(",").map((s) => s.trim()).filter(Boolean)
       : next.trim();
     onEdit(parsed);
-  }
-
-  function handleSubmitAI() {
-    if (!aiComment.trim()) return;
-    onReanalyze(aiComment.trim());
-    setAiComment("");
-    setAiOpen(false);
-  }
-
-  // ⌘/Ctrl+↵ submits. Escape / outside-click close is handled by the Popover.
-  function handleAIKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleSubmitAI();
-    }
   }
 
   // Gutter: an editorial section label with a constant purple kicker rule —
@@ -98,15 +71,10 @@ export function KBFieldRow({
         )}
       </div>
 
-      <div className={cn("min-w-0 leading-relaxed", isReanalyzing && "opacity-70")}>
+      <div className="min-w-0 leading-relaxed">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            {isReanalyzing ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent shrink-0" />
-                Re-analyzing…
-              </div>
-            ) : isRejected ? (
+            {isRejected ? (
               <p className="text-sm text-muted-foreground line-through">
                 {isEmpty ? "No data extracted" : displayValue}
               </p>
@@ -127,8 +95,7 @@ export function KBFieldRow({
           </div>
 
           {/* Action buttons — pinned top-right of the content column */}
-          {!isReanalyzing && (
-            <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
               {isRejected ? (
                 <Button
                   type="button"
@@ -151,56 +118,6 @@ export function KBFieldRow({
                       <CheckIcon className="size-3.5" />
                     </Button>
                   )}
-                  <Popover
-                    open={aiOpen}
-                    onOpenChange={(o) => {
-                      setAiOpen(o);
-                      if (!o) setAiComment("");
-                    }}
-                  >
-                    <PopoverTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          title="Refine with AI"
-                          className="size-6 rounded-md p-0 text-muted-foreground hover:bg-primary/10 hover:text-primary aria-expanded:bg-primary/10 aria-expanded:text-primary data-[popup-open]:bg-primary/10 data-[popup-open]:text-primary"
-                        >
-                          <SparklesIcon className="size-3.5" />
-                        </Button>
-                      }
-                    />
-                    <PopoverContent align="end" sideOffset={6} className="w-80 gap-0">
-                      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
-                        <SparklesIcon className="size-3.5 text-primary" />
-                        Refine with AI
-                      </div>
-                      <p className="mb-2 text-xs text-muted-foreground">
-                        Describe the change — the AI re-analyzes the sources and proposes a new value.
-                      </p>
-                      <textarea
-                        autoFocus
-                        className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                        rows={3}
-                        value={aiComment}
-                        onChange={(e) => setAiComment(e.target.value)}
-                        onKeyDown={handleAIKeyDown}
-                        placeholder='e.g. "make this slower and more meditative"'
-                      />
-                      <div className="mt-2 flex items-center justify-between">
-                        <span className="text-[0.6rem] text-muted-foreground">⌘↵ to submit</span>
-                        <Button
-                          type="button"
-                          onClick={handleSubmitAI}
-                          disabled={!aiComment.trim()}
-                          className="h-auto gap-1 rounded-md px-2.5 py-1 text-xs hover:bg-primary/90 disabled:opacity-40"
-                        >
-                          <SparklesIcon className="size-3" />
-                          Re-analyze
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
                   {!isEmpty && (
                     <Button
                       type="button"
@@ -214,8 +131,7 @@ export function KBFieldRow({
                   )}
                 </>
               )}
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </section>

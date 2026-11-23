@@ -3,7 +3,7 @@
 // computed by sequence-plan.ts, on export.
 import * as z from "zod";
 import { CAPTION_FONT_KEYS, type CaptionFontKey } from "./caption-fonts";
-import { CaptionStyleSchema, DEFAULT_CAPTION_STYLE, MAX_SIZE, MIN_SIZE, type CaptionStyle } from "./caption-style";
+import { CaptionLookOverrideSchema, CaptionStyleSchema, DEFAULT_CAPTION_STYLE, MAX_SIZE, MIN_SIZE, type CaptionLookOverride, type CaptionStyle } from "./caption-style";
 
 export const REEL_SHAPES = ["9:16", "16:9"] as const;
 export type ReelShape = (typeof REEL_SHAPES)[number];
@@ -27,7 +27,7 @@ export type Piece = {
 /** A word's time inside its caption's piece, in SOURCE seconds like Caption.at (D397). */
 export type CaptionWord = { text: string; at: number; duration: number };
 
-/** at: SOURCE seconds in its piece's source. The look is the reel's (D396). */
+/** at: SOURCE seconds in its piece's source. The look is the reel's (D396), with `look` over it (D505). */
 export type Caption = {
   id: string;
   pieceId: string;
@@ -42,6 +42,8 @@ export type Caption = {
   edited?: true;
   /** The sound URL its words came from (D401). */
   from?: string;
+  /** This caption's own look: only the keys that differ from the reel's (D505). */
+  look?: CaptionLookOverride;
 };
 
 export type EditDoc = {
@@ -79,6 +81,7 @@ const CaptionSchema = z.object({
   auto: z.literal(true).optional(),
   edited: z.literal(true).optional(),
   from: z.string().max(2048).optional(),
+  look: CaptionLookOverrideSchema.optional(),
 });
 
 const docBase = {

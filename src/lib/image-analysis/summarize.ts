@@ -8,6 +8,7 @@ import {
   IMAGE_FORMAT_LABELS,
   IMAGE_PURPOSE_LABELS,
   NON_BRAND_FORMATS,
+  TALLIED_FIELDS,
   SUMMARY_MAX_CARDS,
   vocabLabel,
 } from "./constants";
@@ -32,7 +33,22 @@ export type ImageSummary = z.infer<typeof ImageSummarySchema>;
 const SOURCE_LABEL = { upload: "upload", website: "website", instagram: "instagram", facebook: "facebook" } as const;
 
 /** The tallies and the cards, as compact text for the summary call. Uploads first. */
-export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): string {
+/** The written fields the team has approved, as they stand: what the model is asked to keep unless
+ *  the images now show something different (piece 2b), so a study that reads the same thing does not
+ *  reword it and raise a change card for nothing. Never a counted field (code tallies those), a
+ *  rejected value, one written by hand (the study leaves those alone anyway), or an unreviewed one. */
+export function approvedWords(section: TraceableBrandKB["image_analysis"] | null | undefined): { key: string; value: string | string[] }[] {
+  if (!section) return [];
+  return Object.entries(section as unknown as Record<string, KBField<unknown>>).flatMap(([key, field]): { key: string; value: string | string[] }[] => {
+    if (TALLIED_FIELDS.has(key) || field?.status !== "approved") return [];
+    const value = field.value;
+    if (typeof value === "string" && value.trim()) return [{ key, value }];
+    if (Array.isArray(value) && value.length > 0) return [{ key, value: value.map(String) }];
+    return [];
+  });
+}
+
+export function buildSummaryInput(stats: ImageStats, entries: CardEntry[], approved: { key: string; value: string | string[] }[] = []): string {
   const lines: string[] = [];
   lines.push(`Brand images counted: ${stats.counted} (uploads ${stats.bySource.upload}, website ${stats.bySource.website}, instagram ${stats.bySource.instagram}, facebook ${stats.bySource.facebook}); ${stats.excluded} third-party or interface images left out.`);
   lines.push(`Format mix (what the images look like): ${formatMixLines(stats).join(", ") || "none"}.`);
@@ -77,6 +93,10 @@ export function buildSummaryInput(stats: ImageStats, entries: CardEntry[]): stri
         overlay,
       ].join(" | "),
     );
+  }
+  if (approved.length > 0) {
+    lines.push("", "Approved by the brand's team (field: words):");
+    for (const { key, value } of approved) lines.push(`${key}: ${Array.isArray(value) ? value.join("; ") : value}`);
   }
   return lines.join("\n");
 }

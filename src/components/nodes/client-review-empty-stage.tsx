@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 // Read-only sessions see the same card without the button.
 export function ClientReviewEmptyStage({
   editable,
+  uploading,
   onUpload,
 }: {
   editable: boolean;
+  uploading: boolean;
   onUpload: () => void;
 }) {
   return (
@@ -23,8 +25,8 @@ export function ClientReviewEmptyStage({
           and so on.
         </p>
         {editable ? (
-          <Button onClick={onUpload} className="mt-1">
-            Upload first version
+          <Button disabled={uploading} onClick={onUpload} className="mt-1">
+            {uploading ? "Uploading…" : "Upload first version"}
           </Button>
         ) : (
           <p className="text-sm text-muted-foreground">No cut uploaded yet.</p>

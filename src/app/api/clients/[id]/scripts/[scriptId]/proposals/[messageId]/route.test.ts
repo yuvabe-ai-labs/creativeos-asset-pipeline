@@ -6,12 +6,12 @@ vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() 
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/script-generate", () => ({
-  changeGenerateScript: vi.fn(), listScriptMessages: vi.fn(), setMessageCard: vi.fn(), insertScriptMessages: vi.fn(),
+  changeGenerateScript: vi.fn(), changeVisualiseScript: vi.fn(), listScriptMessages: vi.fn(), setMessageCard: vi.fn(), insertScriptMessages: vi.fn(),
   loadGenerateState: vi.fn(), getGenerateScript: vi.fn(), listCopilotAvatars: vi.fn(), claimProposalCard: vi.fn(),
 }));
 
 import {
-  changeGenerateScript, claimProposalCard, getGenerateScript, insertScriptMessages, listCopilotAvatars, listScriptMessages, loadGenerateState, setMessageCard,
+  changeGenerateScript, changeVisualiseScript, claimProposalCard, getGenerateScript, insertScriptMessages, listCopilotAvatars, listScriptMessages, loadGenerateState, setMessageCard,
 } from "@/lib/db/script-generate";
 import { allowClient, generateScript, jsonRequest, reel01Doc, runChangeAgainst, SCRIPT_ID, stateOf } from "@/lib/scripts/copilot/__tests__/route-mocks";
 import type { ImportCard, ProposalCard } from "@/lib/scripts/copilot/schema";
@@ -109,5 +109,19 @@ describe("POST .../proposals/:messageId — a pasted script's replace card", () 
     expect((await POST(decide("reject") as never, { params })).status).toBe(200);
     expect(changeGenerateScript).not.toHaveBeenCalled();
     expect(vi.mocked(insertScriptMessages).mock.calls[0][3]).toEqual([{ role: "assistant", content: "Kept the current draft.", card: null }]);
+  });
+
+  // Piece 5.1 (D525) — a card the copilot made at Visualise is accepted there.
+  it("accepts a card at Visualise through the Visualise write", async () => {
+    const atVisualise = generateScript({ stage: "visualise", doc: reel01Doc(), updatedAt: "t1" });
+    vi.mocked(getGenerateScript).mockResolvedValue(atVisualise);
+    vi.mocked(listScriptMessages).mockResolvedValue([{ id: MSG, role: "assistant", content: "x", card, suggestions: [], createdAt: "t" }]);
+    vi.mocked(changeVisualiseScript).mockImplementation(runChangeAgainst(atVisualise) as never);
+    vi.mocked(listCopilotAvatars).mockResolvedValue([]);
+    vi.mocked(claimProposalCard).mockResolvedValue(true);
+    const { POST } = await import("./route");
+    expect((await POST(decide("accept") as never, { params })).status).toBe(200);
+    expect(changeVisualiseScript).toHaveBeenCalled();
+    expect(changeGenerateScript).not.toHaveBeenCalled();
   });
 });

@@ -29,7 +29,7 @@ describe("/api/clients/[id]/avatars", () => {
     vi.mocked(resolveOrgId).mockResolvedValue("org-1");
     vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "user-1", orgId: "org-1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
-    vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Acme", org_id: "org-1" } as never);
+    vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Acme", org_id: "org-1", kb_status: "ready" } as never);
   });
 
   it("GET lists the client's avatars", async () => {
@@ -55,6 +55,14 @@ describe("/api/clients/[id]/avatars", () => {
     const res = await POST(post({ name: " Riya " }), { params });
     expect(res.status).toBe(201);
     expect(createDraftAvatar).toHaveBeenCalledWith({ clientId: "c1", userId: "user-1", name: "Riya" });
+  });
+
+  it("POST refuses a client whose Brand KB isn't ready (D503)", async () => {
+    vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Acme", org_id: "org-1", kb_status: "in_review" } as never);
+    const { POST } = await import("./route");
+    const res = await POST(post({ name: "Riya" }), { params });
+    expect(res.status).toBe(409);
+    expect(createDraftAvatar).not.toHaveBeenCalled();
   });
 
   it("POST rejects a name over the limit", async () => {

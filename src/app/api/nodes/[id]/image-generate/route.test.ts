@@ -53,7 +53,7 @@ describe("POST image-generate (D366)", () => {
     const res = await post({ modelId: "openai:gpt-image-1", params: {} });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("This model is deprecated");
-    expect(start).not.toHaveBeenCalled();
+    expect(m.start).not.toHaveBeenCalled();
   });
 
   it("hands a generation to startImageGeneration and passes its 202 through", async () => {

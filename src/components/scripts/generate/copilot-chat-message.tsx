@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
-import type { CopilotAvatar, ScriptMessage } from "@/lib/scripts/copilot/schema";
-import { isLongText, messageParagraphs } from "@/lib/scripts/copilot/message-text";
+import type { ReactNode } from "react";
+import type { CopilotAvatar, OfferCard, ScriptMessage } from "@/lib/scripts/copilot/schema";
+import { CopilotText } from "@/components/copilot/copilot-text";
+import { PersonText } from "@/components/copilot/person-text";
 import { CopilotResearchCard, researchRows } from "./copilot-research-card";
 import { CopilotAnglesCard } from "./copilot-angles-card";
 import { CopilotConfirmationCard } from "./copilot-confirmation-card";
@@ -16,11 +18,19 @@ export type ChatActions = {
   resolve: (messageId: string, decision: "accept" | "reject") => void;
   /** Links an avatar to a character, from a chip after an import (paste-a-script §4.3). */
   link: (castId: string, avatarId: string) => void;
+  /** Piece 5.1 — at Visualise, the button a reply offered (draw, send, reopen), drawn live. */
+  renderOffer?: (card: OfferCard) => ReactNode;
 };
 
-export function CopilotChatMessage({ message, actions, avatars }: { message: ScriptMessage; actions: ChatActions; avatars: CopilotAvatar[] }) {
+const OFFERED: Record<OfferCard["action"], string> = {
+  draw: "Offered to draw the panels", send: "Offered to send for client review", reopen: "Offered to reopen the script",
+};
+
+/** `actions: null` after Generate: the cards are shown without their buttons, which only apply there. */
+export function CopilotChatMessage({ message, actions, avatars }: { message: ScriptMessage; actions: ChatActions | null; avatars: CopilotAvatar[] }) {
   const mine = message.role === "user";
   const { card } = message;
+  const busy = actions?.busy ?? false;
   // Research that no angle drew on says nothing worth a card; a message that is only that card goes.
   const research = card?.kind === "research" && researchRows(card).length > 0 ? card : null;
   if (!message.content && card?.kind === "research" && !research) return null;
@@ -32,45 +42,19 @@ export function CopilotChatMessage({ message, actions, avatars }: { message: Scr
         <CopilotText content={message.content} />
       ))}
       {research && <CopilotResearchCard card={research} />}
-      {card?.kind === "angles" && <CopilotAnglesCard angles={card.angles} disabled={actions.busy} onPick={(id) => actions.send(`Go with ${id}.`)} />}
-      {card?.kind === "confirmation" && <CopilotConfirmationCard card={card.card} avatars={avatars} disabled={actions.busy} onWrite={() => actions.send("Write it.")} />}
-      {card?.kind === "proposal" && <CopilotProposalCard card={card} disabled={actions.busy} onResolve={(d) => actions.resolve(message.id, d)} />}
-      {card?.kind === "import" && <CopilotImportCard card={card} disabled={actions.busy} onResolve={(d) => actions.resolve(message.id, d)} />}
+      {card?.kind === "angles" && <CopilotAnglesCard angles={card.angles} disabled={busy} onPick={actions ? (id) => actions.send(`Go with ${id}.`) : undefined} />}
+      {card?.kind === "confirmation" && <CopilotConfirmationCard card={card.card} avatars={avatars} disabled={busy} onWrite={actions ? () => actions.send("Write it.") : undefined} />}
+      {card?.kind === "proposal" && <CopilotProposalCard card={card} disabled={busy} onResolve={actions ? (d) => actions.resolve(message.id, d) : undefined} />}
+      {card?.kind === "import" && <CopilotImportCard card={card} disabled={busy} onResolve={actions ? (d) => actions.resolve(message.id, d) : undefined} />}
+      {card?.kind === "picture" && (
+        <figure className="flex flex-col items-end gap-1">
+          <img src={card.url} alt="" className="max-h-40 rounded-lg border border-border object-cover" />
+          <figcaption className="text-xs text-muted-foreground">{card.name}</figcaption>
+        </figure>
+      )}
+      {card?.kind === "offer" && (actions?.renderOffer
+        ? actions.renderOffer(card)
+        : <span className="text-xs text-muted-foreground">{OFFERED[card.action]}</span>)}
     </li>
-  );
-}
-
-/** The copilot's words. Its question stands out from the rest of the message (one size up, medium
- *  weight), with the hint after it back at body size. */
-function CopilotText({ content }: { content: string }) {
-  return (
-    <div className="flex max-w-[92%] flex-col gap-3 px-0.5 text-sm leading-relaxed">
-      {messageParagraphs(content).map((p, i) =>
-        p.kind === "question" ? (
-          <div key={i} className="flex flex-col gap-0.5">
-            <p className="text-base font-medium leading-snug text-foreground">{p.question}</p>
-            {p.hint && <p className="whitespace-pre-wrap text-muted-foreground">{p.hint}</p>}
-          </div>
-        ) : (
-          <p key={i} className="whitespace-pre-wrap">{p.text}</p>
-        ),
-      )}
-    </div>
-  );
-}
-
-/** The person's words. A pasted script shows its first lines, fading out, as in the message box. */
-function PersonText({ content }: { content: string }) {
-  const long = isLongText(content);
-  return (
-    <div
-      data-clipped={long}
-      className={cn(
-        "max-w-[92%] whitespace-pre-wrap rounded-2xl bg-muted px-3.5 py-2.5 text-sm leading-relaxed",
-        long && "max-h-40 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_55%,transparent)]",
-      )}
-    >
-      {content}
-    </div>
   );
 }

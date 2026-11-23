@@ -5,6 +5,7 @@ import type { TeamScriptReview } from "@/lib/script-review/assemble";
 import { makeScript } from "@/lib/scripts/visualise/__tests__/fixtures";
 import { TestAccessProvider } from "@/components/permissions/test-access-provider";
 import { TeamReviewBoard } from "../team/team-review-board";
+import { VisualiseBoardProvider } from "@/components/visualise/visualise-board-context";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 
@@ -15,14 +16,14 @@ const review = (over: Partial<TeamScriptReview>): TeamScriptReview => ({
 
 const render = (initialReview: TeamScriptReview) => {
   const script = makeScript(undefined, initialReview.stage);
+  const initial = { script, board: { avatars: [], takes: [], picks: {}, kits: [] } };
+  // Piece 5.1 — the board reads its state from the provider the copilot's panel shares.
   return renderToStaticMarkup(
     <TestAccessProvider>
       <QueryClientProvider client={new QueryClient()}>
-        <TeamReviewBoard
-          clientId="c1"
-          initial={{ script, board: { avatars: [], takes: [], picks: {}, kits: [] } }}
-          initialReview={initialReview}
-        />
+        <VisualiseBoardProvider clientId="c1" initial={initial}>
+          <TeamReviewBoard clientId="c1" initial={initial} initialReview={initialReview} />
+        </VisualiseBoardProvider>
       </QueryClientProvider>
     </TestAccessProvider>,
   );

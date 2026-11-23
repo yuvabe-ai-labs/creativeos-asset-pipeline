@@ -4,9 +4,8 @@ import { useState } from "react";
 import { UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AvatarOption, Suggestion } from "@/lib/scripts/copilot/suggestions";
+import { REPLY_CHIP_CLASS } from "@/components/copilot/reply-chip";
 import { CopilotAvatarPickDialog } from "./copilot-avatar-pick-dialog";
-
-const CHIP = "h-auto max-w-full whitespace-normal rounded-full border-dashed border-primary/40 py-1 text-left text-primary hover:bg-primary/5";
 
 /** One-tap suggestions under the copilot's newest message: send at once, fill the box to finish by
  *  hand, or open the avatars to choose from (D480). */
@@ -30,7 +29,7 @@ export function CopilotSuggestions({ suggestions, onSend, onFill, onLink }: {
           key={s.label}
           variant="outline"
           size="xs"
-          className={CHIP}
+          className={REPLY_CHIP_CLASS}
           onClick={() => (s.pick ? setPicking(true) : s.send ? onSend(s.text) : onFill(s.text))}
         >
           {s.pick && <UserRound strokeWidth={1.5} />}

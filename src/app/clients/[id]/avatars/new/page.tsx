@@ -1,5 +1,5 @@
 import { loadClientPage } from "@/lib/permissions/page";
-import { redirect } from "next/navigation";
+import { redirectUnlessKbReady } from "@/lib/clients/kb-gate";
 import { AvatarStudio } from "@/components/avatars/avatar-studio";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 export default async function NewAvatarPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; // `id` is the client slug
   const { client } = await loadClientPage(id, "edit");
+  // D503: no scripts or avatars until the Brand KB is set up, the same rule as the canvases page.
+  redirectUnlessKbReady(client);
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">

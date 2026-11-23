@@ -7,6 +7,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { failJob, getJob, listRecentJobs, setJobPhase, startJob, succeedJob } from "@/lib/jobs/db";
 import { getActiveKBVersion } from "@/lib/db/kb";
+import { sayJobFailed } from "@/lib/journey/kb-copilot/job-failed";
 import { listCardImageIds, listImageCards, listImagesNeedingCards, setKBImageAnalysis, upsertImageCard } from "@/lib/db/image-cards";
 import { forEachLimited } from "@/lib/for-each-limited";
 import { imageAnalysisSummaryPrompt } from "@/prompts/image-analysis-summary";
@@ -14,11 +15,18 @@ import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { IMAGE_CARD_CONCURRENCY, IMAGE_CARD_MODEL, IMAGE_CARD_VERSION } from "./constants";
 import { readImageCard } from "./read-image";
 import { generateStructured } from "./gemini";
-import { aggregateCards, buildSummaryInput, ImageSummarySchema, toImageAnalysis } from "./summarize";
-import { mergeImageAnalysis } from "./merge";
+import { aggregateCards, approvedWords, buildSummaryInput, ImageSummarySchema, toImageAnalysis } from "./summarize";
+import { studyImageAnalysis } from "./merge";
 import { imageAnalysisCopy } from "./messages";
 import type { ImageAnalysisInput, ImageAnalysisResult } from "./types";
 import { describeError } from "@/lib/describe-error";
+import { claimChangeCard, hasCopilotMessages, insertCopilotMessages, listPendingChangeCards, listSettledChangeCards } from "@/lib/db/copilot-messages";
+import { getClientById } from "@/lib/db/clients";
+import { ensureOpening } from "@/lib/journey/thread/opening";
+import { buildImageStudyCard, isImageStudyCard } from "@/lib/kb/changes/card";
+import { imageStudyCopy } from "@/lib/kb/changes/copy";
+import { ONBOARDING } from "@/lib/journey/thread/schema";
+import { changedImageFields, imageAnalysisNote } from "./change-note";
 
 /** Rounds of "read what has no card yet": images added mid-read are picked up by the next round. */
 const MAX_ROUNDS = 4;
@@ -47,6 +55,10 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
     // The key the last written section was built from: unchanged cards need no new summary,
     // unless someone asked for a fresh one.
     let lastKey = job.input?.force ? null : await lastWrittenKey(clientId, jobId);
+    // Fields a re-study changed in a section that already had content, for the copilot to say.
+    const changed = new Set<string>();
+    // What the last pass that wrote would change in reviewed fields; null when nothing was written.
+    let proposed: Proposed | null = null;
     let result: ImageAnalysisResult = { read: 0, failed: 0, counted: 0, bySource: { upload: 0, website: 0, instagram: 0, facebook: 0 }, written: false };
 
     for (let pass = 0; pass < MAX_PASSES; pass++) {
@@ -89,14 +101,24 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
       const summary = await generateStructured({
         model: imageAnalysisSummaryPrompt.model,
         system: imageAnalysisSummaryPrompt.system,
-        parts: [{ text: buildSummaryInput(stats, entries) }],
+        // The model is shown what the team approved, so a study that reads the same keeps those words.
+        parts: [{ text: buildSummaryInput(stats, entries, approvedWords(current)) }],
         schema: ImageSummarySchema,
       });
+      // Before anything is written: an earlier study's card still waiting is an older reading of the
+      // images, and must not be approvable once this study has moved the section on (review fix).
+      await retireEarlierCards(clientId);
       // The summary takes a while: write to whichever version is active now (a re-extract may
       // have made a new one), over the reviews it holds now.
       const active = (await getActiveKBVersion(clientId)) ?? before;
       const reviewed = (active.output as TraceableBrandKB | undefined)?.image_analysis;
-      await setKBImageAnalysis(active.id, mergeImageAnalysis(reviewed, toImageAnalysis(stats, summary)));
+      // A field the team has reviewed is never replaced: the study keeps it and proposes its new
+      // reading on a change card instead (piece 2b). Everything else is written, as before.
+      const { section: merged, proposals } = studyImageAnalysis(reviewed, toImageAnalysis(stats, summary));
+      await setKBImageAnalysis(active.id, merged);
+      if (reviewed && hasContent(reviewed)) for (const label of changedImageFields(reviewed, merged)) changed.add(label);
+      // The last pass is the one that stands: its proposals, against the version it wrote to.
+      proposed = { versionId: active.id, proposals };
       result.written = true;
       result.cardSetKey = key;
       lastKey = key;
@@ -106,17 +128,68 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
       if (todo.length === 0 && cardSetKey(now) === key) break;
     }
     if (failed > 0) console.error("[image-analysis] images not read", { jobId, failed, first: firstFailure });
+    await sayWhatChanged(clientId, [...changed]);
+    if (proposed) await proposeChanges(clientId, proposed);
 
     await succeedJob(jobId, result, result.written ? imageAnalysisCopy.done(result.counted) : imageAnalysisCopy.upToDate(result.counted));
     return result;
   } catch (e) {
     console.error("[image-analysis] failed", { jobId, error: describeError(e) });
     await failJob(jobId, imageAnalysisCopy.failed);
+    // Said once in the client's copilot thread (D518).
+    await sayJobFailed({ client_id: clientId, kind: "image-analysis", input: job.input });
     return null;
   }
 }
 
-/** The card-set key of the client's last run that wrote the section, or null. */
+/** What a study that wrote would change in fields the team has reviewed. */
+type Proposed = { versionId: string; proposals: { key: string; value: unknown }[] };
+
+/** Marks every image-study card still waiting as out of date. Best effort: a failure never fails the run. */
+async function retireEarlierCards(clientId: string): Promise<void> {
+  try {
+    for (const { id, card } of await listPendingChangeCards(clientId)) {
+      if (isImageStudyCard(card)) await claimChangeCard(clientId, id, { ...card, status: "stale" });
+    }
+  } catch (e) {
+    console.error("[image-analysis] could not write the change card", { clientId, error: describeError(e) });
+  }
+}
+
+/** Puts what a study would change in reviewed fields on a change card in the client's copilot thread
+ *  (piece 2b). The card is made against what is stored at this moment, not what the study read
+ *  earlier, so its "before" is never out of date the moment it appears. Best effort: what the study
+ *  wrote stands, and a failure here never fails the run. */
+async function proposeChanges(clientId: string, proposed: Proposed): Promise<void> {
+  if (proposed.proposals.length === 0) return;
+  try {
+    const [now, settled] = await Promise.all([getActiveKBVersion(clientId), listSettledChangeCards(clientId)]);
+    // Rebuilt while the study ran: its proposals were for a brand KB no longer in use.
+    if (!now || now.id !== proposed.versionId) return;
+    const card = buildImageStudyCard({ ...proposed, current: now.output as TraceableBrandKB, settled });
+    if (!card) return;
+    const client = await getClientById(clientId);
+    if (!client) return;
+    await ensureOpening(client);
+    await insertCopilotMessages(clientId, ONBOARDING, null, [{ role: "assistant", content: imageStudyCopy.card(card.fields.length), card, suggestions: [] }]);
+  } catch (e) {
+    console.error("[image-analysis] could not write the change card", { clientId, error: describeError(e) });
+  }
+}
+
+/** Says in the client's copilot thread which Image Analysis fields a re-study changed. Best effort:
+ *  a client with no thread yet gets nothing, and a failure never fails the run. */
+async function sayWhatChanged(clientId: string, labels: string[]): Promise<void> {
+  const note = imageAnalysisNote(labels);
+  if (!note) return;
+  try {
+    if (!(await hasCopilotMessages(clientId, ONBOARDING))) return;
+    await insertCopilotMessages(clientId, ONBOARDING, null, [{ role: "assistant", content: note, card: { kind: "note" }, suggestions: [] }]);
+  } catch (e) {
+    console.error("[image-analysis] could not say what changed", { clientId, error: describeError(e) });
+  }
+}
+
 async function lastWrittenKey(clientId: string, currentJobId: string): Promise<string | null> {
   const jobs = await listRecentJobs<ImageAnalysisInput, ImageAnalysisResult>(clientId, "image-analysis", 10);
   const last = jobs.find((j) => j.id !== currentJobId && j.status === "succeeded" && j.result?.cardSetKey);
