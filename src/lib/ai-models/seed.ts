@@ -1,10 +1,8 @@
-// D529 — today's image and video registries as ai_models rows, for migration 0077. Lives until
-// Plan 1b-iii deletes the registries. 0077 is frozen (seed-migration.test.ts); 0084 re-syncs.
+// D529 — the ai_models seed row shape and the SQL writer. Migration 0077 was generated from the
+// code registries of the day and is frozen (seed-migration.test.ts). A model change is a new migration.
 import type { AiModelKind } from "./types";
 import type { ParamSpec } from "@/lib/image-gen/types";
 import type { ConstraintRule } from "@/lib/video-gen/types";
-import { imageGenClientModels, DEPRECATED_IMAGE_MODEL_FALLBACK_ID } from "@/lib/image-gen/client-models";
-import { videoGenClientModelMap, DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 
 export const SEED_JSON_TAG = "$seed$";
 
@@ -23,52 +21,6 @@ export type AiModelSeedRow = {
   rules: ConstraintRule[];
   capabilities: Record<string, unknown>;
 };
-
-export function seedRowsFromRegistries(): AiModelSeedRow[] {
-  const image: AiModelSeedRow[] = imageGenClientModels.map((m, i) => {
-    // Everything that isn't a column is a capability; the Zod schema is rebuilt from params.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped on purpose
-    const { id, provider, label, providerLabel, deprecated, params, schema: _schema, mediaType: _mediaType, ...capabilities } = m;
-    return {
-      id,
-      provider,
-      kind: "image",
-      label,
-      picker_label: null,
-      provider_label: providerLabel,
-      status: deprecated ? "retired" : "live",
-      replaced_by: deprecated ? DEPRECATED_IMAGE_MODEL_FALLBACK_ID : null,
-      sort_order: i,
-      adapter_key: `image:${provider}`,
-      params,
-      rules: [],
-      capabilities,
-    };
-  });
-
-  const video: AiModelSeedRow[] = Object.values(videoGenClientModelMap).map((m, i) => {
-    const { id, provider, label, pickerLabel, providerLabel, deprecated, params, rules, ...capabilities } = m;
-    return {
-      id,
-      provider,
-      kind: "video",
-      label,
-      picker_label: pickerLabel ?? null,
-      provider_label: providerLabel,
-      status: deprecated ? "retired" : "live",
-      replaced_by: deprecated ? DEFAULT_VIDEO_CLIENT_MODEL_ID : null,
-      sort_order: i,
-      adapter_key: `video:${provider}`,
-      params,
-      rules: rules ?? [],
-      capabilities,
-    };
-  });
-
-  // Retired rows last, so the model each one is replaced by is inserted before it.
-  const rows = [...image, ...video];
-  return [...rows.filter((r) => r.status === "live"), ...rows.filter((r) => r.status === "retired")];
-}
 
 const DEFAULT_SEED_HEADER = [
   "-- D529: today's image and video models, from the TypeScript registries.",
