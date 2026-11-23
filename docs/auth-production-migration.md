@@ -1029,3 +1029,20 @@ Apply **before** the 2b-ii code deploys; without it every record-only insert fai
 -- expect: ... or record_only
 select pg_get_constraintdef(oid) from pg_constraint where conname = 'generations_owner_check';
 ```
+
+## Migrations 0082 + 0083 — text and scrape models and prices (D537, 2026-11-23)
+
+`supabase/migrations/0082_ai_text_models.sql` (five text models and the Apify scrape model in `ai_models`) and
+`supabase/migrations/0083_ai_text_prices.sql` (their published prices). Paste each into the Supabase SQL editor → Run, in order, after 0081.
+Apply **before** the 2b-ii code deploys; without them the free features' provider calls are recorded with no cost.
+
+**Safe to re-run:** both insert with `on conflict … do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect 7 (6 here + the prompt model from 0079)
+select count(*) from ai_models where kind in ('text','scrape');
+-- expect 6
+select count(*) from ai_model_prices where note in ('Published rate (D537).', 'Apify reports each run''s cost in USD (D537).');
+```

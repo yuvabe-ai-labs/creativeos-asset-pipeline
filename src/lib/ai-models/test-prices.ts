@@ -9,7 +9,7 @@ import type { AiCatalog, AiModelPrice } from "./types";
 
 let catalog: AiCatalog | null = null;
 
-const MIGRATIONS = ["0078_ai_model_prices_seed.sql", "0080_ai_service_prices.sql"];
+const MIGRATIONS = ["0078_ai_model_prices_seed.sql", "0080_ai_service_prices.sql", "0083_ai_text_prices.sql"];
 
 export function seededCatalog(): AiCatalog {
   if (catalog) return catalog;
