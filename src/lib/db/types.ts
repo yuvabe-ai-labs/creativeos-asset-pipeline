@@ -120,6 +120,11 @@ export type NodeVersionRow = {
   created_at: string;
 };
 
+/** D537 - types of record-only rows: provider calls that charge no credits. */
+export type RecordOnlyType =
+  | "script" | "kb" | "image_analysis" | "avatar_brief" | "copilot"
+  | "compose" | "parse" | "split_scene" | "file_extract" | "scrape";
+
 export type GenerationRow = {
   id: string;
   // Null for a generation owned by an avatar (migration 0042). Exactly one of node_id /
@@ -130,7 +135,7 @@ export type GenerationRow = {
   script_id?: string | null;
   org_id: string; // RLS backstop (D78), added in migration 0014
   client_id: string | null; // forward-looking, added in 0016 — nullable, not backfilled
-  type: "image" | "video" | "prompt" | "voice" | "dub" | "lipsync" | "transcribe" | "edit";
+  type: "image" | "video" | "prompt" | "voice" | "dub" | "lipsync" | "transcribe" | "edit" | RecordOnlyType;
   status: "running" | "succeeded" | "failed";
   provider_job_id: string | null;
   model_used: string | null;

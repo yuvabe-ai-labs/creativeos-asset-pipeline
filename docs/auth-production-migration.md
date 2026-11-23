@@ -1018,3 +1018,14 @@ select count(*) from ai_models where kind in ('dub','lipsync','voice','transcrib
 -- expect 8 (5 service rows + 3 Kling unit rows), counted by the note 0080 writes
 select count(*) from ai_model_prices where note in ('Seeded from the code prices (D535).', 'Adds the price per Kling unit (D535).');
 ```
+
+## Migration 0081 — record-only generations need no owner (D537, 2026-11-23)
+
+`supabase/migrations/0081_generations_record_only_owner.sql`. Paste into the Supabase SQL editor → Run, after 0080.
+Apply **before** the 2b-ii code deploys; without it every record-only insert fails (logged, not shown, and the cost is lost).
+**Safe to re-run:** drops and re-adds the constraint.
+
+```sql
+-- expect: ... or record_only
+select pg_get_constraintdef(oid) from pg_constraint where conname = 'generations_owner_check';
+```

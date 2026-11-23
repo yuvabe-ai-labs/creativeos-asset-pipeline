@@ -1,6 +1,6 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { GenerationRow } from "./types";
+import type { GenerationRow, RecordOnlyType } from "./types";
 import type { ProviderBill } from "@/lib/ai-models/types";
 import { getReservationAmounts } from "./credit-transactions";
 import type { GenerationRow as ImpersonationGenerationRow } from "@/lib/auth/impersonation-audit-view";
@@ -396,4 +396,44 @@ export async function sumAvatarCredits(avatarId: string): Promise<number> {
     (sum, row) => sum + (row.credits_charged ?? 0),
     0,
   );
+}
+
+/** D537: a provider call that charges no credits, kept so we know what it cost us. No ledger rows. */
+export async function insertRecordOnlyGeneration(input: {
+  orgId: string;
+  clientId?: string | null;
+  userId?: string | null;
+  userEmail?: string | null;
+  nodeId?: string | null;
+  avatarId?: string | null;
+  scriptId?: string | null;
+  type: RecordOnlyType;
+  modelUsed: string;
+  modelPriceId: string | null;
+  costUsd: number | null;
+  providerBill: ProviderBill;
+  tokensUsed?: Record<string, unknown> | null;
+}): Promise<void> {
+  const { error } = await createServerSupabase().from("generations").insert({
+    org_id: input.orgId,
+    client_id: input.clientId ?? null,
+    user_id: input.userId ?? null,
+    // generations has no user_email column: the creator's email lives in meta, as insertGeneration does.
+    meta: input.userEmail ? { email: input.userEmail } : null,
+    node_id: input.nodeId ?? null,
+    avatar_id: input.avatarId ?? null,
+    script_id: input.scriptId ?? null,
+    type: input.type,
+    model_used: input.modelUsed,
+    model_price_id: input.modelPriceId,
+    status: "succeeded",
+    record_only: true,
+    cost_usd: input.costUsd,
+    credits_charged: 0,
+    provider_bill: input.providerBill,
+    tokens_used: input.tokensUsed ?? null,
+    // generations has no completed_at column; updated_at is the finish time of a row written once.
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw new Error(`insertRecordOnlyGeneration: ${error.message}`);
 }
