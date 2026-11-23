@@ -163,9 +163,6 @@ export function defaultsForModel(model: ClientModelSpec): Record<string, unknown
 /** D467 — where a node saved on a deprecated image model goes. */
 export const DEPRECATED_IMAGE_MODEL_FALLBACK_ID = "openai:gpt-image-2.5-sunburst";
 
-/** D467 — the routes' refusal, for a tab still open from before the fallback. */
-export const IMAGE_MODEL_DEPRECATED_MESSAGE = "This model is deprecated";
-
 export function isImageModelDeprecated(modelId: string): boolean {
   return imageGenClientModelMap[modelId]?.deprecated === true;
 }

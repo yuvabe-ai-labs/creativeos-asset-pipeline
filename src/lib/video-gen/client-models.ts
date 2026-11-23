@@ -423,9 +423,6 @@ export function modelPickerLabel(model: VideoGenClientModelSpec): string {
 
 export const DEFAULT_VIDEO_CLIENT_MODEL_ID = GEMINI_OMNI_MODEL_ID;
 
-/** D461 — the generate route's refusal, for a tab still open from before the fallback. */
-export const VIDEO_MODEL_DEPRECATED_MESSAGE = "This model is deprecated";
-
 export function isVideoModelDeprecated(modelId: string): boolean {
   return videoGenClientModelMap[modelId]?.deprecated === true;
 }
