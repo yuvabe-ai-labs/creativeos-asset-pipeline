@@ -59,6 +59,80 @@ describe("checkModelPatch", () => {
   });
 });
 
+describe("checkModelPatch: the last live model of a kind", () => {
+  const LAST = "This is the last live model of its kind. Make another one live first.";
+  // Every other model of each kind leaves live, so the row under test is the only live one.
+  const onlyLive = (id: string) => ({
+    ...ctx,
+    models: catalog.models.map((m) => (m.id !== id && m.kind === row(id).kind ? { ...m, status: "hidden" as const } : m)),
+  });
+  it("refuses taking the last live image or video model out of live", () => {
+    for (const id of [NANO_PRO, OMNI12]) {
+      for (const status of ["hidden", "draft", "retired"]) {
+        expect(checkModelPatch(raw(row(id)), { status }, onlyLive(id)), `${id} ${status}`).toEqual({ ok: false, error: LAST });
+      }
+    }
+  });
+  it("allows it when another model of that kind is live", () => {
+    expect(checkModelPatch(raw(row(NANO_PRO)), { status: "hidden" }, ctx).ok).toBe(true);
+    expect(checkModelPatch(raw(row(OMNI12)), { status: "hidden" }, ctx).ok).toBe(true);
+  });
+  it("leaves other kinds and other edits alone", () => {
+    expect(checkModelPatch(raw(row(NANO_PRO)), { label: "Pro" }, onlyLive(NANO_PRO)).ok).toBe(true);
+    const text = catalog.models.find((m) => m.kind === "text" && m.status === "live")!;
+    expect(checkModelPatch(raw(text), { status: "hidden" }, onlyLive(text.id)).ok).toBe(true);
+  });
+});
+
+describe("checkModelPatch: a row broken outside the editable fields", () => {
+  const MIGRATION = "This model's settings are broken and need a migration to fix.";
+  it("says a migration is needed when the patch can't fix the row", () => {
+    const broken = { ...raw(row(NANO_PRO)), params: "not a list" };
+    expect(checkModelPatch(broken, { label: "Pro" }, ctx)).toMatchObject({ ok: false, error: MIGRATION });
+  });
+  it("accepts a patch that fixes a broken editable field", () => {
+    const broken = { ...raw(row(NANO_PRO)), label: 42 };
+    expect(checkModelPatch(broken, { label: "Pro" }, ctx)).toEqual({ ok: true, fields: { label: "Pro" } });
+  });
+  it("keeps the generic error when a sound row would break", () => {
+    expect(checkModelPatch(raw(row(NANO_PRO)), { sort_order: "x" }, ctx)).toMatchObject({
+      ok: false, error: "These changes would break the model's settings.",
+    });
+  });
+});
+
+describe("checkModelPatch: names", () => {
+  const NAME = "A model needs a name.";
+  it("refuses a blank name or provider name", () => {
+    for (const patch of [{ label: "" }, { label: "   " }, { provider_label: "" }, { provider_label: " \t" }]) {
+      expect(checkModelPatch(raw(row(NANO_PRO)), patch, ctx)).toEqual({ ok: false, error: NAME });
+    }
+  });
+  it("trims the text fields it saves", () => {
+    const r = checkModelPatch(
+      raw(row(NANO_PRO)),
+      { label: "  Pro  ", provider_label: " Google ", picker_label: " P ", description: " d " },
+      ctx,
+    );
+    expect(r).toEqual({ ok: true, fields: { label: "Pro", provider_label: "Google", picker_label: "P", description: "d" } });
+  });
+});
+
+describe("checkModelPatch: a retired row whose replacement left live", () => {
+  // GPT1 is retired, so it is no longer a live replacement.
+  const stale = { ...raw(row(NANO_PRO)), status: "retired", replaced_by: GPT1 };
+  it("allows edits that leave status and replacement alone", () => {
+    expect(checkModelPatch(stale, { label: "Pro", sort_order: 4 }, ctx)).toEqual({ ok: true, fields: { label: "Pro", sort_order: 4 } });
+  });
+  it("re-checks the replacement when the patch names status or replacement", () => {
+    const err = { ok: false, error: "Pick a live model of the same kind as the replacement." };
+    expect(checkModelPatch(stale, { replaced_by: GPT1 }, ctx)).toEqual(err);
+    expect(checkModelPatch(stale, { status: "retired" }, ctx)).toEqual(err);
+    expect(checkModelPatch(stale, { replaced_by: SUNBURST }, ctx).ok).toBe(true);
+    expect(checkModelPatch(stale, { replaced_by: null }, ctx).ok).toBe(true);
+  });
+});
+
 describe("priceConditionProblems", () => {
   const params = row(OMNI12);
   it("passes conditions that name a param and one of its values", () => {

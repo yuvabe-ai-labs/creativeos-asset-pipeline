@@ -16,6 +16,7 @@ const raw = (m: AiModel) => ({
 const m = vi.hoisted(() => ({
   requireSuperAdmin: vi.fn(),
   getAdminModel: vi.fn(),
+  listAdminModels: vi.fn(),
   listAdminPrices: vi.fn(),
   updateAiModelRow: vi.fn(),
   insertAiModelPrice: vi.fn(),
@@ -28,6 +29,7 @@ const m = vi.hoisted(() => ({
 vi.mock("@/lib/auth/require-super-admin", () => ({ requireSuperAdmin: m.requireSuperAdmin }));
 vi.mock("@/lib/db/ai-models-admin", () => ({
   getAdminModel: m.getAdminModel,
+  listAdminModels: m.listAdminModels,
   listAdminPrices: m.listAdminPrices,
   updateAiModelRow: m.updateAiModelRow,
   insertAiModelPrice: m.insertAiModelPrice,
@@ -52,6 +54,7 @@ beforeEach(() => {
   m.requireSuperAdmin.mockImplementation(async () => { calls.push("auth"); return { userId: "u1" }; });
   m.getAdminModel.mockImplementation(async (id: string) => { calls.push("read"); return id === NANO_PRO ? { raw: raw(model), model, problems: [], updatedBy: null } : null; });
   m.listAdminPrices.mockResolvedValue([]);
+  m.listAdminModels.mockResolvedValue(catalog.models.map((x) => ({ raw: raw(x), model: x, problems: [], updatedBy: null })));
   m.getAiCatalog.mockResolvedValue(catalog);
   m.updateAiModelRow.mockResolvedValue(undefined);
   m.insertAiModelPrice.mockResolvedValue(undefined);
@@ -86,6 +89,27 @@ describe("updateAiModelAction", () => {
   it("checks the caller first", async () => {
     await updateAiModelAction(NANO_PRO, { label: "x" });
     expect(calls[0]).toBe("auth");
+  });
+  it("checks the replacement against a fresh read, not the cached catalog", async () => {
+    const SUNBURST = "openai:gpt-image-2.5-sunburst";
+    // Live in the cached catalog, hidden in the database now.
+    m.listAdminModels.mockResolvedValue(
+      catalog.models.map((x) => {
+        const fresh = x.id === SUNBURST ? { ...x, status: "hidden" as const } : x;
+        return { raw: raw(fresh), model: fresh, problems: [], updatedBy: null };
+      }),
+    );
+    const r = await updateAiModelAction(NANO_PRO, { status: "retired", replaced_by: SUNBURST });
+    expect(r).toEqual({ error: "Pick a live model of the same kind as the replacement." });
+    expect(m.updateAiModelRow).not.toHaveBeenCalled();
+  });
+  it("leaves out fresh rows that fail their check", async () => {
+    const SUNBURST = "openai:gpt-image-2.5-sunburst";
+    m.listAdminModels.mockResolvedValue(
+      catalog.models.map((x) => ({ raw: raw(x), model: x.id === SUNBURST ? null : x, problems: [], updatedBy: null })),
+    );
+    const r = await updateAiModelAction(NANO_PRO, { status: "retired", replaced_by: SUNBURST });
+    expect(r).toEqual({ error: "Pick a live model of the same kind as the replacement." });
   });
 });
 

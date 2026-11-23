@@ -7,6 +7,7 @@ import { RUNNABLE_ADAPTER_KEYS } from "@/lib/ai-models/runnable-keys";
 import { checkModelPatch, checkNewPrice, priceConditionProblems } from "@/lib/ai-models/model-edit";
 import {
   getAdminModel,
+  listAdminModels,
   listAdminPrices,
   updateAiModelRow,
   insertAiModelPrice,
@@ -37,10 +38,12 @@ export async function updateAiModelAction(
   const caller = await requireSuperAdmin();
   if (typeof id !== "string" || !isObject(patch)) return { error: BREAK_ERROR };
   try {
-    const [row, catalog] = await Promise.all([getAdminModel(id), getAiCatalog()]);
+    // The models come from a fresh read (a cached catalog may be up to a minute old); prices can
+    // stay cached, since no model check reads them yet.
+    const [row, catalog, fresh] = await Promise.all([getAdminModel(id), getAiCatalog(), listAdminModels()]);
     if (!row) return { error: SAVE_ERROR };
     const checked = checkModelPatch(row.raw, patch, {
-      models: catalog.models,
+      models: fresh.flatMap((r) => (r.model ? [r.model] : [])),
       prices: catalog.prices,
       runnableKeys: RUNNABLE_ADAPTER_KEYS,
     });

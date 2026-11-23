@@ -17,36 +17,60 @@ export type EditContext = { models: AiModel[]; prices: AiModelPrice[]; runnableK
 const BREAK_ERROR = "These changes would break the model's settings.";
 const REPLACEMENT_ERROR = "Pick a live model of the same kind as the replacement.";
 const NO_ADAPTER_ERROR = "This model can't go live: this build has no code to run it.";
+const LAST_LIVE_ERROR = "This is the last live model of its kind. Make another one live first.";
+const MIGRATION_ERROR = "This model's settings are broken and need a migration to fix.";
+const NAME_ERROR = "A model needs a name.";
+
+const TEXT_FIELDS = ["label", "picker_label", "provider_label", "description"];
+const NAME_FIELDS = ["label", "provider_label"];
 
 export function checkModelPatch(
   rawRow: Record<string, unknown>,
-  patch: Record<string, unknown>,
+  rawPatch: Record<string, unknown>,
   ctx: EditContext,
 ): { ok: true; fields: Record<string, unknown> } | { ok: false; error: string; log?: unknown } {
   const editable: readonly string[] = EDITABLE_MODEL_FIELDS;
-  const outside = Object.keys(patch).filter((k) => !editable.includes(k));
+  const outside = Object.keys(rawPatch).filter((k) => !editable.includes(k));
   if (outside.length > 0) return { ok: false, error: BREAK_ERROR, log: { notEditable: outside } };
 
+  const patch: Record<string, unknown> = { ...rawPatch };
+  for (const k of TEXT_FIELDS) {
+    if (typeof patch[k] === "string") patch[k] = (patch[k] as string).trim();
+  }
+  if (NAME_FIELDS.some((k) => patch[k] === "")) return { ok: false, error: NAME_ERROR };
+
   const merged: Record<string, unknown> = { ...rawRow, ...patch };
+  const isMedia = merged.kind === "image" || merged.kind === "video";
+  if (rawRow.status === "live" && merged.status !== "live" && isMedia) {
+    const another = ctx.models.some((m) => m.kind === merged.kind && m.status === "live" && m.id !== rawRow.id);
+    if (!another) return { ok: false, error: LAST_LIVE_ERROR };
+  }
+
   const fields: Record<string, unknown> = { ...patch };
+  // A replacement that has since left live stays until the admin touches status or replacement.
+  const touchesReplacement = "status" in patch || "replaced_by" in patch;
   if (merged.status !== "retired") {
     merged.replaced_by = null;
     // Only written when there is a stale replacement to clear, or the patch named one.
     if (rawRow.replaced_by !== null && rawRow.replaced_by !== undefined) fields.replaced_by = null;
     else if ("replaced_by" in patch) fields.replaced_by = null;
-  } else if (merged.replaced_by !== null && merged.replaced_by !== undefined) {
+  } else if (touchesReplacement && merged.replaced_by !== null && merged.replaced_by !== undefined) {
     const target = ctx.models.find((m) => m.id === merged.replaced_by);
     if (!target || target.kind !== merged.kind || target.status !== "live" || target.id === rawRow.id) {
       return { ok: false, error: REPLACEMENT_ERROR };
     }
   }
-  if (merged.status === "live" && (merged.kind === "image" || merged.kind === "video")) {
+  if (merged.status === "live" && isMedia) {
     if (typeof merged.adapter_key !== "string" || !ctx.runnableKeys.has(merged.adapter_key)) {
       return { ok: false, error: NO_ADAPTER_ERROR };
     }
   }
   const checked = checkAiModelRow(merged);
-  if (!checked.model) return { ok: false, error: BREAK_ERROR, log: checked.problems };
+  if (!checked.model) {
+    // A row already broken in a field this form can't change is fixed by a migration, not here.
+    const error = checkAiModelRow(rawRow).model ? BREAK_ERROR : MIGRATION_ERROR;
+    return { ok: false, error, log: checked.problems };
+  }
   return { ok: true, fields };
 }
 
