@@ -18,6 +18,7 @@ import { keepReviewedContentRules } from "@/lib/kb/content-rules";
 import { kbExtractPrompt } from "@/prompts/kb-extract";
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
+import { openAiCost, recordAfterResponse } from "@/lib/generations/record-for";
 
 const TEXT_EXTENSIONS = new Set(["md", "txt"]);
 const FILE_EXTENSIONS = new Set(["pdf", "docx", "pptx"]);
@@ -34,7 +35,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, async (clientId) => {
+  return withClient(req, params, async (clientId, client) => {
     return withTryCatch("Re-extraction failed", async () => {
       const docs = await listKBDocuments(clientId);
 
@@ -67,6 +68,8 @@ export async function POST(
         text: { format: zodTextFormat(DocExtractionSchema, "brand_kb") },
         temperature: 0.5,
       });
+      // D537 — paid once it answered, whatever the answer turns out to be.
+      recordAfterResponse(openAiCost({ orgId: client.org_id, clientId }, "kb", kbExtractPrompt.model, docResponse.usage, "responses"));
 
       const docKB = docResponse.output_parsed as DocExtractionResult | null;
       if (!docKB) return apiError("Model returned no parsed output.", 500);

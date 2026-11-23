@@ -6,6 +6,7 @@ import { buildUserContent } from "@/lib/nodes/compose-message";
 import { shotComposePrompt } from "@/prompts/shot-compose";
 import { insertVersion, listVersions } from "@/lib/db/versions";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
+import { openAiCost, recordAfterResponse } from "@/lib/generations/record-for";
 
 // GET /api/nodes/:id/compose — the latest compose run for this Shot, so the sheet can
 // rehydrate on canvas reload (D28: capture-only; this READS the captured row, no panel).
@@ -44,7 +45,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, _node, caller) => {
+  return withNode(req, params, async (nodeId, _node, caller, clientId, orgId) => {
     const body = (await req.json().catch(() => null)) as { role?: unknown; slices?: unknown } | null;
     const roleKey = typeof body?.role === "string" ? body.role : "";
 
@@ -78,6 +79,11 @@ export async function POST(
           { role: "user", content: userContent },
         ],
       });
+      // D537 — paid once it answered, whatever the answer turns out to be.
+      recordAfterResponse(openAiCost(
+        { orgId, clientId, userId: caller.userId, userEmail: caller.email, nodeId },
+        "compose", spec.model, completion.usage, "chat",
+      ));
       const content = completion.choices[0]?.message?.content ?? "{}";
       const parsed = JSON.parse(content) as { ideas?: ShotComposeIdea[] };
       const ideas = (Array.isArray(parsed.ideas) ? parsed.ideas : []).slice(0, 4);

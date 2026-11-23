@@ -1,6 +1,8 @@
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import { createOpenAI } from "@/lib/openai/server";
 import { buildCopilotContext } from "@/lib/copilot/context";
+import { copilotRecordFor } from "@/lib/copilot/record-for";
+import { openAiCost, recordAfterResponse } from "@/lib/generations/record-for";
 
 // Lesson 4 — CALL 2: a plain (non-streaming) STRUCTURED call. Given the answer the
 // copilot just streamed, it returns which canvas nodes that answer referenced, as
@@ -34,12 +36,13 @@ export async function POST(req: Request) {
   const canvasId = body?.canvasId;
   if (!canvasId) return apiError("A 'canvasId' is required.", 400);
 
-  const canvasContext = await buildCopilotContext(canvasId);
+  const [canvasContext, recordFor] = await Promise.all([buildCopilotContext(canvasId), copilotRecordFor(canvasId)]);
+  const model = "gpt-4o-mini";
 
   try {
     const openai = createOpenAI();
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model,
       response_format: {
         type: "json_schema",
         json_schema: { name: "copilot_refs", schema: refsSchema, strict: true },
@@ -59,6 +62,8 @@ export async function POST(req: Request) {
         },
       ],
     });
+    // D537 — paid once it answered, whatever the answer turns out to be.
+    recordAfterResponse(openAiCost(recordFor, "copilot", model, completion.usage, "chat"));
 
     const content = completion.choices[0]?.message?.content ?? '{"referencedNodes":[]}';
     const parsed = JSON.parse(content) as {

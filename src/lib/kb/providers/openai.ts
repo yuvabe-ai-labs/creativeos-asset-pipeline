@@ -2,6 +2,8 @@ import "server-only";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { createOpenAI } from "@/lib/openai/server";
+import { recordProviderCost } from "@/lib/generations/record-cost";
+import { openAiCost } from "@/lib/generations/record-for";
 import { listKBDocuments } from "@/lib/db/kb";
 import {
   TraceableBrandKBSchema,
@@ -22,7 +24,7 @@ type DocExtractionResult = z.infer<typeof DocExtractionSchema>;
 
 
 export const openaiKBProvider: KBAnalysisProvider = {
-  async extractKB({ clientId, docIds, researchMarkdown }) {
+  async extractKB({ clientId, docIds, researchMarkdown, recordFor }) {
     const allDocs = await listKBDocuments(clientId);
     const docs = allDocs.filter((d) => docIds.includes(d.id));
 
@@ -62,6 +64,9 @@ export const openaiKBProvider: KBAnalysisProvider = {
       text: { format: zodTextFormat(DocExtractionSchema, "brand_kb") },
       temperature: 0.5,
     });
+    // D537 — runs in the KB build task, so the record is awaited; it never throws.
+    const cost = openAiCost(recordFor, "kb", kbExtractPrompt.model, docResponse.usage, "responses");
+    if (cost) await recordProviderCost(cost);
 
     const docKB = docResponse.output_parsed as DocExtractionResult | null;
     if (!docKB) throw new Error("Model returned no parsed output.");
@@ -79,7 +84,7 @@ export const openaiKBProvider: KBAnalysisProvider = {
     };
   },
 
-  async researchWebsite(url) {
+  async researchWebsite(url, recordFor) {
     const openai = createOpenAI();
     const res = await openai.responses.create({
       model: websiteResearchPrompt.model,
@@ -89,6 +94,8 @@ export const openaiKBProvider: KBAnalysisProvider = {
       ],
       tools: [{ type: "web_search" }],
     });
+    const cost = openAiCost(recordFor, "kb", websiteResearchPrompt.model, res.usage, "responses");
+    if (cost) await recordProviderCost(cost);
     const md = res.output_text?.trim();
     if (!md) throw new Error(`Website research returned no content for ${url}`);
     return md;

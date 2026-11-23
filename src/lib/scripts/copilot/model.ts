@@ -5,7 +5,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { createOpenAI } from "@/lib/openai/server";
 import { createGemini } from "@/lib/gemini/server";
 import type { RecordOnlyType } from "@/lib/db/types";
-import { geminiCost, recordAfterResponse, type GeminiUsage, type RecordFor } from "@/lib/generations/record-for";
+import { geminiCost, openAiCost, recordAfterResponse, type GeminiUsage, type RecordFor } from "@/lib/generations/record-for";
 
 // One structured call over either provider already in the repo (D336): no new SDK. The model id
 // picks the provider. The result is validated against the same zod schema either way.
@@ -16,7 +16,7 @@ export type StructuredCall = <S extends z.ZodType>(args: { name: string; system:
 export type Recording = { recordFor?: undefined; recordType?: undefined } | { recordFor: RecordFor; recordType: RecordOnlyType };
 
 /** `thinking: "low"` asks a Gemini model to reason less, which is much faster; ignored for OpenAI.
- *  Each Gemini call's cost is recorded once, after the response (D537). */
+ *  Each call's cost, Gemini or OpenAI, is recorded once, after the response (D537). */
 export function structuredCaller(model: string, opts: { thinking?: "low" } & Recording = {}): StructuredCall {
   return async (args) => {
     if (model.startsWith("gemini-")) {
@@ -41,6 +41,7 @@ export function structuredCaller(model: string, opts: { thinking?: "low" } & Rec
       input: [{ role: "system", content: args.system }, { role: "user", content: args.user }],
       text: { format: zodTextFormat(args.schema, args.name) },
     });
+    if (opts.recordType) recordAfterResponse(openAiCost(opts.recordFor, opts.recordType, model, response.usage, "responses"));
     if (!response.output_parsed) throw new Error(`${model} returned no content`);
     return args.schema.parse(response.output_parsed);
   };

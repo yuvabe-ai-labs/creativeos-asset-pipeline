@@ -7,6 +7,7 @@ import { normalizeBeats } from "@/lib/nodes/normalize-beats";
 import { sceneFingerprint } from "@/lib/nodes/scene-beats";
 import type { SceneBeat } from "@/lib/nodes/reel-script";
 import { apiError, apiOk, withNode, withTryCatch } from "@/lib/api/route-helpers";
+import { openAiCost, recordAfterResponse } from "@/lib/generations/record-for";
 
 // POST /api/nodes/:id/split-scene — D286. Split ONE scene of a Script node into its suggested
 // cuts, when the operator turns multishot on for a scene edited since the parse. Stateless: the
@@ -15,7 +16,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId) => {
+  return withNode(req, params, async (nodeId, _node, caller, clientId, orgId) => {
     const body = (await req.json().catch(() => null)) as
       | { scene?: unknown; slices?: unknown }
       | null;
@@ -39,6 +40,11 @@ export async function POST(
           { role: "user", content: user },
         ],
       });
+      // D537 — paid once it answered, whatever the answer turns out to be.
+      recordAfterResponse(openAiCost(
+        { orgId, clientId, userId: caller.userId, userEmail: caller.email, nodeId },
+        "split_scene", sceneSplitPrompt.model, completion.usage, "chat",
+      ));
       const raw = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as {
         beats?: SceneBeat[];
       };

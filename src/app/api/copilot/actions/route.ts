@@ -1,6 +1,8 @@
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import { createOpenAI } from "@/lib/openai/server";
 import { buildCopilotContext } from "@/lib/copilot/context";
+import { copilotRecordFor } from "@/lib/copilot/record-for";
+import { openAiCost, recordAfterResponse } from "@/lib/generations/record-for";
 import { PLAYBOOKS, PLAYBOOK_NAMES } from "@/lib/copilot/playbooks";
 import { normalizeSlots } from "@/lib/copilot/runner";
 
@@ -211,7 +213,11 @@ export async function POST(req: Request) {
 
   // Same grounding as the other calls (handles + @-referenced nodes spotlighted) — so
   // "add a prompt like @PRM-A3F9" has the exact node in view.
-  const canvasContext = await buildCopilotContext(canvasId, body?.mentionedIds ?? []);
+  const [canvasContext, recordFor] = await Promise.all([
+    buildCopilotContext(canvasId, body?.mentionedIds ?? []),
+    copilotRecordFor(canvasId),
+  ]);
+  const model = "gpt-4o-mini";
 
   // Elicitation fallback (runner spec §2.2): the client couldn't resolve a slot answer
   // itself (no @-mention, not "none"), so the model extracts the handle from free text.
@@ -223,7 +229,7 @@ export async function POST(req: Request) {
   try {
     const openai = createOpenAI();
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model,
       tools,
       tool_choice: "auto", // the MODEL decides whether to call add_node
       messages: [
@@ -256,6 +262,9 @@ export async function POST(req: Request) {
         ...history,
       ],
     });
+
+    // D537 — paid once it answered, whether or not it asked for an action.
+    recordAfterResponse(openAiCost(recordFor, "copilot", model, completion.usage, "chat"));
 
     // The requested action lives in tool_calls, NOT in message.content. Arguments come
     // back as a JSON *string* the model wrote — parse it defensively.

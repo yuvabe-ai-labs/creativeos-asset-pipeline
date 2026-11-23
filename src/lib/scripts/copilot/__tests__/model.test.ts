@@ -148,3 +148,41 @@ describe("cost record", () => {
     expect(after).not.toHaveBeenCalled();
   });
 });
+
+// D537 — the OpenAI branch (the quick model, the avatar brief) records its cost the same way.
+describe("OpenAI cost record", () => {
+  const usage = { input_tokens: 1200, input_tokens_details: { cached_tokens: 200 }, output_tokens: 300, output_tokens_details: { reasoning_tokens: 50 }, total_tokens: 1500 };
+  const recordFor = { orgId: "org-1", clientId: "client-1", scriptId: "script-1" };
+  const meters = { input_token: 1000, cached_input_token: 200, text_output_token: 300 };
+  const runScheduled = async () => { for (const [task] of vi.mocked(after).mock.calls) await (typeof task === "function" ? task() : task); };
+
+  it.each(["script", "avatar_brief"] as const)("records one %s call after the response, with only OpenAI's usage as raw", async (recordType) => {
+    parse.mockResolvedValue({ output_parsed: { reply: "hi" }, output_text: "SECRET ANSWER", usage });
+    await structuredCaller("gpt-5.4-mini", { recordFor, recordType })(args);
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(typeof vi.mocked(after).mock.calls[0][0]).not.toBe("function");
+    await runScheduled();
+    expect(recordProviderCost).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(recordProviderCost).mock.calls[0][0]).toMatchObject({ ...recordFor, type: recordType, modelId: "openai:gpt-5.4-mini", meters });
+    expect(vi.mocked(recordProviderCost).mock.calls[0][0].raw).toStrictEqual(usage);
+  });
+
+  it("records a paid call whose answer was empty, and the streamed fallback once", async () => {
+    parse.mockResolvedValue({ output_parsed: null, usage });
+    await expect(structuredCaller("gpt-5.4-mini", { recordFor, recordType: "script" })(args)).rejects.toThrow("no content");
+    parse.mockResolvedValue({ output_parsed: { reply: "hi" }, usage });
+    await streamingCaller("gpt-5.4-mini", { recordFor, recordType: "script" })(args, () => {});
+    await runScheduled();
+    expect(recordProviderCost).toHaveBeenCalledTimes(2);
+  });
+
+  it("records nothing when OpenAI fails, reports no usage, or no one is named", async () => {
+    parse.mockRejectedValue(new Error("HTTP 503"));
+    await expect(structuredCaller("gpt-5.4-mini", { recordFor, recordType: "script" })(args)).rejects.toThrow("503");
+    parse.mockResolvedValue({ output_parsed: { reply: "hi" } });
+    await structuredCaller("gpt-5.4-mini", { recordFor, recordType: "script" })(args);
+    parse.mockResolvedValue({ output_parsed: { reply: "hi" }, usage });
+    await structuredCaller("gpt-5.4-mini")(args);
+    expect(after).not.toHaveBeenCalled();
+  });
+});

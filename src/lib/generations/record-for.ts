@@ -1,6 +1,6 @@
 import "server-only";
 import { after } from "next/server";
-import { geminiMeters } from "@/lib/ai-models/text-usage";
+import { geminiMeters, openAiChatMeters, openAiResponsesMeters } from "@/lib/ai-models/text-usage";
 import type { RecordOnlyType } from "@/lib/db/types";
 import { recordProviderCost, type RecordCostInput } from "./record-cost";
 
@@ -30,6 +30,33 @@ export function geminiCost(
 ): RecordCostInput | null {
   if (!recordFor || !usage) return null;
   return { ...recordFor, type, modelId: `gemini:${model}`, meters: geminiMeters(usage), raw: usage };
+}
+
+/** OpenAI's `usage` block, as the SDK returns it: Chat Completions, or the Responses API. */
+export type OpenAiChatUsage = Parameters<typeof openAiChatMeters>[0];
+export type OpenAiResponsesUsage = Parameters<typeof openAiResponsesMeters>[0];
+
+/** One OpenAI call's record, or null when no one is named or OpenAI reported no usage. */
+export function openAiCost(
+  recordFor: RecordFor | undefined, type: RecordOnlyType, model: string,
+  usage: OpenAiChatUsage | null | undefined, api: "chat",
+): RecordCostInput | null;
+export function openAiCost(
+  recordFor: RecordFor | undefined, type: RecordOnlyType, model: string,
+  usage: OpenAiResponsesUsage | null | undefined, api: "responses",
+): RecordCostInput | null;
+export function openAiCost(
+  recordFor: RecordFor | undefined,
+  type: RecordOnlyType,
+  model: string,
+  usage: OpenAiChatUsage | OpenAiResponsesUsage | null | undefined,
+  api: "chat" | "responses",
+): RecordCostInput | null {
+  if (!recordFor || !usage) return null;
+  const meters = api === "chat"
+    ? openAiChatMeters(usage as OpenAiChatUsage)
+    : openAiResponsesMeters(usage as OpenAiResponsesUsage);
+  return { ...recordFor, type, modelId: `openai:${model}`, meters, raw: usage };
 }
 
 /**

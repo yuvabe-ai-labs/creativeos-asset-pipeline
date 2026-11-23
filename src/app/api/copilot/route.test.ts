@@ -1,0 +1,64 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("server-only", () => ({}));
+vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: vi.fn() }));
+vi.mock("@/lib/copilot/context", () => ({ buildCopilotContext: vi.fn(async () => "CANVAS") }));
+vi.mock("@/lib/generations/record-cost", () => ({ recordProviderCost: vi.fn() }));
+// The canvas row the copilot already names: its org, client and script.
+const canvasRow = vi.fn();
+vi.mock("@/lib/supabase/server", () => ({
+  createServerSupabase: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: canvasRow }) }) }) }),
+}));
+const create = vi.fn();
+vi.mock("@/lib/openai/server", () => ({ createOpenAI: () => ({ chat: { completions: { create } } }) }));
+
+import { recordProviderCost } from "@/lib/generations/record-cost";
+
+// D537 — the canvas copilot records what each call cost us, once, as copilot.
+const usage = { prompt_tokens: 1200, completion_tokens: 300, total_tokens: 1500, prompt_tokens_details: { cached_tokens: 200 } };
+const expected = {
+  orgId: "org-1", clientId: "client-1", scriptId: "script-1",
+  type: "copilot", modelId: "openai:gpt-4o-mini",
+  meters: { input_token: 1000, cached_input_token: 200, text_output_token: 300 },
+};
+const body = { messages: [{ role: "user", content: "hi" }], canvasId: "canvas-1", message: "hi", reply: "ok" };
+const request = () => new Request("http://x", { method: "POST", body: JSON.stringify(body) });
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  canvasRow.mockResolvedValue({ data: { org_id: "org-1", client_id: "client-1", source_script_id: "script-1" }, error: null });
+});
+import { POST } from "./route";
+
+async function* chunks(withUsage: boolean) {
+  yield { choices: [{ delta: { content: "Hel" } }], usage: null };
+  yield { choices: [{ delta: { content: "lo" } }], usage: null };
+  if (withUsage) yield { choices: [], usage };
+}
+
+describe("POST /api/copilot cost record", () => {
+  it("asks for the stream's usage and records it once when the stream ends", async () => {
+    create.mockResolvedValue(chunks(true));
+    const res = await POST(request());
+    expect(await res.text()).toBe("Hello");
+    expect(create.mock.calls[0][0].stream_options).toEqual({ include_usage: true });
+    expect(recordProviderCost).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(recordProviderCost).mock.calls[0][0]).toMatchObject(expected);
+    expect(vi.mocked(recordProviderCost).mock.calls[0][0].raw).toStrictEqual(usage);
+  });
+
+  it("records nothing for a stream with no usage, or when OpenAI fails", async () => {
+    create.mockResolvedValueOnce(chunks(false));
+    await (await POST(request())).text();
+    create.mockRejectedValueOnce(new Error("rate limited"));
+    expect((await POST(request())).status).toBe(500);
+    expect(recordProviderCost).not.toHaveBeenCalled();
+  });
+
+  it("still answers when the canvas lookup fails, and records nothing", async () => {
+    canvasRow.mockRejectedValue(new Error("db down"));
+    create.mockResolvedValue(chunks(true));
+    expect(await (await POST(request())).text()).toBe("Hello");
+    expect(recordProviderCost).not.toHaveBeenCalled();
+  });
+});
