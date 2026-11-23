@@ -1,123 +1,81 @@
 # Image Gen — Model Management & Architecture Guide
 
-**Date:** 2026-06-18
-**Covers:** Registry architecture · Adding models · Pricing calculation · Future: credits · Future: job queue
+**Date:** 2026-06-18 (model sections rewritten 2026-11-23)
+**Covers:** Where model data lives · Adding models · Pricing calculation · Future: credits · Future: job queue
 
 ---
 
 ## 1. Overview
 
-The Image Gen system uses a two-layer registry pattern split between server and client code:
+An image or video model is a row in the `ai_models` table (decision D545). The row holds everything about the model that is data: its id, labels, status, sort order, params, rules, limits and capabilities, the `adapter_key` that names the code that calls its provider, and `provider_model_id`, the provider's own name for the model. Its price is a row in `ai_model_prices`.
 
-- **Server registry** (`src/lib/image-gen/registry.ts`) — imports provider modules that call the OpenAI and Gemini SDKs. Marked `"server-only"` transitively, so it cannot be imported into React components.
-- **Client mirror** (`src/lib/image-gen/client-models.ts`) — duplicates the Zod schemas and model metadata without the `generate()` functions or SDK imports. Used by the focus view for form validation and the model selector.
+Code holds only two things:
 
-Model IDs use a composite `provider:apiModelId` key convention (e.g. `"openai:gpt-image-1"`). This key is the shared identity across all layers: the registry lookup, the `node_versions.model_used` column, the pricing table, and the version history display.
+- **Adapters.** `imageAdapters` in `src/lib/image-gen/adapters.ts` and `videoAdapters` in `src/lib/video-gen/adapters.ts` map an `adapter_key` to a function that calls the provider. The function is given the request and the row's spec and `provider_model_id`. Adapters are server-only.
+- **Ids with behaviour written in code.** `src/lib/ai-models/model-ids.ts` names the models that code treats specially (multishot ladders, prompt templates, voice preview engines, edit models).
+
+Model ids use a `provider:name` key (for example `openai:gpt-image-2`). The id is the shared identity across the catalog, `node_versions.model_used`, the price table and the version history display. An id is never changed once a node has used it.
+
+The app reads rows through the catalog (`src/lib/ai-models/catalog.ts`), and `model-lists.ts` turns them into the lists the pickers and validators use. A model with no adapter for its `adapter_key` cannot run; a task whose model has no row or adapter ends without a retry. A `retired` model has no adapter and stays in the table so past versions still read it.
 
 ---
 
-## 2. Current Models
+## 2. Reading the Current Models
 
-| Model ID | Provider | Display Label | Max Ref Images | Key Params |
-|---|---|---|---|---|
-| `openai:gpt-image-2` | OpenAI | GPT Image 2 | 10 | size, quality, background, output_format, output_compression |
-| `openai:gpt-image-1` | OpenAI | GPT Image 1 | 10 | size, quality, background, output_format, output_compression |
-| `openai:gpt-image-1-mini` | OpenAI | GPT Image 1 Mini | 5 | size, quality, output_format, output_compression (no background/transparency) |
-| `gemini:gemini-3.1-flash-image-preview` | Gemini | Nano Banana 2 | 5 | aspect_ratio, image_size, output_mime_type, safety_filter_level, person_generation |
-| `gemini:gemini-3-pro-image-preview` | Gemini | Nano Banana Pro | 5 | aspect_ratio, image_size, output_mime_type, safety_filter_level, person_generation, thinking_level |
-
-Default model: `openai:gpt-image-2` (set in `registry.ts` as `DEFAULT_MODEL_ID` and mirrored in `client-models.ts` as `DEFAULT_CLIENT_MODEL_ID`).
+The current models are whatever the catalog holds. In tests, `seededModelCatalog()` (`src/lib/ai-models/test-catalog.ts`) returns the rows the migrations leave behind. In a database, `select id, kind, status, adapter_key, provider_model_id from ai_models where kind in ('image','video') order by kind, sort_order`.
 
 ---
 
 ## 3. How to Add a New Model
 
-### Adding a model to an existing provider (e.g. a new OpenAI model)
+### A model that uses an existing adapter (for example another OpenAI image model)
 
-**Step 1 — Add the Zod schema in `src/lib/image-gen/providers/openai.ts`**
+**Step 1 — Write a new migration** `supabase/migrations/NNNN_<name>.sql` that inserts the model's row. Never edit 0077 or 0084; both are frozen by hash.
 
-```typescript
-export const gptImageNewSchema = z.object({
-  size: z.enum(["1024x1024", "2048x2048"]).default("1024x1024"),
-  quality: z.enum(["standard", "hd"]).default("standard"),
-  // add any new params here
-});
-```
+The row's columns:
 
-**Step 2 — Add the model config to the `openaiModels` array**
+| Column | Value |
+|---|---|
+| `id` | `provider:name`, unique, permanent |
+| `provider` | `openai`, `gemini`, `kling`, ... |
+| `kind` | `image` or `video` |
+| `label`, `picker_label`, `provider_label` | shown in the picker; `picker_label` may be null |
+| `status` | `draft`, `live`, `hidden` or `retired` |
+| `replaced_by` | the id that takes over from a retired model, or null |
+| `sort_order` | position in the picker |
+| `adapter_key` | `image:<name>` or `video:<name>`, unique per model |
+| `provider_model_id` | the name the provider's API takes |
+| `params` | the param specs the form shows (JSON array) |
+| `rules` | video constraint rules (JSON array, `[]` for none) |
+| `capabilities` | image: reference limits, mask support, edge and ratio limits; video: duration and image inputs (JSON object) |
 
-```typescript
-export const openaiModels: ImageGenModelConfig[] = [
-  // ... existing models ...
-  {
-    id: "openai:gpt-image-new",       // composite key — must be unique
-    provider: "openai",
-    apiModelId: "gpt-image-new",      // string passed to the API
-    label: "GPT Image New",           // shown in UI selector
-    providerLabel: "OpenAI",
-    schema: gptImageNewSchema,
-    maxReferenceImages: 10,
-    maxReferenceSizeBytes: 50 * 1024 * 1024,
-    generate: (input) => generateWithOpenAI("gpt-image-new", input),
-  },
-];
-```
+`src/lib/ai-models/schema.ts` checks these on load and `src/lib/ai-models/types.ts` shows the shapes. Copy a similar model's row from `0077_ai_models_seed.sql` as the starting point. The migration uses `on conflict (id) do nothing`, as 0082 does.
 
-**Step 3 — Mirror the schema in `src/lib/image-gen/client-models.ts`**
+In the same migration, insert the model's `ai_model_prices` row: `model_id`, `effective_from`, `lines` (each a `meter` and a `unit_usd`), `estimate`, `source_url` and `note`. A model with no price row cannot run. See `docs/superpowers/specs/2026-11-21-model-catalog-design.md` for the shape and how prices are read.
 
-The client file keeps a duplicate of the Zod schema. No `generate()` function, no SDK imports.
+**Step 2 — Point `adapter_key` at the adapter.** If an adapter for this provider already fits, add the model's `adapter_key` to the map in `adapters.ts` using the same function (see how `openai` or `gemini` is shared). Each model has its own key, so a new model always adds one line there.
 
-```typescript
-// Duplicate schema (no server imports):
-const gptImageNewSchema = z.object({
-  size: z.enum(["1024x1024", "2048x2048"]).default("1024x1024"),
-  quality: z.enum(["standard", "hd"]).default("standard"),
-});
+**Step 3 — Code-written behaviour.** If code treats the model specially, add its id to `src/lib/ai-models/model-ids.ts` and use the constant where the behaviour is written.
 
-// Add to imageGenClientModels array:
-{
-  id: "openai:gpt-image-new",
-  provider: "openai",
-  label: "GPT Image New",
-  providerLabel: "OpenAI",
-  schema: gptImageNewSchema,
-  maxReferenceImages: 10,
-},
-```
+**Step 4 — Let the tests see the migration.** `test-catalog.ts` reads a fixed list of migration files (`INSERTS` and `UPDATES`) and `test-prices.ts` another (`MIGRATIONS`). Add the new file to the list that matches what it does.
 
-**Step 4 — Add a price row**
+### A vendor renames a model
 
-A model needs a row in the `ai_model_prices` table before anyone can run it. Today that is a new migration; an admin price screen will replace it later. The row's `model_id` must exactly match the model's `id`. See `docs/superpowers/specs/2026-11-21-model-catalog-design.md` for the row's shape and how prices are read.
+A dated vendor name change is only a migration that updates the row's `provider_model_id`. No adapter or other code changes. Update only the columns that change; leave `status`, `replaced_by` and `sort_order` to the admin.
 
-**Step 5 — Verify**
+### A new provider
 
-```bash
-npx tsc --noEmit
-```
-
-No other files need changes — the registry auto-discovers models from the provider arrays, and the API route resolves models via `imageGenRegistry[modelId]`.
-
----
-
-### Adding a new provider (e.g. Stability AI, FAL, etc.)
-
-**Step 1 — Create `src/lib/image-gen/providers/<name>.ts`**
+**Step 1 — Create `src/lib/image-gen/providers/<name>.ts`** (or under `video-gen/providers/`) with `import "server-only"`, and a function that takes the model name and the request and returns the result.
 
 ```typescript
-import "server-only";   // REQUIRED — prevents SDK from leaking to the browser
-import { z } from "zod";
-import type { ImageGenInput, ImageGenModelConfig, ImageGenResult } from "../types";
+import "server-only";   // REQUIRED — prevents the SDK from leaking to the browser
+import type { ImageGenInput, ImageGenResult } from "../types";
 
-export const stabilitySchema = z.object({
-  style: z.enum(["photographic", "digital-art"]).default("photographic"),
-  // ... provider-specific params
-});
-
-async function generateWithStability(
+export async function generateWithStability(
   apiModelId: string,
   input: ImageGenInput,
 ): Promise<ImageGenResult> {
-  // 1. Call the provider SDK or HTTP API
+  // 1. Call the provider SDK or HTTP API with apiModelId
   // 2. Return { imageBase64, mimeType, tokensUsed }
   //    - imageBase64: raw base64 string (NOT a data URL)
   //    - mimeType: "image/png" | "image/jpeg" | "image/webp"
@@ -129,59 +87,45 @@ async function generateWithStability(
     tokensUsed: {
       text_input_tokens: 0,
       image_input_tokens: 0,
-      image_output_tokens: 1000,  // whatever the API reports
+      image_output_tokens: 1000,
       total_tokens: 1000,
     },
   };
 }
-
-export const stabilityModels: ImageGenModelConfig[] = [
-  {
-    id: "stability:sd-ultra",
-    provider: "stability" as never,  // add "stability" to ImageProvider union in types.ts
-    apiModelId: "stable-diffusion-ultra",
-    label: "SD Ultra",
-    providerLabel: "Stability AI",
-    schema: stabilitySchema,
-    maxReferenceImages: 1,
-    maxReferenceSizeBytes: 10 * 1024 * 1024,
-    generate: (input) => generateWithStability("stable-diffusion-ultra", input),
-  },
-];
 ```
 
-**Step 2 — Add `"stability"` to the `ImageProvider` union in `src/lib/image-gen/types.ts`**
+**Step 2 — Add the adapter** to `imageAdapters` (or `videoAdapters`) under the model's `adapter_key`:
 
 ```typescript
-export type ImageProvider = "openai" | "gemini" | "stability";
+const stability: ImageAdapter = (input, { providerModelId }) => generateWithStability(providerModelId, input);
+
+export const imageAdapters = {
+  // ...
+  "image:stability-sd-ultra": stability,
+};
 ```
 
-**Step 3 — Register in `src/lib/image-gen/registry.ts`**
+**Step 3 — Add the migration** for the model's row and price, as above.
 
-```typescript
-import { stabilityModels } from "./providers/stability";
+**Step 4 — Add the env var** for the new API key (`.env.local`, Vercel and Trigger.dev) and a client factory following `src/lib/openai/server.ts` and `src/lib/gemini/server.ts`.
 
-const allModels = [...openaiModels, ...geminiModels, ...stabilityModels];
-
-export const imageGenModelGroups = [
-  { provider: "openai",     label: "OpenAI",       models: openaiModels },
-  { provider: "gemini",     label: "Gemini",        models: geminiModels },
-  { provider: "stability",  label: "Stability AI",  models: stabilityModels },
-];
-```
-
-**Step 4 — Mirror in `client-models.ts`** (same as adding a model, repeated for every model in the new provider)
-
-**Step 5 — Add a price row for each model** (an `ai_model_prices` row, as in Step 4 of adding a model)
-
-**Step 6 — Add env var for the new API key**
+### Checking it
 
 ```bash
-# .env.local
-STABILITY_API_KEY=sk-...
+npx vitest run src/lib/ai-models src/lib/image-gen src/lib/video-gen
+npx tsc --noEmit
 ```
 
-Create `src/lib/stability/server.ts` with a client factory following the same pattern as `src/lib/openai/server.ts` and `src/lib/gemini/server.ts`.
+- The seeded catalog tests (`src/lib/ai-models/__tests__/`) check every row against the catalog's schema.
+- `src/lib/image-gen/__tests__/adapters.test.ts` checks that the keys in `imageAdapters` are exactly the keys of the image rows that are not retired, each once. `src/lib/video-gen/__tests__/adapters.test.ts` does the same for video. A missing or extra key fails here.
+- Add the migration to `docs/auth-production-migration.md` in the same change, in the format of the 0082 and 0084 entries: what it does, when to apply it relative to the code deploy, whether it is safe to re-run, and verify SQL with the expected result, for example:
+
+```sql
+-- expect 1 row, status live, adapter_key matching the one in adapters.ts
+select id, status, adapter_key, provider_model_id from ai_models where id = 'provider:name';
+-- expect 1: the model has a price
+select count(*) from ai_model_prices where model_id = 'provider:name';
+```
 
 ---
 
@@ -328,7 +272,7 @@ export const inngest = new Inngest({ id: "creativeos" });
 `src/lib/inngest/image-generate.ts`
 ```typescript
 import { inngest } from "./client";
-import { imageGenRegistry } from "@/lib/image-gen/registry";
+import { imageAdapters } from "@/lib/image-gen/adapters";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 // ... storage upload helpers
 
@@ -336,10 +280,10 @@ export const imageGenerateJob = inngest.createFunction(
   { id: "image-generate", retries: 2 },
   { event: "image/generate.requested" },
   async ({ event, step }) => {
-    const { nodeId, modelId, params, prompt, referenceUrls } = event.data;
+    const { nodeId, modelId, adapterKey, spec, providerModelId, params, prompt, referenceUrls } = event.data;
 
     const result = await step.run("call-provider", () =>
-      imageGenRegistry[modelId].generate({ prompt, referenceUrls, params })
+      imageAdapters[adapterKey]({ prompt, referenceUrls, params }, { spec, providerModelId })
     );
 
     const imageUrl = await step.run("upload-to-storage", () =>
