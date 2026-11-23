@@ -15,7 +15,6 @@ export function toImageClientSpec(model: AiModel): ClientModelSpec {
     mediaType: "image",
     label: model.label,
     providerLabel: model.providerLabel,
-    ...(model.status === "retired" ? { deprecated: true } : {}),
     params: model.params,
     schema: buildZodFromParams(model.params),
   };
@@ -29,7 +28,6 @@ export function toVideoClientSpec(model: AiModel): VideoGenClientModelSpec {
     label: model.label,
     ...(model.pickerLabel ? { pickerLabel: model.pickerLabel } : {}),
     providerLabel: model.providerLabel,
-    ...(model.status === "retired" ? { deprecated: true } : {}),
     params: model.params,
     rules: model.rules,
   };

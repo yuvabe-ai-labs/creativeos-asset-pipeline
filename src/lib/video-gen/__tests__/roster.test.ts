@@ -6,7 +6,7 @@ import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 
 const videoModels = () => videoModelsFrom(seededModelCatalog());
 const ids = () => videoModels().all.map((m) => m.id);
-const isDeprecated = (id: string) => videoModels().get(id)?.deprecated === true;
+const isDeprecated = (id: string) => videoModels().status(id) === "retired";
 const videoGroups = () => videoModels().groups();
 
 describe("video model roster", () => {
@@ -59,7 +59,7 @@ describe("picker groups", () => {
 
   it("D461: offers no deprecated model, and drops the provider left with none", () => {
     const offered = videoGroups().flatMap((g) => g.models);
-    expect(offered.some((m) => m.deprecated)).toBe(false);
+    expect(offered.some((m) => videoModels().status(m.id) === "retired")).toBe(false);
     expect(videoGroups().find((g) => g.label === "Veo")).toBeUndefined();
   });
 });

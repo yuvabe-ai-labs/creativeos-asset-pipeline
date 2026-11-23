@@ -98,17 +98,14 @@ export type VideoGenModelSpec = {
   label: string;
   /** Short label for the compact model-picker chip; falls back to `label` when unset. */
   pickerLabel?: string;
-  /** D461 — not offered and can't generate; stays on the roster so its past versions still read. */
-  deprecated?: boolean;
   providerLabel: string;
   maxDurationSeconds: number;
   imageInputs: ImageInputCapabilities;
   params: ParamSpec[];
   rules?: ConstraintRule[];
-  generate: (input: VideoGenInput) => Promise<VideoGenResult>;
 };
 
-export type VideoGenClientModelSpec = Omit<VideoGenModelSpec, "generate">;
+export type VideoGenClientModelSpec = VideoGenModelSpec;
 
 /** D538 — what an adapter is given besides the request: the catalog's spec and the provider's
  *  own name for the model (the row's provider_model_id). */

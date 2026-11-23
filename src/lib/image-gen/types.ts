@@ -55,13 +55,12 @@ export type ParamSpec = {
   description?: string;
 };
 
-// Server-side model config (includes generate function + derived Zod schema)
+// A model's spec as the app reads it: the catalog row's data plus the Zod schema derived from its params.
 export type MediaGenModelSpec = {
   id:                          string;
   provider:                    string;
   mediaType:                   MediaType;
   label:                       string;
-  deprecated?:                 boolean;   // D467 — not offered, can't generate; past versions still read it
   providerLabel:               string;
   maxReferenceImages:          number;
   maxReferenceSizeBytes:       number;
@@ -72,11 +71,10 @@ export type MediaGenModelSpec = {
   supportsMask?:               boolean;   // model accepts an alpha edit-mask (OpenAI images.edit)
   params:                      ParamSpec[];
   schema:                      ZodTypeAny;
-  generate:                    (input: ImageGenInput) => Promise<ImageGenResult>;
 };
 
-// Client-safe subset (no generate function)
-export type ClientModelSpec = Omit<MediaGenModelSpec, "generate">;
+// Client-safe alias; the spec carries no server-only members.
+export type ClientModelSpec = MediaGenModelSpec;
 
 /** D538 — what an adapter is given besides the request: the catalog's spec and the provider's
  *  own name for the model (the row's provider_model_id). */

@@ -58,7 +58,7 @@ describe("deprecated image models (D467)", () => {
   const SUNBURST = "openai:gpt-image-2.5-sunburst";
 
   it("deprecates GPT Image 1 only, and leaves Mini on offer", () => {
-    expect(images().all.filter((m) => m.deprecated).map((m) => m.id)).toEqual(["openai:gpt-image-1"]);
+    expect(images().all.filter((m) => images().status(m.id) === "retired").map((m) => m.id)).toEqual(["openai:gpt-image-1"]);
     const offered = images().groups().flatMap((g) => g.models.map((m) => m.id));
     expect(offered).not.toContain("openai:gpt-image-1");
     expect(offered).toContain("openai:gpt-image-1-mini");
@@ -66,7 +66,6 @@ describe("deprecated image models (D467)", () => {
 
   it("falls back to a model that is on offer", () => {
     expect(images().replacedBy("openai:gpt-image-1")).toBe(SUNBURST);
-    expect(images().get(SUNBURST)!.deprecated).not.toBe(true);
-    expect(images().status(SUNBURST)).toBe("live");
+        expect(images().status(SUNBURST)).toBe("live");
   });
 });
