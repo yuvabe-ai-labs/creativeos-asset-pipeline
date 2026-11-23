@@ -1,8 +1,10 @@
 import { getImageGenUpstream } from "@/lib/avatars/presenter-server";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 import { getVersionById } from "@/lib/db/versions";
-import { imageGenRegistry, DEFAULT_MODEL_ID } from "@/lib/image-gen/registry";
-import { isImageModelDeprecated, IMAGE_MODEL_DEPRECATED_MESSAGE } from "@/lib/image-gen/client-models";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { nodeModelId } from "@/lib/ai-models/runnable";
+import { imageRun } from "@/lib/image-gen/image-run";
+import { DEFAULT_CLIENT_MODEL_ID } from "@/lib/image-gen/client-models";
 import {
   buildEditPrompt,
   assembleEditReferences,
@@ -28,7 +30,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, async (nodeId, node, caller, clientId, effectiveOrgId) => {
     const body = (await req.json().catch(() => null)) as
       | {
           modelId?: unknown;
@@ -45,11 +47,13 @@ export async function POST(
         }
       | null;
 
-    const modelId = typeof body?.modelId === "string" ? body.modelId : DEFAULT_MODEL_ID;
-    const config = imageGenRegistry[modelId];
-    // D467 — a tab open from before the fallback can still send a deprecated model.
-    if (isImageModelDeprecated(modelId)) return apiError(IMAGE_MODEL_DEPRECATED_MESSAGE, 400);
-    if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
+    const modelId = typeof body?.modelId === "string" ? body.modelId : DEFAULT_CLIENT_MODEL_ID;
+    // D540 — the catalog decides whether this model runs here and supplies its params, limits and
+    // schema. Read beside the upstream nodes, which don't depend on it.
+    const [catalog, upstream] = await Promise.all([getAiCatalog(), getImageGenUpstream(nodeId)]);
+    const run = imageRun(catalog, modelId, { existingNodeModelId: nodeModelId(node.data) });
+    if (!run.ok) return apiError(run.message, 400);
+    const config = run.spec;
 
     // Validate params with the model's Zod schema
     const parseResult = config.schema.safeParse(body?.params ?? {});
@@ -60,7 +64,6 @@ export async function POST(
 
     // Resolve upstream nodes. D436 — an Avatar wired straight in is its images. D440 — and what is
     // wired into the Prompt reaches this still too (its images, avatars and the presenter's face).
-    const upstream = await getImageGenUpstream(nodeId);
 
     // All connected image URLs (File images, Draw sketches, Image Gen and Composite outputs).
     const connectedImageUrls = upstream

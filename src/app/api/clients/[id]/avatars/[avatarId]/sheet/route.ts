@@ -12,7 +12,8 @@ import { cutSheetIntoViews } from "@/lib/avatars/sheet-cut";
 import { withStatus } from "@/lib/avatars/utils";
 import { AVATAR_SHEET_ASPECT, AVATAR_VIEWS, AVATAR_VIEW_LABELS } from "@/lib/avatars/constants";
 import type { AvatarImage, AvatarViewId } from "@/lib/avatars/schema";
-import { imageGenClientModelMap, isImageModelDeprecated, IMAGE_MODEL_DEPRECATED_MESSAGE } from "@/lib/image-gen/client-models";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { imageRun } from "@/lib/image-gen/image-run";
 import { preconditionFailed } from "@/lib/avatars/route-responses";
 import { buildAvatarSheetPrompt } from "@/prompts/avatar-character";
 
@@ -38,11 +39,10 @@ export async function POST(
     withTryCatch("Could not generate the profile sheet.", async () => {
       const parsed = SheetSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Choose a model.", 400);
-      if (!imageGenClientModelMap[parsed.data.modelId]) return apiError("Unknown model.", 400);
-      // D467 — a tab open from before the model went can still send it.
-      if (isImageModelDeprecated(parsed.data.modelId)) return apiError(IMAGE_MODEL_DEPRECATED_MESSAGE, 400);
-
-      const current = await getAvatar(clientId, avatarId);
+      // D540 — an avatar has no node, so a hidden model is refused here like a retired one.
+      const [catalog, current] = await Promise.all([getAiCatalog(), getAvatar(clientId, avatarId)]);
+      const run = imageRun(catalog, parsed.data.modelId);
+      if (!run.ok) return apiError(run.message, 400);
       if (!current || current.archivedAt) return apiError("Avatar not found.", 404);
       if (!current.front) return apiError("Add a front image before generating the profile sheet.", 400);
       const frontUrl = current.front.url;

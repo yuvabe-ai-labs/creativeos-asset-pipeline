@@ -1,6 +1,8 @@
 import "server-only";
 import sharp from "sharp";
-import { imageGenRegistry } from "@/lib/image-gen/registry";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { MODEL_UNAVAILABLE_MESSAGE } from "@/lib/ai-models/runnable";
+import { imageRun } from "@/lib/image-gen/image-run";
 import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { imageChargeUsd } from "@/lib/ai-models/image-price";
 import { usdToFinalCredits } from "@/lib/credits/units";
@@ -36,10 +38,12 @@ export type BilledImageArgs = {
 export async function runBilledImageGeneration(
   args: BilledImageArgs,
 ): Promise<{ generation: GenerationRow; creditsCharged: number }> {
-  const config = imageGenRegistry[args.modelId];
+  // D540 — the same check every route makes; an avatar or panel has no node, so hidden is refused.
+  const run = imageRun(await getAiCatalog(), args.modelId);
+  if (!run.ok) throw new Error(run.message);
   const params = avatarImageParams(args.modelId, args.aspect);
-  if (!config || !params) throw new Error(`Unknown model: ${args.modelId}`);
-  const parsed = config.schema.safeParse(params);
+  if (!params) throw new Error(MODEL_UNAVAILABLE_MESSAGE);
+  const parsed = run.spec.schema.safeParse(params);
   if (!parsed.success) throw new Error(`Invalid params for ${args.modelId}.`);
   const validatedParams = parsed.data as Record<string, unknown>;
 
@@ -69,7 +73,7 @@ export async function runBilledImageGeneration(
     const reservation = await reserveCredits(args.orgId, generation.id, reservedCredits);
     if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
 
-    const result = await config.generate({
+    const result = await run.generate({
       prompt: args.prompt, referenceUrls: args.referenceUrls, params: validatedParams,
     });
 

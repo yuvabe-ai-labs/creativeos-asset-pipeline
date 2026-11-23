@@ -4,13 +4,12 @@ vi.mock("server-only", () => ({}));
 const generate = vi.fn();
 // "seed" = the model's seeded row; "none" = no row; an object = that row.
 const priceState = vi.hoisted(() => ({ mode: "seed" as "seed" | "none" | Record<string, unknown> }));
-vi.mock("@/lib/image-gen/registry", () => ({
-  imageGenRegistry: {
-    "gemini:gemini-3.1-flash-image": {
-      schema: { safeParse: (p: unknown) => ({ success: true, data: p }) },
-      generate: (...a: unknown[]) => generate(...a),
-    },
-  },
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: async () => seededModelCatalog() };
+});
+vi.mock("@/lib/image-gen/adapters", () => ({
+  imageAdapters: { "image:gemini-3.1-flash-image": (...a: unknown[]) => generate(...a) },
 }));
 vi.mock("@/lib/db/generations", () => ({ insertGeneration: vi.fn(), succeedGeneration: vi.fn(), failGeneration: vi.fn() }));
 vi.mock("@/lib/db/credit-transactions", () => {
@@ -63,6 +62,22 @@ describe("runBilledImageGeneration", () => {
     expect(store.mock.calls[0][1]).toBe("image/png");
     expect(out.generation).toMatchObject({ status: "succeeded", output_snapshot: "https://storage.googleapis.com/b/panel.png" });
     expect(out.generation.meta).toMatchObject({ width: 768, height: 1365 });
+  });
+
+  it("refuses a retired model before recording or reserving anything (D540)", async () => {
+    await expect(runBilledImageGeneration({ ...args(), modelId: "openai:gpt-image-1" })).rejects.toThrow(
+      "This model was retired. Pick another.",
+    );
+    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it("hands the adapter the catalog's spec and the row's model name", async () => {
+    await runBilledImageGeneration(args());
+    expect(generate.mock.calls[0][1]).toMatchObject({
+      providerModelId: "gemini-3.1-flash-image",
+      spec: { id: "gemini:gemini-3.1-flash-image", label: "Nano Banana 2" },
+    });
   });
 
   it("refuses a model with no price before recording or reserving anything", async () => {

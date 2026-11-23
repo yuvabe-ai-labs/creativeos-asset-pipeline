@@ -9,7 +9,8 @@ import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { runAvatarGeneration } from "@/lib/avatars/generate";
 import { buildAvatarFrontPrompt } from "@/lib/avatars/generation";
 import { generationToCandidate } from "@/lib/avatars/rows";
-import { imageGenClientModelMap, isImageModelDeprecated, IMAGE_MODEL_DEPRECATED_MESSAGE } from "@/lib/image-gen/client-models";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { imageRun } from "@/lib/image-gen/image-run";
 import {
   AVATAR_DESCRIPTION_MAX, AVATAR_FRONT_ASPECT, AVATAR_STYLES,
 } from "@/lib/avatars/constants";
@@ -68,16 +69,15 @@ export async function POST(req: Request, { params }: Ctx) {
       const parsed = GenerateSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Describe the character and choose a style and model.", 400);
       const { description, attributes, styleId, modelId, batchId, relatives = [] } = parsed.data;
-      if (!imageGenClientModelMap[modelId]) return apiError("Unknown model.", 400);
-      // D467 — a tab open from before the model went can still send it.
-      if (isImageModelDeprecated(modelId)) return apiError(IMAGE_MODEL_DEPRECATED_MESSAGE, 400);
-
-      // Every relative is read as this client's own avatar (an id from another client is a 404),
-      // in parallel with this one; a relative with no face yet is left out.
-      const [avatar, ...kin] = await Promise.all([
-        getAvatar(clientId, avatarId),
-        ...relatives.map((r) => getAvatar(clientId, r.avatarId)),
+      // D540 — the catalog decides whether this model runs (an avatar has no node, so hidden is
+      // refused). Every relative is read as this client's own avatar (an id from another client is
+      // a 404), all in parallel with the catalog; a relative with no face yet is left out.
+      const [catalog, [avatar, ...kin]] = await Promise.all([
+        getAiCatalog(),
+        Promise.all([getAvatar(clientId, avatarId), ...relatives.map((r) => getAvatar(clientId, r.avatarId))]),
       ]);
+      const run = imageRun(catalog, modelId);
+      if (!run.ok) return apiError(run.message, 400);
       if (!avatar || avatar.archivedAt) return apiError("Avatar not found.", 404);
       if (kin.some((k) => !k)) return apiError("Avatar not found.", 404);
       const family = relatives
