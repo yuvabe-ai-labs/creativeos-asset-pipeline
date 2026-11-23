@@ -12,7 +12,9 @@ import {
   singleTakeRefDialect,
   singleTakeTargetForProvider,
 } from "@/lib/nodes/ref-binding";
-import { videoGenClientModelMap, usableVideoModelId } from "@/lib/video-gen/client-models";
+import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { usableModelId } from "@/lib/ai-models/runnable";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 import { collectConnectedUpstream } from "@/lib/video-gen/connected-images";
 
@@ -22,7 +24,11 @@ export async function GET(
 ) {
   return withNode(req, params, async (nodeId, node) => {
     try {
-      const { direct, promptNodes, promptUpstreamBatches, images } = await collectConnectedUpstream(nodeId, node.type);
+      // The catalog read doesn't depend on the graph: side by side.
+      const [{ direct, promptNodes, promptUpstreamBatches, images }, catalog] = await Promise.all([
+        collectConnectedUpstream(nodeId, node.type),
+        getAiCatalog(),
+      ]);
 
       // Surface the connected prompt node so the focus view can display its motion prompt text —
       // a video-prompt node's string output directly, or a multishot-prompt node's MultishotPlan
@@ -46,12 +52,13 @@ export async function GET(
       if (connectedPromptNode?.type === "video-prompt") {
         const stored =
           typeof connectedPromptNode.activeOutput === "string" ? connectedPromptNode.activeOutput : null;
-        // D461 — the stored row can still name a deprecated model the canvas has moved off.
-        const modelId = usableVideoModelId(
-          typeof node.data?.modelId === "string" ? node.data.modelId : "",
-        );
+        // D540 — the stored row can still name a model that may no longer run on it.
+        const modelId = usableModelId(catalog, typeof node.data?.modelId === "string" ? node.data.modelId : "", {
+          kind: "video",
+          fallbackId: DEFAULT_VIDEO_CLIENT_MODEL_ID,
+        });
         const dialect = singleTakeRefDialect(
-          singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider),
+          singleTakeTargetForProvider(catalog.models.find((m) => m.id === modelId)?.provider),
           refIds,
         );
         promptText = stored !== null && dialect ? renderRefs(stored, dialect).text : stored;

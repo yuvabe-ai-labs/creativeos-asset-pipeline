@@ -6,6 +6,15 @@ import { seededPrice } from "@/lib/ai-models/test-prices";
 import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID, GEMINI_OMNI_11_MODEL_ID } from "@/lib/video-gen/client-models";
 
 vi.mock("server-only", () => ({}));
+const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
+});
+vi.mock("@/lib/video-gen/adapters", async () => {
+  const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
+  return { videoAdapters: stubAdapters("video", async () => { throw new Error("a route never generates"); }) };
+});
 vi.mock("@/lib/ai-models/run-price", async () => {
   const { seededPrice } = await import("@/lib/ai-models/test-prices");
   return {
@@ -145,21 +154,33 @@ const ILLEGAL_KLING_CUTS: MultishotCut[] = [
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.graph = {};
+  cat.value = null;
 });
 
-describe("POST video-generate — deprecated models (D461)", () => {
+describe("POST video-generate — retired models (D540)", () => {
   it.each(["veo:veo-3.1-lite", "veo:veo-3.1-fast", "veo:veo-3.1"])(
     "refuses %s before any generation is recorded",
     async (modelId) => {
       const res = await post({ modelId, params: {}, imageRoles: {} });
 
       expect(res.status).toBe(400);
-      expect((await res.json()).error).toBe("This model is deprecated");
+      expect((await res.json()).error).toBe("This model was retired. Pick another.");
       expect(mocks.insertGeneration).not.toHaveBeenCalled();
       expect(mocks.reserveCredits).not.toHaveBeenCalled();
       expect(mocks.triggerTask).not.toHaveBeenCalled();
     },
   );
+
+  it("refuses a model with no adapter in this build without naming it", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withModel(seededModelCatalog(), KLING_OMNI_MODEL_ID, { adapterKey: "video:not-in-this-build" });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: {} });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This model isn't available. Pick another.");
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
 });
 
 describe("POST video-generate — multishot server backstop (D236, D97)", () => {

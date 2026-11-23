@@ -6,6 +6,9 @@ import { getVersionById } from "@/lib/db/versions";
 import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db/generations";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { nodeModelId } from "@/lib/ai-models/runnable";
+import { videoRun } from "@/lib/video-gen/video-run";
 import { isOwnStoredUrl } from "@/lib/storage";
 import { durationOfParams } from "@/lib/voice-change/record";
 import { collectConnectedUpstream } from "@/lib/video-gen/connected-images";
@@ -50,13 +53,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!process.env.GOOGLE_GENAI_API_KEY) return apiError("Video editing isn't set up yet.", 400);
 
       // D390 — an edit makes a new take: refused while the clip is in the Editor's reel.
-      const [locked, base, running, connected] = await Promise.all([
+      const [locked, base, running, connected, catalog] = await Promise.all([
         editorLockResponse(nodeId),
         getVersionById(baseVersionId),
         hasRunningGeneration(nodeId),
         collectConnectedUpstream(nodeId, node.type),
+        getAiCatalog(),
       ]);
       if (locked) return locked;
+      // D540 — the edit model goes through the same check as a generation.
+      const run = videoRun(catalog, modelId, { existingNodeModelId: nodeModelId(node.data) });
+      if (!run.ok) return apiError(run.message, 400);
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
       if (!base || base.node_id !== nodeId) return apiError("That version isn't on this node.", 400);
       if (base.error || typeof base.output !== "string" || !isOwnStoredUrl(base.output)) {

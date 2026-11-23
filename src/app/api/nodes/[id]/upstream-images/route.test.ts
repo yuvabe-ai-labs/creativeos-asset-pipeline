@@ -2,6 +2,11 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
+const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
+});
 
 vi.mock("@/lib/dal", () => ({
   resolveCallerContext: vi.fn(async () => ({
@@ -101,7 +106,10 @@ describe("GET /api/nodes/[id]/upstream-images", () => {
   beforeAll(async () => {
     await import("./route");
   }, 60_000);
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cat.value = null;
+  });
 
   function makeRequest() {
     return new NextRequest("http://localhost/api/nodes/vg/upstream-images");

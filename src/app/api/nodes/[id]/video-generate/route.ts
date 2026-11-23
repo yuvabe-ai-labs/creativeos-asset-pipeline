@@ -8,15 +8,10 @@ import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { videoEstimateUsd } from "@/lib/ai-models/video-price";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
-import { videoGenRegistry, DEFAULT_VIDEO_MODEL_ID } from "@/lib/video-gen/registry";
-// Constraint rules live in client-models.ts, which is the single source of truth for them —
-// the server registry carries only what generation needs. Importing it here is safe: that
-// module has no `server-only` dependency, it is plain param specs and rule data.
-import {
-  videoGenClientModelMap,
-  isVideoModelDeprecated,
-  VIDEO_MODEL_DEPRECATED_MESSAGE,
-} from "@/lib/video-gen/client-models";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { nodeModelId } from "@/lib/ai-models/runnable";
+import { videoRun } from "@/lib/video-gen/video-run";
+import { DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import { areFramesAndRefsExclusive, validateAgainstRules } from "@/lib/video-gen/constraints";
 import {
   assignImageRoles,
@@ -62,7 +57,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, async (nodeId, node, caller, clientId, effectiveOrgId) => {
     const raw = await req.json().catch(() => null);
     const parsed = GenerateBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -70,15 +65,16 @@ export async function POST(
     }
     const body = parsed.data;
 
-    // D390 — a clip in the Editor's reel can't regenerate.
-    const locked = await editorLockResponse(nodeId);
+    // D390 — a clip in the Editor's reel can't regenerate. The catalog read doesn't depend on it.
+    const [locked, catalog] = await Promise.all([editorLockResponse(nodeId), getAiCatalog()]);
     if (locked) return locked;
 
-    const modelId = body.modelId ?? DEFAULT_VIDEO_MODEL_ID;
-    const config = videoGenRegistry[modelId];
-    // D461 — a tab open from before the fallback can still send a deprecated model.
-    if (isVideoModelDeprecated(modelId)) return apiError(VIDEO_MODEL_DEPRECATED_MESSAGE, 400);
-    if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
+    const modelId = body.modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID;
+    // D540 — live runs; hidden only on the node that already uses it; anything else is refused.
+    // The spec (params, rules, image inputs, label, provider) is the catalog row's.
+    const run = videoRun(catalog, modelId, { existingNodeModelId: nodeModelId(node.data) });
+    if (!run.ok) return apiError(run.message, 400);
+    const config = run.spec;
 
     // Build params using model's param specs (defaults where not provided)
     const bodyParams = body.params ?? {};
@@ -107,7 +103,7 @@ export async function POST(
     const resolved = await resolveVideoGenPrompt(
       upstream,
       getPromptUpstream,
-      singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider),
+      singleTakeTargetForProvider(config.provider),
     );
     if (!resolved.ok) return apiError(resolved.reason, 400);
     // BUG-010 — a citation whose image is gone would ship as plain text where a token belongs.
@@ -262,8 +258,8 @@ export async function POST(
     // D308 — exactly which references go, chosen in the open: the operator's references first,
     // then the avatar's front, cited images, the avatar's sheet and the rest, within the model's
     // cap. Never a silent cut: references selected beyond the cap are refused (D97).
-    const modelLabel = videoGenClientModelMap[modelId]?.label ?? modelId;
-    const singleTake = singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider);
+    const modelLabel = config.label;
+    const singleTake = singleTakeTargetForProvider(config.provider);
     const avatarFrontId = promptUpstream.find((u) => u.data.presenter === true)?.nodeId ?? null;
     const avatarSheet = promptUpstream.find((u) => u.data.presenter === "sheet")?.nodeId ?? null;
     const assetIds = scriptAssetIds(allUpstream);
@@ -284,7 +280,7 @@ export async function POST(
       assetMainIds: new Set(assetIds.main),
       assetAngleIds: new Set(assetIds.angles),
       storyboardIds: new Set(assetIds.storyboard),
-      framesExcludeReferences: areFramesAndRefsExclusive(videoGenClientModelMap[modelId]?.rules),
+      framesExcludeReferences: areFramesAndRefsExclusive(config.rules),
       unusable: config.provider === "seedance"
         ? sheetsUnusable(orderedImages.map((img) => img.nodeId), "Seedance can't use the profile sheet")
         : undefined,
@@ -326,7 +322,7 @@ export async function POST(
     // counting references that actually resolved to URLs and survived the model's limit, not
     // roles that were merely assigned. Placed before insertGeneration and reserveCredits so a
     // rejected request neither records a generation nor touches the org's credit balance.
-    const violation = validateAgainstRules(videoGenClientModelMap[modelId]?.rules, {
+    const violation = validateAgainstRules(config.rules, {
       params: resolvedParams,
       hasStartFrame: Boolean(startFrameUrl),
       hasEndFrame: Boolean(endFrameUrl),

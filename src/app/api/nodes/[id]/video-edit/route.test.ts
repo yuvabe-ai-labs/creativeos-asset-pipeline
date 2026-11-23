@@ -5,6 +5,15 @@ import { GEMINI_OMNI_12_IMAGE_INPUTS } from "@/lib/video-gen/gemini-omni-shape";
 import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/video-gen/client-models";
 
 vi.mock("server-only", () => ({}));
+const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
+});
+vi.mock("@/lib/video-gen/adapters", async () => {
+  const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
+  return { videoAdapters: stubAdapters("video", async () => { throw new Error("a route never generates"); }) };
+});
 vi.mock("@/lib/ai-models/run-price", async () => {
   const { seededPrice } = await import("@/lib/ai-models/test-prices");
   return {
@@ -50,6 +59,7 @@ const post = (body: unknown) => POST(new Request("http://x/api/nodes/n1/video-ed
 beforeEach(() => {
   vi.clearAllMocks();
   editorLock.value = null;
+  cat.value = null;
   mocks.node = { type: "video-gen", canvas_id: "c1" };
   process.env.GOOGLE_GENAI_API_KEY = "k";
   mocks.getVersionById.mockResolvedValue(BASE);
@@ -57,6 +67,16 @@ beforeEach(() => {
 });
 
 describe("POST /api/nodes/[id]/video-edit", () => {
+  it("refuses a retired edit model before anything is recorded (D540)", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withModel(seededModelCatalog(), GEMINI_OMNI_11_MODEL_ID, { status: "retired", replacedBy: GEMINI_OMNI_12_MODEL_ID });
+    const res = await post({ ...BODY, modelId: GEMINI_OMNI_11_MODEL_ID });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This model was retired. Pick another.");
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.trigger).not.toHaveBeenCalled();
+  });
+
   it("refuses a model with no price before anything is recorded (D534)", async () => {
     const { priceForNewRun } = await import("@/lib/ai-models/run-price");
     vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
