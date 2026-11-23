@@ -117,17 +117,30 @@ export function modelPickerLabel(spec: { label: string; providerLabel: string; p
 }
 
 /**
+ * D544 — what a retired model moves to: the replacement the catalog names while it is live, else
+ * `fallbackId`. The one rule for the browser (withoutRetiredModel) and the server (usableModelId).
+ */
+export function replacementFor(
+  list: Pick<ModelList<Spec>, "status" | "replacedBy">,
+  retiredId: string,
+  fallbackId: string,
+): string {
+  const replacement = list.replacedBy(retiredId);
+  return replacement && list.status(replacement) === "live" ? replacement : fallbackId;
+}
+
+/**
  * D544 — a node saved on a retired model opens on its replacement (when that is live) or the
- * default, with that model's defaults, and keeps the old id in `retiredModelId` so its focus view
- * can say so. Any other data comes back as the same object, so nothing re-renders or saves.
+ * fallback (the default unless given; a composite passes its own), with that model's defaults,
+ * and keeps the old id in `retiredModelId` so its focus view can say so. Any other data comes
+ * back as the same object, so nothing re-renders or saves.
  */
 export function withoutRetiredModel<
   S extends Spec,
   T extends { modelId?: string; params?: Record<string, unknown>; retiredModelId?: string },
->(list: ModelList<S>, data: T): T {
+>(list: ModelList<S>, data: T, fallbackId: string = list.defaultId): T {
   if (!data.modelId || list.status(data.modelId) !== "retired") return data;
-  const replacement = list.replacedBy(data.modelId);
-  const next = replacement && list.status(replacement) === "live" ? replacement : list.defaultId;
+  const next = replacementFor(list, data.modelId, fallbackId);
   return {
     ...data,
     modelId: next,

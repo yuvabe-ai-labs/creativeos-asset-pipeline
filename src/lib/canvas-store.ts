@@ -238,9 +238,11 @@ export function createCanvasStore(
     const next =
       n.type === "video-gen"
         ? withoutRetiredModel(models.videos, n.data)
-        : n.type === "image-gen" || n.type === "composite"
+        : n.type === "image-gen"
           ? withoutRetiredModel(models.images, n.data)
-          : n.data;
+          : n.type === "composite"
+            ? withoutRetiredModel(models.images, n.data, models.images.liveOr(COMPOSITE_DEFAULT_MODEL_ID))
+            : n.data;
     return next === n.data ? n : ({ ...n, data: next } as AppNode);
   });
 

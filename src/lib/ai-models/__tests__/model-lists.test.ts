@@ -1,13 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
 import {
-  imageModelsFrom, videoModelsFrom, paramDefaults, modelPickerLabel, withoutRetiredModel,
+  imageModelsFrom, videoModelsFrom, paramDefaults, modelPickerLabel, withoutRetiredModel, replacementFor,
 } from "@/lib/ai-models/model-lists";
 import { DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai-models/default-models";
 
 const NANO_PRO = "gemini:gemini-3-pro-image";
 const SUNBURST = "openai:gpt-image-2.5-sunburst";
 const GPT1 = "openai:gpt-image-1"; // retired in the seed, replaced by Sunburst
+const SEEDREAM = "seedream:seedream-5-0-lite";
 const OMNI12 = "gemini:gemini-omni-1.2-flash";
 const OMNI11 = "gemini:gemini-omni-1.1-flash";
 
@@ -108,6 +109,12 @@ describe("withoutRetiredModel", () => {
     expect(out.modelId).toBe(DEFAULT_IMAGE_MODEL_ID);
   });
 
+  it("uses the fallback given instead of the default when the replacement is not live", () => {
+    const catalog = withModel(seededModelCatalog(), SUNBURST, { status: "hidden" });
+    const out = withoutRetiredModel(imageModelsFrom(catalog), { modelId: GPT1 }, SEEDREAM);
+    expect(out.modelId).toBe(SEEDREAM);
+  });
+
   it("returns the same object for a live, hidden, unknown or missing model", () => {
     const hidden = imageModelsFrom(withModel(seededModelCatalog(), NANO_PRO, { status: "hidden" }));
     for (const data of [{ modelId: SUNBURST }, { modelId: "nope:nope" }, {}]) {
@@ -115,5 +122,15 @@ describe("withoutRetiredModel", () => {
     }
     const onHidden = { modelId: NANO_PRO };
     expect(withoutRetiredModel(hidden, onHidden)).toBe(onHidden);
+  });
+});
+
+describe("replacementFor", () => {
+  it("is the retired model's replacement while it is live, else the fallback", () => {
+    const images = imageModelsFrom(seededModelCatalog());
+    expect(replacementFor(images, GPT1, NANO_PRO)).toBe(SUNBURST);
+    const hidden = imageModelsFrom(withModel(seededModelCatalog(), SUNBURST, { status: "hidden" }));
+    expect(replacementFor(hidden, GPT1, NANO_PRO)).toBe(NANO_PRO);
+    expect(replacementFor(images, "nope:nope", NANO_PRO)).toBe(NANO_PRO);
   });
 });

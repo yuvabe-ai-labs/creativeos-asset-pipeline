@@ -4,12 +4,14 @@
 //   hidden  — runs only on the node that already uses it
 //   retired — refused, with the replacement the catalog names
 //   draft, unknown, no adapter in this build — refused
+import { replacementFor } from "./model-lists";
 import type { AiCatalog, AiModel, AiModelKind } from "./types";
 
 export const MODEL_RETIRED_MESSAGE = "This model was retired. Pick another.";
 export const MODEL_UNAVAILABLE_MESSAGE = "This model isn't available. Pick another.";
-/** A run the model's schema rejects, or one its price can't estimate. Plain copy: log the id. */
+/** The catalog could not be read, or holds no live model of a kind a screen needs. */
 export const CATALOG_LOAD_FAILED_MESSAGE = "Could not load the models. Try again.";
+/** A run the model's schema rejects, or one its price can't estimate. Plain copy: log the id. */
 export const INVALID_PARAMS_MESSAGE = "These settings aren't valid for this model.";
 export const NO_ESTIMATE_MESSAGE = "This model can't be priced for these settings. Pick other settings or another model.";
 
@@ -76,14 +78,24 @@ export function runnableModel<A>(
   return { ok: true, model: { ...model, providerModelId: model.providerModelId }, adapter };
 }
 
-/** The model a node's preview reads: its stored model while it may still run there, else the fallback. */
+/**
+ * The model a node's preview reads: its stored model while it may still run there; a retired one's
+ * live replacement, as the browser opens the node (D544); else the fallback.
+ */
 export function usableModelId(
   catalog: AiCatalog,
   modelId: string,
   opts: { kind: AiModelKind; fallbackId: string },
 ): string {
-  const model = catalog.models.find((m) => m.id === modelId && m.kind === opts.kind);
-  return model && (model.status === "live" || model.status === "hidden") ? modelId : opts.fallbackId;
+  const rowOf = (id: string | null | undefined) => catalog.models.find((m) => m.id === id && m.kind === opts.kind);
+  const model = rowOf(modelId);
+  if (model && (model.status === "live" || model.status === "hidden")) return modelId;
+  if (model?.status !== "retired") return opts.fallbackId;
+  return replacementFor(
+    { status: (id) => rowOf(id)?.status ?? null, replacedBy: (id) => rowOf(id)?.replacedBy ?? null },
+    modelId,
+    opts.fallbackId,
+  );
 }
 
 /** A node's stored model id (`data.modelId`), or null. */

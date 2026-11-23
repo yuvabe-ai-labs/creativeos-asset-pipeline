@@ -78,6 +78,13 @@ describe("usableModelId", () => {
     expect(usableModelId(catalog, "veo:veo-3.1", opts)).toBe(opts.fallbackId);
     expect(usableModelId(catalog, "", opts)).toBe(opts.fallbackId);
   });
+
+  it("moves a retired model to its live replacement, as the browser opens the node (D544)", () => {
+    let catalog = withModel(seededModelCatalog(), "veo:veo-3.1", { status: "retired", replacedBy: "seedance:seedance-2-5" });
+    expect(usableModelId(catalog, "veo:veo-3.1", opts)).toBe("seedance:seedance-2-5");
+    catalog = withModel(catalog, "seedance:seedance-2-5", { status: "hidden" });
+    expect(usableModelId(catalog, "veo:veo-3.1", opts)).toBe(opts.fallbackId);
+  });
 });
 
 describe("nodeModelId", () => {

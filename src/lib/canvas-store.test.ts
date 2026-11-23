@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { createCanvasStore } from "./canvas-store";
 import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
 import { imageModelsFrom, videoModelsFrom, paramDefaults } from "@/lib/ai-models/model-lists";
+import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
 import { sceneFingerprint } from "./nodes/scene-beats";
 import { generationKey } from "./nodes/group-shots";
 import { FAN_OUT_CARDS, PANEL_CARD, PANEL_GAP, ROW_GAP, STORYBOARD_ROW_PITCH } from "./scripts/storyboard-canvas";
@@ -1411,12 +1412,25 @@ describe("D544 — nodes on a retired model", () => {
   const node = (type: string, data: Record<string, unknown>) =>
     ({ id: `${type}-1`, type, position: { x: 0, y: 0 }, data }) as AppNode;
 
-  it("opens an Image Gen node on the retired model's replacement, with its defaults", () => {
-    const store = createCanvasStore([node("image-gen", { title: "", modelId: "openai:gpt-image-1", params: { quality: "high" } })], [], "", models);
+  it.each(["image-gen", "composite"])("opens a %s node on the retired model's replacement, with its defaults", (type) => {
+    const store = createCanvasStore([node(type, { title: "", modelId: "openai:gpt-image-1", params: { quality: "high" } })], [], "", models);
     const data = store.getState().nodes[0].data as Record<string, unknown>;
     expect(data.modelId).toBe("openai:gpt-image-2.5-sunburst");
     expect(data.params).toEqual(paramDefaults(models.images.get("openai:gpt-image-2.5-sunburst")!.params));
     expect(data.retiredModelId).toBe("openai:gpt-image-1");
+  });
+
+  it("opens a composite with no live replacement on the composite default, an Image Gen node on the catalog's", () => {
+    const images = imageModelsFrom(withModel(catalog, "openai:gpt-image-2.5-sunburst", { status: "hidden" }));
+    const store = createCanvasStore(
+      [node("image-gen", { title: "", modelId: "openai:gpt-image-1" }), { ...node("composite", { title: "", modelId: "openai:gpt-image-1" }), id: "composite-1" }],
+      [], "", { ...models, images },
+    );
+    const [gen, composite] = store.getState().nodes.map((n) => n.data as Record<string, unknown>);
+    expect(gen.modelId).toBe(images.defaultId);
+    expect(composite.modelId).toBe(images.liveOr(COMPOSITE_DEFAULT_MODEL_ID));
+    expect(composite.modelId).not.toBe(images.defaultId);
+    expect(composite.retiredModelId).toBe("openai:gpt-image-1");
   });
 
   it("opens a Video Gen node on a retired model's replacement", () => {

@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
 const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+const nodeData = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock("@/lib/ai-models/catalog", async () => {
   const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
   return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
@@ -36,7 +37,7 @@ vi.mock("@/lib/supabase/server", () => ({
                   canvas_id: "canvas-1",
                   type: "video-gen",
                   position: { x: 0, y: 0 },
-                  data: {},
+                  data: nodeData.value,
                   active_version_id: null,
                   created_at: "",
                   updated_at: "",
@@ -112,6 +113,7 @@ describe("GET /api/nodes/[id]/upstream-images", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     cat.value = null;
+    nodeData.value = {};
   });
 
   function makeRequest() {
@@ -163,6 +165,20 @@ describe("GET /api/nodes/[id]/upstream-images", () => {
     const { GET } = await import("./route");
     const res = await GET(new NextRequest("http://localhost/api/nodes/vg4/upstream-images"), { params: Promise.resolve({ id: "vg4" }) });
     expect((await res.json()).promptNode.text).toBe("She lifts <IMAGE_REF_0>.");
+  });
+
+  // D544 — a node on a retired model reads as the browser opens it: on the replacement, while live.
+  it("renders the prompt in a retired model's live replacement's dialect", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    const { renderRefs } = await import("@/lib/nodes/ref-binding");
+    const { seedanceImageDialect } = await import("@/lib/nodes/prompt-token-dialect");
+    cat.value = withModel(seededModelCatalog(), "veo:veo-3.1", { status: "retired", replacedBy: "seedance:seedance-2-5" });
+    nodeData.value = { modelId: "veo:veo-3.1" };
+    const { GET } = await import("./route");
+    const res = await GET(new NextRequest("http://localhost/api/nodes/vg4/upstream-images"), { params: Promise.resolve({ id: "vg4" }) });
+    const expected = renderRefs("She lifts @[Composite: comp.png](cmp).", seedanceImageDialect(["cmp"])).text;
+    expect(expected).not.toBe("She lifts <IMAGE_REF_0>.");
+    expect((await res.json()).promptNode.text).toBe(expected);
   });
 
   it("surfaces a generated image wired into a Motion Prompt node", async () => {
