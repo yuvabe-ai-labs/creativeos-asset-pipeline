@@ -33,15 +33,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (locked) return locked;
     if (!process.env.ELEVEN_LABS_API_KEY) return apiError(VOICE_NOT_SET_UP_MESSAGE, 400);
 
-    const source = await resolveVoiceChangeSource(nodeId, baseVersionId, getVersionById);
+    // Independent reads run side by side (performance rule 5). D535 - ElevenLabs' row prices the
+    // voice change; the generation still records the video's model.
+    const [source, voiceRead, price] = await Promise.all([
+      resolveVoiceChangeSource(nodeId, baseVersionId, getVersionById),
+      getVoiceCached(voiceId).then((voice) => ({ ok: true as const, voice }), () => ({ ok: false as const })),
+      priceForNewRun(VOICE_CHANGE_PRICE_MODEL_ID),
+    ]);
     if (!source.ok) return apiError(source.reason, 400);
-
-    let voice;
-    try {
-      voice = await getVoiceCached(voiceId);
-    } catch {
-      return apiError("Could not reach ElevenLabs to check the voice. Try again.", 400);
-    }
+    if (!voiceRead.ok) return apiError("Could not reach ElevenLabs to check the voice. Try again.", 400);
+    const voice = voiceRead.voice;
     if (!voice) return apiError("That voice is no longer on the ElevenLabs account. Pick another voice.", 400);
 
     const voiceChange: VoiceChangeRecord = {
@@ -53,8 +54,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       priceMultiplier: voice.priceMultiplier,
       settings,
     };
-    // D535 - ElevenLabs' row prices the voice change; the generation still records the video's model.
-    const price = await priceForNewRun(VOICE_CHANGE_PRICE_MODEL_ID);
     if (!price) return apiError(NO_PRICE_MESSAGE, 409);
     const usd = voiceChangeEstimateUsd(price, source.durationSeconds, voice.priceMultiplier);
     if (usd === null) return apiError(NO_PRICE_MESSAGE, 409);

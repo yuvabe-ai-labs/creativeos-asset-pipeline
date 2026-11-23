@@ -32,7 +32,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       const { nodeId, pieceIds } = parsed.data;
       if (!process.env.ELEVEN_LABS_API_KEY) return apiError("Captions aren't set up yet.", 400);
 
-      const [state, orgId, caller] = await Promise.all([loadEditorState(canvasId), resolveOrgId(), resolveCallerContext()]);
+      // D535 - the row prices the run: its estimate is the reservation, and the run records it.
+      const [state, orgId, caller, price] = await Promise.all([loadEditorState(canvasId), resolveOrgId(), resolveCallerContext(), priceForNewRun(TRANSCRIBE_MODEL_ID)]);
       if (!state || state.editorNodeId !== nodeId) return apiError("Editor not found.", 404);
 
       const { files, noSound } = planTranscription(state.doc, state.sources, pieceIds);
@@ -41,8 +42,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       if (fresh.length === 0) return apiOk({ jobId: null, noSound });
 
       const seconds = fresh.reduce((s, f) => s + f.seconds, 0);
-      // D535 — the row prices the run: its estimate is the reservation, and the run records it.
-      const price = await priceForNewRun(TRANSCRIBE_MODEL_ID);
       const usd = price ? transcribeFilesEstimateUsd(price, fresh.map((f) => f.seconds)) : null;
       if (!price || usd === null) return apiError(NO_PRICE_MESSAGE, 409);
       const clientId = canvas.client_id;

@@ -29,15 +29,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!process.env.FAL_KEY) return apiError(DUBBING_NOT_SET_UP_MESSAGE, 400);
       if (node.active_version_id !== versionId) return apiError("Lip sync runs on the dub you're viewing. Reopen the node and try again.", 400);
 
-      const [version, running, locked] = await Promise.all([getVersionById(versionId), hasRunningGeneration(nodeId), editorLockResponse(nodeId, { canvasId: node.canvas_id, sessionId: editorSessionId })]);
+      // D535 - the price row this run is reserved and charged with is read beside the rest (rule 5).
+      const [version, running, locked, price] = await Promise.all([
+        getVersionById(versionId),
+        hasRunningGeneration(nodeId),
+        editorLockResponse(nodeId, { canvasId: node.canvas_id, sessionId: editorSessionId }),
+        priceForNewRun(LIP_SYNC_MODEL_ID),
+      ]);
       if (locked) return locked; // D390
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
       const output = version && version.node_id === nodeId ? readDubbingOutput(version.output) : null;
       const durationSeconds = version ? durationOfParams(version.params_used ?? {}) : 0;
       if (!output || !durationSeconds) return apiError("Make a dub first, then lip-sync it.", 400);
 
-      // D535 - the price row this run is reserved and charged with; none, no run.
-      const price = await priceForNewRun(LIP_SYNC_MODEL_ID);
+      // None, no run.
       if (!price) return apiError(NO_PRICE_MESSAGE, 409);
       const usd = lipSyncUsd(price, durationSeconds);
       if (usd === null) return apiError(NO_PRICE_MESSAGE, 409);

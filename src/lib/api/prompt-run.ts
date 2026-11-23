@@ -1,7 +1,6 @@
 import "server-only";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
-import type { TokenUsage } from "@/lib/pricing";
 import { NO_PRICE_MESSAGE, NoPriceError, priceForNewRun } from "@/lib/ai-models/run-price";
 import { PROMPT_MODEL_ID } from "@/lib/ai-models/service-models";
 import { promptFlatCredits, promptRunRecord } from "@/lib/ai-models/service-price";
@@ -15,12 +14,18 @@ import type { GenerationRow } from "@/lib/db/types";
 
 export { CreditLimitError };
 
-// The shape a model call hands back: the two canonical fields computeCost reads (typed via
-// TokenUsage), plus whatever else the provider included (e.g. prompt_tokens_details,
-// completion_tokens_details) passed through untouched. Callers must NOT narrow usage down to
-// the three canonical fields before returning it here — the narrow numbers are still all
-// computeCost uses, but the raw object is what gets persisted, and narrowing here would make
-// every model's usage column the same width, dropping fields a future pricing change might need.
+/** The token counts every OpenAI chat response reports. */
+export type TokenUsage = {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+};
+
+// The shape a model call hands back: the canonical token counts (TokenUsage), plus whatever else
+// the provider included (e.g. prompt_tokens_details, completion_tokens_details) passed through
+// untouched. D536 - promptRunRecord prices the recorded token cost from these counts and the
+// cached-token detail, and the raw object is what gets persisted. Callers must NOT narrow usage
+// before returning it here: narrowing would drop fields a future pricing change might need.
 export type ModelUsage = TokenUsage & Record<string, unknown>;
 
 // The credit + version envelope around one text-model call — reserve → insert the generation

@@ -41,18 +41,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const pace = voice ? (isDubPace(parsed.data.pace) ? parsed.data.pace : DEFAULT_DUB_PACE) : undefined;
       if (!process.env.SARVAM_API_KEY) return apiError(DUBBING_NOT_SET_UP_MESSAGE, 400);
 
-      // Independent reads run side by side (performance rule 5).
-      const [source, running, locked] = await Promise.all([
+      // Independent reads run side by side (performance rule 5). D535 - the price row this run is
+      // reserved and charged with is one of them; none, no run.
+      const [source, running, locked, price] = await Promise.all([
         resolveDubSource(nodeId, { getUpstreamOutputs, getVersionById }),
         hasRunningGeneration(nodeId),
         editorLockResponse(nodeId, { canvasId: node.canvas_id, sessionId: parsed.data.editorSessionId }), // D390, D408
+        priceForNewRun(DUB_MODEL_ID),
       ]);
       if (locked) return locked;
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
       if (!source.ok) return apiError(source.reason, 400);
-
-      // D535 - the price row this run is reserved and charged with; none, no run.
-      const price = await priceForNewRun(DUB_MODEL_ID);
       if (!price) return apiError(NO_PRICE_MESSAGE, 409);
       const usd = dubUsd(price, source.durationSeconds);
       if (usd === null) return apiError(NO_PRICE_MESSAGE, 409);
