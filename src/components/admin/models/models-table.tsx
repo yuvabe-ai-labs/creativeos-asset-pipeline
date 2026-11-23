@@ -125,14 +125,14 @@ export function ModelsTable({ rows }: { rows: ModelListRow[] }) {
                           : (r.priceSummary ?? "No price")}
                       </span>
                       <span className="w-16 text-right text-sm text-muted-foreground">
-                        {r.runs} runs
+                        {r.runs} {r.runs === 1 ? "run" : "runs"}
                       </span>
                       <span className="w-20 text-right text-sm font-medium">
                         ${r.costUsd.toFixed(2)}
                       </span>
                       <span className="w-24 text-right">
                         {r.unpriced > 0 && (
-                          <Badge variant="outline">{r.unpriced} unpriced</Badge>
+                          <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning-text">{r.unpriced} unpriced</Badge>
                         )}
                       </span>
                     </Link>

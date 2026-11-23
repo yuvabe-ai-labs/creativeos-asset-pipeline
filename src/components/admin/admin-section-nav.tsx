@@ -18,10 +18,21 @@ const TABS = [
   },
 ];
 
+// Each admin page sets its own content width; the tabs take the same width so they line up
+// with the content below them.
+function contentWidth(pathname: string): string {
+  if (pathname.startsWith("/admin/models")) return "max-w-5xl";
+  if (pathname.startsWith("/admin/orgs")) return "max-w-4xl";
+  return "max-w-3xl";
+}
+
 export function AdminSectionNav() {
   const pathname = usePathname() ?? "";
   return (
-    <nav aria-label="Admin sections" className="flex items-center gap-1">
+    <nav
+      aria-label="Admin sections"
+      className={cn("mx-auto flex w-full items-center gap-1 px-6 pt-8", contentWidth(pathname))}
+    >
       {TABS.map((tab) => (
         <Button
           key={tab.href}

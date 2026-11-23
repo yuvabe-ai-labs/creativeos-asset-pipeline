@@ -5,6 +5,7 @@ import {
   modelMonthStats,
 } from "@/lib/db/ai-models-admin";
 import { currentPrice } from "@/lib/ai-models/pricing";
+import { formatPriceSummary } from "@/lib/ai-models/price-format";
 import type { AiModel, AiModelPrice } from "@/lib/ai-models/types";
 import { ModelsTable, type ModelListRow } from "@/components/admin/models/models-table";
 
@@ -13,9 +14,7 @@ export const metadata = { title: "Models — Admin" };
 
 function priceSummary(price: AiModelPrice | null): string | null {
   if (!price || price.lines.length === 0) return null;
-  const shown = price.lines.slice(0, 2).map((l) => `$${l.unit_usd} / ${l.meter.replace(/_/g, " ")}`);
-  const more = price.lines.length - shown.length;
-  return more > 0 ? `${shown.join(", ")} +${more} more` : shown.join(", ");
+  return formatPriceSummary(price.lines);
 }
 
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);

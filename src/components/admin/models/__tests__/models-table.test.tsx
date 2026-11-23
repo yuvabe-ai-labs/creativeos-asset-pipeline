@@ -63,8 +63,15 @@ describe("ModelsTable", () => {
     expect(html).toContain("$0.050 / output image");
   });
 
-  it("groups rows by kind", () => {
-    expect(html).toContain("image");
-    expect(html).toContain("video");
+  it("groups rows by kind under a heading", () => {
+    expect(html).toMatch(/<h2[^>]*>image<\/h2>/);
+    expect(html).toMatch(/<h2[^>]*>video<\/h2>/);
+  });
+
+  it("pluralizes runs and marks unpriced as a warning", () => {
+    expect(html).toContain("12 runs");
+    const one = renderToStaticMarkup(<ModelsTable rows={[{ ...rows[0], runs: 1 }]} />);
+    expect(one).toContain("1 run<");
+    expect(html).toMatch(/text-warning-text[^>]*>2 unpriced/);
   });
 });
