@@ -1026,7 +1026,7 @@ Apply **before** the 2b-ii code deploys; without it every record-only insert fai
 **Safe to re-run:** drops and re-adds the constraint.
 
 ```sql
--- expect: ... or record_only
+-- expect: CHECK (((node_id IS NOT NULL) OR (avatar_id IS NOT NULL) OR (script_id IS NOT NULL) OR record_only))
 select pg_get_constraintdef(oid) from pg_constraint where conname = 'generations_owner_check';
 ```
 
