@@ -1,7 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { VideoGenParamsPanel } from "../video-gen-params-panel";
+import { VideoGenParamsPanel, hasParamsInGroup } from "../video-gen-params-panel";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+
+describe("hasParamsInGroup", () => {
+  const videos = videoModelsFrom(seededModelCatalog());
+  it("reads a model's own params, and is false for no model", () => {
+    expect(hasParamsInGroup(videos.get(GEMINI_OMNI_MODEL_ID), "primary")).toBe(true);
+    expect(hasParamsInGroup(videos.get(GEMINI_OMNI_MODEL_ID), "advanced")).toBe(false);
+    expect(hasParamsInGroup(undefined, "advanced")).toBe(false);
+  });
+});
 
 type Fixed = Record<string, { value: string; note: string; onOpen?: () => void }>;
 const render = (fixedParams?: Fixed) =>

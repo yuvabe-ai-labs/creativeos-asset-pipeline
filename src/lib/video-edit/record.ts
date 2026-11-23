@@ -6,9 +6,8 @@ import {
   GEMINI_OMNI_11_MODEL_ID,
   GEMINI_OMNI_12_MODEL_ID,
   GEMINI_OMNI_MODEL_ID,
-  modelPickerLabel,
-  videoGenClientModelMap,
 } from "@/lib/video-gen/client-models";
+import { modelPickerLabel, type VideoModels } from "@/lib/ai-models/model-lists";
 
 export const VIDEO_EDIT_RESOLUTIONS = ["360p", "720p", "1080p", "4k"] as const;
 export type VideoEditResolution = (typeof VIDEO_EDIT_RESOLUTIONS)[number];
@@ -40,12 +39,11 @@ export function isVideoEditModelId(v: unknown): v is VideoEditModelId {
 }
 
 /**
- * What a model allows for an edit, read off its client spec so it can't drift from generation:
- * the longest take (1.2: 15 s, 1.1: 10 s) and the most references (1.2: 24, 1.1: 12). Edits were
- * tested on 3–6 s takes on 1.1; longer ones are untested.
+ * What a model allows for an edit, read off its catalog row so it can't drift from generation:
+ * the longest take and the most references. Edits were tested on 3–6 s takes on 1.1.
  */
-export function videoEditLimitsFor(modelId: VideoEditModelId): { label: string; maxSeconds: number; maxReferences: number } {
-  const spec = videoGenClientModelMap[modelId];
+export function videoEditLimitsFor(videos: VideoModels, modelId: VideoEditModelId): { label: string; maxSeconds: number; maxReferences: number } {
+  const spec = videos.specOrDefault(modelId);
   return {
     label: modelPickerLabel(spec),
     maxSeconds: spec.maxDurationSeconds,
@@ -53,13 +51,13 @@ export function videoEditLimitsFor(modelId: VideoEditModelId): { label: string; 
   };
 }
 
-export function videoEditTooLongMessage(modelId: VideoEditModelId): string {
-  const { label, maxSeconds } = videoEditLimitsFor(modelId);
+export function videoEditTooLongMessage(videos: VideoModels, modelId: VideoEditModelId): string {
+  const { label, maxSeconds } = videoEditLimitsFor(videos, modelId);
   return `${label} edits takes up to ${maxSeconds} seconds.`;
 }
 
-export function videoEditTooManyReferencesMessage(modelId: VideoEditModelId): string {
-  const { label, maxReferences } = videoEditLimitsFor(modelId);
+export function videoEditTooManyReferencesMessage(videos: VideoModels, modelId: VideoEditModelId): string {
+  const { label, maxReferences } = videoEditLimitsFor(videos, modelId);
   return `${label} takes up to ${maxReferences} references. Untick some.`;
 }
 
@@ -134,7 +132,7 @@ export function videoEditEstimateCredits(
   return usd === null ? null : usdToFinalCredits(usd);
 }
 
-export function videoEditGate(a: {
+export function videoEditGate(videos: VideoModels, a: {
   sourceId: string | null;
   instruction: string;
   durationSeconds: number;
@@ -144,13 +142,13 @@ export function videoEditGate(a: {
   locked: string | null;
   submitting: boolean;
 }): { ok: true } | { ok: false; reason: string } {
-  const limits = videoEditLimitsFor(a.modelId);
+  const limits = videoEditLimitsFor(videos, a.modelId);
   if (a.locked) return { ok: false, reason: a.locked };
   if (!a.sourceId) return { ok: false, reason: "Generate a take first." };
   if (a.running) return { ok: false, reason: "Wait for the current job to finish." };
   if (!a.instruction.trim()) return { ok: false, reason: "Describe the change first." };
-  if (a.durationSeconds > limits.maxSeconds) return { ok: false, reason: videoEditTooLongMessage(a.modelId) };
-  if (a.referenceCount > limits.maxReferences) return { ok: false, reason: videoEditTooManyReferencesMessage(a.modelId) };
+  if (a.durationSeconds > limits.maxSeconds) return { ok: false, reason: videoEditTooLongMessage(videos, a.modelId) };
+  if (a.referenceCount > limits.maxReferences) return { ok: false, reason: videoEditTooManyReferencesMessage(videos, a.modelId) };
   if (a.submitting) return { ok: false, reason: "Starting…" };
   return { ok: true };
 }

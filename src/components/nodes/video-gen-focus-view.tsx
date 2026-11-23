@@ -72,7 +72,8 @@ import { VideoGenApiError } from "@/lib/video-gen/api";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { videoEstimateUsd } from "@/lib/ai-models/video-price";
-import { useModelPrice } from "@/hooks/queries/ai-models";
+import { useModelPrice, useVideoModels } from "@/hooks/queries/ai-models";
+import type { VideoModels } from "@/lib/ai-models/model-lists";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -240,6 +241,7 @@ function applyDefaultImageRoles(
  * into a render.
  */
 function migrateVideoModelState({
+  videos,
   nextModelId,
   previousModelId,
   currentParams,
@@ -247,6 +249,7 @@ function migrateVideoModelState({
   upstreamImages,
   derivedDuration,
 }: {
+  videos: VideoModels;
   nextModelId: string;
   /** D486 — the model being left, so a same-provider switch keeps free text (smartMergeVideoParams). */
   previousModelId: string;
@@ -264,10 +267,10 @@ function migrateVideoModelState({
   imageRoles: Record<string, ImageRole>;
   durationIsDerived: boolean;
 } {
-  const nextModel = videoGenClientModelMap[nextModelId];
+  const nextModel = videos.get(nextModelId);
   const defaults = nextModel
-    ? smartMergeVideoParams(currentParams, nextModel, previousModelId)
-    : defaultsForVideoModel(nextModelId);
+    ? smartMergeVideoParams(currentParams, nextModel, videos.get(previousModelId))
+    : {};
 
   // D216 — a multi-beat shot's motion prompt is a timecode ladder; the request's duration should
   // agree with it by default. Gated to the Omni provider — its duration param is the 3–10 slider
@@ -549,6 +552,7 @@ export function VideoGenFocusView({
   videoEdit: videoEditProp,
   onPatch,
 }: Props) {
+  const videos = useVideoModels();
   const initialModelId = modelIdProp ?? DEFAULT_VIDEO_CLIENT_MODEL_ID;
 
   const [modelId, setModelId] = useState(initialModelId);
@@ -863,6 +867,7 @@ export function VideoGenFocusView({
     modelId !== multishotTargetModel
   ) {
     const migrated = migrateVideoModelState({
+      videos,
       nextModelId: multishotTargetModel,
       previousModelId: modelId,
       currentParams: params,
@@ -1050,6 +1055,7 @@ export function VideoGenFocusView({
     // smartMergeVideoParams then carries it forward untouched, which is exactly what keeps an
     // operator's own edit from ever being overwritten.
     const migrated = migrateVideoModelState({
+      videos,
       nextModelId,
       previousModelId: modelId,
       currentParams: params,
@@ -1474,7 +1480,7 @@ export function VideoGenFocusView({
       ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(multishotTargetModel ?? effectiveMultishotModel))
       : null;
   // D299 — models the presenter's face rules out; a node already on one can't generate with it.
-  const presenterUnavailable = presenterAvatar ? unavailableModelsFor(presenterAvatar) : undefined;
+  const presenterUnavailable = presenterAvatar ? unavailableModelsFor(videos, presenterAvatar) : undefined;
   const presenterBlock = presenterUnavailable?.[modelId];
   const presenterNotes = presenterAvatar
     ? presenterVideoNotes({
@@ -1964,7 +1970,7 @@ export function VideoGenFocusView({
                         here have nothing in this group. Collapsed rather than promoted to
                         primary because these are genuine fine-tunes next to resolution and
                         duration — the same call the Multishot Prompt view's look block makes. */}
-                    {hasParamsInGroup(modelId, "advanced") && (
+                    {hasParamsInGroup(videos.get(modelId), "advanced") && (
                       <Accordion className="mt-4 border-t border-border pt-3">
                         <AccordionItem value="advanced" className="border-none">
                           <AccordionTrigger className="py-0 hover:no-underline">

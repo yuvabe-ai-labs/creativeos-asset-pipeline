@@ -7,6 +7,7 @@ import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { nodeModelId } from "@/lib/ai-models/runnable";
 import { videoRun } from "@/lib/video-gen/video-run";
 import { isOwnStoredUrl } from "@/lib/storage";
@@ -47,9 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Describe the change and pick a resolution.", 400);
       const { baseVersionId, instruction, resolution, modelId, mock } = parsed.data;
-      const limits = videoEditLimitsFor(modelId);
       const tickedIds = [...new Set(parsed.data.referenceNodeIds)];
-      if (tickedIds.length > limits.maxReferences) return apiError(videoEditTooManyReferencesMessage(modelId), 400);
       if (!process.env.GOOGLE_GENAI_API_KEY) return apiError("Video editing isn't set up yet.", 400);
 
       // D390 — an edit makes a new take: refused while the clip is in the Editor's reel.
@@ -60,6 +59,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         collectConnectedUpstream(nodeId, node.type),
         getAiCatalog(),
       ]);
+      const videos = videoModelsFrom(catalog);
+      const limits = videoEditLimitsFor(videos, modelId);
+      if (tickedIds.length > limits.maxReferences) return apiError(videoEditTooManyReferencesMessage(videos, modelId), 400);
       if (locked) return locked;
       // D540 — the edit model goes through the same check as a generation. A hidden edit model
       // keeps running on a take last edited with it; a take never edited falls back to the node's model.
@@ -73,14 +75,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
       const durationSeconds = durationOfParams(base.params_used ?? {});
       if (!durationSeconds) return apiError("This take has no recorded length, so it can't be priced.", 400);
-      if (durationSeconds > limits.maxSeconds) return apiError(videoEditTooLongMessage(modelId), 400);
+      if (durationSeconds > limits.maxSeconds) return apiError(videoEditTooLongMessage(videos, modelId), 400);
 
       // Rule 14 — every reference must be an image connected to this node.
       const byId = new Map(connected.images.map((img) => [img.id, img]));
       // An image @-mentioned in the instruction is sent as a reference even if its tile wasn't
       // ticked; a mention of anything that isn't a connected image stays plain text.
       const referenceNodeIds = [...new Set([...tickedIds, ...mentionedImageIds(instruction).filter((id) => byId.has(id))])];
-      if (referenceNodeIds.length > limits.maxReferences) return apiError(videoEditTooManyReferencesMessage(modelId), 400);
+      if (referenceNodeIds.length > limits.maxReferences) return apiError(videoEditTooManyReferencesMessage(videos, modelId), 400);
       const refs = referenceNodeIds.map((id) => byId.get(id));
       if (refs.some((r) => !r)) return apiError("One of the references is no longer connected. Reopen the node and try again.", 400);
       const references = refs as NonNullable<(typeof refs)[number]>[];

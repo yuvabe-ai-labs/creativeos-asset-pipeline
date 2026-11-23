@@ -1,7 +1,7 @@
 import type { UpstreamOutput } from "@/lib/db/nodes";
 import { isOnScreenLine } from "@/lib/nodes/voiceover";
 import type { ReelScript, VoLine } from "@/lib/nodes/reel-script";
-import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
+import type { VideoModels } from "@/lib/ai-models/model-lists";
 import { avatarWorksWith } from "./generation";
 import { avatarSheetId } from "@/lib/video-gen/select-references";
 import type { Avatar, AvatarVoice, AvatarVoiceSample } from "./schema";
@@ -239,12 +239,12 @@ function unavailableReason(family: string, avatar: Pick<Avatar, "front">): strin
 }
 
 /** The video models the presenter's face rules out, by model id, each with its reason (D299). */
-export function unavailableModelsFor(avatar: Pick<Avatar, "front">): Record<string, string> {
+export function unavailableModelsFor(videos: VideoModels, avatar: Pick<Avatar, "front">): Record<string, string> {
   const works = avatarWorksWith(avatar);
   const out: Record<string, string> = {};
-  for (const [id, spec] of Object.entries(videoGenClientModelMap)) {
+  for (const spec of videos.all) {
     const family = FAMILY_BY_PROVIDER[spec.provider];
-    if (family && !works.includes(family)) out[id] = unavailableReason(family, avatar);
+    if (family && !works.includes(family)) out[spec.id] = unavailableReason(family, avatar);
   }
   return out;
 }

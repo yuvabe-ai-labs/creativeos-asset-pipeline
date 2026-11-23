@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { ParamChipGroup } from "./param-chip-group";
 import { FieldLabel } from "./field-label";
 import type { ParamSpec } from "@/lib/image-gen/types";
+import type { VideoGenClientModelSpec } from "@/lib/video-gen/types";
 
 const PARAM_ICONS: Record<string, LucideIcon> = {
   aspect_ratio:        Crop,
@@ -41,8 +42,7 @@ const PARAM_ICONS: Record<string, LucideIcon> = {
 type ParamGroup = ParamSpec["group"];
 
 /** Whether a model has any visible params in a group — drives showing the Advanced section. */
-export function hasParamsInGroup(modelId: string, group: ParamGroup): boolean {
-  const model = videoGenClientModelMap[resolveVideoModelId(modelId)];
+export function hasParamsInGroup(model: VideoGenClientModelSpec | undefined, group: ParamGroup): boolean {
   return (model?.params ?? []).some((p: ParamSpec) => p.visible && p.group === group);
 }
 

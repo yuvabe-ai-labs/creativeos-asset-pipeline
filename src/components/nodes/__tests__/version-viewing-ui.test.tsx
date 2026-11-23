@@ -88,6 +88,13 @@ describe("arrowKeyTarget", () => {
   });
 });
 
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import { imageModelsFrom, videoModelsFrom } from "@/lib/ai-models/model-lists";
+vi.mock("@/hooks/queries/ai-models", async (orig) => ({
+  ...(await orig<typeof import("@/hooks/queries/ai-models")>()),
+  useImageModels: () => imageModelsFrom(seededModelCatalog()),
+  useVideoModels: () => videoModelsFrom(seededModelCatalog()),
+}));
 import { VideoGenVersionHistory } from "../video-gen-version-history";
 
 describe("VideoGenVersionHistory", () => {

@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { videoSecondsUsd, videoEstimateUsd } from "@/lib/ai-models/video-price";
 import { seededPrice } from "@/lib/ai-models/test-prices";
+import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { videoEditTooLongMessage } from "../record";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/video-gen/client-models";
 import {
@@ -49,25 +52,27 @@ describe("videoEditEstimateCredits", () => {
   });
 });
 
+const videos = videoModelsFrom(seededModelCatalog());
+
 describe("videoEditGate", () => {
   const ok = {
     sourceId: "v3", instruction: "make it red", durationSeconds: 6, referenceCount: 2,
     modelId: GEMINI_OMNI_12_MODEL_ID, running: false, locked: null, submitting: false,
   } as const;
   it("allows a finished take with an instruction", () => {
-    expect(videoEditGate(ok)).toEqual({ ok: true });
+    expect(videoEditGate(videos, ok)).toEqual({ ok: true });
   });
   it("names the first thing in the way", () => {
-    expect(videoEditGate({ ...ok, locked: "In the Editor" })).toEqual({ ok: false, reason: "In the Editor" });
-    expect(videoEditGate({ ...ok, sourceId: null })).toEqual({ ok: false, reason: "Generate a take first." });
-    expect(videoEditGate({ ...ok, running: true })).toEqual({ ok: false, reason: "Wait for the current job to finish." });
-    expect(videoEditGate({ ...ok, instruction: "   " })).toEqual({ ok: false, reason: "Describe the change first." });
-    expect(videoEditGate({ ...ok, durationSeconds: 16 })).toEqual({ ok: false, reason: "Omni 1.2 edits takes up to 15 seconds." });
-    expect(videoEditGate({ ...ok, durationSeconds: 12, modelId: GEMINI_OMNI_11_MODEL_ID })).toEqual({ ok: false, reason: "Omni 1.1 edits takes up to 10 seconds." });
-    expect(videoEditGate({ ...ok, referenceCount: 25 })).toEqual({ ok: false, reason: "Omni 1.2 takes up to 24 references. Untick some." });
-    expect(videoEditGate({ ...ok, referenceCount: 13, modelId: GEMINI_OMNI_11_MODEL_ID })).toEqual({ ok: false, reason: "Omni 1.1 takes up to 12 references. Untick some." });
-    expect(videoEditGate({ ...ok, referenceCount: 12, modelId: GEMINI_OMNI_11_MODEL_ID })).toEqual({ ok: true });
-    expect(videoEditGate({ ...ok, submitting: true })).toEqual({ ok: false, reason: "Starting…" });
+    expect(videoEditGate(videos, { ...ok, locked: "In the Editor" })).toEqual({ ok: false, reason: "In the Editor" });
+    expect(videoEditGate(videos, { ...ok, sourceId: null })).toEqual({ ok: false, reason: "Generate a take first." });
+    expect(videoEditGate(videos, { ...ok, running: true })).toEqual({ ok: false, reason: "Wait for the current job to finish." });
+    expect(videoEditGate(videos, { ...ok, instruction: "   " })).toEqual({ ok: false, reason: "Describe the change first." });
+    expect(videoEditGate(videos, { ...ok, durationSeconds: 16 })).toEqual({ ok: false, reason: "Omni 1.2 edits takes up to 15 seconds." });
+    expect(videoEditGate(videos, { ...ok, durationSeconds: 12, modelId: GEMINI_OMNI_11_MODEL_ID })).toEqual({ ok: false, reason: "Omni 1.1 edits takes up to 10 seconds." });
+    expect(videoEditGate(videos, { ...ok, referenceCount: 25 })).toEqual({ ok: false, reason: "Omni 1.2 takes up to 24 references. Untick some." });
+    expect(videoEditGate(videos, { ...ok, referenceCount: 13, modelId: GEMINI_OMNI_11_MODEL_ID })).toEqual({ ok: false, reason: "Omni 1.1 takes up to 12 references. Untick some." });
+    expect(videoEditGate(videos, { ...ok, referenceCount: 12, modelId: GEMINI_OMNI_11_MODEL_ID })).toEqual({ ok: true });
+    expect(videoEditGate(videos, { ...ok, submitting: true })).toEqual({ ok: false, reason: "Starting…" });
   });
 });
 
@@ -84,9 +89,21 @@ describe("plainVideoEditFailure", () => {
 
 describe("videoEditLimitsFor", () => {
   it("reads each model's take length and reference cap off its spec", () => {
-    expect(videoEditLimitsFor(GEMINI_OMNI_12_MODEL_ID)).toEqual({ label: "Omni 1.2", maxSeconds: 15, maxReferences: 24 });
-    expect(videoEditLimitsFor(GEMINI_OMNI_11_MODEL_ID)).toEqual({ label: "Omni 1.1", maxSeconds: 10, maxReferences: 12 });
+    expect(videoEditLimitsFor(videos, GEMINI_OMNI_12_MODEL_ID)).toEqual({ label: "Omni 1.2", maxSeconds: 15, maxReferences: 24 });
+    expect(videoEditLimitsFor(videos, GEMINI_OMNI_11_MODEL_ID)).toEqual({ label: "Omni 1.1", maxSeconds: 10, maxReferences: 12 });
     expect(VIDEO_EDIT_DEFAULT_MODEL_ID).toBe(GEMINI_OMNI_12_MODEL_ID);
+  });
+  it("reads the edit limits from the catalog", () => {
+    const c = seededModelCatalog();
+    const id = "gemini:gemini-omni-1.2-flash";
+    const row = c.models.find((m) => m.id === id)!;
+    const caps = row.capabilities as { maxDurationSeconds: number; imageInputs: Record<string, unknown> };
+    const list = videoModelsFrom(withModel(c, id, {
+      pickerLabel: "Omni X",
+      capabilities: { ...caps, maxDurationSeconds: 12, imageInputs: { ...caps.imageInputs, maxReferenceImages: 7 } },
+    }));
+    expect(videoEditLimitsFor(list, id)).toEqual({ label: "Omni X", maxSeconds: 12, maxReferences: 7 });
+    expect(videoEditTooLongMessage(list, id)).toBe("Omni X edits takes up to 12 seconds.");
   });
 });
 

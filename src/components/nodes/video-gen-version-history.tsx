@@ -2,6 +2,7 @@
 
 import type { ApprovalStatus, VersionDecisionSummary } from "@/lib/approval";
 import { describeVersionParams } from "@/lib/generations/version-params";
+import { useVideoModels } from "@/hooks/queries/ai-models";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import { describeVoiceChange } from "@/lib/voice-change/describe";
 import { describeVideoEdit } from "@/lib/video-edit/describe";
@@ -65,6 +66,7 @@ export function VideoGenVersionHistory({ versions, activeVersionId, viewedVersio
   // D284 — version id → `v{n}`, the same numbering VersionList renders on each row, so
   // "changed from v3" in a voice change's provenance line matches the row the operator sees.
   const labelById = versionLabelsById(versions);
+  const videos = useVideoModels();
 
   const rows = versions.map((v) => {
     const modelLabel = (v.modelUsed ?? "").split(":")[1] ?? "";
@@ -82,7 +84,7 @@ export function VideoGenVersionHistory({ versions, activeVersionId, viewedVersio
     // plus the settings it ran with is more useful than the generic pair. A D282 legacy
     // version (`params_used.voice`) has no `inputsUsed.voiceChange` and keeps the lines above —
     // `describeVersionParams` already folds its `readVoiceMeta` line into `paramSummary`.
-    const provenance = describeVoiceChange(v.inputsUsed, labelById) ?? describeVideoEdit(v.inputsUsed, labelById);
+    const provenance = describeVoiceChange(v.inputsUsed, labelById) ?? describeVideoEdit(videos, v.inputsUsed, labelById);
 
     return {
       id: v.id,
