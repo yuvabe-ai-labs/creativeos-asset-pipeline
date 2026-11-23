@@ -84,11 +84,12 @@ describe("cost record", () => {
   const runScheduled = async () => { for (const [task] of vi.mocked(after).mock.calls) await (typeof task === "function" ? task() : task); };
   const expected = { ...recordFor, type: "script", modelId: "gemini:gemini-3.1-pro-preview", meters: geminiMeters(usage) };
 
-  it("schedules one record for a Gemini call, after the response", async () => {
+  it("hands one record to after() as a promise, so it survives a closed response", async () => {
     generateContent.mockResolvedValue({ text: JSON.stringify({ reply: "hi" }), usageMetadata: usage });
     await structuredCaller("gemini-3.1-pro-preview", opts)(args);
     expect(after).toHaveBeenCalledTimes(1);
-    expect(recordProviderCost).not.toHaveBeenCalled();
+    // The promise form: waitUntil tracks it, with no wait for the response to close.
+    expect(typeof vi.mocked(after).mock.calls[0][0]).not.toBe("function");
     await runScheduled();
     expect(recordProviderCost).toHaveBeenCalledTimes(1);
     expect(vi.mocked(recordProviderCost).mock.calls[0][0]).toMatchObject(expected);

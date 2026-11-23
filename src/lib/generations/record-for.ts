@@ -32,11 +32,17 @@ export function geminiCost(
   return { ...recordFor, type, modelId: `gemini:${model}`, meters: geminiMeters(usage), raw: usage };
 }
 
-/** Inside a request: the record is written once the response is sent, so nobody waits for it. */
+/**
+ * Inside a request only: the record is written without the response waiting for it. It takes the
+ * promise form of `after`, which goes straight to the platform's waitUntil. The callback form waits
+ * for the response to close, and a stream whose client has already gone never closes it again, so
+ * that record would be lost. recordProviderCost never rejects. A Trigger task awaits
+ * recordProviderCost itself, because a task has no request for `after` to attach to.
+ */
 export function recordAfterResponse(input: RecordCostInput | null): void {
   if (!input) return;
   try {
-    after(() => recordProviderCost(input));
+    after(recordProviderCost(input));
   } catch (e) {
     console.error("[record-cost]", "could not schedule", input.type, input.modelId, e instanceof Error ? e.message : e);
   }
