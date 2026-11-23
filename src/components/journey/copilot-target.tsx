@@ -22,15 +22,16 @@ export function CopilotTarget({ id, state, className, children }: {
     >
       {state.asking && <p className="text-eyebrow px-3 pt-2 text-primary">Copilot is asking</p>}
       {/* Re-mounted once per change, so a half-typed edit of this target gives way to the copilot's
-          stored change (spec §3.2). */}
-      <div key={state.version}>{children}</div>
+          stored change (spec §3.2). Its key and the highlight's carry the same count, so each is
+          prefixed: siblings sharing a key make React duplicate the content. */}
+      <div key={`content-${state.version}`}>{children}</div>
       {state.writing && (
         <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
           <span className="animate-target-sweep absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent" />
         </span>
       )}
       {state.landed !== null && (
-        <span key={state.landed} aria-hidden className="animate-target-land pointer-events-none absolute inset-0 rounded-xl bg-primary/10" />
+        <span key={`landed-${state.landed}`} aria-hidden className="animate-target-land pointer-events-none absolute inset-0 rounded-xl bg-primary/10" />
       )}
     </div>
   );
