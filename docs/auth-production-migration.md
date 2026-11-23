@@ -1070,3 +1070,18 @@ where kind in ('image','video')
 select id, adapter_key, provider_model_id from ai_models
 where id in ('gemini:gemini-omni-1.2-flash', 'seedance:seedance-2-5');
 ```
+
+## Migration 0085 — per-model month stats for the admin (D547, 2026-11-23)
+
+`supabase/migrations/0085_ai_model_month_stats.sql`. Paste into the Supabase SQL editor → Run, after 0084.
+Apply **before** Plan 4 deploys to Vercel. The super admin's models page errors without the function; nothing else uses it.
+It adds one index (`generations_created_at_idx`) and one read-only function (`ai_model_month_stats`) that returns, per model, the runs, provider cost, credits and unpriced runs in a date range.
+It changes no data.
+**Safe to re-run:** `create index if not exists` and `create or replace function`.
+
+```sql
+-- expect 1 row
+select count(*) from pg_proc where proname = 'ai_model_month_stats';
+-- expect rows for models used this month (or none on a fresh database), never an error
+select * from ai_model_month_stats(date_trunc('month', now()), now() + interval '1 day') limit 5;
+```

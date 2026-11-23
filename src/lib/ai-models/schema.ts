@@ -139,31 +139,41 @@ const aiModelPriceRowSchema = z.object({
   note: z.string().nullable(),
 });
 
-export function parseAiModelRow(row: unknown): AiModel | null {
+/** The one check a model row goes through. `problems` lists each issue as `path: message`. */
+export function checkAiModelRow(row: unknown): { model: AiModel | null; problems: string[] } {
   const parsed = aiModelRowSchema.safeParse(row);
-  if (!parsed.success) return null;
+  if (!parsed.success) {
+    return { model: null, problems: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) };
+  }
   const r = parsed.data;
   const capabilities = parseCapabilities(r.kind, r.capabilities);
-  if (!capabilities) return null;
+  if (!capabilities) return { model: null, problems: ["capabilities: not valid for this kind"] };
   return {
-    id: r.id,
-    provider: r.provider,
-    kind: r.kind,
-    label: r.label,
-    pickerLabel: r.picker_label,
-    providerLabel: r.provider_label,
-    description: r.description,
-    status: r.status,
-    replacedBy: r.replaced_by,
-    sortOrder: r.sort_order,
-    adapterKey: r.adapter_key,
-    providerModelId: r.provider_model_id,
-    // The Zod shapes above mirror ParamSpec and ConstraintRule field for field.
-    params: r.params as ParamSpec[],
-    rules: r.rules as ConstraintRule[],
-    capabilities,
-    updatedAt: r.updated_at,
+    model: {
+      id: r.id,
+      provider: r.provider,
+      kind: r.kind,
+      label: r.label,
+      pickerLabel: r.picker_label,
+      providerLabel: r.provider_label,
+      description: r.description,
+      status: r.status,
+      replacedBy: r.replaced_by,
+      sortOrder: r.sort_order,
+      adapterKey: r.adapter_key,
+      providerModelId: r.provider_model_id,
+      // The Zod shapes above mirror ParamSpec and ConstraintRule field for field.
+      params: r.params as ParamSpec[],
+      rules: r.rules as ConstraintRule[],
+      capabilities,
+      updatedAt: r.updated_at,
+    },
+    problems: [],
   };
+}
+
+export function parseAiModelRow(row: unknown): AiModel | null {
+  return checkAiModelRow(row).model;
 }
 
 export function parseAiModelPriceRow(row: unknown): AiModelPrice | null {
