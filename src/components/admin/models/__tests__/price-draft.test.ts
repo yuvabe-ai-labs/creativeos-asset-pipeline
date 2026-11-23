@@ -3,6 +3,8 @@ import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import { runPreviewUsd } from "@/lib/ai-models/model-edit";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
+  allowanceOptions,
+  allowanceWarning,
   currentPriceRow,
   draftFromCurrent,
   draftToPayload,
@@ -190,5 +192,22 @@ describe("currentPriceRow", () => {
     const rows = [row("future", "2026-12-01T00:00:00Z"), row("broken", "2026-11-01T00:00:00Z", false), row("old", "2026-01-01T00:00:00Z")];
     expect(currentPriceRow(rows, now)?.id).toBe("old");
     expect(currentPriceRow([row("future", "2026-12-01T00:00:00Z")], now)).toBeNull();
+  });
+});
+
+describe("allowance names", () => {
+  it("offers the names the estimator reads, then any extra name on the current row", () => {
+    const withExtra = { ...current, estimate: { ...current.estimate, legacy_allowance: 3 } };
+    const options = allowanceOptions(model, withExtra);
+    expect(options.slice(0, 3)).toEqual(["input_tokens_base", "input_tokens_per_reference", "text_output_tokens"]);
+    expect(options).toContain("legacy_allowance");
+    expect(new Set(options).size).toBe(options.length);
+    expect(allowanceOptions(textModel, null)).toEqual([]);
+  });
+  it("warns about a name no estimate reads, and only then", () => {
+    expect(allowanceWarning(model, "input_tokens_base")).toBeNull();
+    expect(allowanceWarning(model, "")).toBeNull();
+    expect(allowanceWarning(model, "  input_tokens_base ")).toBeNull();
+    expect(allowanceWarning(model, "typo_tokens")).toBe("No estimate reads this name.");
   });
 });

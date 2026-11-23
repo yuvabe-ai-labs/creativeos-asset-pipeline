@@ -68,7 +68,7 @@ describe("updateAiModelAction", () => {
     expect(m.updateAiModelRow).toHaveBeenCalledWith(NANO_PRO, { label: "Pro 2" }, "u1");
     expect(m.clearAiCatalogCache).toHaveBeenCalledTimes(1);
     expect(m.revalidatePath).toHaveBeenCalledWith("/admin/models");
-    expect(m.revalidatePath).toHaveBeenCalledWith(`/admin/models/${NANO_PRO}`);
+    expect(m.revalidatePath).toHaveBeenCalledWith("/admin/models/[id]", "page");
   });
   it("writes nothing when the check refuses", async () => {
     const r = await updateAiModelAction(NANO_PRO, { params: [] });
@@ -176,7 +176,17 @@ describe("addAiModelPriceAction", () => {
     expect(m.insertAiModelPrice.mock.calls[0][0]).toMatchObject({ modelId: NANO_PRO, lines, sourceUrl: "https://x.test", note: "n" });
     expect(m.insertAiModelPrice.mock.calls[0][1]).toBe("u1");
     expect(m.clearAiCatalogCache).toHaveBeenCalledTimes(1);
-    expect(m.revalidatePath).toHaveBeenCalledWith(`/admin/models/${NANO_PRO}`);
+    expect(m.revalidatePath).toHaveBeenCalledWith("/admin/models/[id]", "page");
+  });
+  it("takes only a web address as the source, or none", async () => {
+    const SOURCE = { error: "Enter a full web address for the source, or leave it empty." };
+    for (const sourceUrl of ["javascript:alert(1)", "ftp://x.test/p", "example.com/pricing", "not a url", 42]) {
+      expect(await addAiModelPriceAction(input({ sourceUrl })), String(sourceUrl)).toEqual(SOURCE);
+    }
+    expect(m.insertAiModelPrice).not.toHaveBeenCalled();
+    expect(await addAiModelPriceAction(input({ sourceUrl: "http://x.test/p" }))).toEqual({});
+    expect(await addAiModelPriceAction(input({ sourceUrl: "" }))).toEqual({});
+    expect(m.insertAiModelPrice.mock.calls[1][0]).toMatchObject({ sourceUrl: null });
   });
   it("hides a raw database error", async () => {
     m.insertAiModelPrice.mockRejectedValue(new Error("boom"));
@@ -193,7 +203,7 @@ describe("cancelAiModelPriceAction", () => {
     expect(await cancelAiModelPriceAction("p1", NANO_PRO)).toEqual({});
     expect(m.deleteAiModelPrice).toHaveBeenCalledWith("p1", NANO_PRO);
     expect(m.clearAiCatalogCache).toHaveBeenCalledTimes(1);
-    expect(m.revalidatePath).toHaveBeenCalledWith(`/admin/models/${NANO_PRO}`);
+    expect(m.revalidatePath).toHaveBeenCalledWith("/admin/models/[id]", "page");
   });
   it("deletes nothing under the wrong model", async () => {
     m.deleteAiModelPrice.mockImplementation(async (_id: string, modelId: string) => ({ deleted: modelId === NANO_PRO }));

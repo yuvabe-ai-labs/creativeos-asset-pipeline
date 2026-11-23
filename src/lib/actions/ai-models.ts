@@ -22,13 +22,29 @@ import type { PriceLine } from "@/lib/ai-models/types";
 const SAVE_ERROR = "Could not save. Try again.";
 const BREAK_ERROR = "These changes would break the model's settings.";
 const CANCEL_ERROR = "Only a price that hasn't started can be cancelled.";
+const SOURCE_ERROR = "Enter a full web address for the source, or leave it empty.";
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
-function refresh(modelId: string): void {
+/** The source as stored: an http(s) address, null when empty, undefined when it is not one. */
+function sourceUrlOf(v: unknown): string | null | undefined {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== "string") return undefined;
+  const text = v.trim();
+  if (text === "") return null;
+  try {
+    const url = new URL(text);
+    return url.protocol === "http:" || url.protocol === "https:" ? text : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function refresh(): void {
   clearAiCatalogCache();
   revalidatePath("/admin/models");
-  revalidatePath(`/admin/models/${modelId}`);
+  // The route pattern: a model id holds a colon, so its literal path would need encoding to match.
+  revalidatePath("/admin/models/[id]", "page");
 }
 
 export async function updateAiModelAction(
@@ -56,7 +72,7 @@ export async function updateAiModelAction(
     console.error("updateAiModelAction failed", id, e);
     return { error: SAVE_ERROR };
   }
-  refresh(id);
+  refresh();
   return {};
 }
 
@@ -77,6 +93,8 @@ export async function addAiModelPriceAction(input: {
   ) {
     return { error: BREAK_ERROR };
   }
+  const sourceUrl = sourceUrlOf(input.sourceUrl);
+  if (sourceUrl === undefined) return { error: SOURCE_ERROR };
   try {
     const effectiveFrom = new Date(input.effectiveFrom);
     if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
@@ -102,7 +120,7 @@ export async function addAiModelPriceAction(input: {
         effectiveFrom: effectiveFrom.toISOString(),
         lines: input.lines,
         estimate: input.estimate,
-        sourceUrl: input.sourceUrl ?? null,
+        sourceUrl,
         note: input.note ?? null,
       },
       caller.userId,
@@ -111,7 +129,7 @@ export async function addAiModelPriceAction(input: {
     console.error("addAiModelPriceAction failed", input.modelId, e);
     return { error: SAVE_ERROR };
   }
-  refresh(input.modelId);
+  refresh();
   return {};
 }
 
@@ -126,6 +144,6 @@ export async function cancelAiModelPriceAction(priceId: string, modelId: string)
     console.error("cancelAiModelPriceAction failed", priceId, e);
     return { error: SAVE_ERROR };
   }
-  refresh(modelId);
+  refresh();
   return {};
 }

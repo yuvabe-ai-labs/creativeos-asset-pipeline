@@ -55,6 +55,15 @@ describe("AddPriceForm", () => {
     expect(html).toContain("output_image: colour is not a price setting of this model");
   });
 
+  it("warns about an allowance name no estimate reads", () => {
+    const d = draftFromCurrent(current, now);
+    expect(render(d)).not.toContain("No estimate reads this name.");
+    const typo = { ...d, estimate: [...d.estimate, { key: "typo_tokens", value: "5", custom: true }] };
+    const html = render(typo);
+    expect(html).toContain("No estimate reads this name.");
+    expect(html).toContain('value="typo_tokens"');
+  });
+
   it("has dashed Add condition and Add allowance chips", () => {
     const html = render();
     expect(html).toContain("Add condition");

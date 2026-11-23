@@ -21,6 +21,12 @@ import {
 
 const SAVE_ERROR = "Could not save. Try again.";
 
+/** What a price row shows. The page maps to it, so no raw database row reaches the browser. */
+export type PriceHistoryRow = Pick<
+  AdminPriceRow,
+  "id" | "price" | "problems" | "effectiveFrom" | "createdAt" | "createdByName"
+>;
+
 /** "1 Dec 2026, 00:00 UTC" */
 export function formatPriceStart(iso: string): string {
   const s = new Date(iso).toLocaleString("en-GB", {
@@ -42,7 +48,7 @@ function PriceRow({
   error,
   onCancel,
 }: {
-  row: AdminPriceRow;
+  row: PriceHistoryRow;
   isCurrent: boolean;
   isFuture: boolean;
   error: string | null;
@@ -101,7 +107,7 @@ function PriceRow({
   );
 }
 
-export function PriceHistory({ modelId, prices, now }: { modelId: string; prices: AdminPriceRow[]; now: string }) {
+export function PriceHistory({ modelId, prices, now }: { modelId: string; prices: PriceHistoryRow[]; now: string }) {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<{ id: string; message: string } | null>(null);

@@ -4,13 +4,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 vi.mock("@/lib/actions/ai-models", () => ({ cancelAiModelPriceAction: vi.fn() }));
 
 import { PriceHistory } from "../price-history";
-import type { AdminPriceRow } from "@/lib/db/ai-models-admin";
+import type { PriceHistoryRow } from "../price-history";
 import type { AiModelPrice } from "@/lib/ai-models/types";
 
 const MODEL = "fal:video-x";
 const now = "2026-11-23T10:00:00.000Z";
 
-function row(id: string, effectiveFrom: string, extra: Partial<AiModelPrice> = {}): AdminPriceRow {
+function row(id: string, effectiveFrom: string, extra: Partial<AiModelPrice> = {}): PriceHistoryRow {
   return {
     price: {
       id,
@@ -24,12 +24,9 @@ function row(id: string, effectiveFrom: string, extra: Partial<AiModelPrice> = {
     },
     problems: [],
     id,
-    modelId: MODEL,
     effectiveFrom,
     createdAt: effectiveFrom,
-    createdBy: "u1",
     createdByName: "Priya",
-    raw: {},
   };
 }
 
@@ -71,7 +68,7 @@ describe("PriceHistory", () => {
   });
 
   it("shows a row that fails its check with its problems, and Cancel when it hasn't started", () => {
-    const broken: AdminPriceRow = { ...future, price: null, problems: ["lines.0.meter: Invalid option"] };
+    const broken: PriceHistoryRow = { ...future, price: null, problems: ["lines.0.meter: Invalid option"] };
     const html = renderToStaticMarkup(<PriceHistory modelId={MODEL} prices={[broken]} now={now} />);
     expect(html).toContain("Fails its check");
     expect(html).toContain("lines.0.meter: Invalid option");

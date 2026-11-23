@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import {
-  checkModelPatch, checkNewPrice, checkParamsChange, priceConditionProblems, runPreviewUsd,
+  checkModelPatch, checkNewPrice, checkParamsChange, estimateAllowanceKeys, priceConditionProblems, runPreviewUsd,
 } from "@/lib/ai-models/model-edit";
 import type { AiModel } from "@/lib/ai-models/types";
 
@@ -268,5 +268,23 @@ describe("runPreviewUsd", () => {
     expect(runPreviewUsd(zero, videoPrice)).toBeNull();
     const text = catalog.models.find((m) => m.kind === "text")!;
     expect(runPreviewUsd(text, catalog.prices.find((p) => p.modelId === text.id)!)).toBeNull();
+  });
+});
+
+describe("estimateAllowanceKeys", () => {
+  it("names the allowances each estimator reads", () => {
+    expect(estimateAllowanceKeys(row(NANO_PRO))).toEqual(["input_tokens_base", "input_tokens_per_reference", "text_output_tokens"]);
+    const video = estimateAllowanceKeys(row(OMNI12));
+    expect(video).toEqual(expect.arrayContaining(["input_tokens_per_image", "thought_tokens", "edit_input_tokens_per_second_720p"]));
+    const transcribe = catalog.models.find((m) => m.kind === "transcribe");
+    if (transcribe) expect(estimateAllowanceKeys(transcribe)).toEqual(["provider_credits_per_audio_second"]);
+    expect(estimateAllowanceKeys(catalog.models.find((m) => m.kind === "text")!)).toEqual([]);
+  });
+  it("covers every allowance on every seeded price row", () => {
+    for (const p of catalog.prices) {
+      const m = catalog.models.find((x) => x.id === p.modelId)!;
+      const keys = estimateAllowanceKeys(m);
+      for (const k of Object.keys(p.estimate)) expect(keys, `${p.modelId} ${k}`).toContain(k);
+    }
   });
 });

@@ -38,6 +38,9 @@ export function voiceChangeCharge(
   return usd === null ? null : { usd, bill: { source: "request", meters } };
 }
 
+/** The allowance transcribeEstimateUsd reads from a price row's estimate. */
+export const TRANSCRIBE_ESTIMATE_KEYS = ["provider_credits_per_audio_second"] as const;
+
 /** The credits a transcription of this length is expected to use: the row's allowance, whole credits. */
 function transcribeEstimateCredits(price: AiModelPrice, seconds: number): number | null {
   const perSecond = price.estimate.provider_credits_per_audio_second;

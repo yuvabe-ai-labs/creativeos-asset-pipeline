@@ -16,6 +16,9 @@ export function imageDims(
   return { size: a.imageSize ?? "1K" };
 }
 
+/** The allowances imageEstimateUsd reads from a price row's estimate (none for Seedream). */
+export const IMAGE_ESTIMATE_KEYS = ["input_tokens_base", "input_tokens_per_reference", "text_output_tokens"] as const;
+
 /** What one image is reserved at. Null when the image itself has no price at these settings. */
 export function imageEstimateUsd(
   price: AiModelPrice,

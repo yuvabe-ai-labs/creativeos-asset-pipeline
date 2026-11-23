@@ -7,6 +7,8 @@ import {
   buildModelPatch,
   isStatusDisabled,
   parseSortOrder,
+  replacementText,
+  runSave,
 } from "./model-details-patch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,12 +57,15 @@ export function ModelDetailsForm({
   model,
   canGoLive,
   replacements,
+  staleReplacement = null,
   updatedBy,
   updatedAt,
 }: {
   model: ModelDetails;
   canGoLive: boolean;
   replacements: Array<{ id: string; label: string }>;
+  /** The saved replacement when it is no longer live, so it can still be named. */
+  staleReplacement?: { id: string; label: string } | null;
   updatedBy: string | null;
   updatedAt: string;
 }) {
@@ -97,32 +102,37 @@ export function ModelDetailsForm({
     setSaving(true);
     setError(null);
     setJustSaved(false);
-    const res = await updateAiModelAction(model.id, patch);
-    setSaving(false);
+    let res: { error?: string };
+    try {
+      res = await runSave(() => updateAiModelAction(model.id, patch));
+    } finally {
+      setSaving(false);
+    }
     if (res.error) {
       setError(res.error);
       return;
     }
     const next = {
       ...saved,
-      label,
-      pickerLabel: pickerLabel.trim() === "" ? null : pickerLabel,
-      providerLabel,
-      description: description.trim() === "" ? null : description,
+      label: label.trim(),
+      pickerLabel: pickerLabel.trim() === "" ? null : pickerLabel.trim(),
+      providerLabel: providerLabel.trim(),
+      description: description.trim() === "" ? null : description.trim(),
       sortOrder: parseSortOrder(sortOrder) ?? saved.sortOrder,
       status,
       replacedBy: status === "retired" ? replacedBy : null,
     };
     setSaved(next);
+    setLabel(next.label);
+    setPickerLabel(next.pickerLabel ?? "");
+    setProviderLabel(next.providerLabel);
+    setDescription(next.description ?? "");
     setReplacedBy(next.replacedBy);
     setSavedAt(new Date().toISOString());
     setJustSaved(true);
   }
 
-  const replacementLabel =
-    replacedBy === null
-      ? "No replacement"
-      : (replacements.find((r) => r.id === replacedBy)?.label ?? replacedBy);
+  const replacementLabel = replacementText(replacedBy, replacements, staleReplacement);
 
   return (
     <section className="rounded-xl border bg-card p-6 shadow-card">

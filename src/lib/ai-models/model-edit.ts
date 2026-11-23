@@ -2,8 +2,9 @@
 import { paramDefaults } from "./model-lists";
 import { aspectRatioToOpenAISize } from "@/lib/image-gen/cost";
 import { checkAiModelPriceRow, checkAiModelRow } from "./schema";
-import { imageEstimateUsd } from "./image-price";
-import { videoEstimateUsd } from "./video-price";
+import { IMAGE_ESTIMATE_KEYS, imageEstimateUsd } from "./image-price";
+import { videoEstimateKeys, videoEstimateUsd } from "./video-price";
+import { TRANSCRIBE_ESTIMATE_KEYS } from "./service-price";
 import { asResolutionString, isVideoAudioEnabled } from "@/lib/video-gen/cost";
 import type { ParamSpec } from "@/lib/image-gen/types";
 import type { AiModel, AiModelPrice, PriceLine } from "./types";
@@ -123,6 +124,18 @@ function priceDims(model: Pick<AiModel, "id" | "kind" | "params">): Record<strin
     return { resolution: optionsOf(model.params, "resolution") ?? RESOLUTIONS, audio: [true, false] };
   }
   return {};
+}
+
+/** The estimate allowances this model's estimator reads. Any other name is never read. */
+export function estimateAllowanceKeys(model: Pick<AiModel, "id" | "kind" | "params">): string[] {
+  if (model.kind === "image") return model.id.startsWith("seedream:") ? [] : [...IMAGE_ESTIMATE_KEYS];
+  // The edit allowance falls back to 720p, so it is offered for every resolution and 720p.
+  if (model.kind === "video") {
+    const resolutions = optionsOf(model.params, "resolution") ?? RESOLUTIONS;
+    return videoEstimateKeys([...new Set([...resolutions, "720p"])]);
+  }
+  if (model.kind === "transcribe") return [...TRANSCRIBE_ESTIMATE_KEYS];
+  return [];
 }
 
 /** One plain string per condition that names a setting the run never prices on, or a value it never has. */

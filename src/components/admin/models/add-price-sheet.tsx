@@ -4,7 +4,7 @@ import { useState } from "react";
 import { addAiModelPriceAction } from "@/lib/actions/ai-models";
 import { priceConditionProblems } from "@/lib/ai-models/model-edit";
 import type { AiModel, AiModelPrice } from "@/lib/ai-models/types";
-import { draftFromCurrent, draftLines, draftToPayload, localDay, minStartDay, previewText, type PriceDraft } from "./price-draft";
+import { allowanceOptions, allowanceWarning, draftFromCurrent, draftLines, draftToPayload, localDay, minStartDay, previewText, type PriceDraft } from "./price-draft";
 import { AddChip } from "./add-chip";
 import { PriceLinesEditor } from "./price-lines-editor";
 import { PricePairRows } from "./price-pair-rows";
@@ -70,6 +70,8 @@ export function AddPriceForm({
           keyPlaceholder="Name"
           valuePlaceholder="Amount"
           numeric
+          keyOptions={allowanceOptions(model, current)}
+          keyWarning={(key) => allowanceWarning(model, key)}
         />
       </Field>
       <Field label="Source" htmlFor="price-source">

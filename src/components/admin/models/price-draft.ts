@@ -1,11 +1,12 @@
 // The add-price form's state and how it becomes an addAiModelPriceAction payload. Pure, client-safe.
-import { runPreviewUsd } from "@/lib/ai-models/model-edit";
+import { estimateAllowanceKeys, runPreviewUsd } from "@/lib/ai-models/model-edit";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { plainDecimal } from "@/lib/ai-models/price-format";
 import type { AiModel, AiModelPrice, Meter, PriceLine } from "@/lib/ai-models/types";
 import type { AdminPriceRow } from "@/lib/db/ai-models-admin";
 
-export type DraftPair = { key: string; value: string };
+/** `custom`: the admin chose to type the name (an allowance) rather than pick one. */
+export type DraftPair = { key: string; value: string; custom?: boolean };
 export type DraftLine = { meter: Meter; unit: string; when: DraftPair[] };
 export type PriceDraft = {
   /** yyyy-mm-dd (UTC). Today means now; a later day means 00:00 UTC that day. */
@@ -29,6 +30,19 @@ const ALLOWANCE_ERROR = "Enter a number for every allowance.";
 const DATE_ERROR = "Pick a start date.";
 const EMPTY_CONDITION_ERROR = "Fill in or remove the empty condition.";
 const REPEATED_CONDITION_ERROR = "Each setting can appear once per line.";
+
+const UNKNOWN_ALLOWANCE = "No estimate reads this name.";
+
+/** The allowance names to offer: the ones the estimator reads, then any other on the current row. */
+export function allowanceOptions(model: Pick<AiModel, "id" | "kind" | "params">, current: AiModelPrice | null): string[] {
+  return [...new Set([...estimateAllowanceKeys(model), ...Object.keys(current?.estimate ?? {})])];
+}
+
+/** A warning for a name no estimate reads. It doesn't stop the save. */
+export function allowanceWarning(model: Pick<AiModel, "id" | "kind" | "params">, key: string): string | null {
+  const k = key.trim();
+  return k === "" || estimateAllowanceKeys(model).includes(k) ? null : UNKNOWN_ALLOWANCE;
+}
 
 export const isTokenMeter = (meter: Meter): boolean => meter.endsWith("_token");
 
@@ -201,8 +215,8 @@ export function previewText(model: AiModel, draft: PriceDraft, current: AiModelP
 }
 
 /** The row in effect now: the newest one that has started and passes its check. */
-export function currentPriceRow(rows: AdminPriceRow[], now: Date): AdminPriceRow | null {
-  let best: AdminPriceRow | null = null;
+export function currentPriceRow<T extends Pick<AdminPriceRow, "price" | "effectiveFrom">>(rows: T[], now: Date): T | null {
+  let best: T | null = null;
   for (const r of rows) {
     const at = new Date(r.effectiveFrom).getTime();
     if (!r.price || at > now.getTime()) continue;

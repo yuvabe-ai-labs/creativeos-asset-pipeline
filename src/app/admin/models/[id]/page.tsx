@@ -7,6 +7,7 @@ import {
   listAdminModels,
   listAdminPrices,
   modelMonthStats,
+  type AdminPriceRow,
 } from "@/lib/db/ai-models-admin";
 import { RUNNABLE_ADAPTER_KEYS } from "@/lib/ai-models/runnable-keys";
 import type { ParamSpec } from "@/lib/image-gen/types";
@@ -14,7 +15,7 @@ import type { ConstraintRule } from "@/lib/video-gen/types";
 import { ModelDetailsForm } from "@/components/admin/models/model-details-form";
 import { ModelMonthStats } from "@/components/admin/models/model-month-stats";
 import { ModelDefinition } from "@/components/admin/models/model-definition";
-import { PriceHistory } from "@/components/admin/models/price-history";
+import { PriceHistory, type PriceHistoryRow } from "@/components/admin/models/price-history";
 import { AddPriceSheet } from "@/components/admin/models/add-price-sheet";
 import { currentPriceRow } from "@/components/admin/models/price-draft";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +33,16 @@ export const metadata = { title: "Model — Admin" };
 
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 const list = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
+/** Only the fields the history renders; the raw row stays on the server. */
+const toHistoryRow = (r: AdminPriceRow): PriceHistoryRow => ({
+  id: r.id,
+  price: r.price,
+  problems: r.problems,
+  effectiveFrom: r.effectiveFrom,
+  createdAt: r.createdAt,
+  createdByName: r.createdByName,
+});
 
 export default async function AdminModelPage({ params }: { params: Promise<{ id: string }> }) {
   await requireSuperAdmin();
@@ -63,6 +74,14 @@ export default async function AdminModelPage({ params }: { params: Promise<{ id:
       ? [{ id: o.model.id, label: o.model.label }]
       : [],
   );
+  // A saved replacement that has since left live is still named, so the admin sees why.
+  const replacedBy = m ? m.replacedBy : str(raw.replaced_by);
+  const staleRow = replacedBy && !replacements.some((r) => r.id === replacedBy)
+    ? models.find((o) => o.raw.id === replacedBy)
+    : undefined;
+  const staleReplacement = replacedBy && staleRow
+    ? { id: replacedBy, label: staleRow.model?.label ?? str(staleRow.raw.label) ?? replacedBy }
+    : null;
   const s = stats[0];
   const month = now.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
   const current = currentPriceRow(prices, now);
@@ -115,11 +134,12 @@ export default async function AdminModelPage({ params }: { params: Promise<{ id:
             providerLabel: m?.providerLabel ?? str(raw.provider_label) ?? "",
             description: m ? m.description : str(raw.description),
             status: m?.status ?? str(raw.status) ?? "draft",
-            replacedBy: m ? m.replacedBy : str(raw.replaced_by),
+            replacedBy,
             sortOrder: m?.sortOrder ?? (typeof raw.sort_order === "number" ? raw.sort_order : 0),
           }}
           canGoLive={canGoLive}
           replacements={replacements}
+          staleReplacement={staleReplacement}
           updatedBy={row.updatedBy ? (names.get(row.updatedBy) ?? null) : null}
           updatedAt={m?.updatedAt ?? str(raw.updated_at) ?? ""}
         />
@@ -137,7 +157,7 @@ export default async function AdminModelPage({ params }: { params: Promise<{ id:
             <h2 className="font-display text-lg font-semibold tracking-tight">Prices</h2>
             {m && <AddPriceSheet model={m} current={current?.price ?? null} />}
           </div>
-          <PriceHistory modelId={id} prices={prices} now={now.toISOString()} />
+          <PriceHistory modelId={id} prices={prices.map(toHistoryRow)} now={now.toISOString()} />
         </section>
 
         <ModelDefinition

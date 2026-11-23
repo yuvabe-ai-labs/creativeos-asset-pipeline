@@ -18,6 +18,11 @@ export function videoSecondsUsd(
   return line ? durationSeconds * line.unit_usd : null;
 }
 
+/** The allowances videoEstimateUsd reads from a price row's estimate, for these resolutions. */
+export function videoEstimateKeys(resolutions: readonly string[]): string[] {
+  return ["input_tokens_per_image", "thought_tokens", ...resolutions.map((r) => `edit_input_tokens_per_second_${r}`)];
+}
+
 /** What the run is reserved at: the seconds, plus the row's allowances for input and thinking. */
 export function videoEstimateUsd(
   price: AiModelPrice,

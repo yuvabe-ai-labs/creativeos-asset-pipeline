@@ -42,6 +42,17 @@ describe("ModelDetailsForm", () => {
     expect(retired).toContain("No replacement");
   });
 
+  it("names a replacement that is no longer live", () => {
+    const html = renderToStaticMarkup(
+      <ModelDetailsForm
+        {...props}
+        model={{ ...base, status: "retired", replacedBy: "fal:flux-1" }}
+        staleReplacement={{ id: "fal:flux-1", label: "Flux 1" }}
+      />,
+    );
+    expect(html).toContain("Flux 1 (no longer live)");
+  });
+
   it("shows who changed it last, with a relative time", () => {
     const html = renderToStaticMarkup(<ModelDetailsForm {...props} />);
     expect(html).toContain("Last changed by Priya");
