@@ -19,10 +19,10 @@ import { editorConnectRefusal } from "@/lib/editor/rules";
 import { computeGenerationLocks, sameLocks } from "@/lib/editor/generation-lock";
 import type { GenerationLock } from "@/lib/editor/types";
 import { PRESENTER_REPLACED_MESSAGE, assetColumnAnchor, replacedPresenterEdges, scriptKbNode } from "@/lib/avatars/canvas";
-import { DEFAULT_CLIENT_MODEL_ID, withoutDeprecatedImageModel } from "@/lib/image-gen/client-models";
+import { DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai-models/default-models";
+import { withoutRetiredModel, type ImageModels, type VideoModels } from "@/lib/ai-models/model-lists";
 import { COMPOSITE_DEFAULT_MODEL_ID } from "@/lib/composite/model";
 import { planGuidedNext } from "@/lib/guided-flow";
-import { DEFAULT_VIDEO_CLIENT_MODEL_ID, withoutDeprecatedVideoModel } from "@/lib/video-gen/client-models";
 import type { AppNode, ShotNodeData, MultishotNodeData } from "./canvas-nodes";
 import type { ReelScript, SceneBeat } from "@/lib/nodes/reel-script";
 import { foldMultishotVoiceover } from "@/lib/nodes/voiceover";
@@ -163,7 +163,9 @@ export type CanvasState = {
   setKbJustReady: (v: boolean) => void;
 };
 
-function defaultData(type: string): AppNode["data"] {
+export type CanvasModels = { images: ImageModels; videos: VideoModels };
+
+function defaultData(type: string, models?: CanvasModels): AppNode["data"] {
   switch (type) {
     case "file":
       return { title: "" };
@@ -184,11 +186,11 @@ function defaultData(type: string): AppNode["data"] {
     case "draw":
       return { title: "" };
     case "image-gen":
-      return { title: "", modelId: DEFAULT_CLIENT_MODEL_ID };
+      return { title: "", modelId: models?.images.defaultId ?? DEFAULT_IMAGE_MODEL_ID };
     case "composite":
-      return { title: "", modelId: COMPOSITE_DEFAULT_MODEL_ID };
+      return { title: "", modelId: models?.images.liveOr(COMPOSITE_DEFAULT_MODEL_ID) ?? COMPOSITE_DEFAULT_MODEL_ID };
     case "video-gen":
-      return { title: "", modelId: DEFAULT_VIDEO_CLIENT_MODEL_ID };
+      return { title: "", modelId: models?.videos.defaultId ?? DEFAULT_VIDEO_MODEL_ID };
     case "dubbing":
     case "editor":
       return { title: "" };
@@ -208,6 +210,7 @@ export function createCanvasStore(
   initialNodes: AppNode[] = [],
   initialEdges: Edge[] = [],
   initialCanvasName: string = "",
+  models?: CanvasModels,
 ) {
   // D382 amended — while a storyboard Fan out's rows are fresh, a card that reports a new size
   // (first render, or its panel image loading) lays those rows out again from what rendered. A
@@ -228,16 +231,17 @@ export function createCanvasStore(
     return { nodes: nodes.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)), layout };
   };
 
-  // D461, D467 — a node saved on a deprecated model opens on the fallback, here so that its card,
-  // its prompt node and its focus view all agree. Saved with the canvas's next change, not on load.
+  // D544 — a node saved on a retired model opens on its replacement, here so that its card, its
+  // prompt node and its focus view all agree. Saved with the canvas's next change, not on load.
   const startingNodes = initialNodes.map((n) => {
-    const withFallback =
+    if (!models) return n;
+    const next =
       n.type === "video-gen"
-        ? withoutDeprecatedVideoModel(n.data)
+        ? withoutRetiredModel(models.videos, n.data)
         : n.type === "image-gen" || n.type === "composite"
-          ? withoutDeprecatedImageModel(n.data)
+          ? withoutRetiredModel(models.images, n.data)
           : n.data;
-    return withFallback === n.data ? n : ({ ...n, data: withFallback } as AppNode);
+    return next === n.data ? n : ({ ...n, data: next } as AppNode);
   });
 
   const store = createStore<CanvasState>((set, get) => ({
@@ -363,7 +367,7 @@ export function createCanvasStore(
             id: id ?? crypto.randomUUID(),
             type,
             position,
-            data: defaultData(type),
+            data: defaultData(type, models),
           } as AppNode,
         ],
       }),
@@ -1044,7 +1048,7 @@ export function createCanvasStore(
         id: newId,
         type: plan.nextType,
         position: plan.position,
-        data: defaultData(plan.nextType),
+        data: defaultData(plan.nextType, models),
       } as AppNode;
       const newEdges = plan.parentIds
         .filter((pid) => !wouldCreateCycle(state.edges, pid, newId))

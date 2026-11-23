@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toast } from "sonner";
 import { createCanvasStore } from "./canvas-store";
-import { defaultsForVideoModel } from "./video-gen/client-models";
-import { defaultsForModel, imageGenClientModelMap } from "./image-gen/client-models";
+import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
+import { imageModelsFrom, videoModelsFrom, paramDefaults } from "@/lib/ai-models/model-lists";
 import { sceneFingerprint } from "./nodes/scene-beats";
 import { generationKey } from "./nodes/group-shots";
 import { FAN_OUT_CARDS, PANEL_CARD, PANEL_GAP, ROW_GAP, STORYBOARD_ROW_PITCH } from "./scripts/storyboard-canvas";
@@ -1405,56 +1405,41 @@ describe("fanOutShots with script products and locations (D450)", () => {
   });
 });
 
-describe("deprecated video models on load (D461)", () => {
-  const veoNode = {
-    id: "vg",
-    type: "video-gen",
-    position: { x: 0, y: 0 },
-    data: { title: "Shot 1", modelId: "veo:veo-3.1-lite", params: { duration: "4" }, parsed: "https://x/clip.mp4" },
-  } as unknown as AppNode;
+describe("D544 — nodes on a retired model", () => {
+  const catalog = seededModelCatalog();
+  const models = { images: imageModelsFrom(catalog), videos: videoModelsFrom(catalog) };
+  const node = (type: string, data: Record<string, unknown>) =>
+    ({ id: `${type}-1`, type, position: { x: 0, y: 0 }, data }) as AppNode;
 
-  it("opens a saved Veo node on Omni with Omni's defaults, keeping its video", () => {
-    const node = createCanvasStore([veoNode]).getState().nodes[0];
-    const data = node.data as Record<string, unknown>;
-    expect(data.modelId).toBe(OMNI_MODEL_ID);
-    expect(data.params).toEqual(defaultsForVideoModel(OMNI_MODEL_ID));
-    expect(data.parsed).toBe("https://x/clip.mp4");
-  });
-
-  it("leaves other nodes as the same objects", () => {
-    const kling = {
-      id: "k",
-      type: "video-gen",
-      position: { x: 0, y: 0 },
-      data: { modelId: "kling:kling-3-0", params: { duration: 5 } },
-    } as unknown as AppNode;
-    expect(createCanvasStore([kling]).getState().nodes[0]).toBe(kling);
-  });
-});
-
-describe("deprecated image models on load (D467)", () => {
-  it.each(["image-gen", "composite"])("opens a saved GPT Image 1 %s on Sunburst with its defaults, keeping its image", (type) => {
-    const node = createCanvasStore([
-      {
-        id: "n",
-        type,
-        position: { x: 0, y: 0 },
-        data: { modelId: "openai:gpt-image-1", params: { quality: "high" }, parsed: "https://x/a.png" },
-      } as unknown as AppNode,
-    ]).getState().nodes[0];
-    const data = node.data as Record<string, unknown>;
+  it("opens an Image Gen node on the retired model's replacement, with its defaults", () => {
+    const store = createCanvasStore([node("image-gen", { title: "", modelId: "openai:gpt-image-1", params: { quality: "high" } })], [], "", models);
+    const data = store.getState().nodes[0].data as Record<string, unknown>;
     expect(data.modelId).toBe("openai:gpt-image-2.5-sunburst");
-    expect(data.params).toEqual(defaultsForModel(imageGenClientModelMap["openai:gpt-image-2.5-sunburst"]));
-    expect(data.parsed).toBe("https://x/a.png");
+    expect(data.params).toEqual(paramDefaults(models.images.get("openai:gpt-image-2.5-sunburst")!.params));
+    expect(data.retiredModelId).toBe("openai:gpt-image-1");
   });
 
-  it("leaves a node on another image model as the same object", () => {
-    const mini = {
-      id: "m",
-      type: "image-gen",
-      position: { x: 0, y: 0 },
-      data: { modelId: "openai:gpt-image-1-mini", params: { quality: "low" } },
-    } as unknown as AppNode;
-    expect(createCanvasStore([mini]).getState().nodes[0]).toBe(mini);
+  it("opens a Video Gen node on a retired model's replacement", () => {
+    const retired = videoModelsFrom(withModel(catalog, "gemini:gemini-omni-1.1-flash", { status: "retired", replacedBy: "gemini:gemini-omni-1.2-flash" }));
+    const store = createCanvasStore([node("video-gen", { title: "", modelId: "gemini:gemini-omni-1.1-flash" })], [], "", { ...models, videos: retired });
+    const data = store.getState().nodes[0].data as Record<string, unknown>;
+    expect(data.modelId).toBe("gemini:gemini-omni-1.2-flash");
+    expect(data.retiredModelId).toBe("gemini:gemini-omni-1.1-flash");
+  });
+
+  it("keeps a node on a hidden or live model as the same object", () => {
+    const hidden = imageModelsFrom(withModel(catalog, "gemini:gemini-3-pro-image", { status: "hidden" }));
+    const n = node("image-gen", { title: "", modelId: "gemini:gemini-3-pro-image" });
+    const store = createCanvasStore([n], [], "", { ...models, images: hidden });
+    expect(store.getState().nodes[0]).toBe(n);
+  });
+
+  it("starts new nodes on the catalog's defaults", () => {
+    const hidden = imageModelsFrom(withModel(catalog, "gemini:gemini-3-pro-image", { status: "hidden" }));
+    const store = createCanvasStore([], [], "", { ...models, images: hidden });
+    store.getState().addNode("image-gen", { x: 0, y: 0 });
+    const data = store.getState().nodes[0].data as Record<string, unknown>;
+    expect(data.modelId).toBe(hidden.defaultId);
+    expect(data.modelId).not.toBe("gemini:gemini-3-pro-image");
   });
 });
