@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { updateAiModelAction } from "@/lib/actions/ai-models";
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import {
+  buildModelPatch,
+  isStatusDisabled,
+  parseSortOrder,
+} from "./model-details-patch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,13 +65,14 @@ export function ModelDetailsForm({
   updatedAt: string;
 }) {
   const [saved, setSaved] = useState(model);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
   const [label, setLabel] = useState(model.label);
   const [pickerLabel, setPickerLabel] = useState(model.pickerLabel ?? "");
   const [providerLabel, setProviderLabel] = useState(model.providerLabel);
   const [description, setDescription] = useState(model.description ?? "");
   const [sortOrder, setSortOrder] = useState(String(model.sortOrder));
   const [status, setStatus] = useState(model.status);
-  const [replacedBy, setReplacedBy] = useState(model.replacedBy ?? NO_REPLACEMENT);
+  const [replacedBy, setReplacedBy] = useState<string | null>(model.replacedBy);
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,17 +83,15 @@ export function ModelDetailsForm({
     return () => clearTimeout(t);
   }, [justSaved]);
 
-  const patch: Record<string, unknown> = {};
-  if (label !== saved.label) patch.label = label;
-  if (pickerLabel !== (saved.pickerLabel ?? "")) patch.picker_label = pickerLabel.trim() === "" ? null : pickerLabel;
-  if (providerLabel !== saved.providerLabel) patch.provider_label = providerLabel;
-  if (description !== (saved.description ?? "")) patch.description = description.trim() === "" ? null : description;
-  if (sortOrder !== String(saved.sortOrder)) patch.sort_order = Number(sortOrder);
-  if (status !== saved.status) patch.status = status;
-  if (status === "retired" && replacedBy !== (saved.replacedBy ?? NO_REPLACEMENT)) {
-    patch.replaced_by = replacedBy === NO_REPLACEMENT ? null : replacedBy;
-  }
+  const draft = { label, pickerLabel, providerLabel, description, sortOrder, status, replacedBy };
+  const patch = buildModelPatch(saved, draft);
+  const orderOk = parseSortOrder(sortOrder) !== null;
   const changed = Object.keys(patch).length > 0;
+
+  function changeStatus(next: string) {
+    setStatus(next);
+    if (next !== "retired") setReplacedBy(null);
+  }
 
   async function save() {
     setSaving(true);
@@ -99,21 +103,24 @@ export function ModelDetailsForm({
       setError(res.error);
       return;
     }
-    setSaved({
+    const next = {
       ...saved,
       label,
       pickerLabel: pickerLabel.trim() === "" ? null : pickerLabel,
       providerLabel,
       description: description.trim() === "" ? null : description,
-      sortOrder: Number(sortOrder),
+      sortOrder: parseSortOrder(sortOrder) ?? saved.sortOrder,
       status,
-      replacedBy: status === "retired" && replacedBy !== NO_REPLACEMENT ? replacedBy : null,
-    });
+      replacedBy: status === "retired" ? replacedBy : null,
+    };
+    setSaved(next);
+    setReplacedBy(next.replacedBy);
+    setSavedAt(new Date().toISOString());
     setJustSaved(true);
   }
 
   const replacementLabel =
-    replacedBy === NO_REPLACEMENT
+    replacedBy === null
       ? "No replacement"
       : (replacements.find((r) => r.id === replacedBy)?.label ?? replacedBy);
 
@@ -136,7 +143,9 @@ export function ModelDetailsForm({
             type="number"
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
+            aria-invalid={!orderOk}
           />
+          {!orderOk && <p className="text-xs text-destructive">Order must be a whole number.</p>}
         </Field>
         <div className="sm:col-span-2">
           <Field label="Description" htmlFor="model-description">
@@ -144,13 +153,13 @@ export function ModelDetailsForm({
           </Field>
         </div>
         <Field label="Status">
-          <Select value={status} onValueChange={(v) => v && setStatus(v)}>
+          <Select value={status} onValueChange={(v) => v && changeStatus(v)}>
             <SelectTrigger className="w-full">
               <SelectValue>{STATUSES.find((s) => s.value === status)?.label ?? status}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {STATUSES.map((s) => (
-                <SelectItem key={s.value} value={s.value} disabled={s.value === "live" && !canGoLive}>
+                <SelectItem key={s.value} value={s.value} disabled={isStatusDisabled(s.value, canGoLive)}>
                   {s.label}
                 </SelectItem>
               ))}
@@ -164,7 +173,7 @@ export function ModelDetailsForm({
         </Field>
         {status === "retired" && (
           <Field label="Replaced by">
-            <Select value={replacedBy} onValueChange={(v) => v && setReplacedBy(v)}>
+            <Select value={replacedBy ?? NO_REPLACEMENT} onValueChange={(v) => v && setReplacedBy(v === NO_REPLACEMENT ? null : v)}>
               <SelectTrigger className="w-full">
                 <SelectValue>{replacementLabel}</SelectValue>
               </SelectTrigger>
@@ -181,12 +190,12 @@ export function ModelDetailsForm({
         )}
       </div>
       <div className="mt-6 flex items-center gap-3">
-        <Button type="button" disabled={!changed || saving} onClick={() => void save()}>
+        <Button type="button" disabled={!changed || !orderOk || saving} onClick={() => void save()}>
           {saving ? "Saving…" : "Save changes"}
         </Button>
         {justSaved && !saving && <span className="text-xs text-muted-foreground">Saved</span>}
         <span className="ml-auto text-xs text-muted-foreground">
-          {updatedBy ? `Last changed by ${updatedBy}` : "Last changed"} {formatRelativeTime(updatedAt)}
+          {savedAt ? "Last changed" : updatedBy ? `Last changed by ${updatedBy}` : "Last changed"} {savedAt ? "just now" : formatRelativeTime(updatedAt)}
         </span>
       </div>
       {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
