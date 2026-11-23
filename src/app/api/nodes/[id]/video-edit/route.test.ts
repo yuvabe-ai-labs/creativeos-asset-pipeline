@@ -164,6 +164,59 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
   });
 
+  // The limits are the catalog's, and only checked once the edit may run at all.
+  describe("limits and their order", () => {
+    const PACK2 = { ...PACK, id: "n-pack-2", imageUrl: "https://storage.googleapis.com/b/pack2.jpg" };
+    const lowerOmni12Cap = async (max: number) => {
+      const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+      const base = seededModelCatalog();
+      const row = base.models.find((m) => m.id === GEMINI_OMNI_12_MODEL_ID)!;
+      const caps = row.capabilities as { imageInputs: Record<string, unknown> };
+      return withModel(base, GEMINI_OMNI_12_MODEL_ID, {
+        capabilities: { ...row.capabilities, imageInputs: { ...caps.imageInputs, maxReferenceImages: max } },
+      });
+    };
+
+    it("names the catalog's reference cap and records nothing", async () => {
+      cat.value = await lowerOmni12Cap(1);
+      mocks.collect.mockResolvedValue({ direct: [], promptNodes: [], promptUpstreamBatches: [], images: [PACK, PACK2] });
+      const res = await post({ ...BODY, referenceNodeIds: ["n-pack", "n-pack-2"] });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "Omni 1.2 takes up to 1 references. Untick some." });
+      expect(mocks.insertGeneration).not.toHaveBeenCalled();
+      expect(mocks.reserveCredits).not.toHaveBeenCalled();
+    });
+
+    it("gives a retired model's refusal, not a limits message", async () => {
+      const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+      cat.value = withModel(seededModelCatalog(), GEMINI_OMNI_11_MODEL_ID, { status: "retired", replacedBy: GEMINI_OMNI_12_MODEL_ID });
+      const many = Array.from({ length: 20 }, (_, i) => `n-${i}`);
+      const res = await post({ ...BODY, modelId: GEMINI_OMNI_11_MODEL_ID, referenceNodeIds: many });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe("This model was retired. Pick another.");
+      expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    });
+
+    it("gives the lock, not a limits message, for a clip in the Editor's reel", async () => {
+      editorLock.value = "editor";
+      const many = Array.from({ length: GEMINI_OMNI_12_IMAGE_INPUTS.maxReferenceImages + 1 }, (_, i) => `n-${i}`);
+      const res = await post({ ...BODY, referenceNodeIds: many });
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).not.toContain("references");
+      expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    });
+  });
+
+  it("with no model sent, runs on the first edit model offered on this take (Omni 1.2 hidden)", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withModel(seededModelCatalog(), GEMINI_OMNI_12_MODEL_ID, { status: "hidden" });
+    mocks.node = { type: "video-gen", canvas_id: "c1", data: { modelId: "kling:kling-3-0-omni" } };
+    const res = await post(BODY);
+    expect(res.status).toBe(202);
+    const call = (mocks.insertGeneration.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(call).toMatchObject({ modelUsed: GEMINI_OMNI_11_MODEL_ID });
+  });
+
   it("runs on Omni 1.1 when asked, with 1.1's price, limits and model on the record", async () => {
     const res = await post({ ...BODY, modelId: GEMINI_OMNI_11_MODEL_ID });
     expect(res.status).toBe(202);

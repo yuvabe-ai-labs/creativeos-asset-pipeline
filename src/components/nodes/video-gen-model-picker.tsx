@@ -29,6 +29,7 @@ export function VideoGenModelPicker({
   loading = false,
   unavailable,
   offeredModelIds,
+  ownModelId,
   children,
 }: {
   modelId: string;
@@ -66,6 +67,11 @@ export function VideoGenModelPicker({
   unavailable?: Record<string, string>;
   /** D483 — when set, only these models are offered (Edit runs on Omni only). */
   offeredModelIds?: readonly string[];
+  /**
+   * D540 — the model a hidden one is offered for, when it isn't `modelId` (Edit: the model the
+   * take was last edited with, else the node's). Absent: `modelId`.
+   */
+  ownModelId?: string | null;
   /** Settings that belong to the chosen model (resolution, duration) and share its card. */
   children?: ReactNode;
 }) {
@@ -75,11 +81,12 @@ export function VideoGenModelPicker({
   // Drop the models this node cannot use, and any provider group left with none.
   const offered = (id: string) =>
     (!lockedToModelIds || lockedToModelIds.includes(id)) && (!offeredModelIds || offeredModelIds.includes(id));
+  const own = ownModelId === undefined ? modelId : ownModelId;
   const shownGroups =
     !lockedToModelIds && !offeredModelIds
-      ? videos.groups(modelId)
+      ? videos.groups(own)
       : videos
-          .groups(modelId)
+          .groups(own)
           .map((g) => ({ ...g, models: g.models.filter((m) => offered(m.id)) }))
           .filter((g) => g.models.length > 0);
 

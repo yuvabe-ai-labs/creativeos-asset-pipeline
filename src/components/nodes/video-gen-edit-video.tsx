@@ -7,10 +7,11 @@ import { useModelPrice, useVideoModels } from "@/hooks/queries/ai-models";
 import { durationOfParams } from "@/lib/voice-change/record";
 import { mentionedImageIds } from "@/lib/video-edit/prompt";
 import {
-  VIDEO_EDIT_DEFAULT_MODEL_ID,
   VIDEO_EDIT_MODEL_IDS,
   VIDEO_EDIT_RESOLUTIONS,
+  editOwnModelId,
   editResolutionForTake,
+  firstOfferedEditModel,
   isVideoEditModelId,
   videoEditEstimateCredits,
   videoEditGate,
@@ -46,6 +47,8 @@ type Props = {
   locked: string | null;
   value: VideoEditNodeState | undefined;
   onChange: (next: VideoEditNodeState) => void;
+  /** The node's stored model (`data.modelId`): an edit's own model when the take was never edited. */
+  nodeModelId: string | null;
   /** The job was accepted. The mutation marks the node as editing; the caller pauses the video and clears the old error. */
   onStarted: () => void;
 };
@@ -53,7 +56,7 @@ type Props = {
 // D483 — Edit video, the centre column's Edit video tab (D492). The output column keeps showing
 // the take being edited. The model uses the generate settings' own picker; the prompt, the
 // resolution (it starts at the take's own) and the button share one card.
-export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running, editing, locked, value, onChange, onStarted }: Props) {
+export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running, editing, locked, value, onChange, nodeModelId, onStarted }: Props) {
   const source = versions.find((v) => v.id === sourceId) ?? null;
   const state: VideoEditNodeState = value ?? { instruction: "", referenceNodeIds: null };
   // YUV-447 — the instruction is typed into a local draft and saved to the node on blur and on
@@ -64,8 +67,11 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
     if (draft !== state.instruction) onChange({ ...state, instruction: draft });
   };
 
-  const modelId = isVideoEditModelId(state.modelId) ? state.modelId : VIDEO_EDIT_DEFAULT_MODEL_ID;
   const videos = useVideoModels();
+  // D540 — the same own model the route checks against; until the operator picks, the newest
+  // edit model offered on this take.
+  const editedWith = editOwnModelId(source?.inputsUsed, nodeModelId);
+  const modelId = isVideoEditModelId(state.modelId) ? state.modelId : firstOfferedEditModel(videos, editedWith);
   const limits = videoEditLimitsFor(videos, modelId);
   const resolution = state.resolution ?? editResolutionForTake(source?.paramsUsed?.resolution);
 
@@ -127,6 +133,7 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
         modelId={modelId}
         onModelChange={(next) => isVideoEditModelId(next) && onChange({ ...state, instruction: draft, modelId: next })}
         offeredModelIds={VIDEO_EDIT_MODEL_IDS}
+        ownModelId={editedWith}
       />
 
       <ImageGenEditReferences

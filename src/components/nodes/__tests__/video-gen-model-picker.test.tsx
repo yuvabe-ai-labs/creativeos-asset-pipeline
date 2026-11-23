@@ -30,4 +30,12 @@ describe("VideoGenModelPicker", () => {
     expect(render(OMNI)).not.toContain("3.0 Omni");
     expect(render(KLING_OMNI)).toContain("3.0 Omni");
   });
+
+  it("reads which hidden model is the caller's own from ownModelId when passed (Edit's take)", () => {
+    state.videos = videoModelsFrom(withModel(seededModelCatalog(), KLING_OMNI, { status: "hidden" }));
+    const withOwn = (modelId: string, ownModelId: string | null) =>
+      renderToStaticMarkup(<VideoGenModelPicker modelId={modelId} ownModelId={ownModelId} onModelChange={() => {}} />);
+    expect(withOwn(KLING_OMNI, null)).not.toContain("3.0 Omni");
+    expect(withOwn(OMNI, KLING_OMNI)).toContain("3.0 Omni");
+  });
 });

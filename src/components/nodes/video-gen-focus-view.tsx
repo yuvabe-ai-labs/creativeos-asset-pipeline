@@ -1900,6 +1900,7 @@ export function VideoGenFocusView({
                     locked={lockReason}
                     value={videoEditProp}
                     onChange={(next) => onPatch({ videoEdit: next })}
+                    nodeModelId={modelIdProp ?? null}
                     onStarted={() => {
                       videoRef.current?.pause();
                       setLastError(null);

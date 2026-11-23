@@ -39,6 +39,21 @@ export function isVideoEditModelId(v: unknown): v is VideoEditModelId {
 }
 
 /**
+ * D540 — the model an edit of this take counts as its own (a hidden edit model keeps running
+ * there): the model the take was last edited with, else the node's. The route and the panel
+ * both read it, so they agree on what is offered.
+ */
+export function editOwnModelId(baseInputsUsed: unknown, nodeModelId: string | null): string | null {
+  const inputs = baseInputsUsed && typeof baseInputsUsed === "object" ? (baseInputsUsed as { videoEdit?: unknown }) : null;
+  return readVideoEdit(inputs?.videoEdit)?.modelId ?? nodeModelId;
+}
+
+/** D543 — the edit model to start on: the newest one offered on this take, else the default. */
+export function firstOfferedEditModel(videos: VideoModels, ownModelId: string | null): VideoEditModelId {
+  return VIDEO_EDIT_MODEL_IDS.find((id) => videos.isOffered(id, ownModelId)) ?? VIDEO_EDIT_DEFAULT_MODEL_ID;
+}
+
+/**
  * What a model allows for an edit, read off its catalog row so it can't drift from generation:
  * the longest take and the most references. Edits were tested on 3–6 s takes on 1.1.
  */
