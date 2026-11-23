@@ -1,4 +1,4 @@
-import { apiError } from "@/lib/api/route-helpers";
+import { apiError, withBodyCanvas } from "@/lib/api/route-helpers";
 import { createOpenAI } from "@/lib/openai/server";
 import { buildCopilotContext } from "@/lib/copilot/context";
 import { copilotRecordFor } from "@/lib/copilot/record-for";
@@ -18,56 +18,57 @@ export async function POST(req: Request) {
   if (history.length === 0) return apiError("A 'messages' history is required.", 400);
   if (!canvasId) return apiError("A 'canvasId' is required.", 400);
 
-  // Grounding (Lesson 2), now with handles + the human's @-referenced nodes spotlighted.
-  const [canvasContext, recordFor] = await Promise.all([
-    buildCopilotContext(canvasId, body?.mentionedIds ?? []),
-    copilotRecordFor(canvasId),
-  ]);
+  // The canvas must be in the caller's org before anything of it is read (withBodyCanvas).
+  return withBodyCanvas(canvasId, async (canvas, caller) => {
+    const recordFor = copilotRecordFor(canvas, caller);
+    // Grounding (Lesson 2), now with handles + the human's @-referenced nodes spotlighted.
+    const canvasContext = await buildCopilotContext(canvas.id, body?.mentionedIds ?? []);
 
-  try {
-    const openai = createOpenAI();
-    const completion = await openai.chat.completions.create({
-      model: MODEL,
-      stream: true,
-      // D537 — the last chunk then carries the call's usage, so its cost can be recorded.
-      stream_options: { include_usage: true },
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are the copilot inside CreativeOS. You CAN see the canvas — it is described " +
-            "in the next message. Be brief and concrete. Refer to nodes by their HANDLE (e.g. " +
-            "PRM-A3F9) and type; the user sees the same handles on the canvas. When the user " +
-            "writes an @HANDLE, that is a specific node they are pointing at — use it. Each node " +
-            "also lists a bracketed internal [id …] for your reference only — never show it.",
-        },
-        { role: "system", content: canvasContext },
-        ...history,
-      ],
-    });
+    try {
+      const openai = createOpenAI();
+      const completion = await openai.chat.completions.create({
+        model: MODEL,
+        stream: true,
+        // D537 — the last chunk then carries the call's usage, so its cost can be recorded.
+        stream_options: { include_usage: true },
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are the copilot inside CreativeOS. You CAN see the canvas — it is described " +
+              "in the next message. Be brief and concrete. Refer to nodes by their HANDLE (e.g. " +
+              "PRM-A3F9) and type; the user sees the same handles on the canvas. When the user " +
+              "writes an @HANDLE, that is a specific node they are pointing at — use it. Each node " +
+              "also lists a bracketed internal [id …] for your reference only — never show it.",
+          },
+          { role: "system", content: canvasContext },
+          ...history,
+        ],
+      });
 
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        // Recorded once when the stream ends, also when it breaks, from whatever usage arrived.
-        let usage: OpenAiChatUsage | undefined;
-        try {
-          for await (const chunk of completion) {
-            if (chunk.usage) usage = chunk.usage;
-            const delta = chunk.choices[0]?.delta?.content;
-            if (delta) controller.enqueue(encoder.encode(delta));
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          // Recorded once when the stream ends, also when it breaks, from whatever usage arrived.
+          let usage: OpenAiChatUsage | undefined;
+          try {
+            for await (const chunk of completion) {
+              if (chunk.usage) usage = chunk.usage;
+              const delta = chunk.choices[0]?.delta?.content;
+              if (delta) controller.enqueue(encoder.encode(delta));
+            }
+          } finally {
+            recordAfterResponse(openAiCost(recordFor, "copilot", MODEL, usage, "chat"));
+            controller.close();
           }
-        } finally {
-          recordAfterResponse(openAiCost(recordFor, "copilot", MODEL, usage, "chat"));
-          controller.close();
-        }
-      },
-    });
+        },
+      });
 
-    return new Response(stream, {
-      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" },
-    });
-  } catch (e) {
-    return apiError(e instanceof Error ? e.message : "Copilot request failed.", 500);
-  }
+      return new Response(stream, {
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" },
+      });
+    } catch (e) {
+      return apiError(e instanceof Error ? e.message : "Copilot request failed.", 500);
+    }
+  });
 }

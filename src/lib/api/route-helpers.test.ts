@@ -45,6 +45,12 @@ const { nodeOrgIdHolder, nodeQueryGate } = vi.hoisted(() => ({
   // observe what withNode does WHILE that query is still in flight.
   nodeQueryGate: { wait: null as Promise<void> | null },
 }));
+// The canvas a copilot request body names (withBodyCanvas): null = no such canvas.
+const { canvasRowHolder } = vi.hoisted(() => ({
+  canvasRowHolder: {
+    row: null as null | { client_id: string; source_script_id: string | null; clients: { org_id: string } },
+  },
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({
     from: (table: string) => {
@@ -76,13 +82,20 @@ vi.mock("@/lib/supabase/server", () => ({
           }),
         };
       }
+      if (table === "canvases") {
+        return {
+          select: () => ({
+            eq: () => ({ maybeSingle: async () => ({ data: canvasRowHolder.row, error: null }) }),
+          }),
+        };
+      }
       throw new Error(`Unexpected table in mock: ${table}`);
     },
   })),
 }));
 
 import { resolveOrgId, resolveCallerContext } from "@/lib/dal";
-import { withClient, withNode } from "./route-helpers";
+import { withBodyCanvas, withClient, withNode } from "./route-helpers";
 
 const params = Promise.resolve({ id: "client-1" });
 function req(method: string) {
@@ -245,5 +258,54 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
       "client-1",
       "org-2",
     );
+  });
+});
+
+// A copilot request names its canvas in the body, so nothing upstream checked it belongs to
+// the caller's org. withBodyCanvas is that check: one canvas read, one caller resolution.
+describe("withBodyCanvas", () => {
+  const ok = () => vi.fn(async () => NextResponse.json(null, { status: 200 }));
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    canvasRowHolder.row = { client_id: "client-1", source_script_id: "script-1", clients: { org_id: "org-1" } };
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+  });
+
+  it("hands the handler the verified canvas and the caller, resolving the caller once", async () => {
+    const handler = ok();
+    expect((await withBodyCanvas("canvas-1", handler)).status).toBe(200);
+    expect(handler).toHaveBeenCalledWith(
+      { id: "canvas-1", orgId: "org-1", clientId: "client-1", scriptId: "script-1" },
+      expect.objectContaining({ userId: "user-1", email: "user-1@yuvabe.com" }),
+    );
+    expect(resolveCallerContext).toHaveBeenCalledTimes(1);
+    expect(resolveOrgId).not.toHaveBeenCalled();
+  });
+
+  it("is a 404 for a canvas in another org, and the handler never runs", async () => {
+    canvasRowHolder.row = { client_id: "client-9", source_script_id: null, clients: { org_id: "org-2" } };
+    const handler = ok();
+    const res = await withBodyCanvas("canvas-9", handler);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Canvas not found." });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("is a 404 for a canvas that does not exist", async () => {
+    canvasRowHolder.row = null;
+    const handler = ok();
+    expect((await withBodyCanvas("missing", handler)).status).toBe(404);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("while impersonating, the target org's canvas is the one allowed", async () => {
+    canvasRowHolder.row = { client_id: "client-2", source_script_id: null, clients: { org_id: "org-2" } };
+    resolveImpersonationStateMock.mockResolvedValue({
+      isImpersonating: true, operatorId: "op-1", targetOrgId: "org-2", elevated: false,
+    });
+    const handler = ok();
+    expect((await withBodyCanvas("canvas-2", handler)).status).toBe(200);
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ orgId: "org-2", clientId: "client-2" }), expect.anything());
   });
 });

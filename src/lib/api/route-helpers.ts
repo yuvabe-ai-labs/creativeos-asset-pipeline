@@ -135,6 +135,62 @@ export async function withCanvas(
   return handler(canvasId, canvas as CanvasRow);
 }
 
+// ── Body-named canvas resolution ──────────────────────────────────────────────
+
+/** The canvas a request body names, once it is known to be in the caller's effective org. */
+export type VerifiedCanvas = {
+  id: string;
+  orgId: string;
+  clientId: string;
+  scriptId: string | null;
+};
+
+type BodyCanvasRow = {
+  client_id: string;
+  source_script_id: string | null;
+  clients: { org_id: string } | { org_id: string }[] | null;
+};
+
+// withCanvas() for routes that take the canvas id from the request BODY instead of the
+// path (the copilot routes). src/proxy.ts only requires a signed-in user, so without this
+// any caller could name another org's canvas and read its content back. Canvas -> client ->
+// org in one query, only the columns used. The canvas read, the caller and the impersonation
+// cookie run side by side, and the caller is resolved once (as in withNode(): calling
+// resolveOrgId() as well would re-run the Auth check and membership read). 404, never 403.
+//
+// No impersonation write gate here: the routes that use this read the canvas and answer,
+// they write nothing. A route that writes must add assertImpersonationWriteAllowed().
+export async function withBodyCanvas(
+  canvasId: string,
+  handler: (canvas: VerifiedCanvas, caller: CallerContext) => Promise<AnyResponse | Response>,
+): Promise<AnyResponse | Response> {
+  const supabase = createServerSupabase();
+  const [{ data, error }, caller, impersonation] = await Promise.all([
+    supabase
+      .from("canvases")
+      .select("client_id, source_script_id, clients!inner(org_id)")
+      .eq("id", canvasId)
+      .maybeSingle(),
+    resolveCallerContext(),
+    resolveImpersonationState(),
+  ]);
+  if (error) throw error;
+  if (!data) return apiError("Canvas not found.", 404);
+  // Same rule as resolveOrgId(): the impersonation target while a session is active (D81).
+  const effectiveOrgId = impersonation.isImpersonating ? impersonation.targetOrgId : caller.orgId;
+
+  const row = data as unknown as BodyCanvasRow;
+  const client = unwrapEmbed(row.clients);
+  if (!client || client.org_id !== effectiveOrgId) {
+    return apiError("Canvas not found.", 404);
+  }
+
+  return handler(
+    { id: canvasId, orgId: client.org_id, clientId: row.client_id, scriptId: row.source_script_id },
+    caller,
+  );
+}
+
 // ── Node resolution ───────────────────────────────────────────────────────────
 
 type NodeWithOrgChain = NodeRow & {
