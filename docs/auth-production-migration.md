@@ -1731,3 +1731,76 @@ create index if not exists billing_payments_org_id_idx on billing_payments (org_
 drop index if exists billing_log_org_id_created_at_idx, billing_payments_org_id_created_at_idx,
   billing_payments_listed_created_at_idx, billing_subscriptions_status_period_end_idx;
 ```
+
+## Razorpay setup for each environment (D530, 2026-11-23) — no migration
+
+Razorpay keeps test mode and live mode apart: each has its own keys, webhooks and webhook secrets.
+Production uses live mode; dev and staging share test mode. Every environment calls the same route,
+`/api/webhooks/razorpay`.
+
+| Environment | Razorpay mode | Keys | `RAZORPAY_LIVE` | Webhook |
+|---|---|---|---|---|
+| Local | Test | `rzp_test_…` | not set | Only while testing, through a tunnel (Razorpay needs https, never localhost); delete it afterwards |
+| Dev | Test | `rzp_test_…` | not set | Dev address + `/api/webhooks/razorpay` |
+| Staging | Test | `rzp_test_…` | not set | Staging address + `/api/webhooks/razorpay` |
+| Production | Live | `rzp_live_…` | `1` | Production address + `/api/webhooks/razorpay` (the only live webhook) |
+
+**Settings in each environment:**
+
+- App (Vercel): `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (that
+  environment's own webhook secret), and `RAZORPAY_LIVE=1` in production only. `RAZORPAY_TEST_PAGE=1`
+  stays on local and dev only.
+- Trigger.dev, the same environment: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and
+  `RAZORPAY_LIVE=1` in production only (the hourly and nightly checks call Razorpay).
+- A key that doesn't match `RAZORPAY_LIVE` is refused: top-ups, plans and the checks stop with a
+  plain error ("Could not start the payment.", "Could not start the plan.") and the log names the
+  setting. Fix the setting, not the code.
+
+**Each webhook in the Razorpay Dashboard** (Account & Settings › Webhooks, in the right mode):
+
+- The environment's address, its own secret (generated, not reused across environments), and an
+  alert email that reaches the team.
+- These 8 events: `order.paid`, `subscription.activated`, `subscription.charged`,
+  `subscription.pending`, `subscription.halted`, `subscription.cancelled`,
+  `subscription.completed`, `subscription.resumed`.
+
+**Expected behaviour:**
+
+- Both test-mode webhooks receive every test-mode event, so dev gets staging's payments and the other
+  way round. Each answers 200 and ignores an order or plan it doesn't have; the only trace is a row in
+  `razorpay_events`.
+- Razorpay sends an event again until it gets a 2xx, for up to 24 hours, then turns the webhook off
+  and emails the alert address. After fixing the cause, turn the webhook back on in the Dashboard;
+  the hourly top-up check and the nightly plan check record the payments missed meanwhile.
+
+**Check before the first live payment:**
+
+- Vercel's deployment protection, if on for staging or production, must let
+  `/api/webhooks/razorpay` through, or every event is refused before it reaches the route.
+- Send a test event from the Dashboard's webhook page and confirm a new row in `razorpay_events`
+  with `processed_at` set.
+
+**After copying the production database into staging:** the copy holds live-mode Razorpay ids
+that test mode doesn't have, so subscribing fails and the nightly check errors on every plan.
+Run this on **staging only**, right after the copy:
+
+```sql
+-- staging only: drop the live-mode Razorpay ids copied from production
+update billing_prices set razorpay_plan_id = null where razorpay_plan_id is not null;
+update billing_accounts set razorpay_customer_id = null where razorpay_customer_id is not null;
+update billing_subscriptions
+   set status = 'ended', ended_at = coalesce(ended_at, now()), razorpay_subscription_id = null
+ where razorpay_subscription_id is not null;
+update billing_payments set status = 'failed' where status = 'created';
+```
+
+Copied agencies on a plan then show no plan on staging; their credit grants and payment history stay.
+Staging makes its own test-mode Razorpay plans the first time someone subscribes.
+
+**Verify:**
+
+```sql
+-- expect 0
+select count(*) from billing_prices where razorpay_plan_id is not null;
+select count(*) from billing_subscriptions where razorpay_subscription_id is not null;
+```

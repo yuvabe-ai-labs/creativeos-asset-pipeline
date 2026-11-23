@@ -1,8 +1,10 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-// Razorpay through its REST API, no SDK (D514). Test or live is decided only by which keys are
-// set; the names are the same in every environment.
+// Razorpay through its REST API, no SDK (D514). The setting names are the same in every
+// environment. Live keys work only where RAZORPAY_LIVE=1 (production alone), and test keys only
+// where it is not set (D530): a key pasted into the wrong place stops payments instead of charging
+// real cards on staging or running production on test money.
 
 export type RazorpayOrder = { id: string; amount: number; currency: string; status: string };
 
@@ -11,7 +13,13 @@ const START_FAILED = "Could not start the payment.";
 function keys(): { keyId: string; keySecret: string } | null {
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  return keyId && keySecret ? { keyId, keySecret } : null;
+  if (!keyId || !keySecret) return null;
+  const live = process.env.RAZORPAY_LIVE === "1";
+  if (!keyId.startsWith(live ? "rzp_live_" : "rzp_test_")) {
+    console.error(`[razorpay] RAZORPAY_KEY_ID is not a ${live ? "live" : "test"} key; ${live ? "RAZORPAY_LIVE=1 needs live keys" : "live keys need RAZORPAY_LIVE=1"}`);
+    return null;
+  }
+  return { keyId, keySecret };
 }
 
 /** The public key id Checkout needs in the browser. */

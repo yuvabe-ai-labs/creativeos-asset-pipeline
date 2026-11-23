@@ -67,6 +67,42 @@ describe("createOrder", () => {
   });
 });
 
+describe("keys match the environment (D530)", () => {
+  const fetchMock = vi.fn();
+  const order = () => createOrder({ amountPaise: 10000, receipt: "r", notes: {} });
+  beforeEach(() => {
+    process.env.RAZORPAY_KEY_SECRET = "key_secret";
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ id: "order_1", amount: 10000, currency: "INR", status: "created" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    delete process.env.RAZORPAY_LIVE;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("refuses live keys where RAZORPAY_LIVE is not set", async () => {
+    process.env.RAZORPAY_KEY_ID = "rzp_live_id";
+    await expect(order()).rejects.toThrow("Could not start the payment.");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses test keys where RAZORPAY_LIVE=1", async () => {
+    process.env.RAZORPAY_LIVE = "1";
+    process.env.RAZORPAY_KEY_ID = "rzp_test_id";
+    await expect(order()).rejects.toThrow("Could not start the payment.");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses live keys where RAZORPAY_LIVE=1", async () => {
+    process.env.RAZORPAY_LIVE = "1";
+    process.env.RAZORPAY_KEY_ID = "rzp_live_id";
+    await expect(order()).resolves.toMatchObject({ id: "order_1" });
+  });
+});
+
 describe("Razorpay subscriptions", () => {
   const fetchMock = vi.fn();
   beforeEach(() => {

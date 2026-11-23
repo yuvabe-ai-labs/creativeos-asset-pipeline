@@ -27,6 +27,7 @@ always exists (Razorpay must reach it) but does nothing without `RAZORPAY_WEBHOO
 | `RAZORPAY_KEY_SECRET` | Test key secret (today's `RAZOR_PAY_TEST_API_SECRET`) |
 | `RAZORPAY_WEBHOOK_SECRET` | The secret typed when the webhook is added in the Razorpay Dashboard (test mode) |
 | `RAZORPAY_TEST_PAGE` | `1` only on a developer's machine and the dev deployment |
+| `RAZORPAY_LIVE` | `1` only in production, which alone has live keys (added by D530: test keys are refused where it is set, live keys where it is not) |
 
 The names carry no "test": production later gets live values under the same names, so the
 code never asks which mode it is in.
