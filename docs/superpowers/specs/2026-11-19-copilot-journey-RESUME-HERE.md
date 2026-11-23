@@ -49,7 +49,7 @@ Facts the 4.1 build relied on (kept for piece 5, which builds on the same panel)
 - Each plan's Outcome lists the minor review findings left for later.
 - **Piece 4.1, scripting in the panel, part 1 (D523).** Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`. No migration. QA section 9.
 - **Piece 5.1, the copilot at Visualise (D524–D527).** Plan with Outcome: `docs/superpowers/plans/2026-11-20-copilot-visualise.md`. No migration. QA section 10.
-- **Next free ADR number: D528.**
+- **Next free ADR number: D529** (D528: the Brand KB review box).
 
 ## Waiting on Cyril
 

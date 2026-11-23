@@ -19,7 +19,7 @@ const PLACEHOLDER: Record<RefineScope, string> = {
 };
 
 /**
- * Refine with AI — the KB's pattern (`kb-field-row.tsx`), for the whole sequence or one shot.
+ * Refine with AI — the KB's pattern (`kb-field-card.tsx`), for the whole sequence or one shot.
  *
  * The note is EPHEMERAL: it steers this one rewrite and is cleared when the popover closes. The
  * standing brief stays the standing brief, so a throwaway "try it darker" never silently becomes

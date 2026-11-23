@@ -136,6 +136,67 @@ export function fieldLocation(path: string): { module: ModuleKey; fieldKey: stri
   return null;
 }
 
+// ── Review-card layout ────────────────────────────────────────────────────────
+
+/** A field placed on the review step's 6-column card grid. */
+export type FieldCardSlot = {
+  fieldKey: string;
+  field: KBField<unknown>;
+  /** Grid columns out of 6. */
+  span: 2 | 3 | 6;
+};
+
+function fieldTextLength(value: unknown): number {
+  if (value === null || value === undefined) return 0;
+  return Array.isArray(value) ? value.join(", ").length : String(value).length;
+}
+
+/**
+ * Lays a module's fields out on a 6-column grid so a short value never sits beside a tall one:
+ * colour fields share the first row (thirds / halves), long values (over 150 characters) take a
+ * full row, and the rest pair up in halves with a field of similar length (falling back to any
+ * field that isn't long). A field left without a partner takes the full row.
+ */
+export function layoutFieldCards(
+  fields: Record<string, KBField<unknown>>,
+  isColourField: (fieldKey: string) => boolean,
+): FieldCardSlot[] {
+  const entries = Object.entries(fields);
+  const colours = entries.filter(([key]) => isColourField(key));
+  const rest = entries
+    .filter(([key]) => !isColourField(key))
+    .map(([fieldKey, field]) => {
+      const len = fieldTextLength(field.value);
+      return { fieldKey, field, size: len > 150 ? "L" : len > 40 ? "M" : "S" };
+    });
+
+  const colourSpan: 2 | 3 | 6 = colours.length >= 3 ? 2 : colours.length === 2 ? 3 : 6;
+  const out: FieldCardSlot[] = colours.map(([fieldKey, field]) => ({ fieldKey, field, span: colourSpan }));
+
+  const used = new Set<number>();
+  const partner = (i: number, sameSize: boolean) => {
+    for (let k = i + 1; k < rest.length; k++) {
+      if (used.has(k) || rest[k].size === "L") continue;
+      if (!sameSize || rest[k].size === rest[i].size) return k;
+    }
+    return -1;
+  };
+
+  rest.forEach((item, i) => {
+    if (used.has(i)) return;
+    used.add(i);
+    const self = { fieldKey: item.fieldKey, field: item.field };
+    if (item.size === "L") { out.push({ ...self, span: 6 }); return; }
+    let j = partner(i, true);
+    if (j < 0) j = partner(i, false);
+    if (j < 0) { out.push({ ...self, span: 6 }); return; }
+    used.add(j);
+    out.push({ ...self, span: 3 }, { fieldKey: rest[j].fieldKey, field: rest[j].field, span: 3 });
+  });
+
+  return out;
+}
+
 // Finds the next module (in MODULES order, wrapping around past the end) that isn't fully
 // reviewed yet — used to auto-advance the review step off a module the operator just cleared
 // with "Approve all". readyByModule reflects each module's current

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { fieldLocation, findNextModuleNeedingReview, getModuleFields, isListField, parseColour } from "./utils";
+import { fieldLocation, findNextModuleNeedingReview, getModuleFields, isListField, layoutFieldCards, parseColour } from "./utils";
+import { emptyKBField } from "./schema";
 
 // Final review, Important 4: an empty field was edited as a comma-split list, which turned typed
 // Content Rules prose into a list and broke "10,000" into "10, 000".
@@ -116,5 +117,27 @@ describe("fieldLocation (D520)", () => {
     expect(fieldLocation("nope.x")).toBeNull();
     expect(fieldLocation("image_analysis.aesthetic")).toBeNull();
     expect(fieldLocation("brand_profile")).toBeNull();
+  });
+});
+
+// The review step's card grid (6 columns): short values pair up, long ones and colours have rows of their own.
+describe("layoutFieldCards", () => {
+  const isColour = (k: string) => k.startsWith("colour");
+  const f = (v: string | string[] | null) => emptyKBField(v);
+
+  it("puts colour fields first, sharing a row in thirds", () => {
+    const out = layoutFieldCards({ name: f("Lakme"), colour_a: f("#fff"), colour_b: f("#000"), colour_c: f("#f00") }, isColour);
+    expect(out.slice(0, 3).map((s) => [s.fieldKey, s.span])).toEqual([["colour_a", 2], ["colour_b", 2], ["colour_c", 2]]);
+  });
+
+  it("gives a long value a full row and pairs short ones in halves", () => {
+    const long = "x".repeat(200);
+    const out = layoutFieldCards({ a: f("short"), b: f(long), c: f("also short") }, isColour);
+    expect(out.map((s) => [s.fieldKey, s.span])).toEqual([["a", 3], ["c", 3], ["b", 6]]);
+  });
+
+  it("lets a field left without a partner take the full row", () => {
+    const out = layoutFieldCards({ a: f("only one") }, isColour);
+    expect(out).toEqual([expect.objectContaining({ fieldKey: "a", span: 6 })]);
   });
 });

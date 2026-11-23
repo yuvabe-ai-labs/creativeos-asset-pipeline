@@ -76,7 +76,6 @@ export default async function KBPage({
           initialWebsiteUrl={client.website_url ?? null}
           docIdsAtExtraction={(activeKBVersion!.doc_ids_used as string[]) ?? []}
           clientName={client.name}
-          clientLogoUrl={client.logo_url}
         />
       ) : (
         <>
