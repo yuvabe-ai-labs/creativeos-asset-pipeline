@@ -18,7 +18,7 @@ describe("Billing tab", () => {
     const html = renderToStaticMarkup(<BillingTab {...base} mode="managed" grants={[]} />);
     expect(html).toContain("Managed by Yuvabe");
     expect(html).toContain("Monthly credit limit");
-    expect(html).not.toContain("Give free credits");
+    expect(html).not.toContain("Add credits");
     expect(html).toContain("Yuvabe pays. The agency is never charged.");
     expect(html).not.toContain("Custom plan");
   });
@@ -36,7 +36,7 @@ describe("Billing tab", () => {
     expect(html).toContain("until 3 Dec 2026");
     expect(html.indexOf("Free credits")).toBeLessThan(html.indexOf("1,00,000 of 1,00,000"));
     expect(html).toContain("Add credits");
-    expect(html).toContain("Give free credits");
+    expect(html).not.toContain("Give free credits");
   });
 
   it("says runs are stopped when a paying agency has no credits", () => {

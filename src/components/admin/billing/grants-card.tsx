@@ -12,8 +12,8 @@ const addChip = "border border-dashed border-primary/40 hover:bg-primary/5";
 const n = (v: number) => v.toLocaleString("en-IN");
 
 // A paying agency's open credits, the one ending first at the top (spec §3). The body of the
-// Billing card for a paying agency.
-export function GrantsPanel({ orgId, grants }: { orgId: string; grants: OpenGrant[] }) {
+// Billing card for a paying agency. `hasPaidPlan` presets Add credits to extra credits (else free).
+export function GrantsPanel({ orgId, grants, hasPaidPlan = false }: { orgId: string; grants: OpenGrant[]; hasPaidPlan?: boolean }) {
   const left = grants.reduce((sum, g) => sum + g.left, 0);
   return (
     <div className="flex flex-col gap-4 p-6">
@@ -22,10 +22,11 @@ export function GrantsPanel({ orgId, grants }: { orgId: string; grants: OpenGran
           <span className="text-eyebrow text-muted-foreground">Credits</span>
           <span className="font-display text-xl font-semibold tracking-tight">{n(left)} left</span>
         </div>
-        <div className="flex gap-2">
-          <GrantDialog orgId={orgId} kind="admin" trigger={<Button variant="ghost" size="sm" className={addChip}><Plus className="size-4" strokeWidth={1.5} />Add credits</Button>} />
-          <GrantDialog orgId={orgId} kind="free" trigger={<Button variant="ghost" size="sm" className={addChip}><Plus className="size-4" strokeWidth={1.5} />Give free credits</Button>} />
-        </div>
+        <GrantDialog
+          orgId={orgId}
+          defaultKind={hasPaidPlan ? "admin" : "free"}
+          trigger={<Button variant="ghost" size="sm" className={addChip}><Plus className="size-4" strokeWidth={1.5} />Add credits</Button>}
+        />
       </div>
       <CreditGrantList
         grants={grants}

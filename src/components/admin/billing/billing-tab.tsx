@@ -42,7 +42,7 @@ export function BillingTab({
         ) : (
           <>
             <PlanLine subscription={subscription} />
-            <GrantsPanel orgId={orgId} grants={grants} />
+            <GrantsPanel orgId={orgId} grants={grants} hasPaidPlan={!!subscription && subscription.status !== "created"} />
           </>
         )}
       </Card>

@@ -6,7 +6,7 @@ export const GRANT_KIND_LABEL: Record<GrantKind, string> = {
   free: "Free credits",
   plan: "Plan",
   topup: "Top-up",
-  admin: "Added by Yuvabe",
+  admin: "Extra credits",
 };
 
 const n = (v: number) => v.toLocaleString("en-IN");

@@ -44,9 +44,11 @@ billing).
    Below: Plan type: Standard.
 2. **Monthly credit limit** (managed only): today's editor.
 3. **Credits** (paying only): the open grants, first-ending first. Each row: kind (Free credits,
-   Plan, Top-up, Added by Yuvabe), left of total, ends on. Actions:
-   - **Add credits:** amount, end date, reason. Writes an `admin` grant.
-   - **Give free credits:** amount, end date, reason. Writes a `free` grant.
+   Plan, Top-up, Extra credits), left of total, ends on. Actions:
+   - **Add credits** (one action, D528): a switch, Free credits / Extra credits, then amount, end
+     date, reason. Free credits write a `free` grant (the owner sees them with a nudge to pick a
+     plan); extra credits write an `admin` grant (no nudge, e.g. to make up for a problem). The
+     switch starts on Free credits when the agency has no paid plan, else on Extra credits.
    - Per grant **Take back:** amount (up to what is left), reason.
    - Per grant **Change end date:** date, reason. **End now** (on the same dialog): ends it at once.
    Empty state: "No credits. Runs are stopped until credits are added or a plan is bought."

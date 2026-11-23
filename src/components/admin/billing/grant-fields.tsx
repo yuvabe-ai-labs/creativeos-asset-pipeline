@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { todayIst } from "@/lib/billing/dates";
 
-// Credits and a last day, the two fields of Add credits and Give free credits.
+// Credits and a last day, the two fields of Add credits.
 export function CreditsInput({ value, onChange, label = "Credits" }: { value: string; onChange: (v: string) => void; label?: string }) {
   return (
     <div className="flex flex-col gap-1.5">

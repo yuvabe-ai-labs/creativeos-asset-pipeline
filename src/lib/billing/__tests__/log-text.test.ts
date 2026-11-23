@@ -13,7 +13,7 @@ describe("billing log in plain words", () => {
     expect(describeBillingChange(entry("grant", null, { kind: "free", credits: 50000, ends_at: "2026-12-03T18:30:00+00:00" })))
       .toBe("Gave 50,000 free credits until 3 Dec 2026");
     expect(describeBillingChange(entry("grant", null, { kind: "admin", credits: 5000, ends_at: "2026-12-03T18:30:00Z" })))
-      .toBe("Added 5,000 credits until 3 Dec 2026");
+      .toBe("Added 5,000 extra credits until 3 Dec 2026");
   });
 
   it("says how much was taken back", () => {

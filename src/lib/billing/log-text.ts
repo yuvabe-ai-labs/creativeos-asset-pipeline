@@ -20,7 +20,7 @@ export function describeBillingChange(c: Change): string {
       return `Billing changed to ${MODE[after.billing_mode as BillingMode] ?? "another kind"}`;
     case "grant": {
       const until = `until ${formatDay(lastDayOf(String(after.ends_at)))}`;
-      return after.kind === "free" ? `Gave ${n(after.credits)} free credits ${until}` : `Added ${n(after.credits)} credits ${until}`;
+      return after.kind === "free" ? `Gave ${n(after.credits)} free credits ${until}` : `Added ${n(after.credits)} extra credits ${until}`;
     }
     case "take_back": {
       const taken = Number(before.credits ?? 0) - Number(after.credits ?? 0);
