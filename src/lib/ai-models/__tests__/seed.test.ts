@@ -14,7 +14,7 @@ const rows: AiModelSeedRow[] = [
 
 describe("seedSql", () => {
   it("embeds the rows as JSON inside the $seed$ tag and inserts with on conflict do nothing", () => {
-    const sql = seedSql(rows);
+    const sql = seedSql(rows, ["-- test header"]);
     const json = sql.slice(sql.indexOf("$seed$") + 6, sql.lastIndexOf("$seed$"));
     expect(JSON.parse(json)).toEqual(JSON.parse(JSON.stringify(rows)));
     expect(sql).toContain("insert into ai_models");

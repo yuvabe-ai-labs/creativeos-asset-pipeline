@@ -3,8 +3,9 @@ import { evaluateConstraints } from "../constraints";
 import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 
-const videoSpec = (id: string) => videoModelsFrom(seededModelCatalog()).get(id)!;
 import type { ConstraintState } from "../types";
+
+const videoSpec = (id: string) => videoModelsFrom(seededModelCatalog()).get(id)!;
 
 function state(over: Partial<ConstraintState> = {}): ConstraintState {
   return {
