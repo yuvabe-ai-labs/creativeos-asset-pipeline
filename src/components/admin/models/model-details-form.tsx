@@ -43,7 +43,7 @@ const NO_REPLACEMENT = "none";
 function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor} className="text-eyebrow text-[0.7rem] text-muted-foreground/80">
+      <Label htmlFor={htmlFor} className="text-eyebrow">
         {label}
       </Label>
       {children}

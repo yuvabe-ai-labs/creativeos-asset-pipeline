@@ -41,7 +41,7 @@ describe("AddPriceForm", () => {
     expect(html).toContain('value="180"');
     expect(html).toContain('min="2026-11-23"');
     expect(html).toMatch(/<label[^>]*class="[^"]*text-eyebrow[^"]*"[^>]*for="price-date"/);
-    expect(html).toContain("A day already begun in UTC starts now. A later day starts at 00:00 UTC.");
+    expect(html).toContain("Today starts now. A later day starts at 00:00 UTC that day.");
   });
 
   it("shows the run preview and the condition warnings before saving", () => {

@@ -23,6 +23,7 @@ const model = catalog.models.find((m) => m.id === NANO_PRO)!;
 const current = catalog.prices.find((p) => p.modelId === NANO_PRO)!;
 const textModel = catalog.models.find((m) => m.kind === "text")!;
 const now = new Date("2026-11-23T10:30:00Z");
+const TODAY = "2026-11-23"; // the admin's local day, as the sheet passes it in
 
 describe("parseConditionValue", () => {
   it("reads audio as a boolean and keeps size, resolution and quality as text", () => {
@@ -51,33 +52,34 @@ describe("start date", () => {
   const IST = -330; // getTimezoneOffset() in India
   // 03:30 IST on the 24th: the 24th has begun locally but not yet in UTC.
   const earlyIst = new Date("2026-11-23T22:00:00Z");
+  const istToday = localDay(earlyIst, IST);
 
-  it("means now for a day already begun in UTC, and 00:00 UTC for a later day", () => {
-    expect(effectiveFromFor("2026-11-23", now)).toBe(now.toISOString());
-    expect(effectiveFromFor("2026-12-01", now)).toBe("2026-12-01T00:00:00.000Z");
+  it("means now up to the local today, and 00:00 UTC for a later day", () => {
+    expect(effectiveFromFor("2026-11-23", now, TODAY)).toBe(now.toISOString());
+    expect(effectiveFromFor("2026-12-01", now, TODAY)).toBe("2026-12-01T00:00:00.000Z");
   });
 
   it("defaults to the local day and allows the earlier of the local and UTC days", () => {
-    expect(localDay(earlyIst, IST)).toBe("2026-11-24");
+    expect(istToday).toBe("2026-11-24");
     expect(minStartDay(earlyIst, IST)).toBe("2026-11-23");
     expect(minStartDay(now, IST)).toBe("2026-11-23");
   });
 
-  it("in IST before 05:30: the UTC day means now, local today means 00:00 UTC that day", () => {
-    expect(effectiveFromFor("2026-11-23", earlyIst)).toBe(earlyIst.toISOString());
-    expect(effectiveFromFor("2026-11-24", earlyIst)).toBe("2026-11-24T00:00:00.000Z");
-    expect(effectiveFromFor("2026-11-25", earlyIst)).toBe("2026-11-25T00:00:00.000Z");
+  it("at 03:30 IST on the 24th: the 24th means now, the 25th means 00:00 UTC on the 25th", () => {
+    expect(effectiveFromFor("2026-11-24", earlyIst, istToday)).toBe(earlyIst.toISOString());
+    expect(effectiveFromFor("2026-11-25", earlyIst, istToday)).toBe("2026-11-25T00:00:00.000Z");
   });
 
-  it("a sheet left open past UTC midnight still saves now", () => {
+  it("a stale UTC-yesterday still saves now", () => {
+    expect(effectiveFromFor("2026-11-23", earlyIst, istToday)).toBe(earlyIst.toISOString());
     const later = new Date("2026-11-24T00:05:00Z");
-    expect(effectiveFromFor("2026-11-23", later)).toBe(later.toISOString());
+    expect(effectiveFromFor("2026-11-23", later, "2026-11-24")).toBe(later.toISOString());
   });
 
   it("refuses an empty or malformed date instead of throwing", () => {
     const d = draftFromCurrent(current, now);
     for (const date of ["", "20261-01-01", "2026-02-31", "2026-1-1"]) {
-      expect(draftToPayload(NANO_PRO, { ...d, date }, now)).toEqual({ ok: false, error: "Pick a start date." });
+      expect(draftToPayload(NANO_PRO, { ...d, date }, now, TODAY)).toEqual({ ok: false, error: "Pick a start date." });
     }
   });
 });
@@ -111,7 +113,7 @@ describe("draftFromCurrent", () => {
 
 describe("draftToPayload", () => {
   it("round-trips the current price", () => {
-    const r = draftToPayload(NANO_PRO, draftFromCurrent(current, now), now);
+    const r = draftToPayload(NANO_PRO, draftFromCurrent(current, now), now, TODAY);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.input.lines).toEqual(current.lines);
@@ -123,21 +125,21 @@ describe("draftToPayload", () => {
   it("refuses a line without a price and an allowance without a number", () => {
     const d = draftFromCurrent(current, now);
     const noUnit = { ...d, lines: [{ ...d.lines[0], unit: "" }] };
-    expect(draftToPayload(NANO_PRO, noUnit, now)).toEqual({ ok: false, error: "Enter a price for every line." });
+    expect(draftToPayload(NANO_PRO, noUnit, now, TODAY)).toEqual({ ok: false, error: "Enter a price for every line." });
     const badAllowance = { ...d, estimate: [{ key: "thought_tokens", value: "x" }] };
-    expect(draftToPayload(NANO_PRO, badAllowance, now)).toEqual({ ok: false, error: "Enter a number for every allowance." });
+    expect(draftToPayload(NANO_PRO, badAllowance, now, TODAY)).toEqual({ ok: false, error: "Enter a number for every allowance." });
   });
 
   it("trims condition values and refuses half-filled or repeated conditions", () => {
     const base = draftFromCurrent(null, now);
     const withWhen = (when: { key: string; value: string }[]) => ({ ...base, lines: [{ meter: "request" as const, unit: "1", when }] });
-    const ok = draftToPayload(NANO_PRO, withWhen([{ key: " size ", value: " 2K " }]), now);
+    const ok = draftToPayload(NANO_PRO, withWhen([{ key: " size ", value: " 2K " }]), now, TODAY);
     expect(ok.ok && ok.input.lines[0].when).toEqual({ size: "2K" });
-    expect(draftToPayload(NANO_PRO, withWhen([{ key: "size", value: " " }]), now))
+    expect(draftToPayload(NANO_PRO, withWhen([{ key: "size", value: " " }]), now, TODAY))
       .toEqual({ ok: false, error: "Fill in or remove the empty condition." });
-    expect(draftToPayload(NANO_PRO, withWhen([{ key: "", value: "2K" }]), now))
+    expect(draftToPayload(NANO_PRO, withWhen([{ key: "", value: "2K" }]), now, TODAY))
       .toEqual({ ok: false, error: "Fill in or remove the empty condition." });
-    expect(draftToPayload(NANO_PRO, withWhen([{ key: "size", value: "1K" }, { key: "size", value: "2K" }]), now))
+    expect(draftToPayload(NANO_PRO, withWhen([{ key: "size", value: "1K" }, { key: "size", value: "2K" }]), now, TODAY))
       .toEqual({ ok: false, error: "Each setting can appear once per line." });
   });
 
@@ -147,7 +149,7 @@ describe("draftToPayload", () => {
       ...d,
       lines: [{ meter: "request", unit: "0.01", when: [{ key: "", value: "" }] }],
       estimate: [{ key: "", value: "" }],
-    }, now);
+    }, now, TODAY);
     expect(r).toEqual({
       ok: true,
       input: { modelId: NANO_PRO, effectiveFrom: now.toISOString(), lines: [{ meter: "request", unit_usd: 0.01 }], estimate: {} },

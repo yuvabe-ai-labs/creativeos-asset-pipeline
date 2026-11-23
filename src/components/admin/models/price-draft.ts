@@ -84,12 +84,14 @@ function dayStart(date: string): Date | null {
 }
 
 /**
- * A day already begun in UTC means now; a later day means 00:00 UTC that day. So a sheet left
- * open across UTC midnight still saves "now" rather than being refused as past.
+ * Any day up to and including the admin's local today means now; a later day means 00:00 UTC
+ * that day (never before now). `localToday` comes from the browser clock (localDay), so a sheet
+ * left open across midnight still saves "now" rather than being refused as past.
  */
-export function effectiveFromFor(date: string, now: Date): string | null {
+export function effectiveFromFor(date: string, now: Date, localToday: string): string | null {
   const start = dayStart(date);
   if (!start) return null;
+  if (date <= localToday) return now.toISOString();
   return (start.getTime() > now.getTime() ? start : now).toISOString();
 }
 
@@ -161,8 +163,9 @@ export function draftToPayload(
   modelId: string,
   draft: PriceDraft,
   now: Date,
+  localToday: string,
 ): { ok: true; input: PricePayload } | { ok: false; error: string } {
-  const effectiveFrom = effectiveFromFor(draft.date, now);
+  const effectiveFrom = effectiveFromFor(draft.date, now, localToday);
   if (!effectiveFrom) return { ok: false, error: DATE_ERROR };
   const lines = draftLines(draft);
   if (!lines) return { ok: false, error: LINE_ERROR };

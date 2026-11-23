@@ -4,7 +4,7 @@ import { useState } from "react";
 import { addAiModelPriceAction } from "@/lib/actions/ai-models";
 import { priceConditionProblems } from "@/lib/ai-models/model-edit";
 import type { AiModel, AiModelPrice } from "@/lib/ai-models/types";
-import { draftFromCurrent, draftLines, draftToPayload, minStartDay, previewText, type PriceDraft } from "./price-draft";
+import { draftFromCurrent, draftLines, draftToPayload, localDay, minStartDay, previewText, type PriceDraft } from "./price-draft";
 import { AddChip } from "./add-chip";
 import { PriceLinesEditor } from "./price-lines-editor";
 import { PricePairRows } from "./price-pair-rows";
@@ -57,7 +57,7 @@ export function AddPriceForm({
           value={draft.date}
           onChange={(e) => set({ date: e.target.value })}
         />
-        <p className="text-xs text-muted-foreground">A day already begun in UTC starts now. A later day starts at 00:00 UTC.</p>
+        <p className="text-xs text-muted-foreground">Today starts now. A later day starts at 00:00 UTC that day.</p>
       </Field>
       <Field label="Lines">
         <PriceLinesEditor lines={draft.lines} onChange={(l) => set({ lines: l })} />
@@ -114,11 +114,11 @@ export function AddPriceSheet({ model, current }: { model: AiModel; current: AiM
     setOpen(next);
   }
 
-  const payload = draftToPayload(model.id, draft, new Date());
+  const payload = draftToPayload(model.id, draft, new Date(), localDay(new Date()));
 
   async function save() {
     const now = new Date();
-    const checked = draftToPayload(model.id, draft, now);
+    const checked = draftToPayload(model.id, draft, now, localDay(now));
     if (!checked.ok) return;
     setSaving(true);
     setError(null);

@@ -52,4 +52,9 @@ describe("ModelDetailsForm", () => {
     const html = renderToStaticMarkup(<ModelDetailsForm {...props} />);
     expect(html).toMatch(/<button[^>]*disabled[^>]*>Save changes/);
   });
+
+  it("keeps the eyebrow style on its field labels", () => {
+    const html = renderToStaticMarkup(<ModelDetailsForm {...props} />);
+    expect(html).toMatch(/<label[^>]*class="[^"]*text-eyebrow[^"]*"[^>]*for="model-label"/);
+  });
 });
