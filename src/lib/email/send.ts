@@ -9,7 +9,12 @@ export type EmailResult = { sent: true } | { sent: false; reason: "not_configure
 export async function sendEmail(email: Email): Promise<EmailResult> {
   const key = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
-  if (!key || !from) return { sent: false, reason: "not_configured" };
+  if (!key || !from) {
+    // Names only the missing setting, never a value, so a deployment's logs say what to add.
+    const missing = [!key && "RESEND_API_KEY", !from && "EMAIL_FROM"].filter(Boolean).join(" and ");
+    console.error(`[email] not sent: ${missing} not set`);
+    return { sent: false, reason: "not_configured" };
+  }
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
