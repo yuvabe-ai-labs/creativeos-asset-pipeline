@@ -1,6 +1,7 @@
 // D535 — the per-run services' estimate and charge, from a price row. Client-safe: the dub, lip
 // sync, voice, captions and prompt panels price their estimate with these too.
 import { priceMeters } from "./pricing";
+import { openAiChatMeters } from "./text-usage";
 import type { AiModelPrice, ProviderBill } from "./types";
 
 type Meters = ProviderBill["meters"];
@@ -116,12 +117,7 @@ export function promptCharge(
 ): { usd: number; recordedUsd: number | null; bill: ProviderBill } | null {
   const usd = promptFlatUsd(price, attachmentCount);
   if (usd === null) return null;
-  const cached = Math.max(0, Math.min(usage.prompt_tokens, usage.prompt_tokens_details?.cached_tokens ?? 0));
-  const meters: Meters = {
-    input_token: usage.prompt_tokens - cached,
-    ...(cached > 0 ? { cached_input_token: cached } : {}),
-    text_output_token: usage.completion_tokens,
-  };
+  const meters: Meters = openAiChatMeters(usage);
   return { usd, recordedUsd: priced(price, meters), bill: { source: "provider_usage", meters } };
 }
 
