@@ -2,8 +2,9 @@
 // See docs/superpowers/specs/2026-07-24-credit-system-design.md §4. Every @/lib import here
 // is dynamic (await import(...)), not static — every one of these three modules carries
 // `import "server-only"`, a Next.js-specific sentinel not meant for Trigger.dev's separate
-// build. Matches trigger/video-generate.ts, whose one @/lib import (video-gen/registry, also
-// server-only) is dynamic for the same reason. trigger/kb-build.ts has one static @/lib
+// build. Matches trigger/video-generate.ts, whose one server-only @/lib import (video-gen/video-run)
+// is dynamic for the same reason; its static ones (generations/post-webhook, generations/task-failure)
+// carry no sentinel. trigger/kb-build.ts has one static @/lib
 // import (kb/build-message) — safe there specifically because that module carries no
 // server-only sentinel, not because the "always dynamic" rule doesn't apply.
 import { schedules, logger } from "@trigger.dev/sdk/v3";

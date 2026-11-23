@@ -1053,12 +1053,13 @@ select count(*) from ai_model_prices where note in ('Published rate (D537).', 'P
 Apply **before** the 1b-i code deploys to Vercel and Trigger.dev. Without it every image and video row still has a
 family key (`image:openai`, `video:kling`, …) and no provider model name, so no adapter resolves and every image
 and video run is refused with "This model isn't available. Pick another."
+**Deploy:** until 0084 is applied, every image and video run is refused, and a voice preview reserves credits and then fails and refunds.
 It sets `adapter_key` and `provider_model_id` and re-writes label, params, rules and capabilities from the code.
 It never touches `status`, `replaced_by` or `sort_order`.
 **Safe to re-run:** an `update … where id = …`; running it again writes the same values.
 
 ```sql
--- expect 20 20: twenty image and video rows, each with its own adapter key
+-- expect the two numbers to be equal: every image and video row has its own adapter key
 select count(*), count(distinct adapter_key) from ai_models where kind in ('image','video');
 -- expect 0: no family key and no missing provider model name left
 select count(*) from ai_models
