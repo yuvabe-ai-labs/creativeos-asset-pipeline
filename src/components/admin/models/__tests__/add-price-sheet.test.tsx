@@ -18,6 +18,7 @@ describe("AddPriceSheet", () => {
   it("renders the Add a price trigger", () => {
     const html = renderToStaticMarkup(<AddPriceSheet model={model} current={current} />);
     expect(html).toContain("Add a price");
+    expect(html).toContain("border-dashed");
   });
 
   it("re-exports previewText", () => {
@@ -29,7 +30,7 @@ describe("AddPriceForm", () => {
   const noop = () => {};
   const render = (draft = draftFromCurrent(current, now)) =>
     renderToStaticMarkup(
-      <AddPriceForm model={model} current={current} draft={draft} onChange={noop} today="2026-11-23" />,
+      <AddPriceForm model={model} current={current} draft={draft} onChange={noop} minDay="2026-11-23" />,
     );
 
   it("starts from the current row's lines and estimate", () => {
@@ -39,7 +40,8 @@ describe("AddPriceForm", () => {
     expect(html).toContain('value="input_tokens_base"');
     expect(html).toContain('value="180"');
     expect(html).toContain('min="2026-11-23"');
-    expect(html).toContain("A later day starts at 00:00 UTC.");
+    expect(html).toMatch(/<label[^>]*class="[^"]*text-eyebrow[^"]*"[^>]*for="price-date"/);
+    expect(html).toContain("A day already begun in UTC starts now. A later day starts at 00:00 UTC.");
   });
 
   it("shows the run preview and the condition warnings before saving", () => {
@@ -47,7 +49,7 @@ describe("AddPriceForm", () => {
     const bad = { ...d, lines: [{ ...d.lines[0], when: [{ key: "colour", value: "red" }] }, ...d.lines.slice(1)] };
     const html = render(bad);
     expect(html).toContain(previewText(model, bad, current));
-    expect(renderToStaticMarkup(<AddPriceForm model={model} current={current} draft={d} onChange={noop} today="2026-11-23" />))
+    expect(renderToStaticMarkup(<AddPriceForm model={model} current={current} draft={d} onChange={noop} minDay="2026-11-23" />))
       .toContain(previewText(model, d, current));
     expect(previewText(model, d, current)).toMatch(/^A default run: \d+ credits \(was \d+\)$/);
     expect(html).toContain("output_image: colour is not a price setting of this model");

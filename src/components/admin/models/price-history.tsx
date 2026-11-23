@@ -19,6 +19,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const SAVE_ERROR = "Could not save. Try again.";
+
 /** "1 Dec 2026, 00:00 UTC" */
 export function formatPriceStart(iso: string): string {
   const s = new Date(iso).toLocaleString("en-GB", {
@@ -111,10 +113,15 @@ export function PriceHistory({ modelId, prices, now }: { modelId: string; prices
   async function cancel(id: string) {
     setCancelling(true);
     setError(null);
-    const res = await cancelAiModelPriceAction(id, modelId);
-    setCancelling(false);
-    setConfirming(null);
-    if (res.error) setError({ id, message: res.error });
+    try {
+      const res = await cancelAiModelPriceAction(id, modelId);
+      if (res.error) setError({ id, message: res.error });
+    } catch {
+      setError({ id, message: SAVE_ERROR });
+    } finally {
+      setCancelling(false);
+      setConfirming(null);
+    }
   }
 
   if (rows.length === 0) return <p className="text-sm text-muted-foreground">No prices yet.</p>;

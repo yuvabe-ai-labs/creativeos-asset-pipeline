@@ -26,6 +26,9 @@ export type PricePayload = {
 
 const LINE_ERROR = "Enter a price for every line.";
 const ALLOWANCE_ERROR = "Enter a number for every allowance.";
+const DATE_ERROR = "Pick a start date.";
+const EMPTY_CONDITION_ERROR = "Fill in or remove the empty condition.";
+const REPEATED_CONDITION_ERROR = "Each setting can appear once per line.";
 
 export const isTokenMeter = (meter: Meter): boolean => meter.endsWith("_token");
 
@@ -43,20 +46,51 @@ export function unitFromInput(meter: Meter, text: string): number | null {
   return isTokenMeter(meter) ? parseFloat((n / 1e6).toPrecision(12)) : n;
 }
 
-/** By the key's type: `audio` is a boolean; size, resolution, quality and anything else stay text. */
-export function parseConditionValue(key: string, value: string): string | boolean {
-  if (key === "audio") {
-    const v = value.trim().toLowerCase();
-    if (v === "true") return true;
-    if (v === "false") return false;
-  }
-  return value;
+/** A new meter for a line. The amount is cleared when it moves between per-1M-token and per-unit. */
+export function switchMeter(line: DraftLine, meter: Meter): DraftLine {
+  return isTokenMeter(meter) === isTokenMeter(line.meter) ? { ...line, meter } : { ...line, meter, unit: "" };
 }
 
-export const utcDay = (d: Date): string => d.toISOString().slice(0, 10);
+/** By the key's type: `audio` is a boolean; size, resolution, quality and anything else stay text. */
+export function parseConditionValue(key: string, value: string): string | boolean {
+  const v = value.trim();
+  if (key === "audio") {
+    if (v.toLowerCase() === "true") return true;
+    if (v.toLowerCase() === "false") return false;
+  }
+  return v;
+}
 
-export function effectiveFromFor(date: string, now: Date): string {
-  return date === utcDay(now) ? now.toISOString() : new Date(`${date}T00:00:00.000Z`).toISOString();
+const dayOf = (d: Date): string => d.toISOString().slice(0, 10);
+export const utcDay = dayOf;
+
+/** The admin's own calendar day. `offsetMinutes` is getTimezoneOffset() (India: -330). */
+export function localDay(now: Date, offsetMinutes = now.getTimezoneOffset()): string {
+  return dayOf(new Date(now.getTime() - offsetMinutes * 60_000));
+}
+
+/** The earliest day the field allows: the earlier of the local day and the UTC day. */
+export function minStartDay(now: Date, offsetMinutes = now.getTimezoneOffset()): string {
+  const local = localDay(now, offsetMinutes);
+  const utc = utcDay(now);
+  return local < utc ? local : utc;
+}
+
+/** 00:00 UTC that day, or null when `date` is not a real yyyy-mm-dd day. */
+function dayStart(date: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const at = new Date(`${date}T00:00:00.000Z`);
+  return Number.isNaN(at.getTime()) || dayOf(at) !== date ? null : at;
+}
+
+/**
+ * A day already begun in UTC means now; a later day means 00:00 UTC that day. So a sheet left
+ * open across UTC midnight still saves "now" rather than being refused as past.
+ */
+export function effectiveFromFor(date: string, now: Date): string | null {
+  const start = dayStart(date);
+  if (!start) return null;
+  return (start.getTime() > now.getTime() ? start : now).toISOString();
 }
 
 export const emptyLine = (): DraftLine => ({ meter: "request", unit: "", when: [] });
@@ -64,7 +98,7 @@ export const emptyLine = (): DraftLine => ({ meter: "request", unit: "", when: [
 /** The form's starting point: what is there now, so a change is an edit of the current price. */
 export function draftFromCurrent(current: AiModelPrice | null, now: Date): PriceDraft {
   return {
-    date: utcDay(now),
+    date: localDay(now),
     lines: current
       ? current.lines.map((l) => ({
           meter: l.meter,
@@ -78,20 +112,38 @@ export function draftFromCurrent(current: AiModelPrice | null, now: Date): Price
   };
 }
 
-/** The draft's lines as price lines, or null while one has no price. */
+/**
+ * The draft's lines as price lines, or null while one has no price. Conditions with only a key
+ * or only a value are left out; `conditionError` says why the draft can't be saved that way.
+ */
 export function draftLines(draft: PriceDraft): PriceLine[] | null {
   const lines: PriceLine[] = [];
   for (const l of draft.lines) {
     const unit = unitFromInput(l.meter, l.unit);
     if (unit === null) return null;
-    const when = l.when.filter((c) => c.key.trim() !== "");
+    const when = l.when
+      .map((c) => ({ key: c.key.trim(), value: c.value.trim() }))
+      .filter((c) => c.key !== "" && c.value !== "");
     const line: PriceLine = { meter: l.meter, unit_usd: unit };
-    if (when.length > 0) {
-      line.when = Object.fromEntries(when.map((c) => [c.key.trim(), parseConditionValue(c.key.trim(), c.value)]));
-    }
+    if (when.length > 0) line.when = Object.fromEntries(when.map((c) => [c.key, parseConditionValue(c.key, c.value)]));
     lines.push(line);
   }
   return lines;
+}
+
+function conditionError(draft: PriceDraft): string | null {
+  for (const l of draft.lines) {
+    const keys = new Set<string>();
+    for (const c of l.when) {
+      const key = c.key.trim();
+      const value = c.value.trim();
+      if (key === "" && value === "") continue;
+      if (key === "" || value === "") return EMPTY_CONDITION_ERROR;
+      if (keys.has(key)) return REPEATED_CONDITION_ERROR;
+      keys.add(key);
+    }
+  }
+  return null;
 }
 
 function draftEstimate(draft: PriceDraft): Record<string, number> | null {
@@ -110,11 +162,15 @@ export function draftToPayload(
   draft: PriceDraft,
   now: Date,
 ): { ok: true; input: PricePayload } | { ok: false; error: string } {
+  const effectiveFrom = effectiveFromFor(draft.date, now);
+  if (!effectiveFrom) return { ok: false, error: DATE_ERROR };
   const lines = draftLines(draft);
   if (!lines) return { ok: false, error: LINE_ERROR };
+  const problem = conditionError(draft);
+  if (problem) return { ok: false, error: problem };
   const estimate = draftEstimate(draft);
   if (!estimate) return { ok: false, error: ALLOWANCE_ERROR };
-  const input: PricePayload = { modelId, effectiveFrom: effectiveFromFor(draft.date, now), lines, estimate };
+  const input: PricePayload = { modelId, effectiveFrom, lines, estimate };
   if (draft.sourceUrl.trim() !== "") input.sourceUrl = draft.sourceUrl.trim();
   if (draft.note.trim() !== "") input.note = draft.note.trim();
   return { ok: true, input };

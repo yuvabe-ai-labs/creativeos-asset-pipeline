@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
 import { addAiModelPriceAction } from "@/lib/actions/ai-models";
 import { priceConditionProblems } from "@/lib/ai-models/model-edit";
 import type { AiModel, AiModelPrice } from "@/lib/ai-models/types";
-import { draftFromCurrent, draftLines, draftToPayload, previewText, utcDay, type PriceDraft } from "./price-draft";
-import { ADD_CHIP_CLASS } from "./add-chip";
+import { draftFromCurrent, draftLines, draftToPayload, minStartDay, previewText, type PriceDraft } from "./price-draft";
+import { AddChip } from "./add-chip";
 import { PriceLinesEditor } from "./price-lines-editor";
 import { PricePairRows } from "./price-pair-rows";
 import { Button } from "@/components/ui/button";
@@ -17,10 +16,12 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 
 export { previewText } from "./price-draft";
 
+const SAVE_ERROR = "Could not save. Try again.";
+
 function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor} className="text-eyebrow text-[0.7rem] text-muted-foreground/80">
+      <Label htmlFor={htmlFor} className="text-eyebrow">
         {label}
       </Label>
       {children}
@@ -34,13 +35,14 @@ export function AddPriceForm({
   current,
   draft,
   onChange,
-  today,
+  minDay,
 }: {
   model: AiModel;
   current: AiModelPrice | null;
   draft: PriceDraft;
   onChange: (draft: PriceDraft) => void;
-  today: string;
+  /** The earliest day the date field allows. */
+  minDay: string;
 }) {
   const set = (patch: Partial<PriceDraft>) => onChange({ ...draft, ...patch });
   const lines = draftLines(draft);
@@ -51,11 +53,11 @@ export function AddPriceForm({
         <Input
           id="price-date"
           type="date"
-          min={today}
+          min={minDay}
           value={draft.date}
           onChange={(e) => set({ date: e.target.value })}
         />
-        <p className="text-xs text-muted-foreground">Today means now. A later day starts at 00:00 UTC.</p>
+        <p className="text-xs text-muted-foreground">A day already begun in UTC starts now. A later day starts at 00:00 UTC.</p>
       </Field>
       <Field label="Lines">
         <PriceLinesEditor lines={draft.lines} onChange={(l) => set({ lines: l })} />
@@ -120,36 +122,27 @@ export function AddPriceSheet({ model, current }: { model: AiModel; current: AiM
     if (!checked.ok) return;
     setSaving(true);
     setError(null);
-    const res = await addAiModelPriceAction(checked.input);
-    setSaving(false);
-    if (res.error) {
-      setError(res.error);
-      return;
+    try {
+      const res = await addAiModelPriceAction(checked.input);
+      if (res.error) setError(res.error);
+      else setOpen(false);
+    } catch {
+      setError(SAVE_ERROR);
+    } finally {
+      setSaving(false);
     }
-    setOpen(false);
   }
 
   return (
     <Sheet open={open} onOpenChange={changeOpen}>
-      <SheetTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={ADD_CHIP_CLASS}
-          />
-        }
-      >
-        <Plus className="size-3.5" strokeWidth={1.5} /> Add a price
-      </SheetTrigger>
+      <SheetTrigger render={<AddChip label="Add a price" />} />
       <SheetContent className="w-full overflow-y-auto sm:max-w-xl data-[side=right]:sm:max-w-xl">
         <SheetHeader>
           <SheetTitle className="font-display">Add a price</SheetTitle>
           <SheetDescription>A price is never edited. To change one, add a new price that starts later.</SheetDescription>
         </SheetHeader>
         <div className="px-4">
-          <AddPriceForm model={model} current={current} draft={draft} onChange={setDraft} today={utcDay(new Date())} />
+          <AddPriceForm model={model} current={current} draft={draft} onChange={setDraft} minDay={minStartDay(new Date())} />
         </div>
         <SheetFooter>
           {!payload.ok && <p className="text-sm text-muted-foreground">{payload.error}</p>}

@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { METERS, type Meter } from "@/lib/ai-models/types";
-import { emptyLine, isTokenMeter, type DraftLine } from "./price-draft";
+import { emptyLine, isTokenMeter, switchMeter, type DraftLine } from "./price-draft";
 import { AddChip } from "./add-chip";
 import { PricePairRows } from "./price-pair-rows";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ export function PriceLinesEditor({ lines, onChange }: { lines: DraftLine[]; onCh
       {lines.map((line, i) => (
         <div key={i} className="flex flex-col gap-2 rounded-lg border p-3">
           <div className="flex items-center gap-2">
-            <Select value={line.meter} onValueChange={(v) => v && set(i, { meter: v as Meter })}>
+            <Select value={line.meter} onValueChange={(v) => v && onChange(lines.map((l, j) => (j === i ? switchMeter(l, v as Meter) : l)))}>
               <SelectTrigger className="w-44 shrink-0" aria-label="Meter">
                 <SelectValue>{words(line.meter)}</SelectValue>
               </SelectTrigger>
