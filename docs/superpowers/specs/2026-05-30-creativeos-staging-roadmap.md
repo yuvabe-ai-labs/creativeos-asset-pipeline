@@ -8963,3 +8963,33 @@ A new run reads the row valid now from the cached catalog and records it as `gen
 **Rejected.** The spec in the task payload (above). Re-checking the status in the task: a run already reserved keeps what it reserved with.
 
 **Originated →** [2026-11-23-model-catalog-1b-server.md](../plans/2026-11-23-model-catalog-1b-server.md).
+
+### D542 — The browser reads image and video models from the catalog *(recorded 2026-11-23; follows D529, D538)*
+
+**Decision.** Every screen that lists, labels, configures or defaults an image or video model reads it from the session's one catalog query, through two lists built from it (`imageModelsFrom`, `videoModelsFrom` in `src/lib/ai-models/model-lists.ts`): every non-draft model in sort order, lookup by id, status and replacement, the offered models grouped by provider for a picker, and the default. A picker offers live models, plus a hidden model on the node, avatar or panel that already uses it; a retired model is never offered. The lists are cached per catalog object, so a card's lookup is a map read. `src/app/clients/[id]/layout.tsx` reads the catalog on the server and seeds the browser cache through `ModelCatalogGate`, so no client page waits on its own request; below the gate, `useImageModels()` and `useVideoModels()` always have data. The helpers the server and the browser share (avatar params and estimates, panel caps, composite picker, edit limits, presenter rules, param merges) take the list as their first argument; the server builds it from `getAiCatalog()` once per request. Model-specific behaviour keyed by id (`MULTISHOT_MODELS`, `VOICE_PREVIEW_ENGINE`, `VIDEO_EDIT_MODEL_IDS`, the prompt templates) stays in code.
+
+**Why.** A status or label the super admin sets has to show on every screen, and the server already refuses by the catalog (D540): a picker that offered from code could offer what the server refuses.
+
+**Rejected.** A loading state in each picker and focus view: dozens of call sites, each able to get it wrong. A context that loads the list: TanStack Query already owns the catalog. Moving the multishot capabilities into `capabilities`: they describe how our prompts are written for a model, not the model.
+
+**Originated →** [2026-11-23-model-catalog-1b-browser.md](../plans/2026-11-23-model-catalog-1b-browser.md).
+
+### D543 — Defaults are code preferences used while live *(recorded 2026-11-23; refines D542)*
+
+**Decision.** The models new work starts on (`DEFAULT_IMAGE_MODEL_ID`, `DEFAULT_VIDEO_MODEL_ID` in `src/lib/ai-models/default-models.ts`, and the composite, panel and Visualise avatar defaults) stay in code. Each is used only while the catalog has it live; otherwise the first live model in sort order is used. The routes' fallback for a request with no model uses the same rule.
+
+**Why.** Hiding or retiring a default must not leave new nodes on a model the server refuses, and a default column would be one more thing to keep in step for a choice that rarely changes.
+
+**Rejected.** A `default` flag on `ai_models` (a table change for one bit per kind; the sort order already lets the super admin choose the fallback).
+
+**Originated →** [2026-11-23-model-catalog-1b-browser.md](../plans/2026-11-23-model-catalog-1b-browser.md).
+
+### D544 — A node on a retired model opens on its replacement, with a notice *(recorded 2026-11-23; replaces D461/D467's browser fallback)*
+
+**Decision.** When the canvas opens, an Image Gen, Composite or Video Gen node saved on a retired model is moved to the model's `replaced_by` when that is live, else to the default, with that model's default settings, and its old model id is kept in `retiredModelId`. Its focus view shows "This model was retired. Pick another." until a model is picked or the notice is dismissed. The move is saved with the canvas's next change, not on load. A hidden model is left as it is: it still runs on that node (D540). The store is built with the catalog of the moment the canvas mounts; a later catalog refresh does not move nodes already open.
+
+**Why.** The spec's edge case: the node keeps its history and is offered the replacement the catalog names, instead of a fixed fallback in code.
+
+**Rejected.** Leaving the node on the retired model until the user acts: its card, prompt node and focus view would each have to treat the retired model specially, and Generate would be refused.
+
+**Originated →** [2026-11-23-model-catalog-1b-browser.md](../plans/2026-11-23-model-catalog-1b-browser.md).
