@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 
 // D542 — browser code reads image and video models from the catalog. Only type imports and the
 // id constants that name model-specific behaviour may still come from the code registries.
-const ROOTS = ["src/components", "src/hooks", "src/lib/canvas-store.ts"];
+const ROOTS = ["src/app", "src/components", "src/hooks", "src/lib/canvas-store.ts"];
 const ALLOWED = new Set([
   "GEMINI_OMNI_11_MODEL_ID", "GEMINI_OMNI_12_MODEL_ID", "GEMINI_OMNI_MODEL_ID",
   "KLING_OMNI_MODEL_ID", "SEEDANCE_MODEL_ID",

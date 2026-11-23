@@ -14,9 +14,22 @@ import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 
 describe("hasParamsInGroup", () => {
   const videos = videoModelsFrom(seededModelCatalog());
-  it("reads a model's own params, and is false for no model", () => {
-    expect(hasParamsInGroup(videos.get(GEMINI_OMNI_MODEL_ID), "primary")).toBe(true);
-    expect(hasParamsInGroup(videos.get(GEMINI_OMNI_MODEL_ID), "advanced")).toBe(false);
+  it("reads the spec it is given: one visible advanced param makes the group", () => {
+    const omni = videos.get(GEMINI_OMNI_MODEL_ID)!;
+    expect(hasParamsInGroup(omni, "advanced")).toBe(false);
+    const withAdvanced = {
+      ...omni,
+      params: [...omni.params, { ...omni.params[0], name: "seed", group: "advanced" as const, visible: true }],
+    };
+    expect(hasParamsInGroup(withAdvanced, "advanced")).toBe(true);
+    const hiddenAdvanced = {
+      ...omni,
+      params: [...omni.params, { ...omni.params[0], name: "seed", group: "advanced" as const, visible: false }],
+    };
+    expect(hasParamsInGroup(hiddenAdvanced, "advanced")).toBe(false);
+  });
+
+  it("is false for no model", () => {
     expect(hasParamsInGroup(undefined, "advanced")).toBe(false);
   });
 });
