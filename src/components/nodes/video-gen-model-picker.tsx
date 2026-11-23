@@ -5,11 +5,8 @@ import { Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  videoGenClientModelGroups,
-  modelPickerLabel,
-  videoGenClientModelMap,
-} from "@/lib/video-gen/client-models";
+import { modelPickerLabel } from "@/lib/ai-models/model-lists";
+import { useVideoModels } from "@/hooks/queries/ai-models";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 
@@ -72,6 +69,7 @@ export function VideoGenModelPicker({
   /** Settings that belong to the chosen model (resolution, duration) and share its card. */
   children?: ReactNode;
 }) {
+  const videos = useVideoModels();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
 
   // Drop the models this node cannot use, and any provider group left with none.
@@ -79,8 +77,9 @@ export function VideoGenModelPicker({
     (!lockedToModelIds || lockedToModelIds.includes(id)) && (!offeredModelIds || offeredModelIds.includes(id));
   const shownGroups =
     !lockedToModelIds && !offeredModelIds
-      ? videoGenClientModelGroups
-      : videoGenClientModelGroups
+      ? videos.groups(modelId)
+      : videos
+          .groups(modelId)
           .map((g) => ({ ...g, models: g.models.filter((m) => offered(m.id)) }))
           .filter((g) => g.models.length > 0);
 
@@ -155,7 +154,7 @@ export function VideoGenModelPicker({
 
         {!loading && unavailable?.[modelId] && (
           <p className="mt-2 text-[0.7rem] text-destructive">
-            {modelPickerLabel(videoGenClientModelMap[modelId])} can&apos;t use this shot&apos;s avatar: {unavailable[modelId]}. Pick
+            {modelPickerLabel(videos.specOrDefault(modelId))} can&apos;t use this shot&apos;s avatar: {unavailable[modelId]}. Pick
             another model, or turn the avatar off in the prompt.
           </p>
         )}

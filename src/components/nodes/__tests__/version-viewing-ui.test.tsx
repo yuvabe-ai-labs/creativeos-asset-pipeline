@@ -100,15 +100,18 @@ import { VideoGenVersionHistory } from "../video-gen-version-history";
 describe("VideoGenVersionHistory", () => {
   it("renders through the shared list with a real-shape video thumb", () => {
     const versions = [
-      { id: "b", output: "https://x/b.mp4", error: null, paramsUsed: {}, createdAt: now, modelUsed: "kling:Kling 2.1" },
-      { id: "a", output: "https://x/a.mp4", error: null, paramsUsed: {}, createdAt: now, modelUsed: "kling:Kling 2.1" },
+      { id: "b", output: "https://x/b.mp4", error: null, paramsUsed: {}, createdAt: now, modelUsed: "kling:kling-3-0-omni" },
+      { id: "a", output: "https://x/a.mp4", error: null, paramsUsed: {}, createdAt: now, modelUsed: "kling:no-such-model" },
     ];
     const html = renderToStaticMarkup(
       <VideoGenVersionHistory versions={versions} activeVersionId="b" viewedVersionId="a" onView={vi.fn()} />,
     );
     expect(html).toContain('role="listbox"');
     expect(html).toContain("h-12 w-auto max-w-20 object-contain");
-    expect(text(html)).toContain("Kling 2.1");
+    // The catalog's label, never the id (an unknown model shows no label at all).
+    expect(text(html)).toContain("Kling 3.0 Omni");
+    expect(html).not.toContain("kling-3-0-omni");
+    expect(html).not.toContain("no-such-model");
     expect(text(html)).not.toContain("Restore");
   });
 });

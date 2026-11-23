@@ -17,10 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  videoGenClientModelMap,
-  resolveVideoModelId,
-} from "@/lib/video-gen/client-models";
+import { useVideoModels } from "@/hooks/queries/ai-models";
 import { ParamControl } from "./param-controls";
 import { Button } from "@/components/ui/button";
 import { ParamChipGroup } from "./param-chip-group";
@@ -101,7 +98,8 @@ export function VideoGenParamsPanel({
   fixedParams = {},
   group = "primary",
 }: Props) {
-  const model = videoGenClientModelMap[resolveVideoModelId(modelId)];
+  const videos = useVideoModels();
+  const model = videos.specOrDefault(modelId);
   const visibleParams = (model?.params ?? [])
     .filter((p: ParamSpec) => p.visible && p.group === group)
     .sort((a: ParamSpec, b: ParamSpec) => a.order - b.order);

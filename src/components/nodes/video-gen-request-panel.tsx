@@ -1,10 +1,7 @@
 "use client";
 
 import { AudioLines, Image as ImageIcon, PencilLine, SlidersHorizontal } from "lucide-react";
-import {
-  videoGenClientModelMap,
-  resolveVideoModelId,
-} from "@/lib/video-gen/client-models";
+import { useVideoModels } from "@/hooks/queries/ai-models";
 import {
   describeAllVersionParams,
   type VersionParamEntry,
@@ -81,9 +78,8 @@ export function VideoGenRequestPanel({
   /** Every version's `vN` label (versionLabelsById), so a voice change names its source version. */
   labelById: Map<string, string>;
 }) {
-  const model = version.modelUsed
-    ? videoGenClientModelMap[resolveVideoModelId(version.modelUsed)]
-    : undefined;
+  const videos = useVideoModels();
+  const model = version.modelUsed ? videos.specOrDefault(version.modelUsed) : undefined;
   const images = requestImages(version.inputsUsed);
   const params = describeAllVersionParams(model?.params, version.paramsUsed);
   const prompt = version.inputsUsed?.prompt?.trim() ?? "";

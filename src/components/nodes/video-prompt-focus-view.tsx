@@ -24,7 +24,7 @@ import { GenerateFooter } from "./generate-footer";
 import { useConnectedInputsKey } from "@/hooks/use-connected-inputs-key";
 import { promptGenerateBlocker } from "@/lib/nodes/prompt-generate-blocker";
 import { imageGenerateDisabled } from "@/lib/image-gen/generate-blocker";
-import { useModelPrice } from "@/hooks/queries/ai-models";
+import { useModelPrice, useVideoModels } from "@/hooks/queries/ai-models";
 import { PROMPT_MODEL_ID, priceUnavailableReason } from "@/lib/ai-models/service-models";
 import { promptFlatCredits } from "@/lib/ai-models/service-price";
 import { isVisionAttachment, visionAttachmentsOf } from "@/lib/nodes/compose-message";
@@ -36,7 +36,6 @@ import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-co
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { findDescendantsOfType } from "@/lib/canvas/graph";
 import { ReferenceImageStrip } from "./reference-image-strip";
-import { videoGenClientModelMap, DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import { type UpstreamNode, type ConnectedPreview } from "./connected-inputs-card";
 import type { VersionSummary } from "./prompt-version-history";
@@ -103,6 +102,7 @@ export function VideoPromptFocusView({
   onPatch,
   onSaveOutput,
 }: VideoPromptFocusViewProps) {
+  const videos = useVideoModels();
   // The @-mention list: the wired inputs plus the script's avatar while it is in this shot.
   const mentionUpstream = useMentionUpstream(nodeId, upstream);
   const params = useParams<{ id: string }>();
@@ -230,7 +230,7 @@ export function VideoPromptFocusView({
   // D216 — Omni gets its own motion-prompt variant (the timecode ladder), so it maps to
   // "gemini-omni" rather than folding into Veo as it did before that variant existed.
   const providerOf = (modelId?: string): VideoProvider => {
-    const provider = videoGenClientModelMap[modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.provider;
+    const provider = videos.get(modelId ?? videos.defaultId)?.provider;
     if (provider === "kling") return "kling";
     if (provider === "gemini") return "gemini-omni";
     if (provider === "seedance") return "seedance";
@@ -256,7 +256,7 @@ export function VideoPromptFocusView({
   const lockedLabel = mixed
     ? "Mixed downstream — writing provider-neutral"
     : locked
-      ? `${videoGenClientModelMap[(downstreamGen[0].data as { modelId?: string })?.modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.label ?? "Video model"} · set by connected video node`
+      ? `${videos.get((downstreamGen[0].data as { modelId?: string })?.modelId ?? videos.defaultId)?.label ?? "Video model"} · set by connected video node`
       : undefined;
 
   // Memoized on the id list rather than the array identity: `upstream` is rebuilt on every render,

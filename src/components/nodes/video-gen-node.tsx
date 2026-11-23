@@ -172,6 +172,7 @@ export function VideoGenNode({ id, data, selected, positionAbsoluteX, positionAb
       imageRoles={d.imageRoles ?? {}}
       voiceChange={d.voiceChange}
       videoEdit={d.videoEdit}
+      retiredModelId={d.retiredModelId}
       onPatch={handlePatch}
     />
     </>

@@ -42,12 +42,6 @@ import { GenerationErrorBadge } from "./generation-error-badge";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
-  DEFAULT_VIDEO_CLIENT_MODEL_ID,
-  defaultsForVideoModel,
-  videoGenClientModelMap,
-  isVideoModelDeprecated,
-} from "@/lib/video-gen/client-models";
-import {
   multishotCapabilityFor,
   multishotModelsSharingPlan,
   multishotRestrictionReason,
@@ -73,7 +67,8 @@ import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { videoEstimateUsd } from "@/lib/ai-models/video-price";
 import { useModelPrice, useVideoModels } from "@/hooks/queries/ai-models";
-import type { VideoModels } from "@/lib/ai-models/model-lists";
+import { paramDefaults, type VideoModels } from "@/lib/ai-models/model-lists";
+import { RetiredModelNotice } from "@/components/models/retired-model-notice";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
@@ -337,6 +332,8 @@ type Props = {
   imageRoles: Record<string, ImageRole>;
   voiceChange?: VoiceChangeNodeState;
   videoEdit?: VideoEditNodeState;
+  /** D544 — the retired model this node was moved off when the canvas opened. */
+  retiredModelId?: string;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
@@ -550,14 +547,15 @@ export function VideoGenFocusView({
   imageRoles: imageRolesProp,
   voiceChange: voiceChangeProp,
   videoEdit: videoEditProp,
+  retiredModelId,
   onPatch,
 }: Props) {
   const videos = useVideoModels();
-  const initialModelId = modelIdProp ?? DEFAULT_VIDEO_CLIENT_MODEL_ID;
+  const initialModelId = modelIdProp ?? videos.defaultId;
 
   const [modelId, setModelId] = useState(initialModelId);
   const [params, setParams] = useState<Record<string, unknown>>(
-    () => paramsProp ?? defaultsForVideoModel(initialModelId),
+    () => paramsProp ?? paramDefaults(videos.specOrDefault(initialModelId).params),
   );
   // What this node is fed, from the shared cache: a reopen (or a hover before it) shows the last
   // known inputs at once. Shown only — every write and Generate wait for `loadingConnected` to
@@ -1071,6 +1069,7 @@ export function VideoGenFocusView({
       modelId: nextModelId,
       params: migrated.params,
       imageRoles: migrated.imageRoles,
+      retiredModelId: undefined,
     });
   }
 
@@ -1272,10 +1271,11 @@ export function VideoGenFocusView({
     const toastId = toast.loading("Restoring version…");
     try {
       const { output, modelUsed, paramsUsed, edited } = await videoGenApi.restoreVersion(nodeId, versionId);
-      // D461 — a version made on a deprecated model brings back its video, not its model.
+      // D461/D542 — a version made on a model no longer offered (retired, or hidden and not this
+      // node's own) brings back its video, not its model.
       // D483 — so does an edited version: Omni and a defaulted resolution are not the node's settings.
-      const restoredParams = !edited && modelUsed && !isVideoModelDeprecated(modelUsed)
-        ? paramsForRestore(videoGenClientModelMap[modelUsed]?.params, paramsUsed)
+      const restoredParams = !edited && modelUsed && videos.isOffered(modelUsed, modelId)
+        ? paramsForRestore(videos.get(modelUsed)!.params, paramsUsed)
         : null;
       if (modelUsed && restoredParams) {
         setModelId(modelUsed);
@@ -1283,7 +1283,12 @@ export function VideoGenFocusView({
         // D216 — a restored version is an authoritative recorded snapshot, not a fresh
         // derivation, so its duration is never labelled "derived from this shot".
         setDurationIsDerived(false);
-        onPatch({ parsed: output, modelId: modelUsed, params: restoredParams });
+        onPatch({
+          parsed: output,
+          modelId: modelUsed,
+          params: restoredParams,
+          ...(modelUsed !== modelId ? { retiredModelId: undefined } : {}),
+        });
       } else {
         onPatch({ parsed: output });
       }
@@ -1306,7 +1311,7 @@ export function VideoGenFocusView({
 
   // ── Derived state ──────────────────────────────────────────────────────────
 
-  const imageInputs = videoGenClientModelMap[modelId]?.imageInputs ?? {
+  const imageInputs = videos.get(modelId)?.imageInputs ?? {
     startFrame: true,
     endFrame: false,
     maxReferenceImages: 0,
@@ -1369,7 +1374,7 @@ export function VideoGenFocusView({
     }),
   ) as Record<string, ImageRole>;
 
-  const currentModel = videoGenClientModelMap[modelId];
+  const currentModel = videos.specOrDefault(modelId);
 
   // D428 — the reference cap for the frames actually set (Omni: fewer references with frames).
   // Everything that shows or enforces the cap reads this, the same number the route uses.
@@ -1911,6 +1916,11 @@ export function VideoGenFocusView({
                   {/* Output settings share the model's card: resolution and duration are
                       properties OF the chosen model — its options, its locks — so a separate
                       "Output settings" heading split one decision across two places. */}
+                  <RetiredModelNotice
+                    className="-mb-7"
+                    retiredModelId={retiredModelId}
+                    onDismiss={() => onPatch({ retiredModelId: undefined })}
+                  />
                   <VideoGenModelPicker
                     modelId={modelId}
                     onModelChange={handleModelChange}

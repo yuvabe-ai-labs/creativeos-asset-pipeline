@@ -1,8 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { VideoGenParamsPanel, hasParamsInGroup } from "../video-gen-params-panel";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
-import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { imageModelsFrom, videoModelsFrom } from "@/lib/ai-models/model-lists";
+
+vi.mock("@/hooks/queries/ai-models", async (orig) => ({
+  ...(await orig<typeof import("@/hooks/queries/ai-models")>()),
+  useImageModels: () => imageModelsFrom(seededModelCatalog()),
+  useVideoModels: () => videoModelsFrom(seededModelCatalog()),
+}));
+
+import { VideoGenParamsPanel, hasParamsInGroup } from "../video-gen-params-panel";
 import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
 
 describe("hasParamsInGroup", () => {
