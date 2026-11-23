@@ -67,9 +67,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // works with Gemini Omni, Kling and Veo but not Seedance; the picker says so.
     const modelId = resolveCompositeModelId(typeof body?.modelId === "string" ? body.modelId : undefined);
     const config = imageGenRegistry[modelId];
-    if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
     // D467 — a tab open from before the fallback can still send a deprecated model.
     if (isImageModelDeprecated(modelId)) return apiError(IMAGE_MODEL_DEPRECATED_MESSAGE, 400);
+    if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
 
     const parsed = config.schema.safeParse(body?.params ?? {});
     if (!parsed.success) return apiError(`Invalid params: ${parsed.error.message}`, 400);
