@@ -12,14 +12,17 @@ import {
   insertAiModelPrice,
   deleteAiModelPrice,
 } from "@/lib/db/ai-models-admin";
-import type { AiModelPrice, PriceLine } from "@/lib/ai-models/types";
+import type { PriceLine } from "@/lib/ai-models/types";
 
 // D546 — the /admin model actions. Platform administration (requireSuperAdmin()-gated), not an
 // org's data, so deliberately not wrapped in withAction() (D85). Every write runs its check first
 // and nothing is written when a check refuses.
 
 const SAVE_ERROR = "Could not save. Try again.";
+const BREAK_ERROR = "These changes would break the model's settings.";
 const CANCEL_ERROR = "Only a price that hasn't started can be cancelled.";
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 function refresh(modelId: string): void {
   clearAiCatalogCache();
@@ -32,6 +35,7 @@ export async function updateAiModelAction(
   patch: Record<string, unknown>,
 ): Promise<{ error?: string }> {
   const caller = await requireSuperAdmin();
+  if (typeof id !== "string" || !isObject(patch)) return { error: BREAK_ERROR };
   try {
     const [row, catalog] = await Promise.all([getAdminModel(id), getAiCatalog()]);
     if (!row) return { error: SAVE_ERROR };
@@ -45,12 +49,12 @@ export async function updateAiModelAction(
       return { error: checked.error };
     }
     await updateAiModelRow(id, checked.fields, caller.userId);
-    refresh(id);
-    return {};
   } catch (e) {
     console.error("updateAiModelAction failed", id, e);
     return { error: SAVE_ERROR };
   }
+  refresh(id);
+  return {};
 }
 
 export async function addAiModelPriceAction(input: {
@@ -62,6 +66,14 @@ export async function addAiModelPriceAction(input: {
   note?: string;
 }): Promise<{ error?: string }> {
   const caller = await requireSuperAdmin();
+  if (
+    typeof input?.modelId !== "string" ||
+    !Array.isArray(input.lines) ||
+    !input.lines.every(isObject) ||
+    !isObject(input.estimate)
+  ) {
+    return { error: BREAK_ERROR };
+  }
   try {
     const effectiveFrom = new Date(input.effectiveFrom);
     if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
@@ -69,7 +81,7 @@ export async function addAiModelPriceAction(input: {
     // The model must pass the catalog's own check, or no price for it could ever be read.
     if (!row?.model) return { error: SAVE_ERROR };
     // A row that fails its check still holds its start in the database, so every row counts.
-    const existing = rows.map((r) => r.price ?? ({ modelId: r.modelId, effectiveFrom: r.effectiveFrom } as AiModelPrice));
+    const existing = rows.map((r) => ({ modelId: r.modelId, effectiveFrom: r.effectiveFrom }));
     const checked = checkNewPrice(
       row.model,
       { effectiveFrom, lines: input.lines, estimate: input.estimate },
@@ -92,23 +104,25 @@ export async function addAiModelPriceAction(input: {
       },
       caller.userId,
     );
-    refresh(input.modelId);
-    return {};
   } catch (e) {
     console.error("addAiModelPriceAction failed", input.modelId, e);
     return { error: SAVE_ERROR };
   }
+  refresh(input.modelId);
+  return {};
 }
 
 export async function cancelAiModelPriceAction(priceId: string, modelId: string): Promise<{ error?: string }> {
   await requireSuperAdmin();
+  if (typeof priceId !== "string" || typeof modelId !== "string") return { error: SAVE_ERROR };
   try {
-    const { deleted } = await deleteAiModelPrice(priceId);
+    // Scoped to the model: a price of another model is never cancelled by this call.
+    const { deleted } = await deleteAiModelPrice(priceId, modelId);
     if (!deleted) return { error: CANCEL_ERROR };
-    refresh(modelId);
-    return {};
   } catch (e) {
     console.error("cancelAiModelPriceAction failed", priceId, e);
     return { error: SAVE_ERROR };
   }
+  refresh(modelId);
+  return {};
 }

@@ -154,7 +154,7 @@ export function checkParamsChange(
 export function checkNewPrice(
   model: AiModel,
   input: { effectiveFrom: Date; lines: PriceLine[]; estimate: Record<string, number> },
-  existing: AiModelPrice[],
+  existing: Pick<AiModelPrice, "modelId" | "effectiveFrom">[],
   now: Date,
 ): { ok: true } | { ok: false; error: string } {
   const at = input.effectiveFrom.getTime();

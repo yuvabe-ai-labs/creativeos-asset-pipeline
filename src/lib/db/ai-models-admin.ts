@@ -142,9 +142,9 @@ export async function insertAiModelPrice(
   if (error) throw new Error(error.message);
 }
 
-/** A price that has started cannot be deleted: the database guard raises, and that is not an error here. */
-export async function deleteAiModelPrice(id: string): Promise<{ deleted: boolean }> {
-  const { data, error } = await createServerSupabase().from("ai_model_prices").delete().eq("id", id).select("id");
+/** A price that has started cannot be deleted: the database guard raises, and that is not an error here. Only a price of `modelId` is touched; no match means `deleted: false`. */
+export async function deleteAiModelPrice(id: string, modelId: string): Promise<{ deleted: boolean }> {
+  const { data, error } = await createServerSupabase().from("ai_model_prices").delete().eq("id", id).eq("model_id", modelId).select("id");
   if (error) {
     if (error.message.includes(PRICE_STARTED_DB_MESSAGE)) return { deleted: false };
     throw new Error(error.message);

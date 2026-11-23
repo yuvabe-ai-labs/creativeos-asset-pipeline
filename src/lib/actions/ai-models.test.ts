@@ -89,6 +89,45 @@ describe("updateAiModelAction", () => {
   });
 });
 
+describe("guards", () => {
+  it("does nothing when the caller is not a super admin", async () => {
+    m.requireSuperAdmin.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(updateAiModelAction(NANO_PRO, { label: "x" })).rejects.toThrow();
+    await expect(addAiModelPriceAction({ modelId: NANO_PRO, effectiveFrom: future(), lines, estimate: {} })).rejects.toThrow();
+    await expect(cancelAiModelPriceAction("p1", NANO_PRO)).rejects.toThrow();
+    expect(m.getAdminModel).not.toHaveBeenCalled();
+    expect(m.getAiCatalog).not.toHaveBeenCalled();
+    expect(m.updateAiModelRow).not.toHaveBeenCalled();
+    expect(m.insertAiModelPrice).not.toHaveBeenCalled();
+    expect(m.deleteAiModelPrice).not.toHaveBeenCalled();
+  });
+  it("refuses malformed input instead of throwing", async () => {
+    const brk = { error: "These changes would break the model's settings." };
+    expect(await updateAiModelAction(NANO_PRO, null as never)).toEqual(brk);
+    expect(await updateAiModelAction(NANO_PRO, [] as never)).toEqual(brk);
+    const base = { modelId: NANO_PRO, effectiveFrom: future() };
+    expect(await addAiModelPriceAction({ ...base, lines: "x", estimate: {} } as never)).toEqual(brk);
+    expect(await addAiModelPriceAction({ ...base, lines: [null], estimate: {} } as never)).toEqual(brk);
+    expect(await addAiModelPriceAction({ ...base, lines, estimate: null } as never)).toEqual(brk);
+    expect(m.updateAiModelRow).not.toHaveBeenCalled();
+    expect(m.insertAiModelPrice).not.toHaveBeenCalled();
+  });
+  it("does not report a failed save when only the revalidate fails", async () => {
+    m.revalidatePath.mockImplementation(() => { throw new Error("x"); });
+    await expect(updateAiModelAction(NANO_PRO, { label: "x" })).rejects.toThrow();
+    expect(m.updateAiModelRow).toHaveBeenCalledTimes(1);
+    m.revalidatePath.mockReset();
+  });
+});
+
+describe("D547 a row the catalog dropped", () => {
+  it("can still be patched from its raw row", async () => {
+    m.getAdminModel.mockResolvedValue({ raw: raw(model), model: null, problems: ["x"], updatedBy: null });
+    expect(await updateAiModelAction(NANO_PRO, { label: "Fixed" })).toEqual({});
+    expect(m.updateAiModelRow).toHaveBeenCalledWith(NANO_PRO, { label: "Fixed" }, "u1");
+  });
+});
+
 describe("addAiModelPriceAction", () => {
   const input = (over = {}) => ({ modelId: NANO_PRO, effectiveFrom: future(), lines, estimate: {}, ...over });
   it("refuses a start in the past and inserts nothing", async () => {
@@ -128,9 +167,15 @@ describe("addAiModelPriceAction", () => {
 describe("cancelAiModelPriceAction", () => {
   it("cancels and clears the cache", async () => {
     expect(await cancelAiModelPriceAction("p1", NANO_PRO)).toEqual({});
-    expect(m.deleteAiModelPrice).toHaveBeenCalledWith("p1");
+    expect(m.deleteAiModelPrice).toHaveBeenCalledWith("p1", NANO_PRO);
     expect(m.clearAiCatalogCache).toHaveBeenCalledTimes(1);
     expect(m.revalidatePath).toHaveBeenCalledWith(`/admin/models/${NANO_PRO}`);
+  });
+  it("deletes nothing under the wrong model", async () => {
+    m.deleteAiModelPrice.mockImplementation(async (_id: string, modelId: string) => ({ deleted: modelId === NANO_PRO }));
+    expect(await cancelAiModelPriceAction("p1", "other")).toEqual({ error: "Only a price that hasn't started can be cancelled." });
+    expect(m.deleteAiModelPrice).toHaveBeenCalledWith("p1", "other");
+    expect(m.clearAiCatalogCache).not.toHaveBeenCalled();
   });
   it("refuses a price that has started", async () => {
     m.deleteAiModelPrice.mockResolvedValue({ deleted: false });

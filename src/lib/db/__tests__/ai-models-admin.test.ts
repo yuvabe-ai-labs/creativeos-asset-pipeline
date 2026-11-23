@@ -116,14 +116,20 @@ describe("updateAiModelRow", () => {
 describe("deleteAiModelPrice", () => {
   it("returns deleted false when the guard trigger refuses", async () => {
     results.ai_model_prices = { error: { message: "a price that has started cannot be deleted" } };
-    expect(await deleteAiModelPrice("p1")).toEqual({ deleted: false });
+    expect(await deleteAiModelPrice("p1", "m1")).toEqual({ deleted: false });
   });
   it("rethrows other errors", async () => {
     results.ai_model_prices = { error: { message: "boom" } };
-    await expect(deleteAiModelPrice("p1")).rejects.toThrow("boom");
+    await expect(deleteAiModelPrice("p1", "m1")).rejects.toThrow("boom");
   });
   it("returns deleted true on success", async () => {
     results.ai_model_prices = { data: [{ id: "p1" }] };
-    expect(await deleteAiModelPrice("p1")).toEqual({ deleted: true });
+    expect(await deleteAiModelPrice("p1", "m1")).toEqual({ deleted: true });
+    const eqs = calls.filter((c) => c.table === "ai_model_prices" && c.op === "eq").map((c) => c.args);
+    expect(eqs).toEqual([["id", "p1"], ["model_id", "m1"]]);
+  });
+  it("returns deleted false when no row matches the model", async () => {
+    results.ai_model_prices = { data: [] };
+    expect(await deleteAiModelPrice("p1", "other")).toEqual({ deleted: false });
   });
 });
