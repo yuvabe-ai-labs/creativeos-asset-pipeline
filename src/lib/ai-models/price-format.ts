@@ -2,7 +2,7 @@
 import type { PriceLine } from "./types";
 
 /** A plain decimal, never exponent form, with trailing zeros trimmed. */
-function plain(n: number): string {
+export function plainDecimal(n: number): string {
   const s = n.toFixed(12).replace(/0+$/, "").replace(/\.$/, "");
   return s === "" || s === "-0" ? "0" : s;
 }
@@ -10,7 +10,7 @@ function plain(n: number): string {
 export function formatPriceLine(line: PriceLine): string {
   const words = line.meter.replace(/_/g, " ");
   const isToken = line.meter.endsWith("_token");
-  const amount = isToken ? plain(parseFloat((line.unit_usd * 1e6).toPrecision(6))) : plain(line.unit_usd);
+  const amount = isToken ? plainDecimal(parseFloat((line.unit_usd * 1e6).toPrecision(6))) : plainDecimal(line.unit_usd);
   const unit = isToken ? `1M ${words}s` : words;
   const when = Object.entries(line.when ?? {});
   const cond = when.length

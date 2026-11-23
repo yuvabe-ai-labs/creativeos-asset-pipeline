@@ -14,6 +14,9 @@ import type { ConstraintRule } from "@/lib/video-gen/types";
 import { ModelDetailsForm } from "@/components/admin/models/model-details-form";
 import { ModelMonthStats } from "@/components/admin/models/model-month-stats";
 import { ModelDefinition } from "@/components/admin/models/model-definition";
+import { PriceHistory } from "@/components/admin/models/price-history";
+import { AddPriceSheet } from "@/components/admin/models/add-price-sheet";
+import { currentPriceRow } from "@/components/admin/models/price-draft";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Breadcrumb,
@@ -46,11 +49,8 @@ export default async function AdminModelPage({ params }: { params: Promise<{ id:
   ]);
   if (!row) notFound();
 
-  const names = await displayNames([
-    ...new Set(
-      [row.updatedBy, ...prices.map((p) => p.createdBy)].filter((v): v is string => !!v),
-    ),
-  ]);
+  // Price rows carry their own createdByName (listAdminPrices); only the model's editor is left.
+  const names = await displayNames(row.updatedBy ? [row.updatedBy] : []);
 
   const m = row.model;
   const raw = row.raw;
@@ -65,7 +65,7 @@ export default async function AdminModelPage({ params }: { params: Promise<{ id:
   );
   const s = stats[0];
   const month = now.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
-  const priceCount = prices.length;
+  const current = currentPriceRow(prices, now);
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-14">
@@ -132,8 +132,13 @@ export default async function AdminModelPage({ params }: { params: Promise<{ id:
           unpriced={s?.unpriced ?? 0}
         />
 
-        {/* Task 6 fills the prices section: `prices` and `names` are loaded for it. */}
-        <div id="prices" data-price-count={priceCount} />
+        <section id="prices" className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-lg font-semibold tracking-tight">Prices</h2>
+            {m && <AddPriceSheet model={m} current={current?.price ?? null} />}
+          </div>
+          <PriceHistory modelId={id} prices={prices} now={now.toISOString()} />
+        </section>
 
         <ModelDefinition
           params={m ? m.params : list<ParamSpec>(raw.params)}
