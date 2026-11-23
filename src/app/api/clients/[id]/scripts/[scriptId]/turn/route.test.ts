@@ -18,7 +18,7 @@ vi.mock("@/lib/scripts/copilot/turn", () => ({ prepareTurn: vi.fn() }));
 import { changeGenerateScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState } from "@/lib/db/script-generate";
 import { loadCopilotContext } from "@/lib/scripts/copilot/context";
 import { prepareTurn } from "@/lib/scripts/copilot/turn";
-import { structuredCaller } from "@/lib/scripts/copilot/model";
+import { streamingCaller, structuredCaller } from "@/lib/scripts/copilot/model";
 import { allowClient, AVATAR_ID, generateScript, jsonRequest, runChangeAgainst, SCRIPT_ID, stateOf } from "@/lib/scripts/copilot/__tests__/route-mocks";
 
 const params = Promise.resolve({ id: "c1", scriptId: SCRIPT_ID });
@@ -50,6 +50,10 @@ describe("POST .../turn", () => {
     expect(out.at(-1)).toMatchObject({ type: "state", state: { script: { id: SCRIPT_ID } } });
     // The writer for the draft and edits, a quicker model for reading, angles and the card.
     expect(vi.mocked(structuredCaller).mock.calls.map((c) => c[0]).sort()).toEqual(["gemini-3.1-pro-preview", "gpt-5.4-mini"]);
+    // D537 — every call's cost is recorded for the caller the route already resolved.
+    const recording = { recordFor: { orgId: "org-1", clientId: "c1", userId: "user-1", userEmail: undefined, scriptId: SCRIPT_ID }, recordType: "script" };
+    for (const c of vi.mocked(structuredCaller).mock.calls) expect(c[1]).toEqual(recording);
+    expect(vi.mocked(streamingCaller).mock.calls[0]).toEqual(["gemini-3.1-pro-preview", recording]);
   });
 
   // Final review, Important 5 (performance rule 8): market signals feed the brief's suggestions and

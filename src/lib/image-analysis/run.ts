@@ -38,6 +38,8 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
   const job = await getJob<ImageAnalysisInput>(jobId);
   if (!job?.client_id) return null;
   const clientId = job.client_id;
+  // D537 — the job row says whose run it is: each Gemini call's cost is recorded for them.
+  const recordFor = { orgId: job.org_id, clientId, userId: job.created_by };
 
   try {
     await startJob(jobId, imageAnalysisCopy.starting);
@@ -57,7 +59,7 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
         let readThisRound = 0;
         await forEachLimited(todo, IMAGE_CARD_CONCURRENCY, async (image) => {
           try {
-            const card = await readImageCard(image);
+            const card = await readImageCard(image, { recordFor });
             await upsertImageCard({ imageId: image.id, clientId, version: IMAGE_CARD_VERSION, model: IMAGE_CARD_MODEL, card });
             read++;
             readThisRound++;
@@ -91,6 +93,7 @@ export async function runImageAnalysis(jobId: string): Promise<ImageAnalysisResu
         system: imageAnalysisSummaryPrompt.system,
         parts: [{ text: buildSummaryInput(stats, entries) }],
         schema: ImageSummarySchema,
+        recordFor,
       });
       // The summary takes a while: write to whichever version is active now (a re-extract may
       // have made a new one), over the reviews it holds now.

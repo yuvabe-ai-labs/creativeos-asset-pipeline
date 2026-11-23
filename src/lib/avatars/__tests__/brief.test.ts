@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/scripts/copilot/model", () => ({ structuredCaller: vi.fn() }));
 
 import { briefFront } from "../brief";
+import { structuredCaller } from "@/lib/scripts/copilot/model";
 import { AVATAR_BRIEF_SYSTEM } from "@/prompts/avatar-character";
 import type { StructuredCall } from "@/lib/scripts/copilot/model";
 
@@ -16,7 +17,7 @@ describe("briefFront (D395)", () => {
       appearance: "Clean-shaven.", wardrobe: "A white mundu.", markers: "",
       family: [{ castId: "meenakshi", relation: "husband" }],
     })) as unknown as StructuredCall;
-    const front = await briefFront(input, call);
+    const front = await briefFront(input, { call });
     expect(vi.mocked(call).mock.calls[0][0]).toMatchObject({ name: "avatar_brief", system: AVATAR_BRIEF_SYSTEM });
     expect(vi.mocked(call).mock.calls[0][0].user).toContain("Clean-shaven");
     expect(front).toEqual({
@@ -29,8 +30,17 @@ describe("briefFront (D395)", () => {
   it("still gives a face to draw from when the model fails, the instructions first", async () => {
     const call = vi.fn(async () => { throw new Error("timeout"); }) as unknown as StructuredCall;
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(await briefFront(input, call)).toEqual({
+    expect(await briefFront(input, { call })).toEqual({
       description: "Clean-shaven Her husband Rajan, 58, behind her.", attributes: {}, family: [],
     });
+  });
+
+  // D537 — the brief's call is recorded for whoever the route named, as an avatar brief.
+  it("asks for its quick-model caller with the record named", async () => {
+    vi.mocked(structuredCaller).mockReturnValue((async () => { throw new Error("x"); }) as never);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const recordFor = { orgId: "org-1", clientId: "client-1", scriptId: "script-1" };
+    await briefFront(input, { recordFor });
+    expect(vi.mocked(structuredCaller)).toHaveBeenCalledWith("gpt-5.4-mini", { recordFor, recordType: "avatar_brief" });
   });
 });

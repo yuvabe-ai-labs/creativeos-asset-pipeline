@@ -58,7 +58,8 @@ describe("POST …/cast/:castId/brief (D395)", () => {
       brand: "Jackfruit365\nHuman casting: Working Indian adults, 25 to 45, real not model-like\nAudience lifestyle: Busy city homes",
       // D471 — everyone else in the reel, with a made avatar's look.
       others: script.doc.cast.filter((c) => c.id !== "meenakshi").map((c) => ({ id: c.id, name: c.name, description: c.description, look: "p" })),
-    });
+    // D537 — the brief's cost is recorded for this client's org.
+    }, { recordFor: { orgId: "org-1", clientId: "c1", scriptId: SCRIPT_ID } });
     expect(getAvatar).toHaveBeenCalledWith("c1", HUSBAND_AVATAR);
     expect(await res.json()).toEqual({ ...FRONT, relatives: [] });
   });

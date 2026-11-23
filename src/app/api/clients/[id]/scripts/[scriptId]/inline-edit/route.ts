@@ -28,7 +28,12 @@ export async function POST(req: Request, { params }: Ctx) {
       if (script.stage !== "generate") return apiError("This script is final. Reopen it from Visualise to change it.", 409);
 
       const ctx = await loadCopilotContext(client);
-      const prepared = await prepareInline({ script, ctx, path, selectedText, offset, instruction }, { call: structuredCaller(SCRIPT_WRITER_MODEL) });
+      // D537 — the call's cost is recorded for this client's org after the response.
+      const recordFor = { orgId: client.org_id, clientId, scriptId };
+      const prepared = await prepareInline(
+        { script, ctx, path, selectedText, offset, instruction },
+        { call: structuredCaller(SCRIPT_WRITER_MODEL, { recordFor, recordType: "script" }) },
+      );
       if ("error" in prepared) return apiError(prepared.error, prepared.status);
       const outcome = await changeGenerateScript(clientId, scriptId, prepared);
       if ("error" in outcome) return apiError(outcome.error, outcome.status);

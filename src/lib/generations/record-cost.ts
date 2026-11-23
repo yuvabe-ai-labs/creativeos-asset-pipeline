@@ -5,7 +5,7 @@ import type { AiModelPrice, ProviderBill } from "@/lib/ai-models/types";
 import { insertRecordOnlyGeneration } from "@/lib/db/generations";
 import type { RecordOnlyType } from "@/lib/db/types";
 
-type RecordCostInput = {
+export type RecordCostInput = {
   orgId: string;
   clientId?: string | null;
   userId?: string | null;

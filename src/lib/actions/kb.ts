@@ -190,6 +190,7 @@ export async function startKBBuildJob(clientId: string): Promise<{ jobId: string
     const run = await tasks.trigger("kb-build", {
       jobId: job.id,
       clientId,
+      orgId: client.org_id,
       websiteUrl: client.website_url,
       docIds: docs.map((d) => d.id),
     });

@@ -35,7 +35,9 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!script) return apiError("Script not found.", 404);
       if (script.stage !== "generate") return apiError("This script is final. Reopen it from Visualise to change it.", 409);
 
-      const { userId } = await resolveCallerContext();
+      const { userId, email } = await resolveCallerContext();
+      // D537 — each model call's cost is recorded for this caller, after the response.
+      const recordFor = { orgId: client.org_id, clientId, userId, userEmail: email, scriptId };
       const history = await listScriptMessages(clientId, scriptId);
       await insertScriptMessages(clientId, scriptId, userId, [{ role: "user", content: text, card: null }]);
 
@@ -51,9 +53,9 @@ export async function POST(req: Request, { params }: Ctx) {
               const apply = await prepareTurn(
                 { script, ctx, text, history, leadAvatarId },
                 {
-                  call: structuredCaller(SCRIPT_WRITER_MODEL),
-                  quick: structuredCaller(SCRIPT_QUICK_MODEL),
-                  stream: streamingCaller(SCRIPT_WRITER_MODEL),
+                  call: structuredCaller(SCRIPT_WRITER_MODEL, { recordFor, recordType: "script" }),
+                  quick: structuredCaller(SCRIPT_QUICK_MODEL, { recordFor, recordType: "script" }),
+                  stream: streamingCaller(SCRIPT_WRITER_MODEL, { recordFor, recordType: "script" }),
                   onDraft: (draft) => emit({ type: "draft", draft }),
                 },
               );

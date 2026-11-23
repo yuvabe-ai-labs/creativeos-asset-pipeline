@@ -5,6 +5,7 @@ import { ImageCardSchema, type ImageCard } from "./card-schema";
 import { IMAGE_CARD_MAX_PX } from "./constants";
 import { generateStructured } from "./gemini";
 import { imageCardPrompt } from "@/prompts/image-card";
+import type { RecordFor } from "@/lib/generations/record-for";
 
 /**
  * The image as a JPEG no larger than IMAGE_CARD_MAX_PX on its longest side. Re-encoding also turns
@@ -27,7 +28,7 @@ async function prepare(url: string, fetchImpl: typeof fetch): Promise<string> {
 /** Reads one image. Prefers the small preview made at import when there is one. */
 export async function readImageCard(
   image: { storage_url: string; thumbnail_url: string | null },
-  fetchImpl: typeof fetch = fetch,
+  { recordFor, fetchImpl = fetch }: { recordFor?: RecordFor; fetchImpl?: typeof fetch } = {},
 ): Promise<ImageCard> {
   const data = await prepare(image.thumbnail_url ?? image.storage_url, fetchImpl);
   return generateStructured({
@@ -35,5 +36,6 @@ export async function readImageCard(
     system: imageCardPrompt.system,
     parts: [{ inlineData: { mimeType: "image/jpeg", data } }, { text: "Describe this brand image as a card." }],
     schema: ImageCardSchema,
+    recordFor,
   });
 }
