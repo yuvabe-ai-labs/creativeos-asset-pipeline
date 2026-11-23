@@ -15,6 +15,7 @@ import {
   GEMINI_OMNI_12_IMAGE_INPUTS,
   GEMINI_OMNI_12_RULES,
 } from "./gemini-omni-shape";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 // ── Shared image input capability shapes ──────────────────────────────────────
 
@@ -266,23 +267,8 @@ const SEEDANCE_RULES: ConstraintRule[] = [
 
 // ── Model map ─────────────────────────────────────────────────────────────────
 
-/** Gemini Omni 1.1 — still selectable, being retired (D484). Saved nodes keep this id. */
-export const GEMINI_OMNI_11_MODEL_ID = "gemini:gemini-omni-1.1-flash";
-
-/** Gemini Omni 1.2 — 3–15s, the current Omni (D484). */
-export const GEMINI_OMNI_12_MODEL_ID = "gemini:gemini-omni-1.2-flash";
-
-/**
- * Google's model that cuts between shots natively — see MULTISHOT_MODELS (D235). Always the
- * CURRENT Omni version: the default for new nodes, multishot, edits and voice previews (D484).
- */
-export const GEMINI_OMNI_MODEL_ID = GEMINI_OMNI_12_MODEL_ID;
-
-/** Kling's flagship omni endpoint — the second model that cuts between shots natively (D235). */
-export const KLING_OMNI_MODEL_ID = "kling:kling-3-0-omni";
-
-/** BytePlus Seedance 2.5 — 30s in one pass, and the third natively multi-shot model (D243). */
-export const SEEDANCE_MODEL_ID = "seedance:seedance-2-5";
+// The ids moved to model-ids.ts (D545); re-exported until this file is deleted.
+export { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 export const videoGenClientModelMap: Record<string, VideoGenClientModelSpec> = {
   "veo:veo-3.1-lite": {

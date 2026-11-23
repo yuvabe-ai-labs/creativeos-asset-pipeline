@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { videoGenRegistry } from "../registry";
-import { videoGenClientModelMap, KLING_OMNI_MODEL_ID } from "../client-models";
+import { videoGenClientModelMap } from "../client-models";
+import { KLING_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import { validateAgainstRules } from "../constraints";

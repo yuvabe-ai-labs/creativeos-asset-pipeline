@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { videoGenRegistry } from "../registry";
-import { videoGenClientModelMap, GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "../client-models";
+import { videoGenClientModelMap } from "../client-models";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { validateAgainstRules } from "../constraints";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { videoSecondsUsd } from "@/lib/ai-models/video-price";

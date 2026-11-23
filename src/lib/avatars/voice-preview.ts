@@ -3,7 +3,7 @@ import { videoSecondsUsd } from "@/lib/ai-models/video-price";
 import type { AiModelPrice } from "@/lib/ai-models/types";
 import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 import {
   AVATAR_VOICE_PREVIEW_ASPECT, AVATAR_VOICE_PREVIEW_RESOLUTION, AVATAR_VOICE_PREVIEW_SECONDS,
   AVATAR_VOICE_PREVIEW_SLOT, AVATAR_VOICE_PREVIEW_TIMEOUT_MS,

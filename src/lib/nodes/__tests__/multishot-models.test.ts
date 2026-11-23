@@ -14,12 +14,8 @@ import {
 } from "../multishot-models";
 import {
   videoGenClientModelMap,
-  GEMINI_OMNI_11_MODEL_ID,
-  GEMINI_OMNI_12_MODEL_ID,
-  GEMINI_OMNI_MODEL_ID,
-  KLING_OMNI_MODEL_ID,
-  SEEDANCE_MODEL_ID,
 } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 // The 10s-window cases below are written against Omni 1.1, which is still selectable (D484).
 const OMNI_11 = GEMINI_OMNI_11_MODEL_ID;

@@ -4,7 +4,7 @@
 // neither, kling.ts imports generate.ts, and only this file imports both. Putting the router in
 // generate.ts would make the two import each other.
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
-import { KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 import {
   multishotPromptGenerate,
   type MultishotPromptSpec,

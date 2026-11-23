@@ -20,7 +20,7 @@ import { fetchAsBase64 } from "./fetch-as-base64";
 import { normalizeOmniUsage } from "../provider-usage";
 import { fetchOrThrow } from "./fetch-error";
 import { VIDEO_EDIT_REFUSED_MESSAGE } from "@/lib/video-edit/record";
-import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "../client-models";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 /** The Gemini API model names. Each app model id maps to exactly one (see the specs at the end). */

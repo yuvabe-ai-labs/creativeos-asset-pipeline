@@ -3,7 +3,7 @@ import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { checkLadder, multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import { seededPrice } from "@/lib/ai-models/test-prices";
-import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID, GEMINI_OMNI_11_MODEL_ID } from "@/lib/video-gen/client-models";
+import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID, GEMINI_OMNI_11_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 vi.mock("server-only", () => ({}));
 const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));

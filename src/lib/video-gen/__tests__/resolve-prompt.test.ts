@@ -3,7 +3,7 @@ import { resolveVideoGenPrompt, refRoleLabels, roleDialectOfResolved } from "../
 import type { UpstreamOutput } from "@/lib/db/nodes";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
-import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 
 function output(partial: Partial<UpstreamOutput> & { nodeId: string; type: string }): UpstreamOutput {

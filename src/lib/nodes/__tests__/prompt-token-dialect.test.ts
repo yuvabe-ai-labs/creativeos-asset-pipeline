@@ -8,7 +8,7 @@ import {
   dialectForCapability,
 } from "../prompt-token-dialect";
 import { multishotCapabilityFor } from "../multishot-models";
-import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 describe("mentionDialect", () => {
   const d = mentionDialect();

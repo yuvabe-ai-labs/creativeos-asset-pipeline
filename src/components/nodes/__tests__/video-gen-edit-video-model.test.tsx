@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
 import { videoModelsFrom, type VideoModels } from "@/lib/ai-models/model-lists";
-import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/ai-models/model-ids";
 import type { VideoGenVersionSummary } from "../video-gen-version-history";
 
 const state = vi.hoisted(() => ({

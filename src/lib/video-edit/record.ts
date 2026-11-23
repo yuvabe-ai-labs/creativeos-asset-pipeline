@@ -2,11 +2,7 @@
 import { videoEstimateUsd } from "@/lib/ai-models/video-price";
 import type { AiModelPrice } from "@/lib/ai-models/types";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import {
-  GEMINI_OMNI_11_MODEL_ID,
-  GEMINI_OMNI_12_MODEL_ID,
-  GEMINI_OMNI_MODEL_ID,
-} from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { modelPickerLabel, type VideoModels } from "@/lib/ai-models/model-lists";
 
 export const VIDEO_EDIT_RESOLUTIONS = ["360p", "720p", "1080p", "4k"] as const;

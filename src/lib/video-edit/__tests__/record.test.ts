@@ -5,7 +5,7 @@ import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
 import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { videoEditTooLongMessage } from "../record";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/ai-models/model-ids";
 import {
   plainVideoEditFailure, VIDEO_EDIT_FAILED_MESSAGE, VIDEO_EDIT_REFUSED_MESSAGE, VIDEO_EDIT_DEFAULT_MODEL_ID,
   readVideoEdit, videoEditEstimateCredits, videoEditGate, videoEditLimitsFor, editResolutionForTake,

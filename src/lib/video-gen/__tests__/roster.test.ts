@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   videoGenClientModelMap,
   DEFAULT_VIDEO_CLIENT_MODEL_ID,
-  GEMINI_OMNI_MODEL_ID,
 } from "../client-models";
+import { GEMINI_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 

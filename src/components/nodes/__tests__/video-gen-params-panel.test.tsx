@@ -10,7 +10,7 @@ vi.mock("@/hooks/queries/ai-models", async (orig) => ({
 }));
 
 import { VideoGenParamsPanel, hasParamsInGroup } from "../video-gen-params-panel";
-import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 describe("hasParamsInGroup", () => {
   const videos = videoModelsFrom(seededModelCatalog());

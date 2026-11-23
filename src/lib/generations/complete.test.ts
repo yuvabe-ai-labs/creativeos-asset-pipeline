@@ -70,10 +70,10 @@ import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
 import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { voicePreviewCostUsd, voicePreviewParams } from "@/lib/avatars/voice-preview";
-import { SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { AVATAR_VOICE_PREVIEW_SLOT } from "@/lib/avatars/constants";
 import { VIDEO_EDIT_FAILED_MESSAGE, VIDEO_EDIT_REFUSED_MESSAGE } from "@/lib/video-edit/record";
 

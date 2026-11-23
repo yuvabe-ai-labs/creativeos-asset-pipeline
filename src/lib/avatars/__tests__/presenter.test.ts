@@ -4,7 +4,7 @@ import {
   avatarAutoVoiceMissing, presenterDefaultVoiceId, presenterVideoNotes, seedanceVoiceText, seedingScriptId,
   presenterUpstreamRows, unavailableModelsFor, withAvatarAsSpeaker,
 } from "../presenter";
-import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { makeAvatar, makeImage, GENERATED } from "./fixtures";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import { videoModelsFrom } from "@/lib/ai-models/model-lists";

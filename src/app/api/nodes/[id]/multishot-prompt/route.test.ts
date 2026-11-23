@@ -1,11 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { MULTISHOT_BEAT_SCHEMA, planSchemaForCuts } from "@/prompts/multishot-prompt-generate";
-import {
-  KLING_OMNI_MODEL_ID,
-  GEMINI_OMNI_MODEL_ID,
-  SEEDANCE_MODEL_ID,
-} from "@/lib/video-gen/client-models";
+import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 vi.mock("server-only", () => ({}));
 

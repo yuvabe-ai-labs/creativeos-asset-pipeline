@@ -15,7 +15,7 @@ import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
 import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 const NAMED: AvatarVoice = { mode: "named", voiceId: "v1", name: "Surabhi", labels: {}, previewUrl: null };
 const NATIVE: AvatarVoice = { mode: "native" };

@@ -5,10 +5,8 @@ import { videoModelsFrom, paramDefaults } from "@/lib/ai-models/model-lists";
 import {
   videoGenClientModelMap,
   defaultsForVideoModel,
-  GEMINI_OMNI_11_MODEL_ID,
-  GEMINI_OMNI_12_MODEL_ID,
-  KLING_OMNI_MODEL_ID,
 } from "../client-models";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 const OMNI_11 = videoGenClientModelMap[GEMINI_OMNI_11_MODEL_ID];
 const OMNI_12 = videoGenClientModelMap[GEMINI_OMNI_12_MODEL_ID];

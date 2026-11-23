@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { videoEditEstimateCredits } from "@/lib/video-edit/record";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { GEMINI_OMNI_12_IMAGE_INPUTS } from "@/lib/video-gen/gemini-omni-shape";
-import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 vi.mock("server-only", () => ({}));
 const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));

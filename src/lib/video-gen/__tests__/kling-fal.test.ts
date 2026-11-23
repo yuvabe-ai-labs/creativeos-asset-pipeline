@@ -3,7 +3,7 @@ import { buildKlingFalRequest, splitKlingShots, toFalImageTags, falTier, FAL_SHO
 import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { VoLine } from "@/lib/nodes/reel-script";
-import { KLING_OMNI_MODEL_ID } from "../client-models";
+import { KLING_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { withRequestLines } from "../request-prompt";
 import { NO_ON_SCREEN_TEXT_LINE, SPEECH_TIMING, SHORT_SOUND_LINE_MAX_CHARS, shortSoundLine } from "../compose-omni-prompt";
 
