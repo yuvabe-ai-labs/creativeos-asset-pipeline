@@ -1,6 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { videoGenRegistry } from "../registry";
-import { videoGenClientModelMap } from "../client-models";
 import { KLING_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
@@ -10,32 +8,22 @@ import { videoSecondsUsd } from "@/lib/ai-models/video-price";
 import { buildO1Settings, build30OmniSettings } from "../providers/kling";
 
 const OMNI = KLING_OMNI_MODEL_ID;
+const videos = videoModelsFrom(seededModelCatalog());
+const spec = (id: string) => videos.get(id)!;
 
 describe("Kling 3.0 Omni registration", () => {
-  it("is present in both the server registry and the client map", () => {
-    expect(videoGenRegistry[OMNI]).toBeDefined();
-    expect(videoGenClientModelMap[OMNI]).toBeDefined();
-  });
-
-  // D99 — unlike Gemini Omni, Kling's two sides deliberately do NOT share one object: the client
-  // module cannot import the `server-only` provider. So this asserts the two copies agree on the
-  // one value that must, rather than that they are the same reference. The API route caps
-  // referenceUrls against the CLIENT copy while the provider is built from the SERVER copy, so a
-  // drift here silently truncates references on a paid generation.
-  it("agrees across both sides on the reference-image cap", () => {
-    expect(videoGenClientModelMap[OMNI].imageInputs.maxReferenceImages).toBe(
-      videoGenRegistry[OMNI].imageInputs.maxReferenceImages,
-    );
-    expect(videoGenClientModelMap[OMNI].params).toBe(videoGenRegistry[OMNI].params);
+  it("is a seeded video model with an adapter to run it", () => {
+    expect(videos.get(OMNI)).toBeDefined();
+    expect(seededModelCatalog().models.find((m) => m.id === OMNI)?.adapterKey).toBe("video:kling-3-0-omni");
   });
 
   it("allows 15s and reference images", () => {
-    expect(videoGenClientModelMap[OMNI].maxDurationSeconds).toBe(15);
-    expect(videoGenClientModelMap[OMNI].imageInputs.maxReferenceImages).toBeGreaterThan(0);
+    expect(spec(OMNI).maxDurationSeconds).toBe(15);
+    expect(spec(OMNI).imageInputs.maxReferenceImages).toBeGreaterThan(0);
   });
 
   it("offers a duration slider covering the full 3-15 range", () => {
-    const duration = videoGenClientModelMap[OMNI].params.find((p) => p.name === "duration");
+    const duration = spec(OMNI).params.find((p) => p.name === "duration");
     expect(duration?.component).toBe("slider");
     expect(duration?.constraints).toMatchObject({ min: 3, max: 15 });
   });
@@ -48,7 +36,7 @@ describe("Kling 3.0 Omni registration", () => {
   // Audio defaults to native (D274): the multishot writers put the voiceover into the beats as
   // spoken lines, and Kling's own default is native. The saving from off is stated by the control.
   it("offers audio as an operator-settable param, defaulting to native", () => {
-    const audio = videoGenClientModelMap[OMNI].params.find((p) => p.name === "audio");
+    const audio = spec(OMNI).params.find((p) => p.name === "audio");
     expect(audio?.defaultValue).toBe("native");
     expect(audio?.visible).toBe(true);
     expect(audio?.constraints).toMatchObject({ options: ["native", "off"] });
@@ -64,9 +52,9 @@ describe("every visible param is reachable in some rendered group", () => {
   // is not in this list, it exists in the request and nowhere on screen.
   const RENDERED_GROUPS = ["primary", "advanced"];
 
-  for (const modelId of Object.keys(videoGenClientModelMap)) {
+  for (const { id: modelId } of videos.all) {
     it(`${modelId}`, () => {
-      const orphaned = videoGenClientModelMap[modelId].params
+      const orphaned = spec(modelId).params
         .filter((p) => p.visible && !RENDERED_GROUPS.includes(p.group))
         .map((p) => `${p.name} (group: ${p.group})`);
       expect(orphaned).toEqual([]);
@@ -76,14 +64,14 @@ describe("every visible param is reachable in some rendered group", () => {
   // D101 — a refer_image stands alone as an input on the omni endpoints, so references with no
   // start frame is a legal request here (it is not on kling-3-0).
   it("allows a references-only request", () => {
-    const violation = validateAgainstRules(videoGenClientModelMap[OMNI].rules, {
+    const violation = validateAgainstRules(spec(OMNI).rules, {
       params: {}, hasStartFrame: false, hasEndFrame: false, referenceCount: 2,
     });
     expect(violation).toBeNull();
   });
 
   it("blocks a request with neither a start frame nor a reference", () => {
-    const violation = validateAgainstRules(videoGenClientModelMap[OMNI].rules, {
+    const violation = validateAgainstRules(spec(OMNI).rules, {
       params: {}, hasStartFrame: false, hasEndFrame: false, referenceCount: 0,
     });
     expect(violation).toBe("Kling needs a start frame or at least one reference image");
@@ -92,7 +80,7 @@ describe("every visible param is reachable in some rendered group", () => {
   // OM7 — an end frame is the destination of an interpolation that has to start somewhere, and a
   // reference does not stand in for that origin.
   it("blocks an end frame with no start frame", () => {
-    const violation = validateAgainstRules(videoGenClientModelMap[OMNI].rules, {
+    const violation = validateAgainstRules(spec(OMNI).rules, {
       params: {}, hasStartFrame: false, hasEndFrame: true, referenceCount: 3,
     });
     expect(violation).toBe("End frame needs a start frame before you can generate");

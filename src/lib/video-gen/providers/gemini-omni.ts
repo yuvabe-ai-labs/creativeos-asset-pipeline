@@ -1,31 +1,23 @@
 import "server-only";
 import { logger } from "@trigger.dev/sdk/v3";
-import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
-import {
-  geminiOmniParams,
-  geminiOmni12Params,
-  GEMINI_OMNI_11_MAX_SECONDS,
-  GEMINI_OMNI_12_MAX_SECONDS,
-} from "../params/gemini-omni";
-import {
-  GEMINI_OMNI_IMAGE_INPUTS,
-  GEMINI_OMNI_RULES,
-  GEMINI_OMNI_12_IMAGE_INPUTS,
-  GEMINI_OMNI_12_RULES,
-  OMNI_12_FRAME_PAIR_MAX_SECONDS,
-} from "../gemini-omni-shape";
+import type { VideoGenInput, VideoGenResult } from "../types";
 import { planOmniInput } from "../plan-omni-input";
 import { composeOmniPrompt } from "../compose-omni-prompt";
 import { fetchAsBase64 } from "./fetch-as-base64";
 import { normalizeOmniUsage } from "../provider-usage";
 import { fetchOrThrow } from "./fetch-error";
 import { VIDEO_EDIT_REFUSED_MESSAGE } from "@/lib/video-edit/record";
-import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
-/** The Gemini API model names. Each app model id maps to exactly one (see the specs at the end). */
+/** The Gemini API model names. Each Omni catalog row carries its own as provider_model_id. */
 export const OMNI_11_API_MODEL = "gemini-omni-1.1-flash";
 export const OMNI_12_API_MODEL = "gemini-omni-1.2-flash";
+
+/** The longest clip each version renders. */
+export const GEMINI_OMNI_11_MAX_SECONDS = 10;
+export const GEMINI_OMNI_12_MAX_SECONDS = 15;
+/** Omni 1.2 interpolates between a first and last frame for 3–10s only; longer returns a 400. */
+export const OMNI_12_FRAME_PAIR_MAX_SECONDS = 10;
 
 // Omni generates synchronously (background:false), so the whole render happens inside this one
 // request. Node's fetch defaults to a 300s headers timeout, which a 10s 1080p/4k generation can
@@ -51,8 +43,8 @@ const MIN_DURATION = 3;
  * `durationSeconds` reported back for costing. Reading the number back off the built request
  * would yield NaN, since the wire value is "8s" — a zero-cost record for a video that really ran.
  *
- * Clamped rather than trusted: params/gemini-omni.ts is a static spec, and a node saved before a
- * spec change still holds its old value with nothing re-validating it on load.
+ * Clamped rather than trusted: a catalog row's duration param can change, and a node saved before
+ * that change still holds its old value with nothing re-validating it on load.
  */
 export function omniDurationSeconds(
   params: Record<string, unknown>,
@@ -322,7 +314,7 @@ export async function generateWithOmni(input: VideoGenInput, version: OmniVersio
     throw new Error("<LAST_FRAME> requires <FIRST_FRAME> — Omni cannot use an end frame alone");
   }
   const durationSeconds = omniDurationSeconds(input.params, version.maxSeconds);
-  // Same backstop for 1.2's frame-pair ceiling (GEMINI_OMNI_12_RULES disables Generate client-side).
+  // Same backstop for 1.2's frame-pair ceiling (the 1.2 catalog row's rules disable Generate client-side).
   if (
     version.framePairMaxSeconds !== undefined &&
     input.startFrameUrl &&
@@ -425,31 +417,4 @@ export const OMNI_12: OmniVersion = {
   apiModel: OMNI_12_API_MODEL,
   maxSeconds: GEMINI_OMNI_12_MAX_SECONDS,
   framePairMaxSeconds: OMNI_12_FRAME_PAIR_MAX_SECONDS,
-};
-
-/** Being retired: Google routes every 1.1 request to 1.2 from 2026-12-03 (D484). */
-export const geminiOmni: VideoGenModelSpec = {
-  id: GEMINI_OMNI_11_MODEL_ID,
-  provider: "gemini",
-  label: "Gemini Omni 1.1 Flash",
-  pickerLabel: "Omni 1.1",
-  providerLabel: "Google",
-  maxDurationSeconds: GEMINI_OMNI_11_MAX_SECONDS,
-  imageInputs: GEMINI_OMNI_IMAGE_INPUTS,
-  params: geminiOmniParams,
-  rules: GEMINI_OMNI_RULES,
-  generate: (input) => generateWithOmni(input, OMNI_11),
-};
-
-export const geminiOmni12: VideoGenModelSpec = {
-  id: GEMINI_OMNI_12_MODEL_ID,
-  provider: "gemini",
-  label: "Gemini Omni 1.2 Flash",
-  pickerLabel: "Omni 1.2",
-  providerLabel: "Google",
-  maxDurationSeconds: GEMINI_OMNI_12_MAX_SECONDS,
-  imageInputs: GEMINI_OMNI_12_IMAGE_INPUTS,
-  params: geminiOmni12Params,
-  rules: GEMINI_OMNI_12_RULES,
-  generate: (input) => generateWithOmni(input, OMNI_12),
 };

@@ -4,16 +4,16 @@ import {
   describeVersionParams,
   describeAllVersionParams,
 } from "./version-params";
-import { videoGenClientModelMap, defaultsForVideoModel } from "@/lib/video-gen/client-models";
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { imageModelsFrom, paramDefaults, videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 
 // YUV-295: a version records the model and the exact params it was generated with
 // (node_versions.model_used / params_used), but restoring one wrote back only the output —
 // and History never showed those params at all, so there was no way to tell what produced a
 // given clip or image.
 
-const videoSpecs = (id: string) => videoGenClientModelMap[id]?.params;
-const imageSpecs = (id: string) => imageGenClientModelMap[id]?.params;
+const videoSpecs = (id: string) => videoModelsFrom(seededModelCatalog()).get(id)?.params;
+const imageSpecs = (id: string) => imageModelsFrom(seededModelCatalog()).get(id)?.params;
 
 describe("paramsForRestore", () => {
   it("takes the version's own values for the restored model's params", () => {
@@ -37,7 +37,7 @@ describe("paramsForRestore", () => {
     // next generate.
     const restored = paramsForRestore(videoSpecs("veo:veo-3.1"), { duration: "4" });
     expect(restored?.duration).toBe("4");
-    expect(restored?.resolution).toBe(defaultsForVideoModel("veo:veo-3.1").resolution);
+    expect(restored?.resolution).toBe(paramDefaults(videoSpecs("veo:veo-3.1")!).resolution);
   });
 
   it("drops keys that are not params of the model", () => {

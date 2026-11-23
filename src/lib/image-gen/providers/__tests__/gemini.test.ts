@@ -6,10 +6,18 @@ vi.mock("@/lib/gemini/server", () => ({
   createGemini: () => ({ models: { generateContent }, interactions: { create: interactionsCreate } }),
 }));
 
-import { geminiModels } from "../gemini";
+import { imageAdapters } from "../../adapters";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import { toImageClientSpec } from "@/lib/ai-models/to-spec";
 
-const generate = (id: string) =>
-  geminiModels.find((m) => m.id === id)!.generate({ prompt: "a mug", referenceUrls: [], params: {} });
+// Each model runs the way a task runs it: its catalog row's adapter, with the row's model name.
+const generate = (id: string) => {
+  const row = seededModelCatalog().models.find((m) => m.id === id)!;
+  return imageAdapters[row.adapterKey](
+    { prompt: "a mug", referenceUrls: [], params: {} },
+    { spec: toImageClientSpec(row), providerModelId: row.providerModelId! },
+  );
+};
 
 beforeEach(() => vi.clearAllMocks());
 

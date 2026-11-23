@@ -82,6 +82,3 @@ export type ClientModelSpec = Omit<MediaGenModelSpec, "generate">;
  *  own name for the model (the row's provider_model_id). */
 export type ImageAdapterContext = { spec: ClientModelSpec; providerModelId: string };
 export type ImageAdapter = (input: ImageGenInput, ctx: ImageAdapterContext) => Promise<ImageGenResult>;
-
-// Legacy alias — keeps existing imports in registry.ts and API routes compiling
-export type ImageGenModelConfig = MediaGenModelSpec;

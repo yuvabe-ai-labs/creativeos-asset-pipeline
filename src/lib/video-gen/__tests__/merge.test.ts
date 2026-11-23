@@ -2,16 +2,12 @@ import { describe, it, expect } from "vitest";
 import { smartMergeVideoParams } from "../params/merge";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import { videoModelsFrom, paramDefaults } from "@/lib/ai-models/model-lists";
-import {
-  videoGenClientModelMap,
-  defaultsForVideoModel,
-} from "../client-models";
 import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 
-const OMNI_11 = videoGenClientModelMap[GEMINI_OMNI_11_MODEL_ID];
-const OMNI_12 = videoGenClientModelMap[GEMINI_OMNI_12_MODEL_ID];
-const KLING = videoGenClientModelMap[KLING_OMNI_MODEL_ID];
 const videos = videoModelsFrom(seededModelCatalog());
+const OMNI_11 = videos.get(GEMINI_OMNI_11_MODEL_ID)!;
+const OMNI_12 = videos.get(GEMINI_OMNI_12_MODEL_ID)!;
+const KLING = videos.get(KLING_OMNI_MODEL_ID)!;
 
 describe("smartMergeVideoParams", () => {
   const custom = { resolution: "1080p", duration: 9, aspect_ratio: "16:9", negative_prompt: "no rain" };
@@ -29,12 +25,12 @@ describe("smartMergeVideoParams", () => {
   // Across providers each provider's tuned negative default still wins.
   it("resets free text to the new provider's default across providers", () => {
     const next = smartMergeVideoParams(custom, KLING, OMNI_12);
-    expect(next.negative_prompt).toBe(defaultsForVideoModel(KLING_OMNI_MODEL_ID).negative_prompt);
+    expect(next.negative_prompt).toBe(paramDefaults(KLING.params).negative_prompt);
   });
 
   it("resets free text when the previous model is unknown, as before", () => {
     const next = smartMergeVideoParams(custom, OMNI_11);
-    expect(next.negative_prompt).toBe(defaultsForVideoModel(GEMINI_OMNI_11_MODEL_ID).negative_prompt);
+    expect(next.negative_prompt).toBe(paramDefaults(OMNI_11.params).negative_prompt);
   });
 
   it("keeps free text across a same-provider switch when given the previous model's spec", () => {

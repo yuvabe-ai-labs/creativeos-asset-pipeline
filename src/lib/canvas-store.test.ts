@@ -32,10 +32,7 @@ import type { AppNode } from "./canvas-nodes";
 import type { Edge } from "@xyflow/react";
 import type { ShotComposeIdea } from "./nodes/shot-compose";
 import type { GenerationRow } from "./db/types";
-import {
-  GEMINI_OMNI_MODEL_ID as OMNI_MODEL_ID,
-} from "./video-gen/client-models";
-import { KLING_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
+import { GEMINI_OMNI_MODEL_ID as OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

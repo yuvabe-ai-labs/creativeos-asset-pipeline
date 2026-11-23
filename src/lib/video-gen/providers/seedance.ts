@@ -1,7 +1,6 @@
 import "server-only";
 import { logger } from "@trigger.dev/sdk/v3";
-import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
-import { seedanceParams } from "../params/seedance";
+import type { VideoGenInput, VideoGenResult } from "../types";
 import { fitSeedanceImages } from "./seedance-images";
 import { normalizeSeedanceUsage } from "../provider-usage";
 
@@ -18,7 +17,7 @@ const POLL_INTERVAL_MS = 5_000;
 class RetryablePollError extends Error {}
 
 // The vendor's model string lives HERE and nowhere else. Its dated suffix changes when BytePlus
-// revises the model; our own id (`seedance:seedance-2-5`, client-models.ts) is what persists on
+// revises the model; our own id (`seedance:seedance-2-5`, the catalog row's id) is what persists on
 // nodes and version rows. Keeping them separate makes a vendor bump a one-line edit rather than a
 // migration of every saved node.
 // D538 — also seeded into the catalog as provider_model_id (migration 0084).
@@ -36,7 +35,7 @@ type SeedanceContent = Record<string, unknown>;
 
 /**
  * Frames and references are MUTUALLY EXCLUSIVE on this endpoint, so this sends one or the other
- * and never both. The client rules (client-models.ts) disable the unavailable input, and this is
+ * and never both. The client rules (on the catalog row) disable the unavailable input, and this is
  * the backstop for a caller that bypassed them.
  *
  * A voice reference (D296) is NOT part of that exclusion — audio is a third part type and rides
@@ -318,26 +317,3 @@ export function generateWithSeedance(input: VideoGenInput, maxRefs: number, vend
     .then((fitted) => createSeedanceTask(buildSeedanceBody(fitted, maxRefs, vendorModel)))
     .then(pollSeedanceTask);
 }
-
-// Server-side twin of the client shape in client-models.ts (SEEDANCE_IMAGE_INPUTS). Same D99
-// split as Kling: this module is server-only and client-models.ts (safe for React) cannot import
-// it, so the shape is declared once on each side. maxReferenceImages MUST match the client copy —
-// the API route caps referenceUrls against the client value while generate() below is built from
-// this one, so a drift here silently truncates references on a paid generation.
-const SEEDANCE_IMAGE_INPUTS_SERVER = {
-  startFrame: true,
-  endFrame: true,
-  maxReferenceImages: 30,
-} as const;
-
-export const seedance25: VideoGenModelSpec = {
-  id: "seedance:seedance-2-5",
-  provider: "seedance",
-  label: "Seedance 2.5",
-  providerLabel: "Seedance",
-  maxDurationSeconds: 30,
-  imageInputs: SEEDANCE_IMAGE_INPUTS_SERVER,
-  params: seedanceParams,
-  generate: (input) =>
-    generateWithSeedance(input, SEEDANCE_IMAGE_INPUTS_SERVER.maxReferenceImages, SEEDANCE_VENDOR_MODEL),
-};

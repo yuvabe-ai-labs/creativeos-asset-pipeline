@@ -1,24 +1,23 @@
 import { describe, it, expect } from "vitest";
-import {
-  videoGenClientModelMap,
-  DEFAULT_VIDEO_CLIENT_MODEL_ID,
-} from "../client-models";
 import { GEMINI_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
+import { DEFAULT_VIDEO_MODEL_ID } from "@/lib/ai-models/default-models";
 import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 
-const isDeprecated = (id: string) => videoGenClientModelMap[id]?.deprecated === true;
-const videoGroups = () => videoModelsFrom(seededModelCatalog()).groups();
+const videoModels = () => videoModelsFrom(seededModelCatalog());
+const ids = () => videoModels().all.map((m) => m.id);
+const isDeprecated = (id: string) => videoModels().get(id)?.deprecated === true;
+const videoGroups = () => videoModels().groups();
 
 describe("video model roster", () => {
   it("D461: deprecates exactly the three Veo models, and never defaults to a deprecated one", () => {
-    const deprecated = Object.keys(videoGenClientModelMap).filter(isDeprecated).sort();
+    const deprecated = ids().filter(isDeprecated).sort();
     expect(deprecated).toEqual(["veo:veo-3.1", "veo:veo-3.1-fast", "veo:veo-3.1-lite"]);
-    expect(isDeprecated(DEFAULT_VIDEO_CLIENT_MODEL_ID)).toBe(false);
+    expect(isDeprecated(videoModels().defaultId)).toBe(false);
   });
 
   it("contains the consolidated roster: Veo x3 + Kling 3.0 + Kling O1 + Kling 3.0 Omni + Seedance 2.5 + Gemini Omni", () => {
-    expect(Object.keys(videoGenClientModelMap).sort()).toEqual([
+    expect(ids().sort()).toEqual([
       "gemini:gemini-omni-1.1-flash",
       // Added 2026-11-10 (D484); 1.1 stays selectable until it is retired.
       "gemini:gemini-omni-1.2-flash",
@@ -36,24 +35,21 @@ describe("video model roster", () => {
   });
 
   it("excludes Sora and the pruned Kling models", () => {
-    const ids = Object.keys(videoGenClientModelMap);
-    expect(ids).not.toContain("openai:sora-2");
-    expect(ids).not.toContain("kling:kling-3-0-turbo");
-    expect(ids).not.toContain("kling:kling-2-6");
-    expect(ids).not.toContain("kling:kling-2-5-turbo");
+    expect(ids()).not.toContain("openai:sora-2");
+    expect(ids()).not.toContain("kling:kling-3-0-turbo");
+    expect(ids()).not.toContain("kling:kling-2-6");
+    expect(ids()).not.toContain("kling:kling-2-5-turbo");
   });
 
   it("excludes the legacy kling-v1/v2 endpoints", () => {
-    const ids = Object.keys(videoGenClientModelMap);
-    expect(ids.some((id) => /kling-v(1|2)/.test(id))).toBe(false);
+    expect(ids().some((id) => /kling-v(1|2)/.test(id))).toBe(false);
   });
 });
 
 describe("picker groups", () => {
-  // Seedance sits between Kling and Google because that is the map's own declaration order
-  // (client-models.ts registers it right after the Kling block) — groups preserve that order
-  // rather than imposing one of their own.
-  it("groups under Veo, Kling, Seedance, and Google — no OpenAI headers", () => {
+  // Groups follow the catalog's sort order: Seedance sits between Kling and Google because its
+  // row sorts right after the Kling rows.
+  it("groups under Kling, Seedance, and Google — no OpenAI headers", () => {
     expect(videoGroups().map((g) => g.label)).toEqual([
       "Kling",
       "Seedance",
@@ -70,6 +66,7 @@ describe("picker groups", () => {
 
 describe("deprecated model fallback (D461)", () => {
   it("defaults to Gemini Omni", () => {
-    expect(DEFAULT_VIDEO_CLIENT_MODEL_ID).toBe(GEMINI_OMNI_MODEL_ID);
+    expect(DEFAULT_VIDEO_MODEL_ID).toBe(GEMINI_OMNI_MODEL_ID);
+    expect(videoModels().defaultId).toBe(GEMINI_OMNI_MODEL_ID);
   });
 });

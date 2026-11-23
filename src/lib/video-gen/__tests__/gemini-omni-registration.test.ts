@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { videoGenRegistry } from "../registry";
-import { videoGenClientModelMap } from "../client-models";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { validateAgainstRules } from "../constraints";
 import { seededPrice } from "@/lib/ai-models/test-prices";
@@ -10,23 +10,17 @@ const OMNI_11 = GEMINI_OMNI_11_MODEL_ID;
 const OMNI_12 = GEMINI_OMNI_12_MODEL_ID;
 const BEFORE_REROUTE = new Date("2026-11-10T00:00:00Z");
 const REROUTE_AT = new Date("2026-12-03T08:00:00Z");
+const videos = videoModelsFrom(seededModelCatalog());
+const spec = (id: string) => videos.get(id)!;
 
 describe.each([OMNI_11, OMNI_12])("Gemini Omni registration — %s", (OMNI) => {
-  it("is present in both the server registry and the client map", () => {
-    expect(videoGenRegistry[OMNI]).toBeDefined();
-    expect(videoGenClientModelMap[OMNI]).toBeDefined();
-  });
-
-  // The API route caps referenceUrls against the CLIENT copy while the provider is built from the
-  // SERVER copy. Both now read one shared module, so this asserts they stayed wired to it.
-  it("shares one identical imageInputs, params and rules object across both sides", () => {
-    expect(videoGenClientModelMap[OMNI].imageInputs).toBe(videoGenRegistry[OMNI].imageInputs);
-    expect(videoGenClientModelMap[OMNI].params).toBe(videoGenRegistry[OMNI].params);
-    expect(videoGenClientModelMap[OMNI].rules).toBe(videoGenRegistry[OMNI].rules);
+  it("is a seeded video model with an adapter to run it", () => {
+    expect(videos.get(OMNI)).toBeDefined();
+    expect(seededModelCatalog().models.find((m) => m.id === OMNI)?.adapterKey).toMatch(/^video:/);
   });
 
   it("blocks an end frame with no start frame", () => {
-    const violation = validateAgainstRules(videoGenClientModelMap[OMNI].rules, {
+    const violation = validateAgainstRules(spec(OMNI).rules, {
       params: {}, hasStartFrame: false, hasEndFrame: true, referenceCount: 0,
     });
     expect(violation).toBe("End frame needs a start frame — <LAST_FRAME> requires <FIRST_FRAME>");
@@ -34,7 +28,7 @@ describe.each([OMNI_11, OMNI_12])("Gemini Omni registration — %s", (OMNI) => {
 
   // Unlike Veo, references and frames coexist on this model — no rule may fire here.
   it("allows a start frame, an end frame and references together", () => {
-    const violation = validateAgainstRules(videoGenClientModelMap[OMNI].rules, {
+    const violation = validateAgainstRules(spec(OMNI).rules, {
       params: { duration: 8 }, hasStartFrame: true, hasEndFrame: true, referenceCount: 3,
     });
     expect(violation).toBeNull();
@@ -56,31 +50,31 @@ describe.each([OMNI_11, OMNI_12])("Gemini Omni registration — %s", (OMNI) => {
 
 describe("Gemini Omni versions (D484)", () => {
   const durationMax = (id: string) => {
-    const spec = videoGenClientModelMap[id].params.find((p) => p.name === "duration")!;
-    return spec.constraints.type === "slider" ? spec.constraints.max : null;
+    const duration = spec(id).params.find((p) => p.name === "duration")!;
+    return duration.constraints.type === "slider" ? duration.constraints.max : null;
   };
 
   it("offers 3–10s on 1.1 and 3–15s on 1.2", () => {
-    expect(videoGenClientModelMap[OMNI_11].maxDurationSeconds).toBe(10);
+    expect(spec(OMNI_11).maxDurationSeconds).toBe(10);
     expect(durationMax(OMNI_11)).toBe(10);
-    expect(videoGenClientModelMap[OMNI_12].maxDurationSeconds).toBe(15);
+    expect(spec(OMNI_12).maxDurationSeconds).toBe(15);
     expect(durationMax(OMNI_12)).toBe(15);
   });
 
   it("lists 1.2 before 1.1 so the picker shows the current version first", () => {
-    const ids = Object.keys(videoGenClientModelMap);
+    const ids = videos.all.map((m) => m.id);
     expect(ids.indexOf(OMNI_12)).toBeLessThan(ids.indexOf(OMNI_11));
   });
 
   // D494 — measured live: 24 references alone, 9 images in all with frames.
   it("caps 1.2 at its measured 24 references, 9 images with frames", () => {
-    expect(videoGenClientModelMap[OMNI_12].imageInputs.maxReferenceImages).toBe(24);
-    expect(videoGenClientModelMap[OMNI_12].imageInputs.maxImagesWithFrames).toBe(9);
+    expect(spec(OMNI_12).imageInputs.maxReferenceImages).toBe(24);
+    expect(spec(OMNI_12).imageInputs.maxImagesWithFrames).toBe(9);
   });
 
   // Google: first + last frame interpolation is 3–10s on 1.2; a longer request is a 400.
   it("blocks a frame pair over 10s on 1.2, and only then", () => {
-    const rules = videoGenClientModelMap[OMNI_12].rules;
+    const rules = spec(OMNI_12).rules;
     const pair = { hasStartFrame: true, hasEndFrame: true, referenceCount: 0 };
     expect(validateAgainstRules(rules, { ...pair, params: { duration: 11 } })).toContain("up to 10s");
     expect(validateAgainstRules(rules, { ...pair, params: { duration: "12" } })).toContain("up to 10s");

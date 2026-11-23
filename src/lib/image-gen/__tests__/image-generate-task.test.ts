@@ -23,8 +23,6 @@ vi.mock("@/lib/image-gen/adapters", async () => {
   const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
   return { imageAdapters: stubAdapters("image", m.adapter) };
 });
-// Nothing reaches a real provider, whichever way the task dispatches.
-vi.mock("@/lib/image-gen/registry", () => ({ imageGenRegistry: {} }));
 vi.mock("@/lib/image-gen/run-task", () => ({ runImageGenerateTask: m.runImageGenerateTask }));
 vi.mock("sharp", () => ({ default: vi.fn() }));
 vi.mock("@/lib/generations/post-webhook", () => ({

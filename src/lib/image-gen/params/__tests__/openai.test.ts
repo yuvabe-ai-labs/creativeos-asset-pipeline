@@ -1,13 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { gptImage2Params, gptImage1Params } from "../openai";
 import { buildZodFromParams } from "../../schema-builder";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import type { ParamSpec } from "../../types";
+
+const paramsOf = (id: string) => imageModelsFrom(seededModelCatalog()).get(id)!.params;
+const gptImage2Params = paramsOf("openai:gpt-image-2");
+const gptImage1Params = paramsOf("openai:gpt-image-1");
 
 // Regression coverage: gpt-image-2 doesn't support transparent backgrounds (OpenAI's Image
 // Generation Guide — "gpt-image-2 doesn't currently support transparent backgrounds. Requests
 // with background: 'transparent' aren't supported for this model."), but this was previously
 // aliased to gpt-image-1's param set, which does support it, letting the UI offer an option
 // that always 400s at OpenAI.
-function backgroundOptions(params: typeof gptImage2Params): string[] {
+function backgroundOptions(params: ParamSpec[]): string[] {
   const spec = params.find((p) => p.name === "background");
   if (!spec || spec.constraints.type !== "select") throw new Error("no background select param");
   return spec.constraints.options;

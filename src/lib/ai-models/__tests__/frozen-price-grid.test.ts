@@ -4,8 +4,8 @@ import { currentPrice } from "../pricing";
 import { videoEstimateUsd } from "../video-price";
 import { imageEstimateUsd } from "../image-price";
 import { usdToFinalCredits } from "@/lib/credits/units";
-import { imageGenClientModels } from "@/lib/image-gen/client-models";
-import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
+import { imageModelsFrom, videoModelsFrom } from "../model-lists";
+import { seededModelCatalog } from "../test-catalog";
 import { isVideoAudioEnabled } from "@/lib/video-gen/cost";
 import { videoEditEstimateCredits, VIDEO_EDIT_MODEL_IDS, VIDEO_EDIT_RESOLUTIONS } from "@/lib/video-edit/record";
 import type { ParamSpec } from "@/lib/image-gen/types";
@@ -44,7 +44,7 @@ function audioStates(spec: ParamSpec | undefined): boolean[] {
 describe("migration 0078's prices over every setting", () => {
   it("image models", () => {
     const grid: Record<string, number | null> = {};
-    for (const model of imageGenClientModels) {
+    for (const model of imageModelsFrom(seededModelCatalog()).all) {
       const price = priceOf(model.id);
       for (const quality of options(param(model.params, "quality"), true))
         for (const aspectRatio of options(param(model.params, "aspect_ratio"), false))
@@ -60,7 +60,7 @@ describe("migration 0078's prices over every setting", () => {
 
   it("video models", () => {
     const grid: Record<string, number | null> = {};
-    for (const model of Object.values(videoGenClientModelMap)) {
+    for (const model of videoModelsFrom(seededModelCatalog()).all) {
       const price = priceOf(model.id);
       for (const resolution of options(param(model.params, "resolution"), true))
         for (const durationSeconds of durations(param(model.params, "duration", "seconds")))
@@ -77,7 +77,7 @@ describe("migration 0078's prices over every setting", () => {
   it("Omni edit video", () => {
     const grid: Record<string, number | null> = {};
     for (const modelId of VIDEO_EDIT_MODEL_IDS) {
-      const model = videoGenClientModelMap[modelId];
+      const model = videoModelsFrom(seededModelCatalog()).get(modelId)!;
       for (const resolution of VIDEO_EDIT_RESOLUTIONS)
         for (const durationSeconds of durations(param(model.params, "duration")))
           for (const references of REFERENCES) {

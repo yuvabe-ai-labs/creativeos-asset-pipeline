@@ -186,7 +186,7 @@ export async function POST(
       // the request is actually built.
       resolvedParams.duration = totalOf(resolved.cuts);
 
-      // multi_shot is a Kling-only param — params/gemini-omni.ts declares no such field, so setting
+      // multi_shot is a Kling-only param — the Omni catalog rows declare no such field, so setting
       // it unconditionally would put a field on a request whose model has no such param. Guarded on
       // the model actually declaring it (config.params), not hardcoded to a provider check, so the
       // guard tracks the param table rather than a duplicate list of which models it applies to.

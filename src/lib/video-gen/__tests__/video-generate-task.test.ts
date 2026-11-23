@@ -22,8 +22,6 @@ vi.mock("@/lib/video-gen/adapters", async () => {
   const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
   return { videoAdapters: stubAdapters("video", m.adapter) };
 });
-// Nothing reaches a real provider, whichever way the task dispatches.
-vi.mock("@/lib/video-gen/registry", () => ({ videoGenRegistry: {} }));
 vi.mock("@/lib/generations/post-webhook", () => ({
   assertWebhookConfig: () => ({ url: "https://app/api/webhooks/generation", secret: "s" }),
   postGenerationWebhook: m.postGenerationWebhook,

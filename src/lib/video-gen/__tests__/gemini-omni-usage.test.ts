@@ -4,7 +4,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
-import { geminiOmni12 } from "../providers/gemini-omni";
+import { GEMINI_OMNI_12_MODEL_ID } from "@/lib/ai-models/model-ids";
+import { runSeededVideoModel } from "./run-seeded-model";
 
 const VIDEO_URI = "https://generativelanguage.googleapis.com/v1beta/files/abc123:download?alt=media";
 const USAGE = {
@@ -38,7 +39,7 @@ describe("Gemini Omni usage", () => {
   it("a generation returns the usage Google reported", async () => {
     mockFetch.mockResolvedValueOnce(interaction(USAGE)).mockResolvedValueOnce(fileActive);
 
-    const result = await geminiOmni12.generate({
+    const result = await runSeededVideoModel(GEMINI_OMNI_12_MODEL_ID, {
       prompt: "An apple", referenceUrls: [], params: { duration: 3, resolution: "360p" },
     });
     expect(result.usage).toEqual({
@@ -52,7 +53,7 @@ describe("Gemini Omni usage", () => {
       .mockResolvedValueOnce(interaction(USAGE))
       .mockResolvedValueOnce(fileActive);
 
-    const result = await geminiOmni12.generate({
+    const result = await runSeededVideoModel(GEMINI_OMNI_12_MODEL_ID, {
       prompt: "Make it green",
       referenceUrls: [],
       editVideoUrl: "https://storage.example/take.mp4",
@@ -65,7 +66,7 @@ describe("Gemini Omni usage", () => {
   it("leaves usage out when Google sends none", async () => {
     mockFetch.mockResolvedValueOnce(interaction()).mockResolvedValueOnce(fileActive);
 
-    const result = await geminiOmni12.generate({
+    const result = await runSeededVideoModel(GEMINI_OMNI_12_MODEL_ID, {
       prompt: "An apple", referenceUrls: [], params: { duration: 3, resolution: "360p" },
     });
     expect(result).toEqual({ videoUrl: VIDEO_URI, durationSeconds: 3 });

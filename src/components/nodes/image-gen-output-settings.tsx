@@ -10,13 +10,12 @@ import {
   Settings2,
   type LucideIcon,
 } from "lucide-react";
-import type { ClientModelSpec } from "@/lib/image-gen/client-models";
+import type { ClientModelSpec, ParamSpec } from "@/lib/image-gen/types";
 import { useImageModels } from "@/hooks/queries/ai-models";
 import { ParamControl } from "./param-controls";
 import { ImageGenParamRow } from "./image-gen-param-row";
 import { ParamChipGroup } from "./param-chip-group";
 import { FieldLabel } from "./field-label";
-import type { ParamSpec } from "@/lib/image-gen/types";
 
 type ParamFormValues = Record<string, unknown>;
 

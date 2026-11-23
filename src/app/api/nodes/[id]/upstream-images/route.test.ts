@@ -158,9 +158,9 @@ describe("GET /api/nodes/[id]/upstream-images", () => {
   // The dialect comes from the video row's provider, never a row of another kind with the same id.
   it("renders the prompt in the video model's dialect, ignoring a non-video row with that id", async () => {
     const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
-    const { DEFAULT_VIDEO_CLIENT_MODEL_ID } = await import("@/lib/video-gen/client-models");
+    const { DEFAULT_VIDEO_MODEL_ID } = await import("@/lib/ai-models/default-models");
     const seeded = seededModelCatalog();
-    const video = seeded.models.find((m) => m.id === DEFAULT_VIDEO_CLIENT_MODEL_ID && m.kind === "video")!;
+    const video = seeded.models.find((m) => m.id === DEFAULT_VIDEO_MODEL_ID && m.kind === "video")!;
     cat.value = { ...seeded, models: [{ ...video, kind: "image", provider: "openai" }, ...seeded.models] };
     const { GET } = await import("./route");
     const res = await GET(new NextRequest("http://localhost/api/nodes/vg4/upstream-images"), { params: Promise.resolve({ id: "vg4" }) });

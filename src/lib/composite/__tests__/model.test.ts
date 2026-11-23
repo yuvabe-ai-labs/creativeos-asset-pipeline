@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { SEEDANCE_FACE_MODEL_ID } from "@/lib/avatars/constants";
-import { imageGenClientModels } from "@/lib/image-gen/client-models";
 import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
 import { imageModelsFrom } from "@/lib/ai-models/model-lists";
 import {
@@ -38,7 +37,7 @@ describe("composite model (D312)", () => {
   });
 
   it("every image model can make a composite's two aspect ratios", () => {
-    for (const m of imageGenClientModels) {
+    for (const m of images.all) {
       const ratio = m.params.find((p) => p.name === "aspect_ratio");
       const options = ratio?.constraints.type === "select" ? ratio.constraints.options : [];
       for (const r of COMPOSITE_ASPECT_RATIOS) expect(options, `${m.id} ${r}`).toContain(r);

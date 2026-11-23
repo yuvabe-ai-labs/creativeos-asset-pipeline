@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { videoEditEstimateCredits } from "@/lib/video-edit/record";
 import { seededPrice } from "@/lib/ai-models/test-prices";
-import { GEMINI_OMNI_12_IMAGE_INPUTS } from "@/lib/video-gen/gemini-omni-shape";
 import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/ai-models/model-ids";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+
+const OMNI_12_MAX_REFS = videoModelsFrom(seededModelCatalog()).get(GEMINI_OMNI_12_MODEL_ID)!.imageInputs.maxReferenceImages;
 
 vi.mock("server-only", () => ({}));
 const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
@@ -157,10 +160,10 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     const call = (mocks.insertGeneration.mock.calls[0] as unknown[])[0] as { inputsSnapshot: { videoEdit: { referenceNodeIds: string[] } } };
     expect(call.inputsSnapshot.videoEdit.referenceNodeIds).toEqual(["n-pack"]);
     mocks.insertGeneration.mockClear();
-    const many = Array.from({ length: GEMINI_OMNI_12_IMAGE_INPUTS.maxReferenceImages + 1 }, (_, i) => `n-${i}`);
+    const many = Array.from({ length: OMNI_12_MAX_REFS + 1 }, (_, i) => `n-${i}`);
     const res = await post({ ...BODY, referenceNodeIds: many });
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: `Omni 1.2 takes up to ${GEMINI_OMNI_12_IMAGE_INPUTS.maxReferenceImages} references. Untick some.` });
+    expect(await res.json()).toEqual({ error: `Omni 1.2 takes up to ${OMNI_12_MAX_REFS} references. Untick some.` });
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
   });
 
@@ -199,7 +202,7 @@ describe("POST /api/nodes/[id]/video-edit", () => {
 
     it("gives the lock, not a limits message, for a clip in the Editor's reel", async () => {
       editorLock.value = "editor";
-      const many = Array.from({ length: GEMINI_OMNI_12_IMAGE_INPUTS.maxReferenceImages + 1 }, (_, i) => `n-${i}`);
+      const many = Array.from({ length: OMNI_12_MAX_REFS + 1 }, (_, i) => `n-${i}`);
       const res = await post({ ...BODY, referenceNodeIds: many });
       expect(res.status).toBe(409);
       expect((await res.json()).error).not.toContain("references");

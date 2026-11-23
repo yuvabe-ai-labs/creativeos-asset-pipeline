@@ -1,8 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { gemini25FlashParams, geminiFlash2Params, geminiProParams } from "../gemini";
 import { smartMergeParams } from "../merge";
-import { imageGenClientModelMap } from "../../client-models";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import type { ParamSpec } from "../../types";
+
+const spec = (id: string) => imageModelsFrom(seededModelCatalog()).get(id)!;
+const gemini25FlashParams = spec("gemini:gemini-2.5-flash-image").params;
+const geminiFlash2Params = spec("gemini:gemini-3.1-flash-image").params;
+const geminiProParams = spec("gemini:gemini-3-pro-image").params;
 
 function ratios(params: ParamSpec[]): string[] {
   const spec = params.find((p) => p.name === "aspect_ratio");
@@ -44,7 +49,7 @@ describe("gemini aspect_ratio options", () => {
   it("a node persisted with 4:1 on Nano Banana falls back to a supported ratio", () => {
     // Nodes saved while the unsupported option was still offered must self-heal rather than
     // keep sending a value the provider 400s on.
-    const model = imageGenClientModelMap["gemini:gemini-2.5-flash-image"];
+    const model = spec("gemini:gemini-2.5-flash-image");
     const merged = smartMergeParams({ aspect_ratio: "4:1", image_size: "1K" }, model);
     expect(ratios(gemini25FlashParams)).toContain(merged.aspect_ratio);
   });
