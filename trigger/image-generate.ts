@@ -57,8 +57,7 @@ export const imageGenerateTask = task({
       logger.info("Image generation succeeded", { generationId, modelId });
     } catch (e) {
       const error = e instanceof Error ? e.message : "Image generation failed";
-      const { PaidResultError } = await import("@/lib/generations/task-failure");
-      const { ModelUnavailableError } = await import("@/lib/ai-models/runnable");
+      const { ModelUnavailableError, PaidResultError } = await import("@/lib/generations/task-failure");
       logger.error("Image generation failed", {
         generationId,
         modelId,

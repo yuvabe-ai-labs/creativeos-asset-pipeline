@@ -1,6 +1,6 @@
 import { task, logger, wait, AbortTaskRunError } from "@trigger.dev/sdk/v3";
 import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "@/lib/generations/post-webhook";
-import { PaidResultError, isFinalAttempt } from "@/lib/generations/task-failure";
+import { ModelUnavailableError, PaidResultError, isFinalAttempt } from "@/lib/generations/task-failure";
 
 // D366 — no automatic retry. A video provider bills the job when it is submitted, so a retry after a
 // failed or timed-out poll would pay for a second clip. The operator regenerates instead.
@@ -124,7 +124,7 @@ export const videoGenerateTask = task({
       }
       // A paid result is never retried. Otherwise rethrow, so the run is marked failed with the
       // REAL reason (swallowing it made a failed generation show as a successful run).
-      if (e instanceof PaidResultError) throw new AbortTaskRunError(error);
+      if (e instanceof PaidResultError || e instanceof ModelUnavailableError) throw new AbortTaskRunError(error);
       throw e instanceof Error ? e : new Error(error);
     }
   },

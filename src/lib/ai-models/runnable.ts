@@ -30,13 +30,8 @@ export type RunOptions = {
   checkStatus?: boolean;
 };
 
-/** A task's model lookup failed. Final: no retry finds a row or an adapter that isn't there. */
-export class ModelUnavailableError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ModelUnavailableError";
-  }
-}
+/** A task's model lookup failed (defined beside PaidResultError so isFinalAttempt can see it). */
+export { ModelUnavailableError } from "@/lib/generations/task-failure";
 
 /** A route's model was refused (retired, draft, hidden, unknown, no adapter): a 400 with this message. */
 export class ModelRefusedError extends Error {
