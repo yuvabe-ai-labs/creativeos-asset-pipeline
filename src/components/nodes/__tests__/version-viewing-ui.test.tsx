@@ -94,6 +94,7 @@ vi.mock("@/hooks/queries/ai-models", async (orig) => ({
   ...(await orig<typeof import("@/hooks/queries/ai-models")>()),
   useImageModels: () => imageModelsFrom(seededModelCatalog()),
   useVideoModels: () => videoModelsFrom(seededModelCatalog()),
+  useAiCatalog: () => ({ data: seededModelCatalog() }),
 }));
 import { VideoGenVersionHistory } from "../video-gen-version-history";
 

@@ -4,6 +4,8 @@ import type { ModelRequestRecord } from "@/lib/nodes/model-request";
 import type { VersionDecisionSummary } from "@/lib/approval";
 import { VersionList } from "./version-list";
 import { VersionThumb } from "./version-thumb";
+import { useAiCatalog } from "@/hooks/queries/ai-models";
+import { catalogModelLabel } from "@/lib/ai-models/model-lists";
 
 export type VersionSummary = {
   id: string;
@@ -49,6 +51,7 @@ export function PromptVersionHistory({
   viewedVersionId,
   onView,
 }: PromptVersionHistoryProps) {
+  const catalog = useAiCatalog().data;
   const rows = versions.map((v) => ({
     id: v.id,
     createdAt: v.createdAt,
@@ -57,7 +60,7 @@ export function PromptVersionHistory({
     makerName: v.makerName,
     decisions: v.decisions,
     thumb: <VersionThumb kind="text" />,
-    summary: v.modelUsed ?? undefined,
+    summary: catalogModelLabel(catalog, v.modelUsed) ?? undefined,
     meta: (
       <>
         {v.paramsUsed.instruction && (
