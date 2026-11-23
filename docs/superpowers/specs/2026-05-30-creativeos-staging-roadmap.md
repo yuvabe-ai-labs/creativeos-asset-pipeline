@@ -8993,3 +8993,13 @@ A new run reads the row valid now from the cached catalog and records it as `gen
 **Rejected.** Leaving the node on the retired model until the user acts: its card, prompt node and focus view would each have to treat the retired model specially, and Generate would be refused.
 
 **Originated →** [2026-11-23-model-catalog-1b-browser.md](../plans/2026-11-23-model-catalog-1b-browser.md).
+
+### D545 — The catalog is the only home of image and video model data *(recorded 2026-11-23; completes D529, D538, D542)*
+
+**Decision.** The code model lists are deleted: both `client-models.ts` files, both registries, the provider spec objects and the `params/*` files, and the builders that generated migrations 0077 and 0084. A model's label, params, rules, limits, status and provider model name live only in its `ai_models` row. Code keeps the adapters (`imageAdapters`, `videoAdapters` and the `generate` functions they call, with the constants those read) and the ids of models whose behaviour is written in code (`src/lib/ai-models/model-ids.ts`: the multishot ladders, prompt templates, voice preview engines and edit models). 0077 and 0084 are frozen by hash; a model change is a new migration or, later, an admin edit. Tests read the rows the migrations leave behind (`seededModelCatalog()`). A task whose model has no row or adapter ends without a retry. Kling takes references when its row's `maxReferenceImages` is above 0.
+
+**Why.** Two sources of a model's data drift; the spec deletes the registries once every caller reads the catalog, and plans 1b-i and 1b-ii moved every caller.
+
+**Rejected.** Keeping the registries as test fixtures: they would drift from the rows the app really runs on.
+
+**Originated →** [2026-11-23-model-catalog-1b-cleanup.md](../plans/2026-11-23-model-catalog-1b-cleanup.md).
