@@ -5,7 +5,7 @@ import { TruncatedText } from "@/components/ui/truncated-text";
 import { ClientRowActions } from "@/components/clients/client-row-actions";
 import { ClientSectionLinks } from "@/components/clients/client-section-links";
 import { formatRelativeTime } from "@/lib/format/relative-time";
-import { initials } from "@/lib/format/initials";
+import { ClientLogo } from "@/components/shared/client-logo";
 import type { ClientWithCount } from "@/lib/db/clients";
 
 function activity(client: ClientWithCount): string {
@@ -38,18 +38,11 @@ export function ClientTile({
       >
         <span className="canvas-surface flex aspect-[4/3] items-center justify-center rounded-t-xl border-b">
           <span className="flex size-32 items-center justify-center rounded-2xl border bg-card p-5 shadow-card">
-            {client.logo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={client.logo_url}
-                alt=""
-                className="max-h-full max-w-full object-contain"
-              />
-            ) : (
-              <span className="font-display text-3xl font-semibold tracking-[-0.02em] text-muted-foreground/50">
-                {initials(client.name)}
-              </span>
-            )}
+            <ClientLogo
+              name={client.name}
+              logoUrl={client.logo_url}
+              initialsClassName="text-3xl tracking-[-0.02em] text-muted-foreground/50"
+            />
           </span>
         </span>
 

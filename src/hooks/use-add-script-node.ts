@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import type { XYPosition } from "@xyflow/react";
 import { toast } from "sonner";
 import { useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useClientId } from "@/components/canvas/client-id-context";
 import { useAddAvatarNode } from "./use-add-avatar-node";
 import { avatarOnCanvas, castAvatarPosition, scriptKbNode } from "@/lib/avatars/canvas";
@@ -23,10 +24,12 @@ export function useAddScriptNode() {
   const clientId = useClientId();
   const storeApi = useCanvasStoreApi();
   const addAvatarNode = useAddAvatarNode();
+  const canEdit = useCanvasEditable();
 
   return useCallback(
-    (scriptId: string, position: XYPosition, opts?: { into?: string }) =>
-      addScriptToCanvas(scriptId, position, {
+    async (scriptId: string, position: XYPosition, opts?: { into?: string }) => {
+      if (!canEdit) return; // view-only or locked by someone else: nothing is added locally
+      return addScriptToCanvas(scriptId, position, {
         getDetail: (id) => scriptsService.get(clientId, id),
         addScriptNode: (nodeId, pos, data) => {
           const { addNode, updateNodeData } = storeApi.getState();
@@ -51,7 +54,8 @@ export function useAddScriptNode() {
           success: (m, opts) => void toast.success(m, opts),
           error: (m, opts) => void toast.error(m, opts),
         },
-      }, opts),
-    [clientId, storeApi, addAvatarNode],
+      }, opts);
+    },
+    [canEdit, clientId, storeApi, addAvatarNode],
   );
 }

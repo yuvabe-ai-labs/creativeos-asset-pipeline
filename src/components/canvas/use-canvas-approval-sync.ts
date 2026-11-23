@@ -16,8 +16,8 @@ const REFRESH_DEBOUNCE_MS = 400;
 //
 // D179 made an OPEN focus view live, but the badge on the node itself had no live path at
 // all: `data.approvalStatus` was written only by server hydration (nodeRowToFlow) and by
-// the local focus view's own onPatch after the viewer's own decision. So a junior watching
-// the canvas saw nothing when a senior approved elsewhere — the badge stayed stale until a
+// the local focus view's own onPatch after the viewer's own decision. So someone watching
+// the canvas saw nothing when a reviewer approved elsewhere — the badge stayed stale until a
 // reload. TC-070/TC-085.
 //
 // It reads /api/canvases/:cid/approval-statuses, which is a filter over the SAME
@@ -35,7 +35,7 @@ const REFRESH_DEBOUNCE_MS = 400;
 //   * The realtime ping is still only a FILTER, never data (D159/D179). We refetch on it;
 //     we never patch the badge from the payload.
 //   * `parsed` (the card's image / video) is written too since BUG-002 — a reviewer on the
-//     same canvas otherwise saw a designer's new version only after a refresh — but ONLY on
+//     same canvas otherwise saw the maker's new version only after a refresh — but ONLY on
 //     image-gen / video-gen nodes whose focus view this viewer does not have open. Media
 //     never changes under someone mid-edit (D19); see planCanvasLiveSync.
 //

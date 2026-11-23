@@ -2,6 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
+// The chokepoint (agency, client scope, permission) has its own tests; here it just yields the node.
+vi.mock("@/lib/api/route-helpers", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
+  return {
+    ...actual,
+    withNode: (_r: Request, _p: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
+      fn("node-1", { data: {} }, { userId: "u1" }, "client-1", "org-1"),
+  };
+});
 vi.mock("@/lib/storage", () => ({ uploadNodeFile: vi.fn(), removeObject: vi.fn() }));
 vi.mock("@/lib/storage/node-file-cleanup", () => ({
   removeNodeFileObject: vi.fn(async () => ({ removed: true })),

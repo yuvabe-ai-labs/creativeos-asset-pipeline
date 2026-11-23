@@ -12,7 +12,7 @@ export async function DELETE(
   // cast needed; TypeScript accepts the extra property on a non-fresh type.
   return withClient(
     req,
-    params,
+    params, { need: "delete" },
     async (clientId) =>
       withTryCatch("Could not remove the asset.", async () => {
         // The client's own logo is not a row (D131) — the client page owns it, and

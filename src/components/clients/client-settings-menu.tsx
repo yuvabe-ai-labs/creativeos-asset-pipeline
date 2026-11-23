@@ -13,6 +13,8 @@ import { CLIENT_SECTIONS } from "@/components/clients/client-sections";
  * change doesn't deliver.
  */
 export function ClientSettingsMenu({ slug }: { slug: string }) {
+  const sections = CLIENT_SECTIONS;
+  if (sections.length === 0) return null;
   return (
     <Popover>
       <PopoverTrigger
@@ -24,7 +26,7 @@ export function ClientSettingsMenu({ slug }: { slug: string }) {
         }
       />
       <PopoverContent align="end" className="w-60 p-1">
-        {CLIENT_SECTIONS.map((item) => (
+        {sections.map((item) => (
           <Button
             key={item.label}
             variant="ghost"

@@ -6,7 +6,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
   return {
     ...actual,
-    withNode: (_req: Request, _params: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
+    withNode: (_req: Request, _params: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
       fn("ig", {}, { userId: "u1", email: "u@x.com" }, "client-1", "org-1"),
   };
 });
@@ -53,7 +53,7 @@ describe("POST image-generate (D366)", () => {
     const res = await post({ modelId: "openai:gpt-image-1", params: {} });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("This model is deprecated");
-    expect(start).not.toHaveBeenCalled();
+    expect(m.start).not.toHaveBeenCalled();
   });
 
   it("hands a generation to startImageGeneration and passes its 202 through", async () => {

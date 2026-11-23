@@ -1,33 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
+const { guards } = vi.hoisted(() => ({ guards: new Map<string, unknown>() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@trigger.dev/sdk/v3", () => ({ tasks: { trigger: vi.fn() } }));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: vi.fn() }));
 vi.mock("@/lib/storage", () => ({ removeObject: vi.fn() }));
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
-vi.mock("@/lib/db/kb-jobs", () => ({}));
+vi.mock("@/lib/db/kb-jobs", () => ({
+  getKBJob: vi.fn(async () => ({ id: "job-1", client_id: "c1" })),
+  markKBJobStuckIfRunning: vi.fn(),
+}));
 vi.mock("@/lib/db/kb", () => ({}));
-vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn() }));
 vi.mock("@/lib/kb/approve", () => ({ approveKB: vi.fn() }));
 vi.mock("@/lib/kb/start-build", () => ({ startKBBuild: vi.fn() }));
 vi.mock("@/lib/image-analysis/start", () => ({ startImageAnalysisQuietly: vi.fn() }));
 // withAction is the impersonation write-gate; pass it through so these tests exercise the action.
 vi.mock("@/lib/actions/with-action", () => ({
-  withAction: (_name: string, fn: () => Promise<unknown>) => fn(),
+  withAction: (name: string, guard: unknown, fn: (ctx: unknown) => Promise<unknown>) => {
+    guards.set(name, guard);
+    return fn({ target: null, caller: { userId: "u1" } });
+  },
 }));
 
-import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { getClientById } from "@/lib/db/clients";
 import { approveKB } from "@/lib/kb/approve";
-import { markKBReadyAction } from "./kb";
+import { markKBReadyAction, markStuckJobFailed } from "./kb";
+import { markKBJobStuckIfRunning } from "@/lib/db/kb-jobs";
 
 describe("markKBReadyAction", () => {
   const client = { id: "c1", slug: "acme", org_id: "o1" };
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.mocked(resolveOrgId).mockResolvedValue("o1");
-    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1" } as never);
     vi.mocked(getClientById).mockResolvedValue(client as never);
     vi.mocked(approveKB).mockResolvedValue({ ok: true });
   });
@@ -42,12 +46,23 @@ describe("markKBReadyAction", () => {
     expect(await markKBReadyAction("c1", "v1", "acme")).toEqual({ error: "All fields must be reviewed before marking KB ready." });
   });
 
-  it("refuses a client the caller may not open, without approving anything", async () => {
-    vi.mocked(resolveOrgId).mockResolvedValue("another-org");
-    expect(await markKBReadyAction("c1", "v1", "acme")).toEqual({ error: "Client not found." });
-    vi.mocked(resolveOrgId).mockResolvedValue("o1");
+  it("needs Edit on the client, and refuses a slug that is not the client's, without approving anything", async () => {
+    await markKBReadyAction("c1", "v1", "acme");
+    expect(guards.get("markKBReadyAction")).toEqual({ need: "edit", on: { clientId: "c1" } });
+    vi.mocked(approveKB).mockClear();
+    expect(await markKBReadyAction("c1", "v1", "other")).toEqual({ error: "Client not found." });
     vi.mocked(getClientById).mockResolvedValue(null);
     expect(await markKBReadyAction("c1", "v1", "acme")).toEqual({ error: "Client not found." });
     expect(approveKB).not.toHaveBeenCalled();
+  });
+});
+
+// Clearing a build fails it, and the credits spent on it are lost. It needs what starting
+// the build needs (Generate), not just being on the client.
+describe("markStuckJobFailed", () => {
+  it("needs Generate on the job's client, like the build it fails", async () => {
+    await markStuckJobFailed("job-1");
+    expect(guards.get("markStuckJobFailed")).toEqual({ need: "generate", on: { kbJobId: "job-1" } });
+    expect(markKBJobStuckIfRunning).toHaveBeenCalledWith("job-1");
   });
 });

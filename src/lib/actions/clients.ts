@@ -2,16 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/db/clients";
-import { resolveOrgId } from "@/lib/dal";
 import { withAction } from "@/lib/actions/with-action";
 
+// Creating clients is the owner's (manage_clients, spec §2.2). The owner is on every client
+// already, so a new client needs no membership row.
 export async function createClientAction(input: { name: string }) {
-  return withAction("createClientAction", async () => {
+  return withAction("createClientAction", { need: "manage_clients", on: "agency" }, async (ctx) => {
     const name = input.name?.trim();
     if (!name) throw new Error("Client needs a name");
-
-    const orgId = await resolveOrgId();
-    const client = await createClient({ name, orgId });
+    const client = await createClient({ name, orgId: ctx.effectiveOrgId });
     revalidatePath("/");
     return client;
   });

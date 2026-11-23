@@ -20,6 +20,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
     withNode: (
       req: Request,
       _params: unknown,
+      _guard: unknown,
       fn: (
         nodeId: string,
         node: unknown,

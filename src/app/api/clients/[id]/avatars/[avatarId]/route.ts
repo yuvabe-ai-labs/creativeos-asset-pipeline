@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { archiveAvatar, getAvatar, updateAvatar } from "@/lib/db/avatars";
 import { listScriptsUsingAvatar } from "@/lib/db/script-visualise";
 import { archiveRefusal } from "@/lib/scripts/visualise/cast";
@@ -36,7 +35,7 @@ function frontPrecondition(
 // GET /api/clients/:id/avatars/:avatarId
 export async function GET(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "view" }, async (clientId) =>
     withTryCatch("Could not load the avatar.", async () => {
       const avatar = await getAvatar(clientId, avatarId);
       // Missing or another client's: a 404 either way, never confirming a foreign id exists.
@@ -50,7 +49,7 @@ export async function GET(req: Request, { params }: Ctx) {
 // Images are changed by the images routes, never here.
 export async function PATCH(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "edit" }, async (clientId, _client, caller) =>
     withTryCatch("Could not save the avatar.", async () => {
       const parsed = PatchSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Invalid request body.", 400);
@@ -58,7 +57,6 @@ export async function PATCH(req: Request, { params }: Ctx) {
       const current = await getAvatar(clientId, avatarId);
       if (!current || current.archivedAt) return apiError(NOT_FOUND, 404);
 
-      const caller = await resolveCallerContext();
       const plan = planAvatarUpdate(
         current, parsed.data, { userId: caller.userId, now: new Date().toISOString() },
       );
@@ -84,7 +82,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 // the avatar (D347): archiving would leave that script's people without a face.
 export async function DELETE(req: Request, { params }: Ctx) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "delete" }, async (clientId) =>
     withTryCatch("Could not archive the avatar.", async () => {
       const refusal = archiveRefusal(await listScriptsUsingAvatar(clientId, avatarId));
       if (refusal) return apiError(refusal, 409);

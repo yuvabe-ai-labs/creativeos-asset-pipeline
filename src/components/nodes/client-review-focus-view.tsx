@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { CommentList } from "@/components/client-review/comment-list";
 import { useNodeClientReview, useUpdateReviewVersion } from "@/hooks/queries/client-reviews";
 import type { ClientReviewUpload } from "@/hooks/use-client-review-upload";
@@ -48,6 +49,10 @@ export function ClientReviewFocusView({
   upload: ClientReviewUpload;
 }) {
   const editable = useCanvasEditable();
+  // Spec §5: uploading a version makes or changes the client's review link, and the download
+  // switch changes what the client gets: both are Share. The title stays with Generate (editable).
+  const { share: canShare } = useCanvasPermissions();
+  const canShareCut = editable && canShare;
   const queryClient = useQueryClient();
   const { data, isPending: loading, isError, refetch } = useNodeClientReview(nodeId);
   const updateVersion = useUpdateReviewVersion(nodeId);
@@ -120,6 +125,9 @@ export function ClientReviewFocusView({
                     key={version?.id ?? "node"}
                     value={title}
                     onCommit={commitTitle}
+                    // A version's name is what the client sees on their link (Share); before any cut
+                    // it only renames the node (Generate).
+                    readOnly={version ? !canShareCut : !editable}
                     placeholder="Untitled cut"
                     className="font-display text-3xl font-semibold tracking-tight"
                   />
@@ -131,12 +139,12 @@ export function ClientReviewFocusView({
                     shareToken={review.shareToken}
                     version={version}
                     title={title}
-                    editable={editable}
+                    editable={canShareCut}
                     savingDownload={updateVersion.isPending}
                     onAllowDownloadChange={(allowDownload) => patchVersion({ allowDownload })}
                   />
                 )}
-                {editable && data && (
+                {canShareCut && data && (
                   <Button size="lg" disabled={upload.uploading} onClick={upload.choose}>
                     <Upload className="size-4" strokeWidth={1.5} />
                     {upload.uploading
@@ -182,7 +190,7 @@ export function ClientReviewFocusView({
                   <Button variant="ghost" onClick={() => void refetch()}>Retry</Button>
                 </div>
               ) : (
-                <ClientReviewEmptyStage editable={editable} uploading={upload.uploading} onUpload={upload.choose} />
+                <ClientReviewEmptyStage editable={canShareCut} uploading={upload.uploading} onUpload={upload.choose} />
               )}
             </main>
             <aside className="min-h-0 bg-muted/20 px-6 py-6 lg:overflow-y-auto">

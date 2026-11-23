@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { usePeople } from "@/hooks/queries/people";
+import { orgTabFrom, orgTabUrl } from "./org-tabs";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { CreditLimitEditor } from "./credit-limit-editor";
@@ -8,9 +10,11 @@ import { GenerationsTable } from "@/components/admin/generations-table";
 import { UsageTrendChart } from "@/components/admin/usage-trend-chart";
 import { CreditBreakdownList } from "@/components/admin/credit-breakdown-list";
 import { ResetPasswordDialog } from "./reset-password-dialog";
-import { AddMemberDialog } from "./add-member-dialog";
-import { MemberRoleSelect } from "./member-role-select";
-import { RemoveMemberDialog } from "./remove-member-dialog";
+import { TeamPeople } from "@/components/team/team-people";
+import { AdminClientsTab } from "./admin-clients-tab";
+import type { AgencyPerson, OpenInvite } from "@/lib/people/types";
+import type { ClientBrief } from "@/lib/db/types";
+import type { PersonExtra } from "@/components/team/person-entry-row";
 import { ImpersonationAudit } from "@/components/admin/impersonation-audit/impersonation-audit";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type {
@@ -23,8 +27,6 @@ import type { ImpersonationSessionPage } from "@/lib/db/impersonation-audit";
 
 const triggerClass =
   "flex-none px-0 py-0 font-display text-xl font-semibold tracking-tight text-foreground/40 data-active:text-foreground";
-
-type Member = { user_id: string; display_name: string; org_role: string; email: string };
 
 function StatTile({
   label,
@@ -48,7 +50,9 @@ function StatTile({
 
 export function OrgDetailTabs({
   org,
-  members,
+  people,
+  invites,
+  clients,
   generationCount,
   generationsPage,
   creditsUsedThisMonth,
@@ -60,7 +64,9 @@ export function OrgDetailTabs({
   impersonationSessions,
 }: {
   org: OrgRow;
-  members: Member[];
+  people: AgencyPerson[];
+  invites: OpenInvite[];
+  clients: ClientBrief[];
   generationCount: number;
   generationsPage: GenerationsPage;
   creditsUsedThisMonth: number;
@@ -71,13 +77,43 @@ export function OrgDetailTabs({
   breakdownByModel: CreditBreakdownRow[];
   impersonationSessions: ImpersonationSessionPage;
 }) {
-  const [tab, setTab] = useState("overview");
+  // The tab and the focused person live in the URL (Set permissions in the Clients tab links to
+  // ?tab=people&person=). Switching tabs pushes the URL with the History API, which Next keeps in
+  // step with useSearchParams without a server round trip or remounting the tabs.
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const tab = orgTabFrom(searchParams.get("tab"));
+  const focusUserId = searchParams.get("person");
+  // The same people resource the People and Clients tabs use, so the count follows their changes.
+  const { data: team } = usePeople(org.id, { people, invites });
+
+  // Admin's own action on every person, from the row's menu.
+  const extras: PersonExtra[] = [
+    {
+      id: "reset_password",
+      label: "Reset password",
+      render: (p, dialog) => <ResetPasswordDialog orgId={org.id} userId={p.userId} displayName={p.name} {...dialog} />,
+    },
+  ];
+
+  // Each tab switch is a history entry, so Back returns to the previous tab.
+  function selectTab(next: unknown) {
+    const nextTab = orgTabFrom(String(next));
+    if (nextTab === tab) return;
+    window.history.pushState(null, "", orgTabUrl(pathname, searchParams, { tab: nextTab }));
+  }
 
   return (
-    <Tabs value={tab} onValueChange={setTab}>
+    <Tabs value={tab} onValueChange={selectTab}>
       <TabsList variant="line" className="mb-8 h-auto w-auto gap-6 p-0">
         <TabsTrigger value="overview" className={triggerClass}>
           Overview
+        </TabsTrigger>
+        <TabsTrigger value="people" className={triggerClass}>
+          People
+        </TabsTrigger>
+        <TabsTrigger value="clients" className={triggerClass}>
+          Clients
         </TabsTrigger>
         <TabsTrigger value="generations" className={triggerClass}>
           Generations
@@ -87,11 +123,10 @@ export function OrgDetailTabs({
         </TabsTrigger>
       </TabsList>
 
-      {/* Overview: agency identity, credit limit config, and the member roster — a
-          handful of facts, consolidated from what used to be 3 separate thin tabs. */}
+      {/* Overview: agency identity and the credit limit. The roster lives in People. */}
       <TabsContent value="overview" className="animate-rise flex flex-col gap-8">
         <Card className="grid grid-cols-2 gap-6 p-6 shadow-card sm:grid-cols-3">
-          <StatTile label="Members" value={String(members.length)} />
+          <StatTile label="People" value={String((team ?? { people }).people.length)} />
           <StatTile label="Total generations" value={String(generationCount)} />
           <StatTile label="Created" value={formatRelativeTime(org.created_at)} />
         </Card>
@@ -100,40 +135,24 @@ export function OrgDetailTabs({
           <h2 className="text-eyebrow mb-3">Monthly credit limit</h2>
           <CreditLimitEditor orgId={org.id} initial={org.monthly_credit_limit} />
         </Card>
+      </TabsContent>
 
-        <Card className="p-6 shadow-card">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-eyebrow">Members</h2>
-            <AddMemberDialog orgId={org.id} />
-          </div>
-          <ul className="flex flex-col gap-2">
-            {members.map((m) => (
-              <li
-                key={m.user_id}
-                className="flex items-center justify-between border-b py-2 text-sm last:border-b-0"
-              >
-                <div className="flex flex-col">
-                  <span className="font-medium">{m.display_name}</span>
-                  <span className="text-xs text-muted-foreground/70">{m.email}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <MemberRoleSelect orgId={org.id} userId={m.user_id} role={m.org_role} />
-                  <ResetPasswordDialog
-                    orgId={org.id}
-                    userId={m.user_id}
-                    displayName={m.display_name}
-                  />
-                  <RemoveMemberDialog
-                    orgId={org.id}
-                    userId={m.user_id}
-                    displayName={m.display_name}
-                    email={m.email}
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
+      {/* People: the owner's Team page, with the owner's powers, plus Make owner and reset password. */}
+      <TabsContent value="people" className="animate-rise">
+        <TeamPeople
+          orgId={org.id}
+          clients={clients}
+          initial={{ people, invites }}
+          focusUserId={focusUserId}
+          canMakeOwner
+          extras={extras}
+          // A client opens in this page's Clients tab, not the agency's own Members page.
+          clientHref={(c) => `/admin/orgs/${org.id}?tab=clients&client=${c.id}`}
+        />
+      </TabsContent>
+
+      <TabsContent value="clients" className="animate-rise">
+        <AdminClientsTab orgId={org.id} clients={clients} initial={{ people, invites }} />
       </TabsContent>
 
       {/* Generations: usage trend + breakdown, then the raw activity log — both are

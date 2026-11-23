@@ -9,7 +9,7 @@ vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() 
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn(), setMarketStatus: vi.fn() }));
 
 import { revalidatePath } from "next/cache";
-import { resolveOrgId } from "@/lib/dal";
+import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById, setMarketStatus } from "@/lib/db/clients";
 
@@ -22,6 +22,7 @@ describe("POST /api/clients/[id]/market/approve", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(resolveOrgId).mockResolvedValue("org-1");
+    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", orgId: "org-1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
     vi.mocked(getClientById).mockResolvedValue(client({}));
   });

@@ -6,7 +6,7 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 // A person approves the client's market research, which opens new scripts (copilot journey spec
 // §5.2). Needs a ready brand KB. Approving twice is a no-op, so a double click never errors.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "edit" }, async (clientId, client) =>
     withTryCatch("Could not approve market research.", async () => {
       if (client.market_status !== "pending") return apiOk({ ok: true as const });
       if (client.kb_status !== "ready") return apiError("Approve the brand KB before market research.", 409);

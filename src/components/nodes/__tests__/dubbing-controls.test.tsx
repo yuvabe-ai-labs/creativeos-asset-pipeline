@@ -1,9 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
+import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { ClientIdProvider } from "@/components/canvas/client-id-context";
+import { ClientPermissionsProvider } from "@/components/permissions/client-permissions";
+import { ALL_CLIENT_PERMISSIONS } from "@/lib/permissions/model";
 import { DubbingControls } from "../dubbing-controls";
 import { DubbingDubPanel } from "../dubbing-dub-panel";
 import { DubbingLipSyncPanel } from "../dubbing-lip-sync-panel";
 import { dubCredits, lipSyncCredits } from "@/lib/dubbing/cost";
+
+// Dub and Lip sync are gated on Generate (spec §5); every render is the owner's.
+const renderGated = (el: ReactElement) => renderToStaticMarkup(
+  <ClientPermissionsProvider value={ALL_CLIENT_PERMISSIONS}><ClientIdProvider value="c1">{el}</ClientIdProvider></ClientPermissionsProvider>,
+);
 
 const base = {
   nodeId: "n1",
@@ -23,13 +32,13 @@ const find = (html: string, re: RegExp) => buttons(html).find((b) => re.test(b.t
 
 // Each tab's panel, rendered on its own (static markup shows only the active tab of the shell).
 const dubPanel = (over: Partial<Parameters<typeof DubbingDubPanel>[0]> = {}) =>
-  renderToStaticMarkup(<DubbingDubPanel {...base} sourceLoading={false} hasDub={false} {...over} />);
+  renderGated(<DubbingDubPanel {...base} sourceLoading={false} hasDub={false} {...over} />);
 const lipPanel = (over: Partial<Parameters<typeof DubbingLipSyncPanel>[0]> = {}) =>
-  renderToStaticMarkup(<DubbingLipSyncPanel activeDub={dub} activeDubSeconds={8} running={null} editable onLipSync={vi.fn()} {...over} />);
+  renderGated(<DubbingLipSyncPanel activeDub={dub} activeDubSeconds={8} running={null} editable onLipSync={vi.fn()} {...over} />);
 
 describe("DubbingControls (tabs)", () => {
   it("shows Dub and Lip sync as tabs, opening on Dub", () => {
-    const html = renderToStaticMarkup(<DubbingControls {...base} />);
+    const html = renderGated(<DubbingControls {...base} />);
     expect(html).toMatch(/role="tab"[^>]*>Dub</);
     expect(html).toContain("Lip sync");
     expect(html).toContain("Translation style");
@@ -41,14 +50,14 @@ describe("DubbingControls (tabs)", () => {
       const attrs = /<button([^>]*)>Lip sync</.exec(html)?.[1] ?? "";
       return /sdisabled(=|s|$)|aria-disabled="true"|sdata-disabled(=|s|$)/.test(attrs);
     };
-    expect(lipTabDisabled(renderToStaticMarkup(<DubbingControls {...base} />))).toBe(true);
-    const withDub = renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} />);
+    expect(lipTabDisabled(renderGated(<DubbingControls {...base} />))).toBe(true);
+    const withDub = renderGated(<DubbingControls {...base} activeDub={dub} />);
     expect(lipTabDisabled(withDub)).toBe(false);
     expect(withDub).not.toContain("Ready");
   });
 
   it("opens on Lip sync while one is running", () => {
-    const html = renderToStaticMarkup(<DubbingControls {...base} activeDub={dub} running="lipsync" />);
+    const html = renderGated(<DubbingControls {...base} activeDub={dub} running="lipsync" />);
     expect(find(html, /Lip-syncing…/)?.disabled).toBe(true);
   });
 });

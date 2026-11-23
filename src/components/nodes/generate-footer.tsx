@@ -2,8 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Loader2, Sparkles, type LucideIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { GatedButton } from "@/components/permissions/gated-button";
 import { cn } from "@/lib/utils";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
 
@@ -46,25 +45,22 @@ export function GenerateFooter({
   return (
     <div className={cn("sticky bottom-0 z-10 mt-auto flex flex-col gap-2 border-t border-border bg-card px-6 py-3", className)}>
       {notice}
-      <TooltipProvider>
-        <Tooltip>
-          {/* A disabled button gets no pointer events, so the trigger is a span around it. */}
-          <TooltipTrigger render={<span className="block w-full" />}>
-            <Button size="lg" className="w-full" onClick={onClick} disabled={disabled}>
-              {estimating ? (
-                <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />
-              ) : (
-                <Icon className="size-4" strokeWidth={1.5} />
-              )}
-              {busy ? busyLabel : label}
-              {!busy && !estimating && credits !== null && <EstimatedCreditsLabel credits={credits} />}
-            </Button>
-          </TooltipTrigger>
-          {disabled && disabledReason ? (
-            <TooltipContent side="top" className="max-w-56 text-center">{disabledReason}</TooltipContent>
-          ) : null}
-        </Tooltip>
-      </TooltipProvider>
+      <GatedButton
+        size="lg"
+        className="w-full"
+        triggerClassName="block w-full"
+        onClick={onClick}
+        disabled={disabled}
+        disabledReason={disabledReason ?? null}
+      >
+        {estimating ? (
+          <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />
+        ) : (
+          <Icon className="size-4" strokeWidth={1.5} />
+        )}
+        {busy ? busyLabel : label}
+        {!busy && !estimating && credits !== null && <EstimatedCreditsLabel credits={credits} />}
+      </GatedButton>
     </div>
   );
 }

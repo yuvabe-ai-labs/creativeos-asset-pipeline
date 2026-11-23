@@ -71,7 +71,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.resetAllMocks();
     afterWork.length = 0;
     vi.mocked(resolveOrgId).mockResolvedValue("org-1");
-    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1" } as never);
+    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", orgId: "org-1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", slug: "acme", name: "Acme", org_id: "org-1" } as never);
     vi.mocked(loadKbContext).mockResolvedValue({ ctx, sources: new Map([[DOC, { kind: "document" as const, id: DOC, name: "brand.pdf", url: null }]]) });

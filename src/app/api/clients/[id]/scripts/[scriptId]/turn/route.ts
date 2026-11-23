@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pictureUrl, targetName } from "@/lib/scripts/copilot/picture-target";
 import { apiError, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import {
   changeGenerateScript, changeVisualiseScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState,
 } from "@/lib/db/script-generate";
@@ -32,7 +31,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // Bad input is refused up front as an ordinary JSON error, before anything streams.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("The copilot could not answer.", async () => {
       const body = (await req.json().catch(() => null)) as { text?: unknown; leadAvatarId?: unknown; picture?: unknown } | null;
       const text = typeof body?.text === "string" ? body.text.trim() : "";
@@ -59,7 +58,7 @@ export async function POST(req: Request, { params }: Ctx) {
         return apiError(SCRIPTS_LOCKED_MESSAGE, 409);
       }
 
-      const { userId } = await resolveCallerContext();
+      const { userId } = caller;
       // A picture with no words is answered by code: nothing for the model to read (piece 5.1 §3.7).
       const pictureOnly = Boolean(picture && !text);
       // At Visualise the copilot is told the storyboard as it stands; read beside the history (rule 5).

@@ -7,11 +7,17 @@ import {
   applySessionPersistence,
   shouldPersistSession,
 } from "@/lib/auth/session-persistence";
+import { PATHNAME_HEADER, isPageLoad } from "@/lib/permissions/onboarding-route";
 
 // Next.js 16 proxy (renamed from middleware). OPTIMISTIC session check only — no DB
 // queries, no org resolution (that is the DAL's job, per D51). Also refreshes the
 // Supabase auth cookie so sessions stay alive.
 export async function proxy(request: NextRequest) {
+  // The root layout cannot see the path; it reads this to send a waiting person to /onboarding
+  // (spec 4.4), on a full page load only (see isPageLoad). Always overwritten or removed, so a
+  // value sent by the browser never gets through.
+  if (isPageLoad(request.headers)) request.headers.set(PATHNAME_HEADER, request.nextUrl.pathname);
+  else request.headers.delete(PATHNAME_HEADER);
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -71,13 +77,14 @@ export async function proxy(request: NextRequest) {
 
 // Run on everything EXCEPT: /login, webhooks (server-to-server, no session), the
 // public client review page + API (/r/*, /api/r/* — D309, token-scoped via
-// withShareToken), Next internals, and static assets.
+// withShareToken), the invite sign-up page (/invite/*, token-scoped: the person has no
+// account yet), Next internals, and static assets.
 //
 // mp4/webm are in the exclusion list for the Help chapter clips in public/help-videos.
 // Without them every clip request runs the session check — an auth round-trip per file
 // to serve a static asset — and the browser's range requests for video multiply that.
 export const config = {
   matcher: [
-    "/((?!login|api/webhooks|r/|api/r/|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|mp4|webm)$).*)",
+    "/((?!login|invite/|api/webhooks|r/|api/r/|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|mp4|webm)$).*)",
   ],
 };

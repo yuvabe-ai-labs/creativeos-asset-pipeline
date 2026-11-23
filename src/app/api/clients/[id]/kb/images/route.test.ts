@@ -10,7 +10,7 @@ vi.mock("@/lib/db/kb", () => ({ insertBrandImage: vi.fn(), deleteBrandImage: vi.
 vi.mock("@/lib/storage/gcs", () => ({ uploadBrandImage: vi.fn() }));
 vi.mock("@/lib/image-analysis/start", () => ({ startImageAnalysisQuietly: vi.fn() }));
 
-import { resolveOrgId } from "@/lib/dal";
+import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { deleteBrandImage } from "@/lib/db/kb";
@@ -23,6 +23,7 @@ describe("DELETE /api/clients/:id/kb/images", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(resolveOrgId).mockResolvedValue("o1");
+    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", orgId: "o1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", org_id: "o1" } as never);
   });

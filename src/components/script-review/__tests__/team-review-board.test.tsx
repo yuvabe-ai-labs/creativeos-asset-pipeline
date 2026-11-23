@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { TeamScriptReview } from "@/lib/script-review/assemble";
 import { makeScript } from "@/lib/scripts/visualise/__tests__/fixtures";
+import { TestAccessProvider } from "@/components/permissions/test-access-provider";
 import { TeamReviewBoard } from "../team/team-review-board";
 import { VisualiseBoardProvider } from "@/components/visualise/visualise-board-context";
 
@@ -18,11 +19,13 @@ const render = (initialReview: TeamScriptReview) => {
   const initial = { script, board: { avatars: [], takes: [], picks: {}, kits: [] } };
   // Piece 5.1 — the board reads its state from the provider the copilot's panel shares.
   return renderToStaticMarkup(
-    <QueryClientProvider client={new QueryClient()}>
-      <VisualiseBoardProvider clientId="c1" initial={initial}>
-        <TeamReviewBoard clientId="c1" initial={initial} initialReview={initialReview} />
-      </VisualiseBoardProvider>
-    </QueryClientProvider>,
+    <TestAccessProvider>
+      <QueryClientProvider client={new QueryClient()}>
+        <VisualiseBoardProvider clientId="c1" initial={initial}>
+          <TeamReviewBoard clientId="c1" initial={initial} initialReview={initialReview} />
+        </VisualiseBoardProvider>
+      </QueryClientProvider>
+    </TestAccessProvider>,
   );
 };
 

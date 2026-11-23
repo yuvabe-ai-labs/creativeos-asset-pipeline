@@ -1,89 +1,76 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { fileKindForExt } from "@/lib/nodes/file-constants";
-import { apiError, apiOk, assertImpersonationWriteAllowed } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 import { removeNodeFileObject } from "@/lib/storage/node-file-cleanup";
 import { publicUrlFor } from "@/lib/storage/gcs";
-import { resolveOwnership } from "@/lib/storage/ownership";
 
 // POST /api/nodes/:id/file/finalize — record a file already uploaded directly to
 // GCS (via a signed URL). Verifies the path belongs to this node, cleans up any
 // previous file, and returns the node data fields the client persists.
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id: nodeId } = await params;
-
-  const blocked = await assertImpersonationWriteAllowed(req);
-  if (blocked) return blocked;
-
-  const body = (await req.json().catch(() => null)) as {
-    path?: string;
-    filename?: string;
-    size?: number;
-    imageWidth?: number;
-    imageHeight?: number;
-    // Opt-in: keep the node's existing `data.fileUrl` object instead of deleting it.
-    // For nodes whose `fileUrl` is a RENDER OUTPUT rather than an upload slot (the Post
-    // node's flattened PNG), an asset upload under the same node must not destroy it.
-    // Defaults to false, so every existing caller keeps the replace-and-clean behaviour.
-    keepExisting?: boolean;
-  } | null;
-  if (!body?.path || !body.filename) {
-    return apiError("path and filename are required.", 400);
-  }
-
-  const ext = body.filename.split(".").pop()?.toLowerCase() ?? "";
-  const kind = fileKindForExt(ext);
-  if (kind !== "image" && kind !== "document") {
-    return apiError(`Unsupported file type '.${ext}'.`, 400);
-  }
-
-  // Verify the uploaded object actually belongs to this node — a client could
-  // otherwise finalize with an arbitrary path and point the node at someone
-  // else's object.
-  let expectedPrefix: string;
-  try {
-    const { clientId, canvasId } = await resolveOwnership(nodeId);
-    expectedPrefix = `clients/${clientId}/canvases/${canvasId}/nodes/${nodeId}/files/`;
-  } catch (e) {
-    return apiError(e instanceof Error ? e.message : "Node not found.", 404);
-  }
-  if (!body.path.startsWith(expectedPrefix)) {
-    return apiError("Upload path does not belong to this node.", 400);
-  }
-
-  const supabase = createServerSupabase();
-  const { data: nodeRow } = await supabase
-    .from("nodes")
-    .select("data")
-    .eq("id", nodeId)
-    .maybeSingle();
-  if (!nodeRow) return apiError("Node not found.", 404);
-
-  const existingUrl = (nodeRow as { data: Record<string, unknown> }).data
-    ?.fileUrl as string | undefined;
-  if (existingUrl && !body.keepExisting) {
-    try {
-      // Sole-owner check inside — `existingUrl` is often a URL this node never uploaded
-      // (gallery/reference picks reuse another node's object), and deleting it here was
-      // silently destroying files other nodes still displayed.
-      await removeNodeFileObject(nodeId, existingUrl);
-    } catch {
-      // Best-effort cleanup — don't block the new upload.
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  return withNode(req, params, { need: "edit" }, async (nodeId, node, _caller, clientId) => {
+    const body = (await req.json().catch(() => null)) as {
+      path?: string;
+      filename?: string;
+      size?: number;
+      imageWidth?: number;
+      imageHeight?: number;
+      // Opt-in: keep the node's existing `data.fileUrl` object instead of deleting it.
+      // For nodes whose `fileUrl` is a RENDER OUTPUT rather than an upload slot (the Post
+      // node's flattened PNG), an asset upload under the same node must not destroy it.
+      // Defaults to false, so every existing caller keeps the replace-and-clean behaviour.
+      keepExisting?: boolean;
+    } | null;
+    if (!body?.path || !body.filename) {
+      return apiError("path and filename are required.", 400);
     }
-  }
 
-  const isImage = kind === "image";
-  return apiOk({
-    filename: body.filename,
-    fileExt: ext,
-    fileKind: kind,
-    fileUrl: publicUrlFor(body.path),
-    ...(isImage && {
-      fileSizeBytes: body.size,
-      imageWidth: body.imageWidth,
-      imageHeight: body.imageHeight,
-    }),
+    const ext = body.filename.split(".").pop()?.toLowerCase() ?? "";
+    const kind = fileKindForExt(ext);
+    if (kind !== "image" && kind !== "document") {
+      return apiError(`Unsupported file type '.${ext}'.`, 400);
+    }
+
+    // Verify the uploaded object actually belongs to this node — a client could
+    // otherwise finalize with an arbitrary path and point the node at someone
+    // else's object.
+    const expectedPrefix = `clients/${clientId}/canvases/${node.canvas_id}/nodes/${nodeId}/files/`;
+    if (!body.path.startsWith(expectedPrefix)) {
+      return apiError("Upload path does not belong to this node.", 400);
+    }
+
+    const supabase = createServerSupabase();
+    const { data: nodeRow } = await supabase
+      .from("nodes")
+      .select("data")
+      .eq("id", nodeId)
+      .maybeSingle();
+    if (!nodeRow) return apiError("Node not found.", 404);
+
+    const existingUrl = (nodeRow as { data: Record<string, unknown> }).data
+      ?.fileUrl as string | undefined;
+    if (existingUrl && !body.keepExisting) {
+      try {
+        // Sole-owner check inside — `existingUrl` is often a URL this node never uploaded
+        // (gallery/reference picks reuse another node's object), and deleting it here was
+        // silently destroying files other nodes still displayed.
+        await removeNodeFileObject(nodeId, existingUrl);
+      } catch {
+        // Best-effort cleanup — don't block the new upload.
+      }
+    }
+
+    const isImage = kind === "image";
+    return apiOk({
+      filename: body.filename,
+      fileExt: ext,
+      fileKind: kind,
+      fileUrl: publicUrlFor(body.path),
+      ...(isImage && {
+        fileSizeBytes: body.size,
+        imageWidth: body.imageWidth,
+        imageHeight: body.imageHeight,
+      }),
+    });
   });
 }

@@ -65,7 +65,7 @@ import { InlineApprovalBar } from "./inline-approval-bar";
 import { ModelRequestPanel } from "./model-request-panel";
 import { setVersionLabelAction } from "@/lib/actions/eval";
 import { setVersionApprovalAction } from "@/lib/actions/approval";
-import { useIdentity } from "@/hooks/use-identity";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import {
   useNodeVersions,
@@ -194,7 +194,7 @@ export function PromptFocusView({
   const [approvedByName, setApprovedByName] = useState<string | null>(null);
   const [approvedAt, setApprovedAt] = useState<string | null>(null);
   const [approvalSaving, setApprovalSaving] = useState(false);
-  const { identity } = useIdentity();
+  const { approve: canApprove } = useCanvasPermissions();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   // The rail's hover control (✕ / link icon) — see useRailDisconnect. A disconnected row that
   // was selected falls back to this node's own tab.
@@ -917,7 +917,7 @@ export function PromptFocusView({
                         saving={approvalSaving}
                         // R7.1/D160: not gated on `editable` — approval writes only to
                         // node_versions, outside what the D33 lock serialises.
-                        canApprove={identity?.role === "senior" && !viewing.isViewingOther}
+                        canApprove={canApprove && !viewing.isViewingOther}
                         onSet={saveApproval}
                         approvedByName={approvedByName}
                         approvedAt={approvedAt}

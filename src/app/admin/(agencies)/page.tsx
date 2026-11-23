@@ -1,7 +1,7 @@
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { listOrgsWithClientCount } from "@/lib/db/organizations";
 import { OrgsTable } from "@/components/admin/orgs-table";
-import { NewOrgDialog } from "@/components/admin/new-org-dialog";
+import { AddAgencyDialog } from "@/components/admin/add-agency-dialog";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Agencies — Admin" };
@@ -16,7 +16,7 @@ export default async function AdminOrgsPage() {
         <h1 className="font-display text-2xl font-semibold tracking-tight">
           Agencies
         </h1>
-        <NewOrgDialog />
+        <AddAgencyDialog />
       </div>
       <OrgsTable orgs={orgs} />
     </main>

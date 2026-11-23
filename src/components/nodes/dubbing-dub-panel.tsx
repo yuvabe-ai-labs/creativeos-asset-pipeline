@@ -1,7 +1,6 @@
 "use client";
 
 import { Info, Languages, MessageSquareQuote } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DUB_LANGUAGES, DUB_STYLES, PRESENTER_VOICE, dubLanguageLabel, dubStyleLabel, dubVoiceLabel, type DubLanguage, type DubPace, type DubStyle, type DubVoiceChoice } from "@/lib/dubbing/types";
@@ -9,7 +8,7 @@ import { dubCredits } from "@/lib/dubbing/cost";
 import { DUB_NO_LENGTH_MESSAGE } from "@/lib/dubbing/copy";
 import { FieldLabel } from "./field-label";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
-import { DisabledReason } from "./disabled-reason";
+import { GatedButton } from "@/components/permissions/gated-button";
 import { DubbingAdvanced } from "./dubbing-advanced";
 import { dubBlockedReason } from "@/lib/dubbing/blocked-reasons";
 
@@ -93,12 +92,17 @@ export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onS
       <DubbingAdvanced nodeId={nodeId} language={language} voice={voice} onVoiceChange={onVoiceChange} pace={pace} onPaceChange={onPaceChange} disabled={!editable || busy} />
 
       <div className="flex flex-col gap-2">
-        <DisabledReason reason={canDub ? null : blocked}>
-          <Button onClick={onDub} disabled={!canDub} className="w-full">
-            {running === "dub" ? "Dubbing…" : hasDub ? "Dub again" : "Dub"}
-            {running !== "dub" && sourceSeconds > 0 && <EstimatedCreditsLabel credits={dubCredits(sourceSeconds)} />}
-          </Button>
-        </DisabledReason>
+        <GatedButton
+          onClick={onDub}
+          disabled={!canDub}
+          disabledReason={blocked}
+          className="w-full"
+          triggerClassName="block w-full"
+          tooltipSide="bottom"
+        >
+          {running === "dub" ? "Dubbing…" : hasDub ? "Dub again" : "Dub"}
+          {running !== "dub" && sourceSeconds > 0 && <EstimatedCreditsLabel credits={dubCredits(sourceSeconds)} />}
+        </GatedButton>
         <p className="text-xs text-muted-foreground">Each dub is added to History as a new version.</p>
       </div>
     </div>

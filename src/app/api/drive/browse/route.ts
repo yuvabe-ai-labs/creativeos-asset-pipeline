@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { exchangeRefreshToken } from "@/lib/drive/client";
-import { apiError, apiOk } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withAccess } from "@/lib/api/route-helpers";
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 
@@ -144,7 +144,7 @@ function toItems(files: DriveFile[]): DriveBrowseItem[] {
   }));
 }
 
-export async function GET(req: NextRequest) {
+async function readDrive(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const folderId = searchParams.get("folderId");
   const search = (searchParams.get("q") ?? "").trim();
@@ -194,4 +194,10 @@ export async function GET(req: NextRequest) {
     items: toItems(json.files ?? []),
     nextPageToken: json.nextPageToken ?? null,
   });
+}
+
+// Every agency reads Drive through ONE platform-wide token (known limitation, plan 1), so the
+// Drive routes need canvas edit, checked through withAccess.
+export async function GET(req: NextRequest) {
+  return withAccess(req, { need: "edit" }, () => readDrive(req));
 }

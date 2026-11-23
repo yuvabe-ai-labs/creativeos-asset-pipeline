@@ -1,13 +1,14 @@
 "use server";
 
 import { createServerSupabase } from "@/lib/supabase/server";
-import { resolveCallerContext } from "@/lib/dal";
 import {
   buildApprovalUpdate,
-  canSetApproval,
   requiresNote,
   type ApprovalStatus,
 } from "@/lib/approval";
+import { accessOf } from "@/lib/permissions/server";
+import { check } from "@/lib/permissions/check";
+import { resolveTarget } from "@/lib/permissions/targets";
 import { withAction } from "@/lib/actions/with-action";
 import { insertDecision } from "@/lib/db/decisions";
 import { randomUUID } from "crypto";
@@ -40,15 +41,15 @@ export async function setVersionApprovalAction(
     annotations?: AnnotationPayload[];
   },
 ): Promise<ApprovalActionResult> {
-  return withAction("setVersionApprovalAction", async (): Promise<ApprovalActionResult> => {
+  return withAction("setVersionApprovalAction", { custom: "needs Approve on the version's client; checked after reading the version, and refused as a returned message (BUG-003)" }, async (ctx): Promise<ApprovalActionResult> => {
     const refuse = (error: string) => ({ ok: false as const, error });
-    const caller = await resolveCallerContext();
+    const caller = ctx.caller;
 
-    // R2.1/R2.2 — the role gate, against the caller's REAL org role. Checked before any
-    // read: a designer should not be able to probe which version ids exist. The UI also
-    // hides the control from them, but that is a courtesy on top of this, never the
-    // mechanism (R2.3).
-    if (!canSetApproval(caller.orgRole)) {
+    // R2.1/R2.2, D545 — approving needs Approve on the version's client. D166 kept: refuse before
+    // any read when the person can approve on no client, so version ids can't be probed. The UI
+    // also hides the control, but that is a courtesy on top of this, never the mechanism (R2.3).
+    const access = accessOf(caller);
+    if (check(access, "approve", { orgId: ctx.effectiveOrgId, clientId: null }) !== "allow") {
       return refuse("You are not permitted to approve or reject work.");
     }
 
@@ -70,19 +71,19 @@ export async function setVersionApprovalAction(
 
     const supabase = createServerSupabase();
 
-    // Tenancy, not just role: a senior of org A must not be able to annotate org B's
+    // Tenancy, not just the permission: a reviewer in agency A must not be able to annotate B's
     // work by guessing a version id. 404-shaped message (never "wrong org"), matching
-    // the withClient/withNode 404-not-403 convention in route-helpers.ts.
-    const { data: version, error: readErr } = await supabase
-      .from("node_versions")
-      .select("id, org_id, node_id")
-      .eq("id", versionId)
-      .maybeSingle();
-    if (readErr) throw readErr;
-    const versionRow = version as { org_id: string | null; node_id: string | null } | null;
-    if (!versionRow || versionRow.org_id !== caller.orgId) {
+    // the withClient/withNode 404-not-403 convention in route-helpers.ts. Compared with the
+    // agency being acted in, so an elevated impersonator approves in the agency they are
+    // viewing. A client the person is not on answers the same way.
+    const target = await resolveTarget({ versionId });
+    if (!target?.clientId || target.orgId !== ctx.effectiveOrgId) {
       return refuse("Version not found.");
     }
+    const decision = check(access, "approve", { orgId: target.orgId, clientId: target.clientId });
+    if (decision === "not_found") return refuse("Version not found.");
+    if (decision === "forbidden") return refuse("You are not permitted to approve or reject work.");
+    const orgId = target.orgId;
 
     const at = new Date().toISOString();
     const update = buildApprovalUpdate({
@@ -96,11 +97,11 @@ export async function setVersionApprovalAction(
     const decisionId = randomUUID();
     let uploaded: { seq: number; maskPath: string }[] = [];
     if (annotations.length > 0) {
-      if (!versionRow.node_id) return refuse("Version not found.");
+      if (!target.nodeId) return refuse("Version not found.");
       // Assets land in GCS under the node they annotate, via the same lib/storage module
       // every generated asset uses (D247) — not a separate Supabase bucket.
       uploaded = await uploadAnnotationAssets(
-        versionRow.node_id,
+        target.nodeId,
         decisionId,
         annotations,
       );
@@ -120,7 +121,7 @@ export async function setVersionApprovalAction(
         insertDecision({
           id: decisionId,
           versionId,
-          orgId: caller.orgId,
+          orgId,
           status: input.status as "approved" | "changes_requested",
           note,
           decidedByUserId: caller.userId,
@@ -136,7 +137,7 @@ export async function setVersionApprovalAction(
             if (!stored) throw new Error(`No uploaded asset for annotation ${a.seq}.`);
             return {
               decision_id: decisionId,
-              org_id: caller.orgId,
+              org_id: orgId,
               seq: a.seq,
               kind: a.kind,
               timecode_ms: a.timecodeMs,
@@ -170,8 +171,8 @@ export async function setVersionApprovalAction(
 // this is a read receipt, not a security boundary that should surface failures to a
 // fire-and-forget caller.
 export async function markVersionApprovalSeenAction(versionId: string): Promise<void> {
-  return withAction("markVersionApprovalSeenAction", async () => {
-    const caller = await resolveCallerContext();
+  return withAction("markVersionApprovalSeenAction", { need: "view", on: { versionId } }, async (ctx) => {
+    const caller = ctx.caller;
     const supabase = createServerSupabase();
 
     const { data: version, error: readErr } = await supabase

@@ -3,17 +3,22 @@ import { NextRequest, NextResponse } from "next/server";
 
 vi.mock("server-only", () => ({}));
 
-vi.mock("@/lib/dal", () => ({
-  resolveCallerContext: vi.fn(async () => ({
-    userId: "user-1",
-    email: "user-1@yuvabe.com",
-    platformRole: "member",
-    orgId: "org-1",
-    orgRole: "owner",
-    mustChangePassword: false,
-  })),
-  resolveOrgId: vi.fn(async () => "org-1"),
-}));
+vi.unmock("@/lib/permissions/server");
+
+const { callerHolder } = vi.hoisted(() => ({ callerHolder: { access: null as unknown } }));
+vi.mock("@/lib/dal", async () => {
+  const { testOwnerAccess } = await import("@/lib/permissions/test-fixtures");
+  return {
+    resolveCallerContext: vi.fn(async () => ({
+      userId: "user-1",
+      email: "user-1@yuvabe.com",
+      platformRole: "member",
+      orgId: "org-1",
+      mustChangePassword: false,
+      access: callerHolder.access ?? testOwnerAccess(),
+    })),
+  };
+});
 
 // vi.mock factories are hoisted above top-level `const`s, so any variable a factory
 // reads directly (not just closes over inside a nested function) must itself be
@@ -39,8 +44,10 @@ vi.mock("@/lib/db/clients", () => ({
 // used in src/app/api/nodes/[id]/file/drive/route.test.ts. nodeOrgIdHolder is mutable so
 // individual tests can point the node at a different org (e.g. the impersonation target)
 // without redeclaring the whole mock.
-const { nodeOrgIdHolder, nodeQueryGate } = vi.hoisted(() => ({
+const { nodeOrgIdHolder, nodeQueryGate, selects } = vi.hoisted(() => ({
   nodeOrgIdHolder: { orgId: "org-1" },
+  // The select string each table was read with (withMoodboard must read client_id).
+  selects: {} as Record<string, string>,
   // When set, the node lookup stays pending until this promise settles — lets a test
   // observe what withNode does WHILE that query is still in flight.
   nodeQueryGate: { wait: null as Promise<void> | null },
@@ -48,6 +55,18 @@ const { nodeOrgIdHolder, nodeQueryGate } = vi.hoisted(() => ({
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({
     from: (table: string) => {
+      // withCanvas and withMoodboard: canvas-1 / board-1 sit under client-1 in nodeOrgIdHolder's org.
+      if (table === "canvases" || table === "moodboards") {
+        const row = table === "canvases"
+          ? { id: "canvas-1", client_id: "client-1", name: "Reel", clients: { org_id: nodeOrgIdHolder.orgId } }
+          : { id: "board-1", client_id: "client-1", clients: [{ org_id: nodeOrgIdHolder.orgId }] };
+        return {
+          select: (cols: string) => {
+            selects[table] = cols;
+            return { eq: () => ({ maybeSingle: async () => ({ data: row, error: null }) }) };
+          },
+        };
+      }
       if (table === "nodes") {
         return {
           select: () => ({
@@ -81,8 +100,9 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
-import { resolveOrgId, resolveCallerContext } from "@/lib/dal";
-import { withClient, withNode } from "./route-helpers";
+import { resolveCallerContext } from "@/lib/dal";
+import { testAccess, testOwnerAccess } from "@/lib/permissions/test-fixtures";
+import { withCanvas, withClient, withMoodboard, withNode, withAccess } from "./route-helpers";
 
 const params = Promise.resolve({ id: "client-1" });
 function req(method: string) {
@@ -95,12 +115,15 @@ function nodeReq(method: string) {
 }
 
 describe("withClient write-gating", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    callerHolder.access = null;
+  });
 
   it("allows GET when not impersonating", async () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withClient(req("GET"), params, handler);
+    const res = await withClient(req("GET"), params, { need: "view" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
   });
@@ -108,7 +131,7 @@ describe("withClient write-gating", () => {
   it("allows POST when not impersonating", async () => {
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withClient(req("POST"), params, handler);
+    const res = await withClient(req("POST"), params, { need: "edit" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
   });
@@ -118,7 +141,7 @@ describe("withClient write-gating", () => {
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: false,
     });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withClient(req("POST"), params, handler);
+    const res = await withClient(req("POST"), params, { need: "edit" }, handler);
     expect(res.status).toBe(403);
     expect(handler).not.toHaveBeenCalled();
   });
@@ -128,7 +151,7 @@ describe("withClient write-gating", () => {
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: false,
     });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withClient(req("GET"), params, handler);
+    const res = await withClient(req("GET"), params, { need: "view" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
   });
@@ -138,7 +161,7 @@ describe("withClient write-gating", () => {
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: true,
     });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withClient(req("POST"), params, handler);
+    const res = await withClient(req("POST"), params, { need: "edit" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalled();
     expect(logMock).toHaveBeenCalledWith({
@@ -153,7 +176,7 @@ describe("withClient write-gating", () => {
     resolveImpersonationStateMock.mockResolvedValue({
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-1", elevated: false,
     });
-    await withClient(req("POST"), params, vi.fn(async () => NextResponse.json(null, { status: 200 })));
+    await withClient(req("POST"), params, { need: "edit" }, vi.fn(async () => NextResponse.json(null, { status: 200 })));
     expect(logMock).not.toHaveBeenCalled();
   });
 });
@@ -168,6 +191,7 @@ describe("withClient write-gating", () => {
 describe("withNode passes the resolved effectiveOrgId to its handler", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    callerHolder.access = null;
     nodeOrgIdHolder.orgId = "org-1";
     nodeQueryGate.wait = null;
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
@@ -177,7 +201,7 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
     let release!: () => void;
     nodeQueryGate.wait = new Promise<void>((r) => (release = r));
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const pending = withNode(nodeReq("GET"), nodeParams, handler);
+    const pending = withNode(nodeReq("GET"), nodeParams, { need: "view" }, handler);
     await new Promise((r) => setTimeout(r, 0));
     expect(resolveCallerContext).toHaveBeenCalled();
     release();
@@ -188,14 +212,13 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
     // React's cache() does not dedupe inside route handlers, so going through
     // resolveOrgId() as well would re-run the Auth-server check and membership read.
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    await withNode(nodeReq("GET"), nodeParams, handler);
+    await withNode(nodeReq("GET"), nodeParams, { need: "view" }, handler);
     expect(resolveCallerContext).toHaveBeenCalledTimes(1);
-    expect(resolveOrgId).not.toHaveBeenCalled();
   });
 
   it("not impersonating: effectiveOrgId equals the caller's own org", async () => {
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withNode(nodeReq("POST"), nodeParams, handler);
+    const res = await withNode(nodeReq("POST"), nodeParams, { need: "edit" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalledWith(
       "node-1",
@@ -212,13 +235,12 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
     // impersonation target. This is the exact scenario the bug occurred in: withNode's
     // isolation check correctly resolves "org-2", but previously handed the handler
     // caller.orgId ("org-1") instead.
-    vi.mocked(resolveOrgId).mockResolvedValue("org-2");
     nodeOrgIdHolder.orgId = "org-2";
     resolveImpersonationStateMock.mockResolvedValue({
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-2", elevated: true,
     });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withNode(nodeReq("POST"), nodeParams, handler);
+    const res = await withNode(nodeReq("POST"), nodeParams, { need: "edit" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalledWith(
       "node-1",
@@ -230,13 +252,12 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
   });
 
   it("GET is never write-gated, and still receives the resolved effectiveOrgId", async () => {
-    vi.mocked(resolveOrgId).mockResolvedValue("org-2");
     nodeOrgIdHolder.orgId = "org-2";
     resolveImpersonationStateMock.mockResolvedValue({
       isImpersonating: true, operatorId: "op-1", targetOrgId: "org-2", elevated: false,
     });
     const handler = vi.fn(async () => NextResponse.json(null, { status: 200 }));
-    const res = await withNode(nodeReq("GET"), nodeParams, handler);
+    const res = await withNode(nodeReq("GET"), nodeParams, { need: "view" }, handler);
     expect(res.status).toBe(200);
     expect(handler).toHaveBeenCalledWith(
       "node-1",
@@ -245,5 +266,183 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
       "client-1",
       "org-2",
     );
+  });
+});
+
+describe("withClient guard (D542)", () => {
+  beforeEach(() => {
+    callerHolder.access = null;
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+  });
+
+  it("runs the handler when the caller holds the permission on this client", async () => {
+    callerHolder.access = testAccess({ permissions: ["generate"], clientIds: ["client-1"] });
+    const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+    const res = await withClient(req("POST"), params, { need: "edit" }, handler);
+    expect(res.status).toBe(200);
+    expect(handler).toHaveBeenCalledWith("client-1", expect.objectContaining({ id: "client-1" }), expect.objectContaining({ userId: "user-1" }), "org-1");
+  });
+
+  it("answers 404 for a client the caller is not on, exactly like a foreign agency", async () => {
+    callerHolder.access = testAccess({ permissions: ["generate"], clientIds: ["other-client"] });
+    const res = await withClient(req("POST"), params, { need: "edit" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Client not found." });
+  });
+
+  it("answers 404 on a client the caller is on before access is given", async () => {
+    callerHolder.access = testAccess({ permissions: ["generate"], clientIds: ["client-1"], accessGiven: false });
+    const res = await withClient(req("GET"), params, { need: "edit" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(404);
+  });
+
+  it("answers 403 with the agreed copy when the permission is missing", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["client-1"] });
+    const res = await withClient(req("POST"), params, { need: "edit" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
+  });
+
+  it("acts as owner while impersonating the client's agency", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: [] });
+    resolveImpersonationStateMock.mockResolvedValueOnce({ isImpersonating: true, operatorId: "op", targetOrgId: "org-1", elevated: false });
+    const res = await withClient(req("GET"), params, { need: "view" }, async () => NextResponse.json({ ok: true }));
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("withNode guard", () => {
+  beforeEach(() => {
+    callerHolder.access = null;
+    nodeOrgIdHolder.orgId = "org-1";
+    nodeQueryGate.wait = null;
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+  });
+
+  it("answers 404 for a node on a client the caller is not on", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["someone-else"] });
+    const res = await withNode(req("GET"), Promise.resolve({ id: "node-1" }), { need: "view" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(404);
+  });
+
+  it("refuses a missing Generate with 403", async () => {
+    callerHolder.access = testAccess({ permissions: ["approve", "share", "delete"], clientIds: ["client-1"] });
+    const res = await withNode(req("POST"), Promise.resolve({ id: "node-1" }), { need: "generate" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("withCanvas guard", () => {
+  const canvasParams = () => Promise.resolve({ id: "canvas-1" });
+  beforeEach(() => {
+    callerHolder.access = null;
+    nodeOrgIdHolder.orgId = "org-1";
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+  });
+
+  it("hands the handler the canvas, the caller and the agency acted in", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["client-1"] });
+    const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+    const res = await withCanvas(req("GET"), canvasParams(), { need: "view" }, handler);
+    expect(res.status).toBe(200);
+    expect(handler).toHaveBeenCalledWith("canvas-1", { id: "canvas-1", client_id: "client-1", name: "Reel" }, expect.objectContaining({ userId: "user-1" }), "org-1");
+  });
+
+  it("answers 404 for a canvas on a client the caller is not on", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["other-client"] });
+    const handler = vi.fn(async () => NextResponse.json({}));
+    const res = await withCanvas(req("GET"), canvasParams(), { need: "view" }, handler);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Canvas not found." });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for another agency's canvas", async () => {
+    nodeOrgIdHolder.orgId = "org-2";
+    const res = await withCanvas(req("GET"), canvasParams(), { need: "view" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(404);
+  });
+
+  it("answers 403 with the agreed copy when Edit is missing", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["client-1"] });
+    const res = await withCanvas(req("POST"), canvasParams(), { need: "edit" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
+  });
+
+  it("passes the impersonated agency as the one acted in", async () => {
+    nodeOrgIdHolder.orgId = "target-org";
+    resolveImpersonationStateMock.mockResolvedValueOnce({ isImpersonating: true, operatorId: "op", targetOrgId: "target-org", elevated: false });
+    const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+    await withCanvas(req("GET"), canvasParams(), { need: "view" }, handler);
+    expect(handler).toHaveBeenCalledWith("canvas-1", expect.anything(), expect.anything(), "target-org");
+  });
+});
+
+describe("withMoodboard guard", () => {
+  beforeEach(() => {
+    callerHolder.access = null;
+    nodeOrgIdHolder.orgId = "org-1";
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+  });
+
+  it("reads the board's client and hands the handler the caller and the agency acted in", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["client-1"] });
+    const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+    const res = await withMoodboard(req("GET"), "board-1", { need: "view" }, handler);
+    expect(res.status).toBe(200);
+    expect(selects.moodboards).toContain("client_id");
+    expect(handler).toHaveBeenCalledWith("board-1", expect.objectContaining({ userId: "user-1" }), "org-1");
+  });
+
+  it("answers 404 for a board on a client the caller is not on", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["other-client"] });
+    const res = await withMoodboard(req("GET"), "board-1", { need: "view" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Moodboard not found." });
+  });
+
+  it("answers 403 with the agreed copy when Edit is missing", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["client-1"] });
+    const res = await withMoodboard(req("POST"), "board-1", { need: "edit" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
+  });
+});
+
+describe("withAccess", () => {
+  beforeEach(() => {
+    callerHolder.access = null;
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+  });
+
+  it("allows an owner-only action for the owner", async () => {
+    callerHolder.access = testOwnerAccess();
+    const res = await withAccess(req("POST"), { need: "manage_clients" }, async () => NextResponse.json({ ok: true }));
+    expect(res.status).toBe(200);
+  });
+
+  it("refuses an owner-only action to a member with 403", async () => {
+    callerHolder.access = testAccess({ permissions: ["generate"], clientIds: ["c-1"] });
+    const res = await withAccess(req("POST"), { need: "manage_clients" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(403);
+  });
+
+  it("allows a client action held on at least one client the caller is on", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["c-1"] });
+    const res = await withAccess(req("GET"), { need: "view" }, async () => NextResponse.json({ ok: true }));
+    expect(res.status).toBe(200);
+  });
+
+  it("refuses a client action held nowhere with 403", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["c-1"] });
+    const res = await withAccess(req("POST"), { need: "edit" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(403);
+  });
+
+  it("answers 404 for someone on no client", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: [] });
+    const res = await withAccess(req("GET"), { need: "view" }, async () => NextResponse.json({}));
+    expect(res.status).toBe(404);
   });
 });
