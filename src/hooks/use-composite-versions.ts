@@ -10,7 +10,7 @@ import {
   useSetActiveNodeVersion,
 } from "@/hooks/queries/node-versions";
 import { useGenerationStatus } from "@/hooks/use-generation-status";
-import { imageGenClientModelMap, isImageModelDeprecated } from "@/lib/image-gen/client-models";
+import { useImageModels } from "@/hooks/queries/ai-models";
 import { paramsForRestore } from "@/lib/generations/version-params";
 import {
   useStartCompositeGeneration,
@@ -21,7 +21,8 @@ import {
 type Patch = (patch: Record<string, unknown>) => void;
 
 /** D312/D366 — a composite's versions, Generate and Restore. Generate starts a background job and resolves once it is accepted; the result lands through the node's generation status. */
-export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Patch) {
+export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Patch, modelId: string | undefined) {
+  const images = useImageModels();
   // Read through the shared versions cache: reopening shows the list at once and re-checks behind it.
   const { data, isPending } = useNodeVersions<ImageGenVersionSummary>(nodeId, open);
   const refreshVersions = useRefreshNodeVersions<ImageGenVersionSummary>(nodeId);
@@ -95,9 +96,10 @@ export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Pat
         (typeof json.paramsUsed?.modelId === "string" ? json.paramsUsed.modelId : null) ??
         json.modelUsed ??
         null;
-      // D467 — a version made on a deprecated model brings back its picture, not its model.
-      const restoredParams = restoredModelId && !isImageModelDeprecated(restoredModelId)
-        ? paramsForRestore(imageGenClientModelMap[restoredModelId]?.params, json.paramsUsed ?? {})
+      // D467/D542 — a version made on a model no longer offered (retired, or hidden and not the
+      // composite's own) brings back its picture, not its model.
+      const restoredParams = restoredModelId && images.isOffered(restoredModelId, modelId)
+        ? paramsForRestore(images.get(restoredModelId)!.params, json.paramsUsed ?? {})
         : null;
       onPatch({
         ...(json.output ? { parsed: json.output } : {}),

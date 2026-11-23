@@ -10,10 +10,8 @@ import {
   Settings2,
   type LucideIcon,
 } from "lucide-react";
-import {
-  imageGenClientModelGroups,
-  type ClientModelSpec,
-} from "@/lib/image-gen/client-models";
+import type { ClientModelSpec } from "@/lib/image-gen/client-models";
+import { useImageModels } from "@/hooks/queries/ai-models";
 import { ParamControl } from "./param-controls";
 import { ImageGenParamRow } from "./image-gen-param-row";
 import { ParamChipGroup } from "./param-chip-group";
@@ -66,6 +64,7 @@ export function ImageGenOutputSettings({
   optionFilter,
   inlineParams,
 }: Props) {
+  const images = useImageModels();
   function patch(updates: ParamFormValues) {
     const next = { ...values, ...updates };
     onValuesChange(next);
@@ -85,7 +84,7 @@ export function ImageGenOutputSettings({
       <div className="space-y-3">
         <FieldLabel icon={Cpu} label="Model" />
         <div className="space-y-4">
-          {imageGenClientModelGroups.map((group) => (
+          {images.groups(model.id).map((group) => (
             <div key={group.provider} className="space-y-2">
               <span className="text-[0.65rem] font-medium tracking-wide text-foreground/70 uppercase">
                 {group.label}

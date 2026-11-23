@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { normalizeTitle } from "@/lib/nodes/title";
-import { imageGenClientModelMap, defaultsForModel } from "@/lib/image-gen/client-models";
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
 import { imageEstimateUsd } from "@/lib/ai-models/image-price";
 import { useImageModels, useModelPrice } from "@/hooks/queries/ai-models";
+import { paramDefaults } from "@/lib/ai-models/model-lists";
+import { RetiredModelNotice } from "@/components/models/retired-model-notice";
 import { validateReferenceImages } from "@/lib/image-gen/validate";
 import { usdToFinalCredits } from "@/lib/credits/units";
 import {
@@ -57,21 +58,23 @@ type Props = {
   params?: Record<string, unknown>;
   /** D454 — set on a storyboard Composite: the shot it draws. */
   storyboardPanel?: string;
+  /** D544 — the retired model this node was moved off when the canvas opened. */
+  retiredModelId?: string;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
 // D312 — the Composite node's focus view: Image Gen's shell and headings, minus the prompt lane.
 // Rail: Composite (compose here), the wired inputs, History. Middle: the instruction and output
 // settings. Right: the image, always visible.
-export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl, instruction, modelId, params, storyboardPanel, onPatch }: Props) {
+export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl, instruction, modelId, params, storyboardPanel, retiredModelId, onPatch }: Props) {
   const editable = useCanvasEditable();
   const images = useImageModels();
   const upstream = useCompositeUpstream(nodeId);
   const mentionUpstream = useMemo(() => compositeMentionUpstream(upstream), [upstream]);
   const hasAvatar = upstream.some((u) => u.type === "avatar");
   const upstreamNodeIds = useMemo(() => upstream.map((u) => u.id), [upstream]);
-  // A stored id the client map no longer lists (a retired model) falls back to the default.
-  const model = imageGenClientModelMap[compositePickerModelId(images, modelId)];
+  // A stored id that is no longer offered (a retired model) falls back to the default.
+  const model = images.specOrDefault(compositePickerModelId(images, modelId));
   const modelNote = compositeModelNote(model.id, hasAvatar);
   const [draft, setDraft] = useState(instruction);
   const [selected, setSelected] = useState<CompositeRailSelection>("compose");
@@ -80,11 +83,11 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
   // D312 — Edit acts on the current picture, so it exists only once there is one.
   const [editMode, setEditMode] = useState(false);
   const values = useMemo(
-    () => clampCompositeParams(smartMergeParams({ ...defaultsForModel(model), ...(params ?? {}) }, model)),
+    () => clampCompositeParams(smartMergeParams({ ...paramDefaults(model.params), ...(params ?? {}) }, model)),
     [model, params],
   );
   const { versions, activeVersionId, loading, generating, restoring, lastError, generate, restore } =
-    useCompositeVersions(nodeId, open, onPatch);
+    useCompositeVersions(nodeId, open, onPatch, modelId);
   // D383 — the version on screen. Leaving the active one ends Edit, which acts on it.
   const viewing = useVersionViewing(versions, activeVersionId, open, () => setEditMode(false));
   const labelById = versionLabelsById(versions);
@@ -205,13 +208,14 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                     )}
                   </div>
                   )}
+                  <RetiredModelNotice retiredModelId={retiredModelId} onDismiss={() => onPatch({ retiredModelId: undefined })} />
                   <LeftSection icon={Settings2} label="Output settings">
                     <ImageGenOutputSettingsBody
                       model={model}
                       values={values}
                       onValuesChange={(next) => onPatch({ params: next })}
                       onCommit={(next) => onPatch({ params: next })}
-                      onModelChange={(id) => onPatch({ modelId: id })}
+                      onModelChange={(id) => onPatch({ modelId: id, retiredModelId: undefined })}
                       modelNote={modelNote ?? undefined}
                       modelHints={COMPOSITE_MODEL_HINTS}
                       optionFilter={{ aspect_ratio: COMPOSITE_ASPECT_RATIOS }}

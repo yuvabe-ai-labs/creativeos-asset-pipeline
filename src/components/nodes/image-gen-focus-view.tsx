@@ -93,12 +93,9 @@ import {
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useRailDisconnect } from "./use-rail-disconnect";
 import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
-import {
-  imageGenClientModelMap,
-  isImageModelDeprecated,
-  DEFAULT_CLIENT_MODEL_ID,
-  defaultsForModel,
-} from "@/lib/image-gen/client-models";
+import { useImageModels } from "@/hooks/queries/ai-models";
+import { paramDefaults } from "@/lib/ai-models/model-lists";
+import { RetiredModelNotice } from "@/components/models/retired-model-notice";
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
 import { paramsForRestore } from "@/lib/generations/version-params";
 import { ImageGenOutputSettingsBody } from "./image-gen-output-settings-body";
@@ -159,6 +156,8 @@ export type ImageGenFocusViewProps = {
     /** D436 — an Avatar node's avatar, whose pictures the focus view reads from the cache. */
     avatarId?: string;
   }>;
+  /** D544 — the retired model this node was moved off when the canvas opened. */
+  retiredModelId?: string;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
@@ -215,8 +214,10 @@ export function ImageGenFocusView({
   editReferenceNodeIds,
   baseReferenceNodeId,
   upstream: wiredUpstream,
+  retiredModelId,
   onPatch,
 }: ImageGenFocusViewProps) {
+  const images = useImageModels();
   // Connected inputs, as the Prompt node's are: the rail LIST is the canvas's (what is wired in,
   // and into its Prompt); every preview's CONTENT is the server's (compile-preview →
   // resolveImageGenInputs, the rows image-generate sends), matched by node id. One read per open,
@@ -235,14 +236,12 @@ export function ImageGenFocusView({
       }),
     [wiredUpstream, compiled.status, compiled.data, compiled.isPlaceholderData],
   );
-  const selectedModelId = modelId ?? DEFAULT_CLIENT_MODEL_ID;
-  const model =
-    imageGenClientModelMap[selectedModelId] ??
-    imageGenClientModelMap[DEFAULT_CLIENT_MODEL_ID];
+  const selectedModelId = modelId ?? images.defaultId;
+  const model = images.specOrDefault(modelId);
   const editMode = editModeForModel(model.supportsMask); // "paint" | "type"
 
   const [paramValues, setParamValues] = useState<ParamFormValues>(() => {
-    const base = { ...defaultsForModel(model), ...(params ?? {}) };
+    const base = { ...paramDefaults(model.params), ...(params ?? {}) };
     // Migrate legacy pixel-size params to unified aspect_ratio (one-time at mount).
     if (base.size && !base.aspect_ratio) {
       const SIZE_TO_RATIO: Record<string, string> = {
@@ -889,9 +888,10 @@ export function ImageGenFocusView({
         (typeof json.paramsUsed?.modelId === "string" ? json.paramsUsed.modelId : null) ??
         json.modelUsed ??
         null;
-      // D467 — a version made on a deprecated model brings back its picture, not its model.
-      const restoredParams = restoredModelId && !isImageModelDeprecated(restoredModelId)
-        ? paramsForRestore(imageGenClientModelMap[restoredModelId]?.params, json.paramsUsed ?? {})
+      // D467/D542 — a version made on a model no longer offered (retired, or hidden and not this
+      // node's own) brings back its picture, not its model.
+      const restoredParams = restoredModelId && images.isOffered(restoredModelId, modelId)
+        ? paramsForRestore(images.get(restoredModelId)!.params, json.paramsUsed ?? {})
         : null;
       if (restoredModelId && restoredParams) {
         seenModelIdRef.current = restoredModelId;
@@ -1006,7 +1006,7 @@ export function ImageGenFocusView({
   }
 
   function changeModel(nextId: string) {
-    onPatch({ modelId: nextId });
+    onPatch({ modelId: nextId, retiredModelId: undefined });
   }
 
   async function handleDownload() {
@@ -1054,6 +1054,11 @@ export function ImageGenFocusView({
   const outputSettingsBody = (
     <>
     {viewing.isViewingOther && activeTab !== "edit" && <ActiveOnlyNotice label={viewedLabel} />}
+    <RetiredModelNotice
+      className="mb-3"
+      retiredModelId={retiredModelId}
+      onDismiss={() => onPatch({ retiredModelId: undefined })}
+    />
     <ImageGenOutputSettingsBody
       model={model}
       values={paramValues}
