@@ -9,7 +9,8 @@ import { fetchOrThrow } from "./fetch-error";
 import { VIDEO_EDIT_REFUSED_MESSAGE } from "@/lib/video-edit/record";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
-/** The Gemini API model names. Each Omni catalog row carries its own as provider_model_id. */
+/** Default Gemini API model names for tests and builders. The adapter passes the catalog row's
+ *  provider_model_id, and that is what runs (D545). */
 export const OMNI_11_API_MODEL = "gemini-omni-1.1-flash";
 export const OMNI_12_API_MODEL = "gemini-omni-1.2-flash";
 

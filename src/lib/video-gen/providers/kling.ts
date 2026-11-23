@@ -397,7 +397,8 @@ export async function generateWithKling(
 }
 
 /** D538, D545 — a Kling model's endpoint. `vendorModel` is the row's provider_model_id; whether it
- *  takes references is the row's imageInputs.maxReferenceImages. */
+ *  takes references is the row's imageInputs.maxReferenceImages.
+ *  Kling 3.0's image-to-video endpoint takes no references, so its row's maxReferenceImages must stay 0. */
 export function klingEndpoint(model: KlingFalModel, vendorModel: string, maxReferenceImages: number): KlingEndpointConfig {
   const supportsReferences = maxReferenceImages > 0;
   const family = model === "kling-3-0" ? "image-to-video" : "omni-video";

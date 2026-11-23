@@ -54,11 +54,10 @@ export function seedreamSize(sizes: SizeTable, resolution: string, aspectRatio: 
 }
 
 /**
- * Our id (persisted on nodes and version rows) vs the vendor's dated model string, which lives
- * only here — a vendor bump is a one-line edit, not a migration of saved nodes.
+ * A Seedream variant's request settings. `arkModel` is a default for tests and builders; the
+ * adapter always passes the catalog row's provider_model_id, and that is what runs (D545).
  */
 export type SeedreamVariant = {
-  id: string;
   arkModel: string;
   sizes: Record<string, Record<string, string>>;
   // Lite takes `sequential_image_generation`; Pro has no batch mode and rejects the field.
@@ -66,14 +65,12 @@ export type SeedreamVariant = {
 };
 
 export const SEEDREAM_LITE: SeedreamVariant = {
-  id: "seedream:seedream-5-0-lite",
   arkModel: "seedream-5-0-lite-260128",
   sizes: SEEDREAM_LITE_SIZES,
   supportsSequential: true,
 };
 
 export const SEEDREAM_PRO: SeedreamVariant = {
-  id: "seedream:seedream-5-0-pro",
   arkModel: "dola-seedream-5-0-pro-260628",
   sizes: SEEDREAM_PRO_SIZES,
   supportsSequential: false,

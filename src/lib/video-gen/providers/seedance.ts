@@ -16,11 +16,8 @@ const POLL_INTERVAL_MS = 5_000;
 /** Marks a poll failure worth retrying, so the catch below can tell it from a real error. */
 class RetryablePollError extends Error {}
 
-// The vendor's model string lives HERE and nowhere else. Its dated suffix changes when BytePlus
-// revises the model; our own id (`seedance:seedance-2-5`, the catalog row's id) is what persists on
-// nodes and version rows. Keeping them separate makes a vendor bump a one-line edit rather than a
-// migration of every saved node.
-// D538 — also seeded into the catalog as provider_model_id (migration 0084).
+// A default model name for tests and builders. The adapter always passes the catalog row's
+// provider_model_id, and that is what runs (D545); a vendor rename is a migration on the row.
 export const SEEDANCE_VENDOR_MODEL = "dreamina-seedance-2-5-260628";
 
 function getApiKey(): string {
