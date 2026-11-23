@@ -9,14 +9,14 @@ import { speechToSpeech } from "@/lib/elevenlabs/client";
 import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
 import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "@/lib/generations/post-webhook";
 
-/** The engine for this mode, resolved through the registry. Dynamic, because the registry and
- *  every provider under it carry `server-only` — a Next.js sentinel this build must not see
- *  statically (the same reason trigger/video-generate.ts imports it this way). */
+/** The engine for this mode, from the catalog's row and adapter (D541). Dynamic, because the
+ *  adapters and every provider under them carry `server-only` — a Next.js sentinel this build must
+ *  not see statically (the same reason trigger/video-generate.ts imports it this way). A missing
+ *  row or adapter throws inside the run's try, which reports the failure and refunds. */
 async function clipGenerator(modelId: string): Promise<GenerateClip> {
-  const { videoGenRegistry } = await import("@/lib/video-gen/registry");
-  const config = videoGenRegistry[modelId];
-  if (!config) throw new Error(`Unknown video model: ${modelId}`);
-  return (input) => config.generate({ ...input, referenceUrls: input.referenceUrls ?? [] });
+  const { videoGenerateForTask } = await import("@/lib/video-gen/video-run");
+  const generate = await videoGenerateForTask(modelId);
+  return (input) => generate({ ...input, referenceUrls: input.referenceUrls ?? [] });
 }
 
 // D294, D296 — an avatar's voice preview, in whichever mode the avatar's declaration asked for:

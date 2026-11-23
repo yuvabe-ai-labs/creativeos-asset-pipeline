@@ -54,9 +54,10 @@ export const videoGenerateTask = task({
     }
 
     try {
-      const { videoGenRegistry } = await import("@/lib/video-gen/registry");
-      const config = videoGenRegistry[modelId];
-      if (!config) throw new Error(`Unknown video model: ${modelId}`);
+      // D541 — the model's row and adapter, from the catalog at run time. A missing one throws
+      // here; the catch below reports it as final (one attempt), which refunds.
+      const { videoGenerateForTask } = await import("@/lib/video-gen/video-run");
+      const generate = await videoGenerateForTask(modelId);
 
       logger.info("Starting video generation", {
         generationId,
@@ -68,7 +69,7 @@ export const videoGenerateTask = task({
         params: payload.params,
       });
 
-      const result = await config.generate({
+      const result = await generate({
         prompt: payload.prompt,
         startFrameUrl: payload.startFrameUrl,
         endFrameUrl: payload.endFrameUrl,

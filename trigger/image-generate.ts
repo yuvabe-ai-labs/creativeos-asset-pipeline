@@ -31,9 +31,9 @@ export const imageGenerateTask = task({
     const { generationId, modelId } = payload;
 
     try {
-      const { imageGenRegistry } = await import("@/lib/image-gen/registry");
-      const config = imageGenRegistry[modelId];
-      if (!config) throw new Error(`Unknown image model: ${modelId}`);
+      // D541 — the model's row and adapter, from the catalog at run time.
+      const { imageGenerateForTask } = await import("@/lib/image-gen/image-run");
+      const generate = await imageGenerateForTask(modelId);
       const { runImageGenerateTask } = await import("@/lib/image-gen/run-task");
       const sharp = (await import("sharp")).default;
 
@@ -45,7 +45,7 @@ export const imageGenerateTask = task({
       });
 
       await runImageGenerateTask(payload, {
-        generate: (input) => config.generate(input),
+        generate,
         fetchFn: fetch,
         readSize: async (bytes) => {
           const meta = await sharp(bytes).metadata();
@@ -58,6 +58,7 @@ export const imageGenerateTask = task({
     } catch (e) {
       const error = e instanceof Error ? e.message : "Image generation failed";
       const { PaidResultError } = await import("@/lib/generations/task-failure");
+      const { ModelUnavailableError } = await import("@/lib/ai-models/runnable");
       logger.error("Image generation failed", {
         generationId,
         modelId,
@@ -65,9 +66,9 @@ export const imageGenerateTask = task({
         attempt: ctx.attempt.number,
         stack: e instanceof Error ? e.stack : undefined,
       });
-      // A paid result is never retried: that would pay the provider again. The failure is reported
-      // by onFailure once no attempt is left.
-      if (e instanceof PaidResultError) throw new AbortTaskRunError(error);
+      // A paid result is never retried: that would pay the provider again. A model with no row or
+      // adapter won't have one on a retry either. Both are reported by onFailure, which refunds.
+      if (e instanceof PaidResultError || e instanceof ModelUnavailableError) throw new AbortTaskRunError(error);
       throw e instanceof Error ? e : new Error(error);
     }
   },
