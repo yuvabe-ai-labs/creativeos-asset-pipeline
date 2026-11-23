@@ -5,6 +5,7 @@ import { TEXT_MODEL_IDS, APIFY_MODEL_ID, textModelRows, TEXT_SEED_HEADER } from 
 import { textPriceRows, TEXT_PRICE_HEADER } from "../seeds/text-price-rows";
 import { seedSql } from "../seed";
 import { priceSql } from "../price-sql";
+import { seededPrice } from "../test-prices";
 import { parseAiModelRow, parseAiModelPriceRow } from "../schema";
 
 const drift = (file: string, sql: string) => {
@@ -23,12 +24,23 @@ describe("text and scrape models", () => {
   it("every model has a price; text rows price input, cached input and output; Apify prices usd", () => {
     const prices = textPriceRows();
     for (const id of TEXT_MODEL_IDS) {
-      const p = prices.find((x) => x.model_id === id)!;
-      expect(parseAiModelPriceRow({ id: "x", ...p }), id).not.toBeNull();
-      expect(p.lines.map((l) => l.meter).sort(), id).toEqual(["cached_input_token", "input_token", "text_output_token"]);
-      expect(p.source_url, id).toMatch(/^https:\/\//);
+      const rows = prices.filter((x) => x.model_id === id);
+      expect(rows.length, id).toBeGreaterThan(0);
+      for (const p of rows) {
+        expect(parseAiModelPriceRow({ id: "x", ...p }), id).not.toBeNull();
+        expect(p.lines.map((l) => l.meter).sort(), id).toEqual(["cached_input_token", "input_token", "text_output_token"]);
+        expect(p.source_url, id).toMatch(/^https:\/\//);
+      }
     }
     expect(prices.find((x) => x.model_id === APIFY_MODEL_ID)!.lines).toEqual([{ meter: "usd", unit_usd: 1 }]);
+  });
+  it("Gemini 3.8 Flash is priced at its introductory rate until 2027-01-01, then at the full rate", () => {
+    const rates = (at: string) => seededPrice("gemini:gemini-3.8-flash", new Date(at)).lines.map((l) => [l.meter, l.unit_usd]);
+    const intro = [["input_token", 7.5e-7], ["cached_input_token", 7.5e-8], ["text_output_token", 3.75e-6]];
+    const full = [["input_token", 1.5e-6], ["cached_input_token", 1.5e-7], ["text_output_token", 7.5e-6]];
+    expect(rates("2026-12-31T23:59:59Z")).toEqual(intro);
+    expect(rates("2027-01-01T00:00:00Z")).toEqual(full);
+    expect(rates("2027-06-01T00:00:00Z")).toEqual(full);
   });
   it("0082 and 0083 match the builders", () => {
     drift("0082_ai_text_models.sql", seedSql(textModelRows(), TEXT_SEED_HEADER));

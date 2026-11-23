@@ -1043,6 +1043,6 @@ Apply **before** the 2b-ii code deploys; without them the free features' provide
 ```sql
 -- expect 7 (6 here + the prompt model from 0079)
 select count(*) from ai_models where kind in ('text','scrape');
--- expect 6
-select count(*) from ai_model_prices where note in ('Published rate (D537).', 'Apify reports each run''s cost in USD (D537).');
+-- expect 7
+select count(*) from ai_model_prices where note in ('Published rate (D537).', 'Published rate after the introductory price (D537).', 'Apify reports each run''s cost in USD (D537).');
 ```

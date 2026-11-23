@@ -59,7 +59,7 @@ from jsonb_to_recordset($seed$[
       },
       {
         "meter": "cached_input_token",
-        "unit_usd": 2.0000000000000002e-7
+        "unit_usd": 2e-7
       },
       {
         "meter": "text_output_token",
@@ -85,6 +85,27 @@ from jsonb_to_recordset($seed$[
       {
         "meter": "text_output_token",
         "unit_usd": 0.00000375
+      }
+    ]
+  },
+  {
+    "model_id": "gemini:gemini-3.8-flash",
+    "effective_from": "2027-01-01T00:00:00.000Z",
+    "estimate": {},
+    "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+    "note": "Published rate after the introductory price (D537).",
+    "lines": [
+      {
+        "meter": "input_token",
+        "unit_usd": 0.0000015
+      },
+      {
+        "meter": "cached_input_token",
+        "unit_usd": 1.5e-7
+      },
+      {
+        "meter": "text_output_token",
+        "unit_usd": 0.0000075
       }
     ]
   },

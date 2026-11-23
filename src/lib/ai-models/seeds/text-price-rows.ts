@@ -13,9 +13,10 @@ export const TEXT_PRICE_HEADER = [
   "--   UPDATE_SEED=1 npx vitest run src/lib/ai-models/__tests__/text-models.test.ts",
 ];
 
-const perM = (n: number) => n / 1_000_000;
-const text = (model_id: string, input: number, cached: number, output: number, source_url: string): AiModelPriceSeedRow => ({
-  model_id, effective_from: TEXT_EPOCH, estimate: {}, source_url, note: "Published rate (D537).",
+// Rounded to 12 significant digits so 0.2 / 1e6 is 2e-7, not 2.0000000000000002e-7.
+const perM = (n: number) => Number((n / 1_000_000).toPrecision(12));
+const text = (model_id: string, input: number, cached: number, output: number, source_url: string, effective_from = TEXT_EPOCH, note = "Published rate (D537)."): AiModelPriceSeedRow => ({
+  model_id, effective_from, estimate: {}, source_url, note,
   lines: [
     { meter: "input_token", unit_usd: perM(input) },
     { meter: "cached_input_token", unit_usd: perM(cached) },
@@ -32,6 +33,8 @@ export function textPriceRows(): AiModelPriceSeedRow[] {
     text("gemini:gemini-3.1-pro-preview", 2.0, 0.2, 12.0, GEMINI_URL),
     // Introductory rate through 2026-12-31 (1.50 / 0.15 / 7.50 from 2027-01-01); read 2026-11-23.
     text("gemini:gemini-3.8-flash", 0.75, 0.075, 3.75, GEMINI_URL),
+    // The rate after the introductory price, from 2027-01-01; read 2026-11-23.
+    text("gemini:gemini-3.8-flash", 1.5, 0.15, 7.5, GEMINI_URL, "2027-01-01T00:00:00.000Z", "Published rate after the introductory price (D537)."),
     text("gemini:gemini-3.5-flash-lite", 0.3, 0.03, 2.5, GEMINI_URL),
     {
       model_id: APIFY_MODEL_ID, effective_from: TEXT_EPOCH, lines: [{ meter: "usd", unit_usd: 1 }], estimate: {},

@@ -6,8 +6,8 @@ import { imageEstimateUsd } from "../image-price";
 // D534 — migration 0078 is frozen history: these are the prices it seeded, pinned.
 describe("migration 0078's prices", () => {
   it("parses every row", () => {
-    // 21 rows from 0078, plus the 8 from 0080 (service prices and Kling unit rows), and the 6 from 0083 (text prices)
-    expect(seededCatalog().prices).toHaveLength(21 + 8 + 6);
+    // 21 rows from 0078, plus the 8 from 0080 (service prices and Kling unit rows), and the 7 from 0083 (text prices, including Gemini 3.8 Flash's rate from 2027).
+    expect(seededCatalog().prices).toHaveLength(21 + 8 + 7);
   });
   it("video: per second", () => {
     expect(videoSecondsUsd(seededPrice("kling:kling-3-0"), 1, true, "720p")).toBeCloseTo(0.126, 10);
