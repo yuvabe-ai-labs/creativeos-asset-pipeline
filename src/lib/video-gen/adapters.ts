@@ -16,8 +16,8 @@ import type { VideoAdapter } from "./types";
 // holds the Kling API's own name, which only the native transport's endpoint path uses.
 const kling =
   (model: KlingFalModel, settings: KlingSettingsBuilder): VideoAdapter =>
-  (input, { providerModelId }) =>
-    generateWithKling(klingEndpoint(model, providerModelId), settings, input);
+  (input, { spec, providerModelId }) =>
+    generateWithKling(klingEndpoint(model, providerModelId, spec.imageInputs.maxReferenceImages), settings, input);
 
 // Each version's length limits stay in code; the API model name comes from the row.
 const omni =

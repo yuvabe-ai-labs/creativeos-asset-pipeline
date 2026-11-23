@@ -40,16 +40,16 @@ describe("videoAdapters (D538)", () => {
   });
 
   it("Kling: the endpoint is the row's model name, the rest is the same as before", async () => {
-    expect(klingEndpoint("kling-3-0", "kling-3.0")).toEqual({
+    expect(klingEndpoint("kling-3-0", "kling-3.0", 0)).toEqual({
       endpointPath: "/image-to-video/kling-3.0", falModel: "kling-3-0", supportsReferences: false, requiresStartFrame: true,
     });
-    expect(klingEndpoint("kling-o1", "kling-o1")).toEqual({
+    expect(klingEndpoint("kling-o1", "kling-o1", 5)).toEqual({
       endpointPath: "/omni-video/kling-o1", falModel: "kling-o1", supportsReferences: true, requiresStartFrame: false,
     });
     await videoAdapters["video:kling-3-0-omni"](INPUT, ctx("kling:kling-3-0-omni", "kling-3.0-omni"));
-    expect(calls.kling).toHaveBeenCalledWith(klingEndpoint("kling-3-0-omni", "kling-3.0-omni"), build30OmniSettings, INPUT);
+    expect(calls.kling).toHaveBeenCalledWith(klingEndpoint("kling-3-0-omni", "kling-3.0-omni", 5), build30OmniSettings, INPUT);
     await videoAdapters["video:kling-3-0"](INPUT, ctx("kling:kling-3-0", "kling-3.0"));
-    expect(calls.kling).toHaveBeenLastCalledWith(klingEndpoint("kling-3-0", "kling-3.0"), build3_0Settings, INPUT);
+    expect(calls.kling).toHaveBeenLastCalledWith(klingEndpoint("kling-3-0", "kling-3.0", 0), build3_0Settings, INPUT);
   });
 
   it("Seedance: its reference cap from the catalog spec and its dated model from the row", async () => {
