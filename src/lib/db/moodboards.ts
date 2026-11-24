@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { ReferenceKind } from "@/lib/market/constants";
+import type { PostReading } from "@/lib/journey/market-copilot/read-post";
 
 /** Lifecycle of the media archive for one item (D265).
  *  `skipped` is terminal and not a failure — a link or a TikTok has no media of ours
@@ -42,6 +43,8 @@ export type MoodboardItem = {
   archive_attempts: number;
   archive_started_at: string | null;
   archived_at: string | null;
+  /** The market agent's reading of the post (D530, 0067); null until read. */
+  reading?: PostReading | null;
 };
 
 export async function listMoodboards(clientId: string): Promise<Moodboard[]> {
@@ -364,4 +367,44 @@ export async function listClientsWithMoodboards(
   return (
     (data ?? []) as { slug: string; name: string; moodboards: { id: string; name: string }[] | null }[]
   ).map((c) => ({ slug: c.slug, name: c.name, boards: c.moodboards ?? [] }));
+}
+
+// ── The market research agent (D530) ─────────────────────────────────────────
+
+/** The items with these ids that are on this client's boards; any other id is left out. The ids come
+ *  from a card or a job, so another client's item is never read through them. */
+export async function listItemsByIds(clientId: string, itemIds: string[]): Promise<MoodboardItem[]> {
+  const unique = [...new Set(itemIds)];
+  if (unique.length === 0) return [];
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("moodboard_items")
+    .select("*, moodboards!inner(client_id)")
+    .in("id", unique)
+    .eq("moodboards.client_id", clientId);
+  if (error) throw error;
+  return ((data ?? []) as (MoodboardItem & { moodboards?: unknown })[]).map((row) => {
+    const item = { ...row };
+    delete item.moodboards;
+    return item;
+  });
+}
+
+/** Every url already saved in the client's Direct and Adjacent boards, so fetching again never adds
+ *  a post twice. Throws when it cannot be read: never "nothing saved", which would add duplicates. */
+export async function listBucketUrls(clientId: string): Promise<Set<string>> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("moodboard_items")
+    .select("image_url, moodboards!inner(client_id, board_type)")
+    .eq("moodboards.client_id", clientId)
+    .in("moodboards.board_type", ["direct", "adjacent"]);
+  if (error) throw error;
+  return new Set(((data ?? []) as { image_url: string }[]).map((r) => r.image_url));
+}
+
+export async function setItemReading(itemId: string, reading: PostReading): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase.from("moodboard_items").update({ reading }).eq("id", itemId);
+  if (error) throw error;
 }

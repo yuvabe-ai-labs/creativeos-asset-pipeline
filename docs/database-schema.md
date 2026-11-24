@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0066** (`supabase/migrations/0001_init.sql` … `0066_copilot_turn_traces.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied. 0063, 0064 and 0065 are pairs too: the permission work's `0063_close_views_and_count_resends`, `0064_lock_node_files_bucket`, `0065_client_scoped_reads`, and the copilot journey's `0063_client_market_status`, `0064_client_copilot_messages`, `0065_kb_review_writes` (then `0066_copilot_turn_traces`). A bare number below means the permission work's file; the copilot journey's are named in full.
+Generated from migrations up to **0067** (`supabase/migrations/0001_init.sql` … `0067_market_item_readings.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied. 0063, 0064 and 0065 are pairs too: the permission work's `0063_close_views_and_count_resends`, `0064_lock_node_files_bucket`, `0065_client_scoped_reads`, and the copilot journey's `0063_client_market_status`, `0064_client_copilot_messages`, `0065_kb_review_writes` (then `0066_copilot_turn_traces`). A bare number below means the permission work's file; the copilot journey's are named in full.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -271,9 +271,10 @@ A client's board; `custom` boards plus one `direct` and one `adjacent` system bo
 - Index: `client_id`; unique `(client_id, board_type) where board_type <> 'custom'` · RLS: service role only.
 
 ### moodboard_items
-An image/video/link on a board, with its archived copy. *0026, 0034, 0039, 0040* · org_id · *Realtime*
+An image/video/link on a board, with its archived copy. *0026, 0034, 0039, 0040, 0067* · org_id · *Realtime*
 - `id` uuid PK · `moodboard_id` → moodboards cascade · `image_url` · `source_url` · `position` · `added_at` · `kind` check image/gif/video/youtube/instagram/tiktok/link/pinterest · `note` · `added_by` → auth.users set null · `thumbnail_url`
 - Archive: `media_url` · `media_bytes` · `media_type` · `archive_status` pending/downloading/ready/failed/skipped · `archive_error` · `archive_attempts` · `archive_started_at` · `archived_at`
+- `reading` jsonb, null until read: the market agent's reading of the post (hook, format, pacing, on-screen text, setting, occasion, summary, `from` media/thumbnail), so a post is read once (D530, 0067)
 - `org_id` → organizations (filled by trigger)
 - Indexes: `moodboard_id`, `org_id`, `archive_status` where pending/failed/downloading
 - RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065). Trigger `moodboard_items_set_org_id`.

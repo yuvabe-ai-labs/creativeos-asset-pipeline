@@ -42,7 +42,7 @@ export async function listSignalsWithItems(clientId: string): Promise<SignalWith
 /** True when every id is an item on one of this client's boards. The ids come from the request
  *  body, and the signal list embeds a signal's items, so another client's item must never be
  *  linked into this client's signal. */
-async function itemsBelongToClient(clientId: string, itemIds: string[]): Promise<boolean> {
+export async function itemsBelongToClient(clientId: string, itemIds: string[]): Promise<boolean> {
   const unique = [...new Set(itemIds)];
   const supabase = createServerSupabase();
   const { data, error } = await supabase
@@ -109,6 +109,19 @@ export async function updateSignal(
     .select("id");
   if (error) throw error;
   return (data ?? []).length > 0;
+}
+
+/** The client's signals by id and name only, newest first: what a script's "Built from" line shows
+ *  (D531). One query for the whole page, never one per signal. */
+export async function listSignalNames(clientId: string): Promise<{ id: string; name: string }[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("signals")
+    .select("id, name")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as { id: string; name: string }[];
 }
 
 export async function deleteSignal(clientId: string, id: string): Promise<boolean> {

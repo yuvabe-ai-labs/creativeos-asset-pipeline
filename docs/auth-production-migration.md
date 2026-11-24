@@ -1345,3 +1345,22 @@ drop function if exists node_client_id(uuid);
 drop function if exists auth_client_ids();
 notify pgrst, 'reload schema';
 ```
+
+## Migration 0067 — the market agent's reading of a reference (D530, 2026-11-24)
+
+`0067_market_item_readings.sql` adds one nullable column, `moodboard_items.reading jsonb`: the market
+research agent's reading of a post (hook, format, pacing, on-screen text, setting, occasion), so a
+post is read once. Safe to re-run (`add column if not exists`) and safe in any order with the code:
+the code treats a missing reading as unread. No data to backfill, no policy change (the column is
+covered by the existing `moodboard_items` read policy from 0065).
+
+**Check:** `select column_name from information_schema.columns where table_name = 'moodboard_items' and column_name = 'reading';` returns one row.
+
+**Rollback:** `alter table public.moodboard_items drop column if exists reading;`
+
+## Owed: the copilot journey's migrations 0063–0066 (2026-11-24)
+
+These are on the staging database and have no entry here yet. Each needs its own section before
+production: `0063_client_market_status` (clients.market_status; existing clients start approved),
+`0064_client_copilot_messages` (the onboarding thread table), `0065_kb_review_writes` (two KB review
+functions, no table change), `0066_copilot_turn_traces` (turn traces, kept 30 days by a daily task).
