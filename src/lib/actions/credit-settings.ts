@@ -16,6 +16,11 @@ const CANCEL_ERROR = "Only a change that hasn't started can be cancelled.";
 const CANCEL_SOON_ERROR = "This change starts in less than 2 minutes and can't be cancelled now.";
 const UNDO_ERROR = "Only the latest change you made in the last 24 hours can be undone.";
 const NO_PREVIOUS_ERROR = "There are no earlier settings to go back to.";
+const UNDO_ERRORS = {
+  "not-undoable": UNDO_ERROR,
+  scheduled: "There's a change scheduled. Cancel it first, then undo.",
+  "no-previous": NO_PREVIOUS_ERROR,
+} as const;
 
 function refresh(): void {
   clearAiCatalogCache();
@@ -87,9 +92,12 @@ export async function undoCreditSettingsAction(id: string): Promise<{ error?: st
     const rows = await listAdminCreditSettings();
     const now = new Date();
     const target = undoTarget(rows, id, caller.userId, now);
-    if (!target.ok) return { error: target.reason === "no-previous" ? NO_PREVIOUS_ERROR : UNDO_ERROR };
+    if (!target.ok) return { error: UNDO_ERRORS[target.reason] };
     const before = target.previous.settings;
-    if (!before) return { error: NO_PREVIOUS_ERROR };
+    if (!before) {
+      console.error("undoCreditSettingsAction refused: the earlier settings fail their check", id, target.previous.id, target.previous.problems);
+      return { error: SAVE_ERROR };
+    }
     const checked = checkNewCreditSettings(
       { effectiveFrom: now, marginPercent: before.marginPercent, roundStep: before.roundStep, note: undoNote(target.undone.effectiveFrom) },
       rows.map((r) => ({ effectiveFrom: r.effectiveFrom })),

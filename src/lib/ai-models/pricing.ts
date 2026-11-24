@@ -4,6 +4,10 @@ import type { AiCatalog, AiModelPrice, Meter, PriceLine } from "./types";
 
 // How long each server instance keeps the catalog (D529). Pure, so client-safe code can use it.
 export const CATALOG_CACHE_MS = 60_000;
+// A dated catalog row (price or credit settings) that starts in the future starts at least this long
+// after it is saved, and can't be cancelled or replaced in its last stretch of it. Two cache lifetimes
+// make sure every server has the row before any run uses it, and still has it when a run records it.
+export const CATALOG_CHANGE_LEAD_MS = 2 * CATALOG_CACHE_MS;
 
 export type PriceDims = Record<string, string | number | boolean | undefined>;
 export type MeterQuantities = Partial<Record<Meter, number>>;

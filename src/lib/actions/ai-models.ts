@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { getAiCatalog, clearAiCatalogCache } from "@/lib/ai-models/catalog";
 import { RUNNABLE_ADAPTER_KEYS } from "@/lib/ai-models/runnable-keys";
+import { CATALOG_CHANGE_LEAD_MS } from "@/lib/ai-models/pricing";
 import { checkModelPatch, checkNewPrice, priceConditionProblems, undoNote, undoTarget } from "@/lib/ai-models/model-edit";
 import {
   getAdminModel,
@@ -31,6 +32,9 @@ const REPLACE_ERROR = "Only a price that hasn't started can be replaced.";
 const ORDER_ERROR = "The list of models changed. Reload and try again.";
 const UNDO_ERROR = "Only the latest price change you made in the last 24 hours can be undone.";
 const NO_PREVIOUS_ERROR = "There is no earlier price to go back to.";
+const SOON_ERROR = "This change starts in less than 2 minutes and can't be changed now.";
+const SCHEDULED_ERROR = "There's a change scheduled. Cancel it first, then undo.";
+const UNDO_ERRORS = { "not-undoable": UNDO_ERROR, scheduled: SCHEDULED_ERROR, "no-previous": NO_PREVIOUS_ERROR } as const;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -126,13 +130,21 @@ function checkPrice(
     if (problems.length > 0) console.error(`${action} refused`, model.id, problems);
     return { error: checked.error };
   }
-  return { ...row, effectiveFrom: row.effectiveFrom.toISOString() };
+  return { ...row, effectiveFrom: checked.effectiveFrom.toISOString() };
 }
 
-export async function addAiModelPriceAction(input: PriceInput): Promise<{ error?: string }> {
+/** Why a price row can't be cancelled or replaced now, or null when it can. */
+function lockedProblem(effectiveFrom: string, now: Date, startedError: string): string | null {
+  const at = new Date(effectiveFrom).getTime();
+  if (at <= now.getTime()) return startedError;
+  return at <= now.getTime() + CATALOG_CHANGE_LEAD_MS ? SOON_ERROR : null;
+}
+
+export async function addAiModelPriceAction(input: PriceInput): Promise<{ error?: string; effectiveFrom?: string }> {
   const caller = await requireSuperAdmin();
   const shape = priceInputProblem(input);
   if ("error" in shape) return shape;
+  let effective = "";
   try {
     const effectiveFrom = new Date(input.effectiveFrom);
     if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
@@ -148,20 +160,25 @@ export async function addAiModelPriceAction(input: PriceInput): Promise<{ error?
     );
     if ("error" in price) return price;
     await insertAiModelPrice(price, caller.userId);
+    effective = price.effectiveFrom;
   } catch (e) {
     console.error("addAiModelPriceAction failed", input.modelId, e);
     return { error: SAVE_ERROR };
   }
   refresh();
-  return {};
+  // The start the row really got: a start in the next 2 minutes is moved out to 2 minutes.
+  return { effectiveFrom: effective };
 }
 
 /** D549 — swaps a price that hasn't started for a new one, in one transaction. */
-export async function replaceAiModelPriceAction(input: PriceInput & { replaceId: string }): Promise<{ error?: string }> {
+export async function replaceAiModelPriceAction(
+  input: PriceInput & { replaceId: string },
+): Promise<{ error?: string; effectiveFrom?: string }> {
   const caller = await requireSuperAdmin();
   if (typeof input?.replaceId !== "string") return { error: BREAK_ERROR };
   const shape = priceInputProblem(input);
   if ("error" in shape) return shape;
+  let effective = "";
   try {
     const effectiveFrom = new Date(input.effectiveFrom);
     if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
@@ -170,7 +187,9 @@ export async function replaceAiModelPriceAction(input: PriceInput & { replaceId:
     const now = new Date();
     // Scoped to the model: the rows read are this model's only. The database checks both again.
     const replaced = rows.find((r) => r.id === input.replaceId);
-    if (!replaced || new Date(replaced.effectiveFrom).getTime() <= now.getTime()) return { error: REPLACE_ERROR };
+    if (!replaced) return { error: REPLACE_ERROR };
+    const locked = lockedProblem(replaced.effectiveFrom, now, REPLACE_ERROR);
+    if (locked) return { error: locked };
     const price = checkPrice(
       "replaceAiModelPriceAction",
       row.model,
@@ -182,17 +201,18 @@ export async function replaceAiModelPriceAction(input: PriceInput & { replaceId:
     if ("error" in price) return price;
     const { replaced: done } = await replaceAiModelPrice(input.replaceId, price, caller.userId);
     if (!done) return { error: REPLACE_ERROR };
+    effective = price.effectiveFrom;
   } catch (e) {
     console.error("replaceAiModelPriceAction failed", input.modelId, e);
     return { error: SAVE_ERROR };
   }
   refresh();
-  return {};
+  return { effectiveFrom: effective };
 }
 
 /** D549 — the order models of one kind are listed and offered in. `orderedIds` is every model of the kind once. */
 export async function reorderAiModelsAction(kind: string, orderedIds: string[]): Promise<{ error?: string }> {
-  await requireSuperAdmin();
+  const caller = await requireSuperAdmin();
   if (typeof kind !== "string" || !Array.isArray(orderedIds) || orderedIds.length === 0 || !orderedIds.every((id) => typeof id === "string")) {
     return { error: ORDER_ERROR };
   }
@@ -206,7 +226,7 @@ export async function reorderAiModelsAction(kind: string, orderedIds: string[]):
     }
     const sortOf = new Map(ofKind.map((r) => [String(r.raw.id), r.raw.sort_order]));
     if (orderedIds.every((id, i) => sortOf.get(id) === i)) return {};
-    await reorderAiModels(kind, orderedIds);
+    await reorderAiModels(kind, orderedIds, caller.userId);
   } catch (e) {
     console.error("reorderAiModelsAction failed", kind, e);
     return { error: SAVE_ERROR };
@@ -229,9 +249,12 @@ export async function undoAiModelPriceAction(modelId: string, priceId: string): 
     if (!row?.model) return { error: SAVE_ERROR };
     const now = new Date();
     const target = undoTarget(rows, priceId, caller.userId, now);
-    if (!target.ok) return { error: target.reason === "no-previous" ? NO_PREVIOUS_ERROR : UNDO_ERROR };
+    if (!target.ok) return { error: UNDO_ERRORS[target.reason] };
     const before = target.previous.price;
-    if (!before) return { error: NO_PREVIOUS_ERROR };
+    if (!before) {
+      console.error("undoAiModelPriceAction refused: the earlier price fails its check", modelId, target.previous.id, target.previous.problems);
+      return { error: SAVE_ERROR };
+    }
     const price = checkPrice(
       "undoAiModelPriceAction",
       row.model,
@@ -254,6 +277,11 @@ export async function cancelAiModelPriceAction(priceId: string, modelId: string)
   await requireSuperAdmin();
   if (typeof priceId !== "string" || typeof modelId !== "string") return { error: SAVE_ERROR };
   try {
+    // A fresh read: a row about to start may already be in use on some server. The database guard
+    // refuses the same window.
+    const row = (await listAdminPrices(modelId)).find((r) => r.id === priceId);
+    const locked = row ? lockedProblem(row.effectiveFrom, new Date(), CANCEL_ERROR) : null;
+    if (locked) return { error: locked };
     // Scoped to the model: a price of another model is never cancelled by this call.
     const { deleted } = await deleteAiModelPrice(priceId, modelId);
     if (!deleted) return { error: CANCEL_ERROR };

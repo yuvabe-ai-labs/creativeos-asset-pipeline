@@ -1,12 +1,11 @@
 // D548 — the checks every admin write to the credit settings runs. Pure and client-safe.
-import { CATALOG_CACHE_MS } from "@/lib/ai-models/pricing";
+import { CATALOG_CHANGE_LEAD_MS } from "@/lib/ai-models/pricing";
 import type { CreditSettings } from "@/lib/ai-models/types";
 
 export const NOTE_MAX = 500;
 // A change starts at least this long after it is saved, and can't be cancelled in its last stretch of
-// it. Other servers keep the old catalog for up to CATALOG_CACHE_MS, so two cache lifetimes make sure
-// every server has the row before any run uses it.
-export const CREDIT_SETTINGS_LEAD_MS = 2 * CATALOG_CACHE_MS;
+// it (the lead every dated catalog row shares; see CATALOG_CHANGE_LEAD_MS).
+export const CREDIT_SETTINGS_LEAD_MS = CATALOG_CHANGE_LEAD_MS;
 const MARGIN_ERROR = "The margin must be between 0% and 200%.";
 const STEP_ERROR = "Pick a rounding step of 1, 5 or 10.";
 const PAST_ERROR = "A change can't start in the past.";

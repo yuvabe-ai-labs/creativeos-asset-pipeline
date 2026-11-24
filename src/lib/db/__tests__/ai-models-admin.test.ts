@@ -167,12 +167,12 @@ describe("replaceAiModelPrice", () => {
 
 describe("reorderAiModels", () => {
   it("writes the order in one rpc call", async () => {
-    await reorderAiModels("video", ["b", "a"]);
-    expect(rpcCalls).toEqual([{ fn: "reorder_ai_models", args: { p_kind: "video", p_ids: ["b", "a"] } }]);
+    await reorderAiModels("video", ["b", "a"], "u1");
+    expect(rpcCalls).toEqual([{ fn: "reorder_ai_models", args: { p_kind: "video", p_ids: ["b", "a"], p_updated_by: "u1" } }]);
   });
   it("throws on a database error", async () => {
     rpcResult = { data: null, error: { message: "boom" } };
-    await expect(reorderAiModels("video", ["a"])).rejects.toThrow("boom");
+    await expect(reorderAiModels("video", ["a"], "u1")).rejects.toThrow("boom");
   });
 });
 

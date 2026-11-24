@@ -184,7 +184,8 @@ describe("addAiModelPriceAction", () => {
     expect(m.insertAiModelPrice).not.toHaveBeenCalled();
   });
   it("inserts a valid price with the caller, clears the cache", async () => {
-    expect(await addAiModelPriceAction(input({ sourceUrl: "https://x.test", note: "n" }))).toEqual({});
+    const at = future();
+    expect(await addAiModelPriceAction(input({ effectiveFrom: at, sourceUrl: "https://x.test", note: "n" }))).toEqual({ effectiveFrom: new Date(at).toISOString() });
     expect(m.insertAiModelPrice).toHaveBeenCalledTimes(1);
     expect(m.insertAiModelPrice.mock.calls[0][0]).toMatchObject({ modelId: NANO_PRO, lines, sourceUrl: "https://x.test", note: "n" });
     expect(m.insertAiModelPrice.mock.calls[0][1]).toBe("u1");
@@ -197,13 +198,24 @@ describe("addAiModelPriceAction", () => {
       expect(await addAiModelPriceAction(input({ sourceUrl })), String(sourceUrl)).toEqual(SOURCE);
     }
     expect(m.insertAiModelPrice).not.toHaveBeenCalled();
-    expect(await addAiModelPriceAction(input({ sourceUrl: "http://x.test/p" }))).toEqual({});
-    expect(await addAiModelPriceAction(input({ sourceUrl: "" }))).toEqual({});
+    expect(await addAiModelPriceAction(input({ sourceUrl: "http://x.test/p" }))).not.toHaveProperty("error");
+    expect(await addAiModelPriceAction(input({ sourceUrl: "" }))).not.toHaveProperty("error");
     expect(m.insertAiModelPrice.mock.calls[1][0]).toMatchObject({ sourceUrl: null });
   });
   it("hides a raw database error", async () => {
     m.insertAiModelPrice.mockRejectedValue(new Error("boom"));
     expect(await addAiModelPriceAction(input())).toEqual({ error: GENERIC });
+  });
+  it("moves a start in the next 2 minutes out to 2 minutes and returns it; now stays now", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-01T12:00:00Z"));
+    try {
+      expect(await addAiModelPriceAction(input({ effectiveFrom: "2026-06-01T12:00:30Z" }))).toEqual({ effectiveFrom: "2026-06-01T12:02:00.000Z" });
+      expect(m.insertAiModelPrice.mock.calls[0][0]).toMatchObject({ effectiveFrom: "2026-06-01T12:02:00.000Z" });
+      expect(await addAiModelPriceAction(input({ effectiveFrom: "2026-06-01T12:00:00Z" }))).toEqual({ effectiveFrom: "2026-06-01T12:00:00.000Z" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it("checks the caller first", async () => {
     await addAiModelPriceAction(input());
@@ -212,6 +224,20 @@ describe("addAiModelPriceAction", () => {
 });
 
 describe("cancelAiModelPriceAction", () => {
+  it("refuses a price starting within 2 minutes, or started, from a fresh read, and deletes nothing", async () => {
+    m.listAdminPrices.mockResolvedValue([priceRow("p1", new Date(Date.now() + 90_000).toISOString())]);
+    expect(await cancelAiModelPriceAction("p1", NANO_PRO)).toEqual({ error: "This change starts in less than 2 minutes and can't be changed now." });
+    expect(m.listAdminPrices).toHaveBeenCalledWith(NANO_PRO);
+    m.listAdminPrices.mockResolvedValue([priceRow("p1", new Date(Date.now() - 1_000).toISOString())]);
+    expect(await cancelAiModelPriceAction("p1", NANO_PRO)).toEqual({ error: "Only a price that hasn't started can be cancelled." });
+    expect(m.deleteAiModelPrice).not.toHaveBeenCalled();
+    expect(m.clearAiCatalogCache).not.toHaveBeenCalled();
+  });
+  it("cancels a price starting after the lead time", async () => {
+    m.listAdminPrices.mockResolvedValue([priceRow("p1", new Date(Date.now() + 600_000).toISOString())]);
+    expect(await cancelAiModelPriceAction("p1", NANO_PRO)).toEqual({});
+    expect(m.deleteAiModelPrice).toHaveBeenCalledWith("p1", NANO_PRO);
+  });
   it("cancels and clears the cache", async () => {
     expect(await cancelAiModelPriceAction("p1", NANO_PRO)).toEqual({});
     expect(m.deleteAiModelPrice).toHaveBeenCalledWith("p1", NANO_PRO);
@@ -252,7 +278,7 @@ describe("replaceAiModelPriceAction", () => {
   beforeEach(() => { m.listAdminPrices.mockResolvedValue([priceRow("old", at)]); });
 
   it("replaces in one rpc call at the same start, the replaced row left out of the taken-start check", async () => {
-    expect(await replaceAiModelPriceAction(input({ note: "n" }))).toEqual({});
+    expect(await replaceAiModelPriceAction(input({ note: "n" }))).toEqual({ effectiveFrom: new Date(at).toISOString() });
     expect(m.replaceAiModelPrice).toHaveBeenCalledTimes(1);
     expect(m.replaceAiModelPrice).toHaveBeenCalledWith(
       "old",
@@ -279,6 +305,11 @@ describe("replaceAiModelPriceAction", () => {
   it("refuses a row that has started", async () => {
     m.listAdminPrices.mockResolvedValue([priceRow("old", new Date(Date.now() - 1_000).toISOString())]);
     expect(await replaceAiModelPriceAction(input())).toEqual(REPLACE);
+    expect(m.replaceAiModelPrice).not.toHaveBeenCalled();
+  });
+  it("refuses a row starting within 2 minutes", async () => {
+    m.listAdminPrices.mockResolvedValue([priceRow("old", new Date(Date.now() + 90_000).toISOString())]);
+    expect(await replaceAiModelPriceAction(input())).toEqual({ error: "This change starts in less than 2 minutes and can't be changed now." });
     expect(m.replaceAiModelPrice).not.toHaveBeenCalled();
   });
   it("refuses when the database finds the row started meanwhile", async () => {
@@ -313,7 +344,7 @@ describe("reorderAiModelsAction", () => {
     const order = [...videoIds].reverse();
     expect(await reorderAiModelsAction("video", order)).toEqual({});
     expect(m.reorderAiModels).toHaveBeenCalledTimes(1);
-    expect(m.reorderAiModels).toHaveBeenCalledWith("video", order);
+    expect(m.reorderAiModels).toHaveBeenCalledWith("video", order, "u1");
     expect(m.clearAiCatalogCache).toHaveBeenCalledTimes(1);
     expect(m.revalidatePath).toHaveBeenCalledWith("/admin/models");
   });
@@ -372,7 +403,7 @@ describe("undoAiModelPriceAction", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
-    m.listAdminPrices.mockResolvedValue([scheduled, latest, previous]);
+    m.listAdminPrices.mockResolvedValue([latest, previous]);
   });
   afterEach(() => { vi.useRealTimers(); });
 
@@ -387,7 +418,13 @@ describe("undoAiModelPriceAction", () => {
     expect(m.deleteAiModelPrice).not.toHaveBeenCalled();
     expect(m.clearAiCatalogCache).toHaveBeenCalledTimes(1);
   });
+  it("refuses while a change is scheduled", async () => {
+    m.listAdminPrices.mockResolvedValue([scheduled, latest, previous]);
+    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual({ error: "There's a change scheduled. Cancel it first, then undo." });
+    expect(m.insertAiModelPrice).not.toHaveBeenCalled();
+  });
   it("refuses anything but the latest started row, and writes nothing", async () => {
+    m.listAdminPrices.mockResolvedValue([scheduled, latest, previous]);
     expect(await undoAiModelPriceAction(NANO_PRO, "p1")).toEqual(UNDO);
     expect(await undoAiModelPriceAction(NANO_PRO, "p3")).toEqual(UNDO);
     expect(await undoAiModelPriceAction(NANO_PRO, "elsewhere")).toEqual(UNDO);
@@ -404,11 +441,12 @@ describe("undoAiModelPriceAction", () => {
     expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual(UNDO);
     expect(m.insertAiModelPrice).not.toHaveBeenCalled();
   });
-  it("refuses when there is no earlier price, or it fails its check", async () => {
+  it("refuses when there is no earlier price, and logs an earlier price that fails its check", async () => {
     m.listAdminPrices.mockResolvedValue([latest]);
     expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual({ error: "There is no earlier price to go back to." });
     m.listAdminPrices.mockResolvedValue([latest, { ...previous, price: null }]);
-    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual({ error: "There is no earlier price to go back to." });
+    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual({ error: GENERIC });
+    expect(console.error).toHaveBeenCalled();
     expect(m.insertAiModelPrice).not.toHaveBeenCalled();
   });
   it("runs the price checks on the restored price", async () => {

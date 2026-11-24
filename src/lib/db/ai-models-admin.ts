@@ -138,9 +138,9 @@ export async function modelRunsByAgency(from: string, to: string, modelId?: stri
   return modelId ? rows.filter((r) => r.modelId === modelId) : rows;
 }
 
-/** Writes sort_order 0..n-1 for the models of one kind, in one statement (migration 0088). */
-export async function reorderAiModels(kind: string, ids: string[]): Promise<void> {
-  const { error } = await createServerSupabase().rpc("reorder_ai_models", { p_kind: kind, p_ids: ids });
+/** Writes sort_order 0..n-1 for the models of one kind, in one statement (migration 0088); changed rows get updated_by. */
+export async function reorderAiModels(kind: string, ids: string[], userId: string): Promise<void> {
+  const { error } = await createServerSupabase().rpc("reorder_ai_models", { p_kind: kind, p_ids: ids, p_updated_by: userId });
   if (error) throw new Error(error.message);
 }
 

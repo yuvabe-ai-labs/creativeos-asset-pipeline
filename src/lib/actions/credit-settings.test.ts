@@ -146,7 +146,7 @@ describe("undoCreditSettingsAction", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
-    m.listAdminCreditSettings.mockImplementation(async () => { calls.push("read"); return [scheduled, latest, previous]; });
+    m.listAdminCreditSettings.mockImplementation(async () => { calls.push("read"); return [latest, previous]; });
   });
   afterEach(() => { vi.useRealTimers(); });
 
@@ -162,7 +162,16 @@ describe("undoCreditSettingsAction", () => {
     expect(m.revalidatePath).toHaveBeenCalledWith("/admin/credits");
     expect(calls).toEqual(["auth", "read"]);
   });
+  it("refuses while a change is scheduled, including the row a first Undo just added", async () => {
+    const SCHEDULED = { error: "There's a change scheduled. Cancel it first, then undo." };
+    m.listAdminCreditSettings.mockResolvedValue([scheduled, latest, previous]);
+    expect(await undoCreditSettingsAction("c2")).toEqual(SCHEDULED);
+    m.listAdminCreditSettings.mockResolvedValue([settingsRow("c4", "2026-11-24T12:02:00.000Z", 0, 5), latest, previous]);
+    expect(await undoCreditSettingsAction("c2")).toEqual(SCHEDULED);
+    expect(m.insertCreditSettings).not.toHaveBeenCalled();
+  });
   it("refuses anything but the latest started row, and writes nothing", async () => {
+    m.listAdminCreditSettings.mockResolvedValue([scheduled, latest, previous]);
     expect(await undoCreditSettingsAction("c1")).toEqual(UNDO);
     expect(await undoCreditSettingsAction("c3")).toEqual(UNDO);
     expect(await undoCreditSettingsAction("nope")).toEqual(UNDO);
@@ -176,17 +185,12 @@ describe("undoCreditSettingsAction", () => {
     expect(await undoCreditSettingsAction("c2")).toEqual(UNDO);
     expect(m.insertCreditSettings).not.toHaveBeenCalled();
   });
-  it("refuses when there is no earlier row, or it fails its check", async () => {
-    const NONE = { error: "There are no earlier settings to go back to." };
+  it("refuses when there is no earlier row, and logs an earlier row that fails its check", async () => {
     m.listAdminCreditSettings.mockResolvedValue([latest]);
-    expect(await undoCreditSettingsAction("c2")).toEqual(NONE);
+    expect(await undoCreditSettingsAction("c2")).toEqual({ error: "There are no earlier settings to go back to." });
     m.listAdminCreditSettings.mockResolvedValue([latest, { ...previous, settings: null }]);
-    expect(await undoCreditSettingsAction("c2")).toEqual(NONE);
-    expect(m.insertCreditSettings).not.toHaveBeenCalled();
-  });
-  it("runs the settings checks, so a start 2 minutes out that is taken is refused", async () => {
-    m.listAdminCreditSettings.mockResolvedValue([settingsRow("c4", "2026-11-24T12:02:00.000Z", 5, 5), latest, previous]);
-    expect(await undoCreditSettingsAction("c2")).toEqual({ error: "There is already a change starting then." });
+    expect(await undoCreditSettingsAction("c2")).toEqual({ error: GENERIC });
+    expect(console.error).toHaveBeenCalled();
     expect(m.insertCreditSettings).not.toHaveBeenCalled();
   });
   it("guards the id's shape and hides a raw database error", async () => {

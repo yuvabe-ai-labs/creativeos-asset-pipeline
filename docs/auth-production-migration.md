@@ -1115,22 +1115,33 @@ Apply with Plan 5a, before the super admin adds or cancels a credit setting. It 
 select prosrc like '%interval ''2 minutes''%' as has_lead from pg_proc where proname = 'credit_settings_guard';
 ```
 
-## Migration 0088 — replace, reorder and agencies affected for the model admin (D549, 2026-11-24)
+## Migration 0088 — replace, reorder and agencies affected for the model admin; a 2-minute lead for prices (D549, 2026-11-24)
 
 `supabase/migrations/0088_admin_price_ops.sql`. Paste into the Supabase SQL editor → Run, after 0087.
-Apply before the plan 5b code deploys. It adds three functions the super admin's models and credits pages call: `replace_ai_model_price` (deletes a price that hasn't started and adds its replacement in one transaction; a started price, or one of another model, is refused and nothing changes), `reorder_ai_models` (writes the order of one kind's models in one statement; the list must name every model of that kind once) and `ai_model_month_runs_by_org` (this month's runs, cost and credits per agency per model, in one grouped query). Only the service role can run them.
-**Safe to re-run:** `create or replace function` throughout, and the revokes and grants repeat harmlessly. No table changes.
-**Ordering:** apply before deploying the 5b code. If it lands later, replacing a price and reordering models fail with "Could not save. Try again." and the agencies-affected numbers can't load until it is applied; nothing else changes.
+Apply before the plan 5b code deploys. It does five things:
+- `ai_model_prices_guard` (the 0076 trigger function) now refuses to delete a price in the 2 minutes before it starts, as 0087 does for credit settings. Other servers keep the old catalog for up to a minute, so a run may already be using that row. The app refuses the same window, and a new price set to start within 2 minutes is moved out to 2 minutes; a price that starts now is still allowed.
+- `replace_ai_model_price` deletes a price that starts more than 2 minutes from now and adds its replacement in one transaction. A price that has started, starts within 2 minutes, or belongs to another model is refused and nothing changes; so is a replacement that starts in the past.
+- `reorder_ai_models` writes the order of one kind's models in one statement and records who changed each row (`updated_by`, `updated_at`). The list must name every model of that kind once.
+- `ai_model_month_runs_by_org` returns this month's runs, cost and credits per agency per model, in one grouped query.
+- Execute on the three new functions and on 0085's `ai_model_month_stats` is taken away from public, anon and authenticated and granted to the service role only.
+
+**Safe to re-run:** `create or replace function` throughout, `drop function if exists` for a two-argument `reorder_ai_models` that never shipped, and the revokes and grants repeat harmlessly. No table changes.
+**Ordering:** apply before deploying the 5b code. If it lands later, replacing a price and reordering models fail with "Could not save. Try again." and the agencies-affected numbers can't load until it is applied. The price lead is then enforced by the app only.
 
 ```sql
--- expect 3 rows, each with service_role_can = true and anon_can = false
+-- expect 4 rows, each with service_role_can = true and anon_can = false and authenticated_can = false
 select p.proname,
        has_function_privilege('service_role', p.oid, 'execute') as service_role_can,
-       has_function_privilege('anon', p.oid, 'execute') as anon_can
+       has_function_privilege('anon', p.oid, 'execute') as anon_can,
+       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_can
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
-  and p.proname in ('replace_ai_model_price', 'reorder_ai_models', 'ai_model_month_runs_by_org')
+  and p.proname in ('replace_ai_model_price', 'reorder_ai_models', 'ai_model_month_runs_by_org', 'ai_model_month_stats')
 order by p.proname;
+-- expect 1 row: true (the price guard has the 2-minute lead)
+select prosrc like '%interval ''2 minutes''%' as has_lead from pg_proc where proname = 'ai_model_prices_guard';
+-- expect 1 row: p_kind text, p_ids text[], p_updated_by uuid
+select pg_get_function_identity_arguments(oid) from pg_proc where proname = 'reorder_ai_models';
 -- expect 1 row: a number, no error (the grouped query runs)
 select count(*) from ai_model_month_runs_by_org(date_trunc('month', now()), now());
 ```

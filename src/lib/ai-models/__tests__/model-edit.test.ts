@@ -166,7 +166,18 @@ describe("checkNewPrice", () => {
   const now = new Date("2026-11-23T10:00:00Z");
   const lines = [{ meter: "output_image" as const, unit_usd: 0.1 }];
   it("accepts a price starting now or later", () => {
-    expect(checkNewPrice(row(NANO_PRO), { effectiveFrom: now, lines, estimate: {} }, [], now)).toEqual({ ok: true });
+    expect(checkNewPrice(row(NANO_PRO), { effectiveFrom: now, lines, estimate: {} }, [], now)).toEqual({ ok: true, effectiveFrom: now });
+    const later = new Date(now.getTime() + 180_000);
+    expect(checkNewPrice(row(NANO_PRO), { effectiveFrom: later, lines, estimate: {} }, [], now)).toEqual({ ok: true, effectiveFrom: later });
+  });
+  it("moves a start in the next 2 minutes out to 2 minutes, and checks the moved start is free", () => {
+    const lead = new Date(now.getTime() + 120_000);
+    for (const ms of [1, 30_000, 119_999]) {
+      expect(checkNewPrice(row(NANO_PRO), { effectiveFrom: new Date(now.getTime() + ms), lines, estimate: {} }, [], now)).toEqual({ ok: true, effectiveFrom: lead });
+    }
+    const taken = [{ ...catalog.prices[0], modelId: NANO_PRO, effectiveFrom: lead.toISOString() }];
+    expect(checkNewPrice(row(NANO_PRO), { effectiveFrom: new Date(now.getTime() + 30_000), lines, estimate: {} }, taken, now))
+      .toEqual({ ok: false, error: "This model already has a price starting then." });
   });
   it("refuses the past, a taken start, and a condition on an unknown setting", () => {
     expect(checkNewPrice(row(NANO_PRO), { effectiveFrom: new Date("2026-11-22T00:00:00Z"), lines, estimate: {} }, [], now))
@@ -193,7 +204,7 @@ describe("checkNewPrice schema and boundary", () => {
     expect(run([{ meter: "output_image", unit_usd: NaN }])).toEqual(broke);
   });
   it("allows 59 s in the past and refuses 61 s", () => {
-    expect(run(ok, {}, new Date(now.getTime() - 59_000))).toEqual({ ok: true });
+    expect(run(ok, {}, new Date(now.getTime() - 59_000))).toEqual({ ok: true, effectiveFrom: new Date(now.getTime() - 59_000) });
     expect(run(ok, {}, new Date(now.getTime() - 61_000))).toEqual({ ok: false, error: "A price can't start in the past." });
   });
 });

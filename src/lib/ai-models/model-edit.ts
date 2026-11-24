@@ -6,6 +6,7 @@ import { IMAGE_ESTIMATE_KEYS, imageEstimateUsd } from "./image-price";
 import { videoEstimateKeys, videoEstimateUsd } from "./video-price";
 import { TRANSCRIBE_ESTIMATE_KEYS } from "./service-price";
 import { asResolutionString, isVideoAudioEnabled } from "@/lib/video-gen/cost";
+import { CATALOG_CHANGE_LEAD_MS } from "./pricing";
 import type { ParamSpec } from "@/lib/image-gen/types";
 import type { AiModel, AiModelPrice, PriceLine } from "./types";
 
@@ -188,14 +189,20 @@ export function checkParamsChange(
   return { ok: true };
 }
 
+/**
+ * `effectiveFrom` in the result is the start the row gets. A start up to now stays: a run records
+ * the price row it used, so a row live at once is safe. A start in the next CATALOG_CHANGE_LEAD_MS is
+ * moved out to it, so every server has the row before it starts and it can't be cancelled under a run.
+ */
 export function checkNewPrice(
   model: AiModel,
   input: { effectiveFrom: Date; lines: PriceLine[]; estimate: Record<string, number> },
   existing: Pick<AiModelPrice, "modelId" | "effectiveFrom">[],
   now: Date,
-): { ok: true } | { ok: false; error: string } {
-  const at = input.effectiveFrom.getTime();
-  if (Number.isNaN(at) || at < now.getTime() - 60_000) return { ok: false, error: "A price can't start in the past." };
+): { ok: true; effectiveFrom: Date } | { ok: false; error: string } {
+  const requested = input.effectiveFrom.getTime();
+  if (Number.isNaN(requested) || requested < now.getTime() - 60_000) return { ok: false, error: "A price can't start in the past." };
+  const at = requested <= now.getTime() ? requested : Math.max(requested, now.getTime() + CATALOG_CHANGE_LEAD_MS);
   if (existing.some((p) => p.modelId === model.id && new Date(p.effectiveFrom).getTime() === at)) {
     return { ok: false, error: "This model already has a price starting then." };
   }
@@ -205,14 +212,14 @@ export function checkNewPrice(
   const candidate = checkAiModelPriceRow({
     id: "new",
     model_id: model.id,
-    effective_from: input.effectiveFrom.toISOString(),
+    effective_from: new Date(at).toISOString(),
     lines: input.lines,
     estimate: input.estimate,
     source_url: null,
     note: null,
   });
   if (!candidate.price) return { ok: false, error: BREAK_ERROR };
-  return { ok: true };
+  return { ok: true, effectiveFrom: new Date(at) };
 }
 
 // D549 — Undo of a started change: only the latest started row, made by this admin in the last day.
@@ -225,13 +232,16 @@ export function undoTarget<T extends DatedRow>(
   id: string,
   userId: string,
   now: Date,
-): { ok: true; undone: T; previous: T } | { ok: false; reason: "not-undoable" | "no-previous" } {
+): { ok: true; undone: T; previous: T } | { ok: false; reason: "not-undoable" | "scheduled" | "no-previous" } {
   const at = (r: DatedRow) => new Date(r.effectiveFrom).getTime();
   const started = rows.filter((r) => at(r) <= now.getTime()).sort((a, b) => at(b) - at(a));
   const undone = started[0];
   if (!undone || undone.id !== id || undone.createdBy !== userId) return { ok: false, reason: "not-undoable" };
   // Written so an unreadable created_at refuses too.
   if (!(now.getTime() - new Date(undone.createdAt).getTime() <= UNDO_WINDOW_MS)) return { ok: false, reason: "not-undoable" };
+  // A scheduled row would take over from the Undo row anyway; it is cancelled first. This also stops a
+  // second Undo while the first one's row waits out its lead.
+  if (rows.some((r) => at(r) > now.getTime())) return { ok: false, reason: "scheduled" };
   const previous = started[1];
   if (!previous) return { ok: false, reason: "no-previous" };
   return { ok: true, undone, previous };
