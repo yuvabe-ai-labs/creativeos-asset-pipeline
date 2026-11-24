@@ -2,6 +2,7 @@ import type { KbSaved } from "@/lib/journey/kb-copilot/turn";
 import type { Attachment, ThreadState } from "@/lib/journey/thread/schema";
 import type { KbTurnEvent } from "@/lib/journey/thread/turn-events";
 import { readJson } from "./read-json";
+import type { SignalDraftDecision } from "@/lib/journey/thread/schema";
 import { readNdjson } from "./read-ndjson";
 
 const COULD_NOT_ANSWER = "The copilot could not answer.";
@@ -46,6 +47,26 @@ class CopilotThreadService {
       body: JSON.stringify(body),
     });
     return readJson<{ state: ThreadState }>(res, "Could not apply that change.");
+  }
+
+  /** A person confirms a brands card (D530): the handles in `keep` are fetched. */
+  async confirmBrands(clientId: string, messageId: string, keep: string[]): Promise<{ state: ThreadState }> {
+    const res = await fetch(`/api/clients/${clientId}/copilot/brands/${messageId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keep }),
+    });
+    return readJson<{ state: ThreadState }>(res, "Could not start bringing in their posts.");
+  }
+
+  /** A person keeps (as edited) or drops a drafted signal (D530). */
+  async decideSignalDraft(clientId: string, messageId: string, body: SignalDraftDecision): Promise<{ state: ThreadState; signalId?: string }> {
+    const res = await fetch(`/api/clients/${clientId}/copilot/signal-drafts/${messageId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return readJson<{ state: ThreadState; signalId?: string }>(res, "Could not save that signal.");
   }
 }
 

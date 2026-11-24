@@ -7,13 +7,22 @@ import { cn } from "@/lib/utils";
 import { ThreadAttachmentChip } from "./thread-attachment-chip";
 import { ThreadStatusLines } from "./thread-status-lines";
 import { ThreadChangeCard, type ChangeDecision } from "./thread-change-card";
+import { ThreadBrandsCard } from "./thread-brands-card";
+import { ThreadSignalDraftCard } from "./thread-signal-draft-card";
+import type { SignalDraftDecision } from "@/lib/journey/thread/schema";
 
 /** One message of a copilot thread, the same in every stage: the words, what was attached, and
  *  the card. A later part adds the change card here. */
-export function ThreadMessageItem({ message, change, footer }: {
+export function ThreadMessageItem({ message, change, market, footer }: {
   message: ThreadMessage;
   /** How a change card in this thread is settled; a stage with no change cards leaves it out. */
   change?: { busy: boolean; onDecide: (messageId: string, decision: ChangeDecision) => void };
+  /** How the market agent's cards are settled (D530): a brands card confirmed, a draft kept or dropped. */
+  market?: {
+    busy: boolean;
+    onConfirmBrands: (messageId: string, keep: string[]) => void;
+    onDecideDraft: (messageId: string, decision: SignalDraftDecision) => void;
+  };
   /** Under the message: the trace of the turn that wrote it, with the developer switch on (D521). */
   footer?: ReactNode;
 }) {
@@ -33,6 +42,12 @@ export function ThreadMessageItem({ message, change, footer }: {
       {message.card?.kind === "status" && <ThreadStatusLines lines={message.card.lines} />}
       {message.card?.kind === "change" && change && (
         <ThreadChangeCard id={message.id} card={message.card} outOfDate={message.outOfDate} busy={change.busy} onDecide={(d) => change.onDecide(message.id, d)} />
+      )}
+      {message.card?.kind === "brands" && market && (
+        <ThreadBrandsCard id={message.id} card={message.card} busy={market.busy} onConfirm={(keep) => market.onConfirmBrands(message.id, keep)} />
+      )}
+      {message.card?.kind === "signal-draft" && market && (
+        <ThreadSignalDraftCard id={message.id} card={message.card} busy={market.busy} onDecide={(d) => market.onDecideDraft(message.id, d)} />
       )}
       {/* Which field a question is about, above the question itself. */}
       {message.card?.kind === "question" && <p className="text-eyebrow px-0.5 text-muted-foreground">{message.card.label}</p>}

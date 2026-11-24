@@ -83,6 +83,11 @@ export const signalDraftCardSchema = z.object({
 });
 export type SignalDraftCard = z.infer<typeof signalDraftCardSchema>;
 
+/** What a person decides about a draft: keep it (as edited), or drop it. */
+export type SignalDraftDecision =
+  | { decision: "keep"; name: string; tags: string[]; description: string; itemIds: string[] }
+  | { decision: "drop" };
+
 /** The structured part of an assistant message. The gate card is not here: it is worked out on
  *  each read, never stored (see `Waiting`). */
 export const threadCardSchema = z.discriminatedUnion("kind", [

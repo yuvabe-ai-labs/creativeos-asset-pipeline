@@ -12,6 +12,11 @@ export const kbTarget = {
   source: (id: string) => `kb-source:${id}`,
 };
 
+/** What the market research agent works on (D530): a signal on the Market page's Signals tab. */
+export const marketTarget = {
+  signal: (id: string) => `market-signal:${id}`,
+};
+
 const FIELD = "kb:";
 
 /** The review path of a `kb:` target, else null. */
