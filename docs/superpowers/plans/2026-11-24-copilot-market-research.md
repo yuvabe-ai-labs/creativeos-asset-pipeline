@@ -316,3 +316,82 @@ it("no prompt still says where and when only", () => {
 
 - [ ] **Step 1:** Section 11 checks, one per spec step and Review Focus line (brands card, corrections in chat, fetch, private handle, re-fetch, drafts keep/edit/drop, double keep, approve, script Built from, deleted signal, research from a script). Run `npx vitest run src/lib/db/schema-map.test.ts` and the full suite once (`npx vitest run`), and `npx tsc --noEmit -p .`. Expected: only the known failures.
 - [ ] **Step 2: Commit** `docs(qa): section 11, the market research agent and Built from`; regenerate the QA artifact with the scratchpad generator.
+---
+
+## Outcome (2026-11-24)
+
+Built on `feat/market-research` (worktree `.claude/worktrees/market-research`, from `b9899065`), all 13 tasks test-first, then one fresh whole-branch review (opus): *With fixes*, 0 Critical, 6 Important, all fixed in one pass (plus one Minor re-graded to Important). Full suite after the pass: 3 known failures only (two deprecated-model route tests, the no-casl timeout under the parallel run); `tsc` clean. Migration 0067 not applied; Trigger.dev deploy of `market-fetch`, `market-draft` and the reconcile sweep owed.
+
+### Review fixes
+
+- Important 1 (card switches ignored by a chat confirm) — brands route "stores the switches without fetching…" RED→GREEN; card saves each switch (useSaveBrandSwitches), suite 7024 pass / 3 known fail.
+- Important 2 (edit + fetch in one turn) — tools "refuses to fetch a list it changed in the same turn" RED→GREEN.
+- Important 3 (all-failed fetch never names handles) — fetch "…names every handle, and puts the list back" RED→GREEN.
+- Important 4 (0067 not applied → every paid read thrown away) — read-post "still returns a paid-for reading it could not keep" RED→GREEN; 0067's "any order" comment is now true.
+- Important 5 (draft run unbounded) — draft "reads at most 60 posts in one run, the newest" RED→GREEN (MARKET_DRAFT_MAX_POSTS).
+- Important 6 (drafting again repeats signals) — draft "is told the signals that exist or wait, and drops a draft that repeats one" + "tells the grouping the client's signals and the drafts still waiting" RED→GREEN.
+- re-graded Minor→Important (after() called inside the stream's start: if Next throws there, every research request fails the script turn) — turn route "registers the after-reply work in the handler itself" RED→GREEN.
+
+### Rulings (decisions the executor made; each with what it costs if wrong)
+
+- T6→T5: Task 5's route wiring needs startMarketJob, which the plan creates in Task 6. Ruling: create src/lib/journey/market-copilot/start.ts in Task 5 (generic insertJob → tasks.trigger by id string; Task 6 adds the task file) — the tools themselves only see MarketActions, so nothing else moves — cost if wrong: none, a file lands one task early.
+- T5 (fetch_posts tool) and T8 (confirm route) both move a brands card pending→fetching and start the fetch. Ruling: one shared helper (confirmBrands in start.ts) used by both — two call sites, the AGENTS.md extract rule — cost if wrong: small refactor.
+- Task 1: Ruling: the plan lists src/prompts/script-parse.ts (SETTING_ONLY, complianceFirst) for the new rule — left unchanged: it is only the canvas script node's parse (compileScript, /api/nodes/[id]/parse), and spec §3 non-goals keep the canvas's signal picker unchanged; its setting-only rewrite was measured (D204) — cost if wrong: canvas parse still says signals set only where/when; a later piece-6 change.
+- Task 1: Ruling: the angles task's "fromSignals … where and when only" reworded to "(a setting, an occasion, a hook, a format or a pace), never a claim"; golden fixture edit-prompt-generate.json updated for the new rule sentence — both follow from D529 — cost if wrong: none beyond wording.
+- Task 5: Ruling: MarketActions.startFetch takes (messageId, card), not (messageId) — the tool holds the card as this turn last edited it; re-reading it from history would confirm a stale list — cost if wrong: none (internal signature).
+- Task 5: Ruling: update_brands with `add` and no pending card starts a new pending brands card instead of refusing — spec §4 step 2 "add a brand and fetch again" after a fetch — cost if wrong: one extra card in the thread.
+- Task 5: Ruling: "drop" in the chat switches a brand off (keep:false) rather than removing it from the card — the card's keep Switch can turn it back on; same effect on fetch — cost if wrong: dropped brands still listed, greyed.
+- Task 5: Ruling: an add that would put more than MARKET_BRANDS_PER_GROUP kept brands in a group is refused — keeps a run's cost bounded (spec §7) — cost if wrong: person must drop one first.
+- Task 5: Ruling: one market job per client at a time, via insertJob lockKey "market:<clientId>" (fetch and draft share it) — a draft must not read a fetch half done; a double confirm must not pay twice — cost if wrong: a person waits for one job before the next.
+- Task 5: Ruling: MarketContext load lives in market-copilot/load.ts (server-only) and context.ts stays pure; loadMarketContext(client, now) leaves ownHandle null and loadKbContext fills it from the brand details read in the same Promise.all — keeps every read parallel (perf rule 5) — cost if wrong: none.
+- Task 5: Ruling: JobKind gains market-fetch|market-draft here (plan: Task 6) and start.ts/actions.ts land here — the route wiring needs them; see pre-flight — cost if wrong: none.
+- Task 5: Ruling: market tools are offered to the model on every turn and refuse in code until the KB is approved (as start_build etc. do); the existing "labels the tools that change the page" test now lists the four market labels — cost if wrong: four extra tool definitions in pre-KB prompts.
+- Task 5: Ruling: a market job whose row is live but has not reported for 45 min (MARKET_STALE_AFTER_MS) reads as status "stopped", not running — as KB_STALE_AFTER_MS does for the build — cost if wrong: a slow job's live line hides early.
+- Task 6: Ruling: a fetch that fails outright (no brand returned posts, or an error) puts its brands card back to pending (via sayJobFailed → reopenBrandsCard, also used by the reconcile sweep for a dead run) — the failure line says "ask me to try again", and fetch_posts needs a pending list — cost if wrong: a failed list can be confirmed again.
+- Task 6: Ruling: "already saved" compares Instagram shortcodes (postKey), not raw urls — a hand-clipped /reel/X/?igsh= and the scraper's /p/X/ are the same post (Review Focus 2) — cost if wrong: none.
+- Task 6: Ruling: a private/empty profile (no latestPosts) counts as "could not fetch" and is named — spec: "a brand that cannot be fetched (wrong or private handle) is named" — cost if wrong: none.
+- Task 6: Ruling: getCopilotCard added to copilot-messages.ts (the job needs the stored card to move it fetching→fetched) — cost if wrong: one extra read per fetch.
+- Task 7: Ruling: the brand's own posts as context = renderKbText(active KB), not "asset-import brand images' captions" — client_brand_images stores no captions; the KB already describes the brand's own content and visuals, and costs no read per image — cost if wrong: the grouping sees the brand as its KB describes it, not its raw recent posts.
+- Task 7: Ruling: posts are read one at a time, and one that fails to read is skipped (the run fails only if fewer than 2 could be read) — paid calls; one bad post never stops the rest — cost if wrong: a slower draft.
+- Task 7: Ruling: media over MARKET_READ_MAX_BYTES (20 MB) or that cannot be fetched is read from its thumbnail (from: "thumbnail") — Gemini inline limit — cost if wrong: long videos read from a still.
+- Task 8: Ruling: a confirm or keep on a card that is no longer pending answers 200 with the thread as stored (not 409) — Review Focus 3 "the second gets the settled card back" — cost if wrong: the second click shows no error.
+- Task 8: Ruling: keeping a draft claims the card (pending→kept) before createSignal, then writes signalId; a failed save puts the card back to pending — a double keep can never make two signals — cost if wrong: a crash between claim and save leaves a kept card with no signal (the failure path reverts it).
+- Task 8: Ruling: SignalDraftDecision lives in lib/journey/thread/schema.ts so the service layer never imports from a component — cost if wrong: none.
+- Task 8: Ruling: KbCopilot gains a `placeholder` prop; on Market it reads "Ask me to research the market, or answer the copilot…" — the KB hint (attach brand documents) is wrong there — cost if wrong: copy only.
+- Task 8: Ruling: the market approval line reads "{name} approved market research. That opens scripts." (what: "market research", lowercase, as the KB line's "the brand KB") — cost if wrong: copy only.
+- Task 9: Ruling: newItemIds lives in src/lib/market/new-items.ts with its test beside it (plan: src/components/market/__tests__/new-items.test.ts) — pure helpers in lib/market keep co-located tests — cost if wrong: none.
+- Task 9: Ruling: marketTarget was already added in Task 8 (its hooks needed it); Task 9's RED test is the new marketSignalId reader the page uses — cost if wrong: none.
+- Task 9: Ruling: a kept signal makes MarketView call its existing useMarket refresh() once (the signal is saved by the chat, which the page's realtime channel does not cover: signals are not in the publication) — one read per kept signal, not per item — cost if wrong: none.
+- Task 9: Ruling: fresh-tile highlight clears after LANDED_MS by a timer (useFreshItems), as CopilotTarget does — with reduced motion the CSS fade never runs — cost if wrong: none.
+- Task 10: Ruling: no `set_built_from` edit op — after the draft "Built from" is changed on its line (PUT .../signals), which posts the rewrite offer; chat steering ("use the X signal") works before the draft through the extraction — spec §5 asks the line + chat before the draft, an offer after; an edit op would bypass the offer — cost if wrong: after the draft, "use signal X" typed in chat is an ordinary edit, not a Built from change.
+- Task 10: Ruling: "Rewrite with these signals" is an ordinary edit turn; the edit prompt gets a "Built from" section (only when set) and the turn route loads signals for an edit only when signalIds is non-empty — the rewrite must read them; a multi-shot rewrite lands as a proposal card to approve — cost if wrong: one signals read per edit turn on a script built from signals.
+- Task 10: Ruling: removing a signal while Built from is unset starts from every signal minus that one; a name that matches no signal is ignored — cost if wrong: none.
+- Task 10: Ruling: a typed/blended narrative sets signalIds to [] only when it was null (keeps a set the person chose) — spec "takes the signals the copilot used for it, which may be none" — cost if wrong: none.
+- Task 10: Ruling: CopilotSignals gains `all` (the full rows); brief/list stay precomputed for the all-signals case; draftPrompt's builtFrom and the angles card's `signals` are optional (older stored cards, probe script) — cost if wrong: none.
+- Task 10: Ruling: the PUT route writes nothing and offers nothing when the set is unchanged (perf rule 4); REWRITE_OFFER/REWRITE_CHOICE live in copilot/constants.ts (a route file may export only handlers) — cost if wrong: none.
+- Task 11: Ruling: the line renders in GenerateScriptPane (under the Mark-final bar), above the board in VisualiseCopilotWorkspace (Visualise editable, In review read-only, via ScriptBuiltFrom reading the shared generate-state query), and read-only above the approved/read-only view on the page (chosen from the getGenerateScript row the page already reads) — "top of the script" across every stage view — cost if wrong: placement only.
+- Task 11: Ruling: an empty set reads "No signals"; the add chip is hidden when every signal is already used — cost if wrong: copy only.
+- Task 12: Ruling: the hand-off runs through a TurnDeps.onResearch callback that the route turns into next/server after() — findBrands is a slow web search and must not hold up or fail the script's reply — cost if wrong: the brands card appears in the onboarding thread a little after the script reply.
+- Task 12: Ruling: before the draft, a research request ends the turn on the hand-off line (with the reader's ack) and keeps only what the message settled; it does not also advance to the next brief step — the person asked for research, not the next question — cost if wrong: they send one more message to continue.
+- Task 12: Ruling: askMarketResearch writes the person's question into the onboarding thread first (created_by the person), then the card; an empty search says so instead of an empty card; a new card makes a waiting one stale — cost if wrong: none.
+- Task 12: Ruling: the golden edit-prompt fixture gains the research instruction line (the edit task text changed by design) — cost if wrong: none.
+- Task 13: Ruling: the QA artifact (UToPeePMU1WYob2yoUJQWm) is not regenerated here — the generator script lives in the previous session's scratchpad, and republishing a shared page is outward-facing; left for Cyril — cost if wrong: the published checklist lacks section 11 until regenerated.
+- Final: Ruling: T7 (brand's own posts = KB text) deviates from spec §4 Step 2 "reads those beside the competitors'" — kept, flagged for Cyril's sign-off — cost if wrong: drafts see the brand as its KB describes it, not its raw recent posts.
+- Final: Ruling: the market gate shows "Approve market research" before anything is fetched — stands: the page's existing button already allows approving empty research; product question for Cyril — cost if wrong: an empty research can be approved from the panel.
+- Final: Ruling: the composer on the Market tab still accepts brand files (they become brand KB sources) — stands, out of plan scope; only the hint changed — cost if wrong: a file dropped on Market lands in brand KB sources.
+- Final: Ruling: Step 0's "say what is there and offer to add" is left to the prompt (no code chip when references exist) — stands; untestable without a live model, QA 11.1 covers it — cost if wrong: the copilot may not mention existing research.
+- Final: Ruling: each fetched post also queues the existing media archive (one more Apify call per post) — by design (spec names the archive as the reading source) — cost if wrong: ~2 scraper calls per post.
+- Final: Ruling: the signals PUT compares the set in order — unreachable from the UI (append/remove only) — cost if wrong: a reordered set writes once and offers a rewrite.
+
+### Deferred minors
+
+- a failed ingest of one post fails the whole fetch with "Nothing else changed" though posts already landed.
+- the 5-per-group cap is enforced only on chat `add` (move, card switches, the route's 20 handles bypass it); enforce in confirmBrands.
+- listItems selects `*`, so the Market page ships each item's `reading`, and each setItemReading fires the market channel (open Market tabs refetch about once per post read during a draft).
+- listItemsByIds is unused.
+- the research hand-off is queued before the script write lands; a 409 then resend makes two brands cards (the second stales the first).
+- ScriptBuiltFrom does not check the edit permission; a viewer sees chips that return 403.
+- a draft card shows a bare "@" for a hand-clipped post with no handle.
+- media up to 20 MB is base64-inlined (~27 MB); verify Gemini's inline request limit, else lower MARKET_READ_MAX_BYTES.
+- runKbTurn returns a change card OR a brands card; a turn that makes both drops the brands card.
+- an empty "Built from" set is treated as unset by the angles (they read every signal) while the line shows "No signals".
