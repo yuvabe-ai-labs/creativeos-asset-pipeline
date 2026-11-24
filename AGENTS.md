@@ -34,7 +34,8 @@ the in-repo source of truth. Aesthetic: *"light editorial premium."*
   (`neutral-900` text, `neutral-500` metadata, `neutral-200` borders, `neutral-25/50` bg).
   Yellow `#ffca2d` only as a soft radial glow.
 - **Drive everything through the shadcn CSS variables** in `globals.css` — never hardcode
-  colors. Use the `.text-eyebrow` utility for tracked small-caps labels (not mono).
+  colors. Use the `.text-eyebrow` utility for tracked small-caps labels (not mono), and only for a
+  real section label: never above every heading or field. Field labels and card titles are sentence case.
 - **Hierarchy from weight / casing / tracking / color, not size.** ~3 type sizes per page.
 - **Cards:** white, 1px `neutral-200` border, soft blue-black shadow
   (`shadow-card`: `0 1px 2px rgba(11,15,25,.08), 0 6px 14px rgba(11,15,25,.1)` — ambient
