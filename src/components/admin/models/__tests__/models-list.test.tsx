@@ -16,7 +16,7 @@ const base: ModelListRow = {
   typical: { credits: 815, label: "8 s, 720p" },
   atCost: false,
   next: { chip: "−31%", tone: "down", date: "3 Dec" },
-  month: { runs: 174, cost: "$101.08", unpriced: 0 },
+  month: { runs: 174, cost: "$101.08" },
 };
 const rows: ModelListRow[] = [
   base,
@@ -51,13 +51,24 @@ describe("ModelListRowView", () => {
     expect(broken).not.toContain("Add prices");
   });
 
-  it("drops the from when a price is the same at every setting, and notes runs that were not priced", () => {
+  it("says Charged at cost for a priced row with no typical run", () => {
+    expect(renderToStaticMarkup(<ModelListRowView row={{ ...base, typical: null, atCost: true }} />)).toContain("Charged at cost");
+  });
+
+  it("keeps a retired row's text at full strength and quietens only its badge", () => {
+    const html = renderToStaticMarkup(<ModelListRowView row={{ ...base, status: "retired" }} />);
+    expect(html).not.toContain("opacity-");
+    expect(html).toContain("text-foreground/80");
+    expect(html).toContain("Retired");
+  });
+
+  it("drops the from when a price is the same at every setting, and never counts runs that were not priced", () => {
     const html = renderToStaticMarkup(
-      <ModelListRowView row={{ ...base, price: { from: "$0.039 an image", to: "same at every setting", single: true }, month: { runs: 1, cost: "$0.04", unpriced: 1 } }} />,
+      <ModelListRowView row={{ ...base, price: { from: "$0.039 an image", to: "same at every setting", single: true }, month: { runs: 1, cost: "$0.04" } }} />,
     );
     expect(html).not.toContain("from ");
     expect(html).toContain("1 run<");
-    expect(html).toContain("1 not priced");
+    expect(html).not.toContain("not priced");
   });
 });
 

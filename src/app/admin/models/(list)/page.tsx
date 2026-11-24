@@ -24,12 +24,15 @@ export default async function AdminModelsPage() {
     listAdminCreditSettings(),
   ]);
 
-  // Rows that fail their check are left out of the sums; the model page shows them.
+  // Models that fail their check are listed and flagged. Price and credit settings rows that fail
+  // theirs are left out of the sums and flagged under Needs a look; the model and Credits pages show them.
   const { rows, attention, settingsLine } = buildModelsList({
     models,
     prices: prices.flatMap((p) => (p.price ? [p.price] : [])),
     stats,
     creditSettings: creditRows.flatMap((r) => (r.settings ? [r.settings] : [])),
+    brokenPriceModelIds: prices.flatMap((p) => (p.price ? [] : [p.modelId])),
+    brokenCreditSettings: creditRows.some((r) => !r.settings),
     now,
   });
 

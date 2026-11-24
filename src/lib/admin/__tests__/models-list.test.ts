@@ -105,9 +105,33 @@ describe("buildModelsList", () => {
     if (scrape) expect(scrape.atCost).toBe(true);
   });
 
+  it("calls any priced row with no typical run charged at cost", () => {
+    const { rows } = buildModelsList(input());
+    for (const r of rows) expect(r.atCost, r.id).toBe(r.price !== null && r.typical === null);
+  });
+
+  it("flags a model whose only price row fails its check, not as having no price", () => {
+    const { attention } = buildModelsList(input({
+      prices: pastPrices.filter((p) => p.modelId !== OMNI11),
+      brokenPriceModelIds: [OMNI11],
+    }));
+    const items = attention.filter((a) => a.modelId === OMNI11);
+    expect(items.map((a) => a.text)).toEqual(["Its price fails its check"]);
+    expect(items[0]).toMatchObject({ tone: "bad", name: model(OMNI11).label, action: "Open" });
+  });
+
+  it("puts a credit settings row that fails its check at the top", () => {
+    const { attention } = buildModelsList(input({
+      creditSettings: [settings(0, 5), settings(20, 10, "2026-12-02T18:30:00Z")],
+      brokenCreditSettings: true,
+    }));
+    expect(attention[0]).toMatchObject({ key: "credit-settings-broken", tone: "bad", text: "A credit settings change fails its check", href: "/admin/credits" });
+    expect(attention[1].key).toBe("credit-settings");
+  });
+
   it("shows this month's runs and cost when the model ran", () => {
-    const { rows } = buildModelsList(input({ stats: [{ modelId: OMNI11, runs: 174, costUsd: 101.08, unpriced: 2 }] }));
-    expect(rows.find((r) => r.id === OMNI11)!.month).toEqual({ runs: 174, cost: "$101.08", unpriced: 2 });
+    const { rows } = buildModelsList(input({ stats: [{ modelId: OMNI11, runs: 174, costUsd: 101.08 }] }));
+    expect(rows.find((r) => r.id === OMNI11)!.month).toEqual({ runs: 174, cost: "$101.08" });
   });
 
   it("chips the seeded 3 Dec drop and lists it under Needs a look", () => {
@@ -198,7 +222,7 @@ describe("buildModelsList", () => {
 });
 
 describe("filterModelRows and groupModelRows", () => {
-  const { rows } = buildModelsList(input({ stats: [{ modelId: OMNI11, runs: 3, costUsd: 1, unpriced: 0 }] }));
+  const { rows } = buildModelsList(input({ stats: [{ modelId: OMNI11, runs: 3, costUsd: 1 }] }));
 
   it("filters by group, runs this month and search over name and maker", () => {
     expect(filterModelRows(rows, { group: "Video", onlyRuns: false, query: "" }).every((r) => r.group === "Video")).toBe(true);

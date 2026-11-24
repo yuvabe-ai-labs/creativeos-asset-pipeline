@@ -48,8 +48,8 @@ function TypicalCell({ row }: { row: ModelListRow }) {
       </>
     );
   }
-  const text = row.atCost ? "Charged at cost" : row.price || row.broken ? "" : "No price yet";
-  return text ? <span className="text-xs text-muted-foreground">{text}</span> : null;
+  if (row.broken) return null;
+  return <span className="text-xs text-muted-foreground">{row.price ? "Charged at cost" : "No price yet"}</span>;
 }
 
 function MonthCell({ month }: { month: ModelListRow["month"] }) {
@@ -58,7 +58,6 @@ function MonthCell({ month }: { month: ModelListRow["month"] }) {
     <>
       <div className="font-semibold tabular-nums">{month.runs.toLocaleString("en-US")} {month.runs === 1 ? "run" : "runs"}</div>
       <div className="text-xs tabular-nums text-muted-foreground">{month.cost}</div>
-      {month.unpriced > 0 && <div className="text-xs text-warning-text">{month.unpriced} not priced</div>}
     </>
   );
 }
@@ -70,8 +69,9 @@ export function ModelListRowView({ row }: { row: ModelListRow }) {
       role="row"
       className={cn(
         LIST_COLUMNS,
+        // A retired row reads a step lighter (neutral-900 at 80% stays well above AA); its badge is dashed and muted.
+        row.status === "retired" && "text-foreground/80",
         "relative min-h-[60px] items-center border-b py-2.5 text-sm transition-colors duration-200 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] last:border-b-0 hover:bg-muted/50 has-[a[data-row-link]:focus-visible]:outline-2 has-[a[data-row-link]:focus-visible]:-outline-offset-2 has-[a[data-row-link]:focus-visible]:outline-ring",
-        row.status === "retired" && "opacity-60",
       )}
     >
       <div role="cell" className="min-w-0">

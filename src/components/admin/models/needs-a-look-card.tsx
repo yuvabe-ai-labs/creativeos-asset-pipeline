@@ -18,6 +18,9 @@ function ItemIcon({ item }: { item: AttentionItem }) {
   );
 }
 
+/** "Kling 3.1 Omni has no price yet" reads on; "Omni: prices drop 31%" and "Omni: Its price fails its check" take a colon. */
+const needsColon = (item: AttentionItem) => item.tone === "next" || /^[A-Z]/.test(item.text);
+
 /** Problems and scheduled changes above the models list. Nothing when there are none. */
 export function NeedsALookCard({ items }: { items: AttentionItem[] }) {
   if (!items.length) return null;
@@ -32,7 +35,7 @@ export function NeedsALookCard({ items }: { items: AttentionItem[] }) {
             <ItemIcon item={item} />
             <p className="min-w-0 flex-1">
               <span className="font-semibold">
-                {item.name ? `${item.name}${item.tone === "next" ? ":" : ""} ` : ""}
+                {item.name ? `${item.name}${needsColon(item) ? ":" : ""} ` : ""}
               </span>
               <span className={item.name ? "" : "font-semibold"}>{item.text}</span>
               <span className="text-muted-foreground">. {item.detail}</span>

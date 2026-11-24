@@ -41,10 +41,10 @@ export type ModelListRow = {
   broken: boolean;
   price: PriceRange | null;
   typical: { credits: number; label: string } | null;
-  /** Priced at what the provider reports, so no typical run. */
+  /** Priced, but with no typical run to work out (charged at what the provider reports). */
   atCost: boolean;
   next: { chip: string; tone: "down" | "up" | "big" | "new"; date: string } | null;
-  month: { runs: number; cost: string; unpriced: number } | null;
+  month: { runs: number; cost: string } | null;
 };
 
 export type AttentionItem = {
@@ -62,8 +62,12 @@ export type AttentionItem = {
 export type ModelsListInput = {
   models: ReadonlyArray<{ model: AiModel | null; raw: Record<string, unknown>; problems: string[] }>;
   prices: readonly AiModelPrice[];
-  stats: ReadonlyArray<{ modelId: string; runs: number; costUsd: number; unpriced: number }>;
+  stats: ReadonlyArray<{ modelId: string; runs: number; costUsd: number }>;
   creditSettings: readonly CreditSettings[];
+  /** Models with a price row that fails its check (left out of `prices`). */
+  brokenPriceModelIds?: readonly string[];
+  /** A credit settings row fails its check (left out of `creditSettings`). */
+  brokenCreditSettings?: boolean;
   now: Date;
 };
 
@@ -132,7 +136,7 @@ const TONE_ORDER: Record<AttentionItem["tone"], number> = { bad: 0, info: 1, nex
 export function buildModelsList(input: ModelsListInput): { rows: ModelListRow[]; attention: AttentionItem[]; settingsLine: string } {
   const { now } = input;
   const settings = creditSettingsAt({ creditSettings: [...input.creditSettings] }, now);
-  const catalog = { prices: [...input.prices] };
+  const brokenPrices = new Set(input.brokenPriceModelIds ?? []);
   const stats = new Map(input.stats.map((s) => [s.modelId, s]));
   const pricesOf = new Map<string, AiModelPrice[]>();
   for (const p of input.prices) pricesOf.set(p.modelId, [...(pricesOf.get(p.modelId) ?? []), p]);
@@ -144,7 +148,7 @@ export function buildModelsList(input: ModelsListInput): { rows: ModelListRow[];
     const id = m?.id ?? str(raw.id) ?? "";
     const label = m?.label ?? str(raw.label) ?? id;
     const s = stats.get(id);
-    const month = s && s.runs > 0 ? { runs: s.runs, cost: formatUsd(s.costUsd), unpriced: s.unpriced } : null;
+    const month = s && s.runs > 0 ? { runs: s.runs, cost: formatUsd(s.costUsd) } : null;
     const item = (tone: AttentionItem["tone"], text: string, detail: string, action: string) =>
       items.push({ key: `${id}:${text}`, modelId: id, tone, name: label, text, detail, action, href: modelHref(id) });
 
@@ -157,22 +161,24 @@ export function buildModelsList(input: ModelsListInput): { rows: ModelListRow[];
       continue;
     }
 
-    const live = currentPrice(catalog, id, now);
+    const own = { prices: pricesOf.get(id) ?? [] };
+    const live = currentPrice(own, id, now);
     const spec = live ? runSpec(m, live) : null;
     const credits = live && spec ? runCredits(m, live, spec, settings) : null;
     const typical = live && spec && credits !== null ? { credits, label: specLabel(m, live, spec) } : null;
-    const next = (pricesOf.get(id) ?? [])
+    const next = own.prices
       .filter((p) => new Date(p.effectiveFrom) > now)
       .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))[0] ?? null;
     let nextCell: ModelListRow["next"] = null;
     if (next) {
       const at = new Date(next.effectiveFrom);
-      const prev = currentPrice(catalog, id, new Date(at.getTime() - 1));
+      const prev = currentPrice(own, id, new Date(at.getTime() - 1));
       const d = prev ? priceDiff(prev, next) : null;
       nextCell = { ...nextChip(d), date: formatIstDate(at, false) };
       item("next", `${changeWords(d)} on ${formatIstDate(at, false)}`, `Starts ${formatIstWhen(at)}, ${relativeIstDay(at, now)}.`, "Review");
     }
-    if (!pricesOf.get(id)?.length) item("bad", "has no price yet", "Runs can't be charged, so it stays a draft until it has one.", "Add prices");
+    if (!own.prices.length && brokenPrices.has(id)) item("bad", "Its price fails its check", "Runs can't be charged until it is fixed.", "Open");
+    else if (!own.prices.length) item("bad", "has no price yet", "Runs can't be charged, so it stays a draft until it has one.", "Add prices");
     else if (m.status === "draft") item("info", "is a draft", "Only super admins can pick it.", "Open");
     if (m.status === "retired" && !m.replacedBy) item("bad", "is retired with no replacement", "Nodes using it have nothing to switch to.", "Pick one");
 
@@ -180,7 +186,7 @@ export function buildModelsList(input: ModelsListInput): { rows: ModelListRow[];
       id, label, provider: m.providerLabel, group: groupOfKind(m.kind), status: m.status, broken: false,
       price: live ? priceRange(m, live) : null,
       typical,
-      atCost: !typical && !!live?.lines.some((l) => l.meter === "usd"),
+      atCost: !typical && live !== null,
       next: nextCell,
       month,
     });
@@ -199,6 +205,19 @@ export function buildModelsList(input: ModelsListInput): { rows: ModelListRow[];
       name: null,
       text: `Credit settings change on ${formatIstDate(at, false)}`,
       detail: `${capitalise(settingsWords(upcoming))}, from ${formatIstWhen(at)}. Today: ${settingsWords(settings)}.`,
+      action: "Review",
+      href: CREDITS_HREF,
+    });
+  }
+
+  if (input.brokenCreditSettings) {
+    attention.unshift({
+      key: "credit-settings-broken",
+      modelId: null,
+      tone: "bad",
+      name: null,
+      text: "A credit settings change fails its check",
+      detail: "Runs keep the settings live now until it is fixed or cancelled.",
       action: "Review",
       href: CREDITS_HREF,
     });
