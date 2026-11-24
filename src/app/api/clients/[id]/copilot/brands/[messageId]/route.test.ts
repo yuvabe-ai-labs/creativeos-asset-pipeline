@@ -6,14 +6,14 @@ vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
-vi.mock("@/lib/db/copilot-messages", () => ({ getCopilotCard: vi.fn() }));
+vi.mock("@/lib/db/copilot-messages", () => ({ getCopilotCard: vi.fn(), claimCopilotCard: vi.fn() }));
 vi.mock("@/lib/journey/market-copilot/start", () => ({ confirmBrands: vi.fn() }));
 vi.mock("@/lib/journey/thread/load", () => ({ loadThread: vi.fn() }));
 
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
-import { getCopilotCard } from "@/lib/db/copilot-messages";
+import { claimCopilotCard, getCopilotCard } from "@/lib/db/copilot-messages";
 import { confirmBrands } from "@/lib/journey/market-copilot/start";
 import { loadThread } from "@/lib/journey/thread/load";
 import type { BrandsCard } from "@/lib/journey/thread/schema";
@@ -67,6 +67,21 @@ describe("POST /api/clients/:id/copilot/brands/:messageId", () => {
   it("returns the settled thread when another confirm won the race", async () => {
     vi.mocked(confirmBrands).mockResolvedValue({ status: "moved" });
     expect((await send({ keep: ["sleepyowl"] })).status).toBe(200);
+  });
+
+  it("stores the switches without fetching, so a confirm in the chat honours them (review fix)", async () => {
+    vi.mocked(claimCopilotCard).mockImplementation(async (_c, _m, _k, _f, next) => next as never);
+    const res = await send({ keep: ["sleepyowl"], fetch: false });
+    expect(res.status).toBe(200);
+    expect(confirmBrands).not.toHaveBeenCalled();
+    expect(claimCopilotCard).toHaveBeenCalledWith("c1", M1, "brands", "pending", {
+      ...card, brands: [{ ...card.brands[0], keep: false }, { ...card.brands[1], keep: true }],
+    });
+  });
+
+  it("stores switches that turn every brand off", async () => {
+    vi.mocked(claimCopilotCard).mockImplementation(async (_c, _m, _k, _f, next) => next as never);
+    expect((await send({ keep: [], fetch: false })).status).toBe(200);
   });
 
   it("refuses a handle that is not on the card", async () => {

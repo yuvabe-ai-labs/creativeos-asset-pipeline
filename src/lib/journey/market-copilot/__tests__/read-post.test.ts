@@ -60,6 +60,14 @@ describe("readPost", () => {
     expect(setItemReading).not.toHaveBeenCalled();
   });
 
+  it("still returns a paid-for reading it could not keep (0067 not applied yet)", async () => {
+    vi.mocked(setItemReading).mockRejectedValue(new Error("column moodboard_items.reading does not exist"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const generate = vi.fn().mockResolvedValue(answer);
+    const reading = await readPost(item(), { generate, fetchImpl: bytes("image/jpeg") });
+    expect(reading.hook).toBe("Rain on glass");
+  });
+
   it("reads the caption alone when there is no picture at all", async () => {
     const generate = vi.fn().mockResolvedValue(answer);
     const reading = await readPost(item({ thumbnail_url: null }), { generate, fetchImpl: vi.fn() });

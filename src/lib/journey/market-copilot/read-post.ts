@@ -72,6 +72,12 @@ export async function readPost(
     parts: media ? [{ text }, media] : [{ text }],
   });
   const reading: PostReading = { handle, caption, ...answer, from };
-  await setItemReading(item.id, reading);
+  // The reading is paid for and in hand: a failure to keep it (0067 not applied yet, a blip) must
+  // not throw it away. It is simply read again next time (review fix).
+  try {
+    await setItemReading(item.id, reading);
+  } catch (e) {
+    console.error("[market-read] could not keep the reading", { itemId: item.id, error: describeError(e) });
+  }
   return reading;
 }

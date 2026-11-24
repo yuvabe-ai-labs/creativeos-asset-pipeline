@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/jobs/db", () => ({ getJob: vi.fn(), startJob: vi.fn(), setJobPhase: vi.fn(), succeedJob: vi.fn(), failJob: vi.fn() }));
 vi.mock("@/lib/db/moodboards", () => ({ ensureSystemBoards: vi.fn(), listItems: vi.fn(), setItemReading: vi.fn() }));
-vi.mock("@/lib/db/copilot-messages", () => ({ insertCopilotMessages: vi.fn() }));
+vi.mock("@/lib/db/copilot-messages", () => ({ insertCopilotMessages: vi.fn(), listCopilotMessages: vi.fn() }));
+vi.mock("@/lib/db/signals", () => ({ listSignalNames: vi.fn() }));
+import { listSignalNames } from "@/lib/db/signals";
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/kb", () => ({ getActiveKBVersion: vi.fn() }));
 vi.mock("@/lib/journey/thread/opening", () => ({ ensureOpening: vi.fn() }));
@@ -12,12 +14,12 @@ vi.mock("@/lib/image-analysis/gemini", () => ({ generateStructured: vi.fn() }));
 
 import { failJob, getJob, succeedJob } from "@/lib/jobs/db";
 import { ensureSystemBoards, listItems, type MoodboardItem } from "@/lib/db/moodboards";
-import { insertCopilotMessages } from "@/lib/db/copilot-messages";
+import { insertCopilotMessages, listCopilotMessages } from "@/lib/db/copilot-messages";
 import { getClientById } from "@/lib/db/clients";
 import { getActiveKBVersion } from "@/lib/db/kb";
 import { sayJobFailed } from "@/lib/journey/kb-copilot/job-failed";
 import { SIGNAL_RULE } from "@/prompts/script-copilot";
-import { MARKET_GROUP_MODEL } from "../constants";
+import { MARKET_DRAFT_MAX_POSTS, MARKET_GROUP_MODEL } from "../constants";
 import { groupReadings, runMarketDraft } from "../draft";
 import type { PostReading } from "../read-post";
 
@@ -50,6 +52,17 @@ describe("groupReadings", () => {
     expect(await groupReadings(readings, null, { generate, brandContext: "" })).toHaveLength(6);
   });
 
+  it("is told the signals that exist or wait, and drops a draft that repeats one (review fix)", async () => {
+    const generate = vi.fn().mockResolvedValue({ signals: [
+      { name: "monsoon rituals", tags: [], description: "d", itemIds: ["i1", "i2"] },
+      { name: "Question hooks", tags: [], description: "d", itemIds: ["i2", "i3"] },
+    ] });
+    const out = await groupReadings(readings, null, { generate, brandContext: "", avoid: ["Monsoon rituals"] });
+    expect(out.map((d) => d.name)).toEqual(["Question hooks"]);
+    const text = generate.mock.calls[0][0].parts.map((p: { text?: string }) => p.text ?? "").join("\n");
+    expect(text).toContain("Monsoon rituals");
+  });
+
   it("states the signal rule, the focus and the brand's own context, which it may not cite", async () => {
     const generate = vi.fn().mockResolvedValue({ signals: [] });
     await groupReadings(readings, "hooks", { generate, brandContext: "BRAND KB TEXT" });
@@ -78,6 +91,8 @@ describe("runMarketDraft", () => {
     vi.mocked(listItems).mockImplementation(async (board) => (board === "bd" ? [item("i1"), item("i2")] : [item("i3")]) as never);
     vi.mocked(getClientById).mockResolvedValue({ id: "c1" } as never);
     vi.mocked(getActiveKBVersion).mockResolvedValue(null);
+    vi.mocked(listSignalNames).mockResolvedValue([]);
+    vi.mocked(listCopilotMessages).mockResolvedValue([]);
     group.mockResolvedValue([
       { name: "Monsoon rituals", tags: ["monsoon"], description: "Rain at the window.", itemIds: ["i1", "i3"] },
       { name: "Fast hooks", tags: ["hooks"], description: "Opens on a question.", itemIds: ["i1", "i2"] },
@@ -121,6 +136,27 @@ describe("runMarketDraft", () => {
     await runMarketDraft("j1", { group, read, sleep });
     expect(sleep).toHaveBeenCalled();
     expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it(`reads at most ${MARKET_DRAFT_MAX_POSTS} posts in one run, the newest (review fix)`, async () => {
+    const many = Array.from({ length: MARKET_DRAFT_MAX_POSTS + 10 }, (_, i) =>
+      item(`n${i}`, { reading: null, added_at: new Date(Date.UTC(2026, 10, 1) + i * 60_000).toISOString() }));
+    vi.mocked(listItems).mockImplementation(async (board) => (board === "bd" ? many : []) as never);
+    read.mockResolvedValue(reading("fresh"));
+    await runMarketDraft("j1", { group, read, sleep: async () => {} });
+    expect(read).toHaveBeenCalledTimes(MARKET_DRAFT_MAX_POSTS);
+    expect(read.mock.calls.map((c) => c[0].id)).not.toContain("n0");
+    expect(group.mock.calls[0][0]).toHaveLength(MARKET_DRAFT_MAX_POSTS);
+  });
+
+  it("tells the grouping the client's signals and the drafts still waiting", async () => {
+    vi.mocked(listSignalNames).mockResolvedValue([{ id: "s1", name: "Monsoon rituals" }]);
+    vi.mocked(listCopilotMessages).mockResolvedValue([
+      { id: "d", role: "assistant", content: "", attachments: [], suggestions: [], createdAt: "",
+        card: { kind: "signal-draft", status: "pending", name: "Fast hooks", tags: [], description: "", itemIds: [], thumbs: [], signalId: null } },
+    ]);
+    await runMarketDraft("j1", { group, read, sleep: async () => {} });
+    expect(group.mock.calls[0][2].avoid).toEqual(["Monsoon rituals", "Fast hooks"]);
   });
 
   it("says so when no pattern holds across two posts, and succeeds", async () => {

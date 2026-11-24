@@ -1,7 +1,8 @@
 import "server-only";
 import { z } from "zod";
 import { getClientById } from "@/lib/db/clients";
-import { insertCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-messages";
+import { insertCopilotMessages, listCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-messages";
+import { listSignalNames } from "@/lib/db/signals";
 import { getActiveKBVersion } from "@/lib/db/kb";
 import { ensureSystemBoards, listItems, type MoodboardItem } from "@/lib/db/moodboards";
 import { describeError } from "@/lib/describe-error";
@@ -13,7 +14,7 @@ import { ONBOARDING, type SignalDraftCard } from "@/lib/journey/thread/schema";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { renderKbText } from "@/lib/scripts/copilot/prompt-context";
 import { marketGroupSystem, marketGroupUser } from "@/prompts/market-signals";
-import { MARKET_ARCHIVE_WAIT_MS, MARKET_DRAFT_MIN_POSTS, MARKET_DRAFTS_MAX, MARKET_GROUP_MODEL } from "./constants";
+import { MARKET_ARCHIVE_WAIT_MS, MARKET_DRAFT_MAX_POSTS, MARKET_DRAFT_MIN_POSTS, MARKET_DRAFTS_MAX, MARKET_GROUP_MODEL } from "./constants";
 import { readPost, type PostReading } from "./read-post";
 import type { MarketDraftInput } from "./start";
 
@@ -48,22 +49,27 @@ function postLine(r: Reading): string {
  *  than MARKET_DRAFT_MIN_POSTS posts is dropped; at most MARKET_DRAFTS_MAX drafts. */
 export async function groupReadings(
   readings: Reading[], focus: string | null,
-  deps: { generate?: typeof generateStructured; brandContext: string },
+  deps: {
+    generate?: typeof generateStructured; brandContext: string;
+    /** Names of the client's signals and of drafts still waiting: never proposed again (review fix). */
+    avoid?: string[];
+  },
 ): Promise<Draft[]> {
   const generate = deps.generate ?? generateStructured;
   const given = new Set(readings.map((r) => r.itemId));
+  const taken = new Set((deps.avoid ?? []).map((n) => n.trim().toLowerCase()));
   const answer = await generate({
     model: MARKET_GROUP_MODEL,
     system: marketGroupSystem(MARKET_DRAFTS_MAX, MARKET_DRAFT_MIN_POSTS),
     schema: groupSchema,
-    parts: [{ text: marketGroupUser({ focus, brandContext: deps.brandContext, posts: readings.map(postLine).join("\n") }) }],
+    parts: [{ text: marketGroupUser({ focus, brandContext: deps.brandContext, posts: readings.map(postLine).join("\n"), avoid: deps.avoid }) }],
   });
   return answer.signals
     .map((s) => ({
       name: s.name.trim(), tags: s.tags.map((t) => t.trim()).filter(Boolean), description: s.description.trim(),
       itemIds: [...new Set(s.itemIds.filter((id) => given.has(id)))],
     }))
-    .filter((d) => d.name && d.itemIds.length >= MARKET_DRAFT_MIN_POSTS)
+    .filter((d) => d.name && !taken.has(d.name.toLowerCase()) && d.itemIds.length >= MARKET_DRAFT_MIN_POSTS)
     .slice(0, MARKET_DRAFTS_MAX);
 }
 
@@ -93,8 +99,17 @@ export async function runMarketDraft(
 
   try {
     await startJob(jobId, "Reading the posts…");
-    const boards = await ensureSystemBoards(clientId);
-    const load = async () => (await Promise.all([listItems(boards.direct.id), listItems(boards.adjacent.id)])).flat();
+    // What the client already has or is reviewing, so a second run proposes something new.
+    const [boards, signals, thread] = await Promise.all([ensureSystemBoards(clientId), listSignalNames(clientId), listCopilotMessages(clientId, ONBOARDING)]);
+    const avoid = [
+      ...signals.map((s) => s.name),
+      ...thread.flatMap((m) => (m.card?.kind === "signal-draft" && m.card.status === "pending" ? [m.card.name] : [])),
+    ];
+    // The newest posts only, up to the cap: one run's cost is bounded however much is saved.
+    const load = async () => (await Promise.all([listItems(boards.direct.id), listItems(boards.adjacent.id)]))
+      .flat()
+      .sort((a, b) => Date.parse(b.added_at) - Date.parse(a.added_at))
+      .slice(0, MARKET_DRAFT_MAX_POSTS);
     let items = await load();
     // Posts just fetched are still archiving: wait a while so their video can be read, then read
     // what there is (a post without its media is read from its thumbnail).
@@ -126,7 +141,7 @@ export async function runMarketDraft(
     // The client's own brand, as its KB describes it: context only, never cited by a signal.
     const version = await getActiveKBVersion(clientId);
     const brandContext = version ? renderKbText(version.output as unknown as TraceableBrandKB) : "";
-    const drafts = await group(readings, focus, { brandContext });
+    const drafts = await group(readings, focus, { brandContext, avoid });
 
     if (drafts.length === 0) {
       await say([{ role: "assistant", content: NOTHING_FOUND, suggestions: [] }]);

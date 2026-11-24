@@ -29,9 +29,10 @@ Rules:
 - Prefer fewer, clearly shared patterns over many weak ones. When nothing is shared by ${minPosts} posts, return no signals.`;
 }
 
-export function marketGroupUser(i: { focus: string | null; brandContext: string; posts: string }): string {
+export function marketGroupUser(i: { focus: string | null; brandContext: string; posts: string; avoid?: string[] }): string {
   return [
     `Focus: ${i.focus?.trim() || "(none: the market in general)"}`,
+    `Signals the client already has or is reviewing; do not propose these again: ${i.avoid?.length ? i.avoid.join("; ") : "(none)"}`,
     `The client's own brand context (context only, never cited):\n${i.brandContext.trim() || "(none)"}`,
     `The posts, one per line as id | @brand | reading:\n${i.posts}`,
   ].join("\n\n");

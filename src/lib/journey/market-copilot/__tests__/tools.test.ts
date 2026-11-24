@@ -133,6 +133,15 @@ describe("fetch_posts", () => {
     expect(a.startFetch).not.toHaveBeenCalled();
   });
 
+  it("refuses to fetch a list it changed in the same turn: the person has not seen it so", async () => {
+    const a = marketActions();
+    const { model, seen } = scripted([{ text: "", calls: [call("update_brands", { add: [{ handle: "brandy", group: "direct" }] }, "c1"), call("fetch_posts", {}, "c2")] }, say("Updated.")]);
+    await run(market({ pendingBrands: { messageId: "m1", card } }), a, model);
+    expect(a.updateBrands).toHaveBeenCalled();
+    expect(a.startFetch).not.toHaveBeenCalled();
+    expect(outputs(seen)[1]).toMatch(/not seen/i);
+  });
+
   it("starts the fetch for the pending card", async () => {
     const a = marketActions();
     const { model } = scripted([{ text: "", calls: [call("fetch_posts", {})] }, say("Fetching.")]);

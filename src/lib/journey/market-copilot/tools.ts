@@ -38,6 +38,9 @@ const cap = (brands: MarketBrand[], g: MarketBrand["group"]) => brands.filter((b
 
 export function marketTools(input: MarketToolsInput): Record<string, AgentTool> {
   const { tell, refuse } = input;
+  // A list changed this turn is not the list the person saw: it cannot be fetched until they have
+  // (review fix: "add @brandY" alone must never end in a paid fetch).
+  let editedThisTurn = false;
   /** The market context while it is open, else the refusal. Throwing sends it back to the model,
    *  which says it in its own words (a tool that ends the turn is never asked again). */
   const open = (): { m: MarketContext; actions: MarketActions } => {
@@ -112,6 +115,7 @@ export function marketTools(input: MarketToolsInput): Record<string, AgentTool> 
           return tell(["Started a new list with what you added. Nothing is fetched until you confirm.", ...refusals].join(" "));
         }
         const card: BrandsCard = { ...pending.card, brands };
+        editedThisTurn = true;
         if (pending.messageId === UNSAVED) {
           input.emit(card);
         } else if (!(await actions.updateBrands(pending.messageId, card))) {
@@ -129,7 +133,7 @@ export function marketTools(input: MarketToolsInput): Record<string, AgentTool> 
         const { m, actions } = open();
         const pending = m.pendingBrands;
         if (!pending) return refuse(NO_LIST);
-        if (pending.messageId === UNSAVED) return refuse(UNSEEN);
+        if (pending.messageId === UNSAVED || editedThisTurn) return refuse(UNSEEN);
         if (marketJobRunning(m)) return refuse(RUNNING);
         const kept = pending.card.brands.filter((b) => b.keep).length;
         if (kept === 0) return refuse(NONE_KEPT);

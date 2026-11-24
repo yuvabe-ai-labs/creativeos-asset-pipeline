@@ -73,6 +73,26 @@ export async function POST(req: Request, { params }: Ctx) {
       const pictureCard = picture ? { kind: "picture" as const, ...picture } : null;
       await insertScriptMessages(clientId, scriptId, userId, [{ role: "user", content: text, card: pictureCard }]);
 
+      // D532 — research the turn hands over goes to the market research agent once the turn is over:
+      // its web search is slow, and it never holds up or fails the script's reply. Registered here,
+      // in the handler, where the request scope that after() needs is certain (review fix).
+      const research: string[] = [];
+      let turnDone!: () => void;
+      const finished = new Promise<void>((resolve) => { turnDone = resolve; });
+      after(async () => {
+        await finished;
+        for (const question of research) {
+          try {
+            await askMarketResearch({
+              client, userId, question,
+              scriptTitle: script.doc ? `${reelLabel(script.doc.header.reelNumber) ?? "A script"} · ${script.doc.header.title}` : (script.brief.card?.title ?? "A new script"),
+            });
+          } catch (e) {
+            console.error("[script-copilot] could not hand research to market research", e);
+          }
+        }
+      });
+
       const encoder = new TextEncoder();
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
@@ -98,18 +118,8 @@ export async function POST(req: Request, { params }: Ctx) {
                   quick: structuredCaller(SCRIPT_QUICK_MODEL),
                   stream: streamingCaller(SCRIPT_WRITER_MODEL),
                   onDraft: (draft) => emit({ type: "draft", draft }),
-                  // D532 — research goes to the market research agent once the reply has gone: its web
-                  // search is slow, and it never holds up or fails the script's turn.
-                  onResearch: (question) => after(async () => {
-                    try {
-                      await askMarketResearch({
-                        client, userId, question,
-                        scriptTitle: script.doc ? `${reelLabel(script.doc.header.reelNumber) ?? "A script"} · ${script.doc.header.title}` : (script.brief.card?.title ?? "A new script"),
-                      });
-                    } catch (e) {
-                      console.error("[script-copilot] could not hand research to market research", e);
-                    }
-                  }),
+                  // D532 — research goes to the market research agent once the reply has gone (below).
+                  onResearch: (question) => { research.push(question); },
                 },
               );
               const outcome = await (atVisualise ? changeVisualiseScript : changeGenerateScript)(clientId, scriptId, apply);
@@ -132,6 +142,7 @@ export async function POST(req: Request, { params }: Ctx) {
             emit({ type: "error", error: "The copilot could not answer." });
           } finally {
             controller.close();
+            turnDone();
           }
         },
       });

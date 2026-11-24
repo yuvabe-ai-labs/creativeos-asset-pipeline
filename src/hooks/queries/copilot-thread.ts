@@ -189,6 +189,19 @@ export function useConfirmBrands(clientId: string) {
   });
 }
 
+/** A switch on a brands card, stored at once (review fix): what the card shows switched off is
+ *  never fetched, whether the person then presses the button or tells the copilot. */
+export function useSaveBrandSwitches(clientId: string) {
+  const queryClient = useQueryClient();
+  const key = copilotThreadKeys.thread(clientId);
+  return useMutation({
+    mutationFn: ({ messageId, keep }: { messageId: string; keep: string[] }) =>
+      copilotThreadService.confirmBrands(clientId, messageId, keep, { fetch: false }),
+    onSuccess: ({ state }) => finishTurn(queryClient, key, state),
+    onError: () => void queryClient.invalidateQueries({ queryKey: key }),
+  });
+}
+
 /** A person keeps or drops a drafted signal (D530). A kept one lands on the Market page's Signals
  *  tab, which the page brings into view (D520). */
 export function useDecideSignalDraft(clientId: string) {

@@ -100,6 +100,24 @@ describe("POST .../turn", () => {
     }));
   });
 
+  it("registers the after-reply work in the handler itself, not from inside the stream (review fix)", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((r) => { release = r; });
+    vi.mocked(prepareTurn).mockImplementation(async (_input, deps) => {
+      await held;
+      deps.onResearch?.("q");
+      return () => ({ patch: null, result: [{ content: "ok", card: null }] });
+    });
+    const { POST } = await import("./route");
+    const res = await POST(send({ text: "research q" }) as never, { params });
+    // The turn is still running inside the stream, and the work is already registered.
+    expect(afterWork).toHaveLength(1);
+    release();
+    await lines(res);
+    await Promise.all(afterWork.map((w) => w()));
+    expect(askMarketResearch).toHaveBeenCalledTimes(1);
+  });
+
   it("asks nothing of market research when the turn asked for no research", async () => {
     vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
     const { POST } = await import("./route");

@@ -7,6 +7,8 @@ vi.mock("@/lib/db/copilot-messages", () => ({ insertCopilotMessages: vi.fn(), cl
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/journey/thread/opening", () => ({ ensureOpening: vi.fn() }));
 vi.mock("@/lib/journey/kb-copilot/job-failed", () => ({ sayJobFailed: vi.fn() }));
+vi.mock("../cards", () => ({ reopenBrandsCard: vi.fn() }));
+import { reopenBrandsCard } from "../cards";
 
 import { failJob, getJob, succeedJob } from "@/lib/jobs/db";
 import { ensureSystemBoards, listBucketUrls } from "@/lib/db/moodboards";
@@ -99,15 +101,24 @@ describe("runMarketFetch", () => {
     expect((await run()).failed).toEqual(["sleepyowl"]);
   });
 
-  it("fails the job when no brand returned posts, and puts the list back for the person", async () => {
+  it("fails the job when no brand returned posts, names every handle, and puts the list back", async () => {
     fetchProfile.mockResolvedValue(null);
     const result = await run();
     expect(result).toEqual({ added: 0, failed: ["minimalist", "sleepyowl"] });
     expect(failJob).toHaveBeenCalledWith("j1", expect.any(String));
     expect(succeedJob).not.toHaveBeenCalled();
-    // Saying it fails also puts the list back for the person (job-failed.ts).
-    expect(sayJobFailed).toHaveBeenCalledWith(expect.objectContaining({ client_id: "c1", kind: "market-fetch", input: expect.objectContaining({ messageId: "m1" }) }));
+    // The person is told which handles, not a generic failure (review fix), and can correct them.
+    expect(sayJobFailed).not.toHaveBeenCalled();
+    expect(lastWords().content).toMatch(/@minimalist, @sleepyowl/);
+    expect(lastWords().content).toMatch(/wrong or the account private/);
+    expect(reopenBrandsCard).toHaveBeenCalledWith("c1", "m1");
     expect(claimCopilotCard).not.toHaveBeenCalledWith("c1", "m1", "brands", "fetching", expect.objectContaining({ status: "fetched" }));
+  });
+
+  it("says a run that broke failed, and puts the list back", async () => {
+    vi.mocked(ensureSystemBoards).mockRejectedValue(new Error("db down"));
+    await run();
+    expect(sayJobFailed).toHaveBeenCalledWith(expect.objectContaining({ client_id: "c1", kind: "market-fetch", input: expect.objectContaining({ messageId: "m1" }) }));
   });
 
   it("moves the card from fetching to fetched and says what came in", async () => {

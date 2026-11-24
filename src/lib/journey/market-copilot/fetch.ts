@@ -10,6 +10,7 @@ import { ONBOARDING } from "@/lib/journey/thread/schema";
 import { fetchProfileDetails } from "@/lib/market/apify";
 import { ingestReference } from "@/lib/market/ingest";
 import { normalizeProfileItem } from "@/lib/market/performance";
+import { reopenBrandsCard } from "./cards";
 import { MARKET_POSTS_PER_BRAND } from "./constants";
 import { fetchingLine, type MarketFetchInput } from "./start";
 
@@ -98,7 +99,16 @@ export async function runMarketFetch(
     }
 
     if (brandsWithPosts === 0) {
-      await fail(FETCH_FAILED);
+      // Say which handles, so the person can correct them before paying for another try (review
+      // fix), then let them confirm the list again.
+      await failJob(jobId, FETCH_FAILED);
+      const client = await getClientById(clientId);
+      if (client) await ensureOpening(client);
+      await insertCopilotMessages(clientId, ONBOARDING, null, [{
+        role: "assistant", suggestions: [],
+        content: `I could not bring in posts from ${failed.map((h) => `@${h}`).join(", ")}: the handle may be wrong or the account private. Correct them on the list or tell me, then ask me to fetch again.`,
+      }]);
+      await reopenBrandsCard(clientId, messageId);
       return { added, failed };
     }
 

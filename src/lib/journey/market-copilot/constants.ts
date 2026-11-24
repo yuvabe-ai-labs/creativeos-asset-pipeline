@@ -17,6 +17,9 @@ export const MARKET_GROUP_MODEL = "gemini-3.1-pro-preview";
 /** The most drafts one run shows; each needs at least MARKET_DRAFT_MIN_POSTS posts behind it. */
 export const MARKET_DRAFTS_MAX = 6;
 export const MARKET_DRAFT_MIN_POSTS = 2;
+/** The most posts one draft run reads and groups, newest first: a run's cost is bounded (spec §7),
+ *  however many references a client has saved (review fix). */
+export const MARKET_DRAFT_MAX_POSTS = 60;
 /** Media sent inline to the reader; anything bigger is read from its thumbnail. */
 export const MARKET_READ_MAX_BYTES = 20 * 1024 * 1024;
 /** How long a draft waits for archives still downloading before it reads what it has. */

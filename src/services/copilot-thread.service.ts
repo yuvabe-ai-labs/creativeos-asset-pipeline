@@ -49,12 +49,13 @@ class CopilotThreadService {
     return readJson<{ state: ThreadState }>(res, "Could not apply that change.");
   }
 
-  /** A person confirms a brands card (D530): the handles in `keep` are fetched. */
-  async confirmBrands(clientId: string, messageId: string, keep: string[]): Promise<{ state: ThreadState }> {
+  /** A person confirms a brands card (D530): the handles in `keep` are fetched. With `fetch: false`
+   *  only its switches are stored, so a confirm in the chat fetches what the card shows on. */
+  async confirmBrands(clientId: string, messageId: string, keep: string[], opts: { fetch?: boolean } = {}): Promise<{ state: ThreadState }> {
     const res = await fetch(`/api/clients/${clientId}/copilot/brands/${messageId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ keep }),
+      body: JSON.stringify({ keep, fetch: opts.fetch ?? true }),
     });
     return readJson<{ state: ThreadState }>(res, "Could not start bringing in their posts.");
   }

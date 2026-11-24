@@ -21,11 +21,13 @@ const SETTLED: Record<Exclude<BrandsCard["status"], "pending">, string> = {
 /** The brands the market agent proposes to look at (D530 step 1), in the two tabs they would fill.
  *  The person switches off the ones they don't want; nothing is fetched until they press the button
  *  (or tell the copilot to). Corrections like "add @brandY" go through the chat. */
-export function ThreadBrandsCard({ id, card, busy, onConfirm }: {
+export function ThreadBrandsCard({ id, card, busy, onConfirm, onSwitch }: {
   id: string;
   card: BrandsCard;
   busy: boolean;
   onConfirm: (keep: string[]) => void;
+  /** Stores the switches as they are flipped, so a "fetch" typed in the chat honours them. */
+  onSwitch?: (keep: string[]) => void;
 }) {
   const pending = card.status === "pending";
   // Starts from what the card holds (the chat may have switched some off); this browser's own
@@ -63,7 +65,11 @@ export function ThreadBrandsCard({ id, card, busy, onConfirm }: {
                           size="sm"
                           checked={kept(b)}
                           disabled={busy}
-                          onCheckedChange={(checked) => setToggled((now) => ({ ...now, [b.handle]: checked }))}
+                          onCheckedChange={(checked) => {
+                            const next = { ...toggled, [b.handle]: checked };
+                            setToggled(next);
+                            onSwitch?.(card.brands.filter((x) => next[x.handle] ?? x.keep).map((x) => x.handle));
+                          }}
                         />
                       </span>
                     )}

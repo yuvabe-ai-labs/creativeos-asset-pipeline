@@ -21,6 +21,7 @@ export function ThreadMessageItem({ message, change, market, footer }: {
   market?: {
     busy: boolean;
     onConfirmBrands: (messageId: string, keep: string[]) => void;
+    onSwitchBrands?: (messageId: string, keep: string[]) => void;
     onDecideDraft: (messageId: string, decision: SignalDraftDecision) => void;
   };
   /** Under the message: the trace of the turn that wrote it, with the developer switch on (D521). */
@@ -44,7 +45,7 @@ export function ThreadMessageItem({ message, change, market, footer }: {
         <ThreadChangeCard id={message.id} card={message.card} outOfDate={message.outOfDate} busy={change.busy} onDecide={(d) => change.onDecide(message.id, d)} />
       )}
       {message.card?.kind === "brands" && market && (
-        <ThreadBrandsCard id={message.id} card={message.card} busy={market.busy} onConfirm={(keep) => market.onConfirmBrands(message.id, keep)} />
+        <ThreadBrandsCard id={message.id} card={message.card} busy={market.busy} onConfirm={(keep) => market.onConfirmBrands(message.id, keep)} onSwitch={(keep) => market.onSwitchBrands?.(message.id, keep)} />
       )}
       {message.card?.kind === "signal-draft" && market && (
         <ThreadSignalDraftCard id={message.id} card={message.card} busy={market.busy} onDecide={(d) => market.onDecideDraft(message.id, d)} />
