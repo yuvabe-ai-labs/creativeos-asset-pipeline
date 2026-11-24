@@ -109,7 +109,7 @@ function optionsOf(params: readonly ParamSpec[], name: string): string[] | null 
  * (image-price.ts) and videoDims (video-price.ts): image models have `size` (and `quality` for
  * openai: models); video models have `resolution` and `audio`. Any other key never matches a run.
  */
-function priceDims(model: Pick<AiModel, "id" | "kind" | "params">): Record<string, readonly (string | boolean)[]> {
+export function priceDims(model: Pick<AiModel, "id" | "kind" | "params">): Record<string, readonly (string | boolean)[]> {
   if (model.kind === "image") {
     if (model.id.startsWith("openai:")) {
       const ratios = optionsOf(model.params, "aspect_ratio") ?? ["1:1"];

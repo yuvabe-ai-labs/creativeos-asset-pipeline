@@ -1,7 +1,7 @@
 // The add-price form's state and how it becomes an addAiModelPriceAction payload. Pure, client-safe.
 import { estimateAllowanceKeys, runPreviewUsd } from "@/lib/ai-models/model-edit";
 import { creditsFromUsd } from "@/lib/credits/units";
-import { plainDecimal } from "@/lib/ai-models/price-format";
+import { isTokenMeter, plainDecimal } from "@/lib/ai-models/price-format";
 import type { AiModel, AiModelPrice, CreditSettings, Meter, PriceLine } from "@/lib/ai-models/types";
 import type { AdminPriceRow } from "@/lib/db/ai-models-admin";
 
@@ -44,7 +44,7 @@ export function allowanceWarning(model: Pick<AiModel, "id" | "kind" | "params">,
   return k === "" || estimateAllowanceKeys(model).includes(k) ? null : UNKNOWN_ALLOWANCE;
 }
 
-export const isTokenMeter = (meter: Meter): boolean => meter.endsWith("_token");
+export { isTokenMeter };
 
 /** What the $ field shows: token meters per 1M tokens (as providers list them), others per unit. */
 export function unitToInput(meter: Meter, unitUsd: number): string {

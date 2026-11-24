@@ -16,6 +16,15 @@ export const DEFAULT_CREDIT_SETTINGS: CreditSettings = {
 };
 
 /**
+ * The credits before the step: USD x 1000 with the settings row's margin, to 6 decimals so
+ * float noise (5 x 0.084 = 0.42000000000000004) never adds a step. Admin screens show it as
+ * the unrounded number ("12.3 credits, which rounds up to 15").
+ */
+export function rawCreditsFromUsd(usd: number, settings: Pick<CreditSettings, "marginPercent">): number {
+  return Math.round(usd * USD_TO_CREDITS * (1 + settings.marginPercent / 100) * 1e6) / 1e6;
+}
+
+/**
  * The single conversion from a real or estimated USD cost to the final credit number,
  * used identically for the pre-generation estimate and the actual settlement charge.
  * Applies the settings row's margin, then rounds UP to its step, so a charge never falls
@@ -25,8 +34,7 @@ export function creditsFromUsd(
   usd: number,
   settings: Pick<CreditSettings, "marginPercent" | "roundStep">,
 ): number {
-  // To 6 decimals first, so float noise (5 x 0.084 = 0.42000000000000004) never adds a step.
-  const raw = Math.round(usd * USD_TO_CREDITS * (1 + settings.marginPercent / 100) * 1e6) / 1e6;
+  const raw = rawCreditsFromUsd(usd, settings);
   return Math.ceil(raw / settings.roundStep) * settings.roundStep;
 }
 

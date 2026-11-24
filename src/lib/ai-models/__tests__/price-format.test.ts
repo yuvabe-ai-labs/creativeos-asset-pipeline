@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPriceLine, formatPriceSummary } from "../price-format";
+import { displayAmount, formatPriceLine, formatPriceSummary, formatUnitPrice, formatUsd, isTokenMeter } from "../price-format";
 import type { PriceLine } from "../types";
 
 describe("formatPriceLine", () => {
@@ -33,5 +33,42 @@ describe("formatPriceSummary", () => {
     );
     expect(formatPriceSummary([line(1), line(2)])).toBe("$1 / output image, $2 / output image");
     expect(formatPriceSummary([])).toBe("");
+  });
+});
+
+describe("formatUsd (full stored precision)", () => {
+  it.each([
+    [0.069504, "$0.069504"],
+    [0.0337925, "$0.0337925"],
+    [0.006961122132887822, "$0.006961122"],
+    [0.5, "$0.50"],
+    [0.1, "$0.10"],
+    [3, "$3.00"],
+    [0, "$0.00"],
+    [1234.5, "$1,234.50"],
+    [5e-7, "$0.0000005"],
+    [1.23456789e-9, "$0.000000001234568"],
+    [-0.25, "−$0.25"],
+  ])("formats %d as %s", (n, text) => {
+    expect(formatUsd(n)).toBe(text);
+  });
+  it("shows a dash for no value", () => {
+    expect(formatUsd(null)).toBe("–");
+    expect(formatUsd(Number.NaN)).toBe("–");
+  });
+  it("never uses exponent form", () => {
+    for (const n of [1e-7, 1.5e-10, 2e21, 7.5e-8]) expect(formatUsd(n)).not.toMatch(/e/i);
+  });
+});
+
+describe("unit prices", () => {
+  it("shows token prices per 1M and others per unit", () => {
+    expect(displayAmount("input_token", 0.0000015)).toBe(1.5);
+    expect(displayAmount("video_output_token", 0.0000117)).toBe(11.7);
+    expect(displayAmount("output_image", 0.134)).toBe(0.134);
+    expect(formatUnitPrice("text_output_token", 0.0000045)).toBe("$4.50");
+    expect(formatUnitPrice("video_second", 0.023172)).toBe("$0.023172");
+    expect(isTokenMeter("thought_token")).toBe(true);
+    expect(isTokenMeter("video_second")).toBe(false);
   });
 });
