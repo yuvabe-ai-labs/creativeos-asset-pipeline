@@ -233,6 +233,21 @@ describe("addAiModelPriceAction", () => {
       vi.useRealTimers();
     }
   });
+  it("starts a Now price at the server's time, whatever the browser's clock says", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-01T12:00:00Z"));
+    try {
+      const { effectiveFrom: _, ...rest } = input();
+      expect(await addAiModelPriceAction({ ...rest, now: true })).toEqual({ id: "new", effectiveFrom: "2026-06-01T12:00:00.000Z" });
+      expect(m.insertAiModelPrice.mock.calls[0][0]).toMatchObject({ effectiveFrom: "2026-06-01T12:00:00.000Z" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("revalidates the Credits page too, whose typical runs use these prices", async () => {
+    await addAiModelPriceAction(input());
+    expect(m.revalidatePath).toHaveBeenCalledWith("/admin/credits");
+  });
   it("checks the caller first", async () => {
     await addAiModelPriceAction(input());
     expect(calls[0]).toBe("auth");

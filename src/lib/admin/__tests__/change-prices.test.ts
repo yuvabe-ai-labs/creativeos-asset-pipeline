@@ -18,7 +18,7 @@ import {
   reviewWarnings,
   typicalBeforeAfter,
 } from "../change-prices";
-import { beforePrice, replacedRow, startToSave, whenInstant, whenProblem } from "../change-prices-when";
+import { beforePrice, changeWhenProblem, replacedRow, serverStart, startToSave, whenInstant, whenProblem } from "../change-prices-when";
 import { bulkMessage, confirmLabel } from "../change-prices-words";
 import { savedMessage, undoneMessage, undoPlan } from "../change-prices-undo";
 
@@ -247,6 +247,22 @@ describe("startToSave", () => {
   });
 });
 
+describe("serverStart and changeWhenProblem for prices", () => {
+  it("Now starts at once; a date inside the lead is moved out to it; a later date stays", () => {
+    expect(serverStart({ mode: "now", date: "", time: "" }, NOW, "prices")).toEqual(NOW);
+    expect(serverStart({ mode: "date", date: "2026-11-24", time: "12:01" }, NOW, "prices")?.toISOString()).toBe("2026-11-24T06:32:00.000Z");
+    expect(serverStart({ mode: "date", date: "2026-12-03", time: "20:00" }, NOW, "prices")?.toISOString()).toBe("2026-12-03T14:30:00.000Z");
+  });
+  it("says so when another change of this model already starts then, but not the one replaced", () => {
+    const taken = [{ id: "x", effectiveFrom: "2026-12-03T14:30:00.000Z" }];
+    const at8 = { mode: "date" as const, date: "2026-12-03", time: "20:00" };
+    expect(changeWhenProblem(at8, NOW, "prices", taken, null)).toBe("A change already starts then. Pick another time, or cancel that change first.");
+    expect(changeWhenProblem(at8, NOW, "prices", taken, "x")).toBeNull();
+    expect(changeWhenProblem({ ...at8, time: "20:01" }, NOW, "prices", taken, null)).toBeNull();
+    expect(changeWhenProblem({ ...at8, time: "soon" }, NOW, "prices", taken, null)).toBe("Type a time like 8, 8:00, 8 pm or 20:00.");
+  });
+});
+
 describe("replacedRow and beforePrice", () => {
   const all = prices(OMNI);
   const [live, scheduled] = all;
@@ -254,6 +270,12 @@ describe("replacedRow and beforePrice", () => {
     expect(replacedRow(all, { mode: "date", date: "2026-12-03", time: "20:00" }, NOW)?.id).toBe(scheduled.id);
     expect(replacedRow(all, { mode: "date", date: "2026-12-04", time: "00:00" }, NOW)).toBeNull();
     expect(replacedRow(all, { mode: "now", date: "2026-12-03", time: "13:30" }, NOW)).toBeNull();
+  });
+  it("never offers to replace a change inside the 2-minute lead, which the server refuses", () => {
+    const soon = { ...scheduled, id: "soon", effectiveFrom: new Date(NOW.getTime() + 90_000).toISOString() };
+    expect(replacedRow([live, soon], { mode: "date", date: "2026-11-24", time: "18:00" }, NOW)).toBeNull();
+    const later = { ...soon, effectiveFrom: new Date(NOW.getTime() + 121_000).toISOString() };
+    expect(replacedRow([live, later], { mode: "date", date: "2026-11-24", time: "18:00" }, NOW)?.id).toBe("soon");
   });
   it("compares with the replaced change, or with what would be live at the start", () => {
     expect(beforePrice(all, { mode: "date", date: "2026-12-03", time: "13:30" }, NOW)?.id).toBe(scheduled.id);
@@ -385,6 +407,13 @@ describe("buildReview", () => {
     expect(r.beforeLabel).toBe("Now");
     expect(r.changes).toHaveLength(1);
     expect(r.confirm).toBe("Apply new prices now");
+  });
+
+  it("a date inside the 2-minute lead shows the start the server will give, in the summary and the button", () => {
+    const after = { ...live, lines: applyEdits(m, live, { [k360]: "0.03" }) };
+    const r = buildReview({ model: m, label: "Omni", prices: all, base: live, after, when: { mode: "date", date: "2026-11-24", time: "12:01" }, now: NOW, settings, agencies: [] });
+    expect(r.startText).toBe("from 24 Nov 2026, 12:02 IST, today.");
+    expect(r.confirm).toBe("Schedule for 24 Nov");
   });
 
   it("can't save the same prices over the scheduled change", () => {

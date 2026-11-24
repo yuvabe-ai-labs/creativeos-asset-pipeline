@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { clearAiCatalogCache } from "@/lib/ai-models/catalog";
 import { checkNewCreditSettings, CREDIT_SETTINGS_LEAD_MINUTES, CREDIT_SETTINGS_LEAD_MS } from "@/lib/credits/settings-edit";
-import { undoNote, undoTarget } from "@/lib/ai-models/model-edit";
+import { requestedStart, undoNote, undoTarget, type StartInput } from "@/lib/ai-models/model-edit";
 import { listAdminCreditSettings, insertCreditSettings, deleteCreditSettings, replaceCreditSettings } from "@/lib/db/credit-settings-admin";
 
 // D548 — the /admin credit settings actions. Platform administration (requireSuperAdmin()-gated), not
@@ -27,28 +27,31 @@ const UNDO_ERRORS = {
 function refresh(): void {
   clearAiCatalogCache();
   revalidatePath("/admin/credits");
+  // The models pages show credits worked out at these settings.
+  revalidatePath("/admin/models");
+  revalidatePath("/admin/models/[id]", "page");
 }
 
-export async function addCreditSettingsAction(input: {
-  effectiveFrom: string;
+export async function addCreditSettingsAction(input: StartInput & {
   marginPercent: number;
   roundStep: number;
   note?: string;
 }): Promise<{ error?: string; id?: string; effectiveFrom?: string }> {
   const caller = await requireSuperAdmin();
-  if (typeof input?.effectiveFrom !== "string") return { error: SAVE_ERROR };
+  if (typeof input !== "object" || input === null) return { error: SAVE_ERROR };
   let effective = "";
   let id = "";
   try {
-    const effectiveFrom = new Date(input.effectiveFrom);
-    if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
+    if (Number.isNaN(requestedStart(input, new Date()).getTime())) return { error: SAVE_ERROR };
     // A fresh read: a cached catalog may be up to a minute old. A row that fails its check still
     // holds its start in the database, so every row counts.
     const rows = await listAdminCreditSettings();
+    // Now is the server's time; the check moves it out by the lead as any start that is too soon.
+    const now = new Date();
     const checked = checkNewCreditSettings(
-      { effectiveFrom, marginPercent: input.marginPercent, roundStep: input.roundStep, note: input.note },
+      { effectiveFrom: requestedStart(input, now), marginPercent: input.marginPercent, roundStep: input.roundStep, note: input.note },
       rows.map((r) => ({ effectiveFrom: r.effectiveFrom })),
-      new Date(),
+      now,
     );
     if (!checked.ok) return { error: checked.error };
     id = (await insertCreditSettings(checked.value, caller.userId)).id;
@@ -68,23 +71,22 @@ export async function addCreditSettingsAction(input: {
  * start falls on that change's IST day), in one transaction. The replaced row is left out of the clash
  * check, so the new settings may take its exact start.
  */
-export async function replaceCreditSettingsAction(input: {
+export async function replaceCreditSettingsAction(input: StartInput & {
   replaceId: string;
-  effectiveFrom: string;
   marginPercent: number;
   roundStep: number;
   note?: string;
 }): Promise<{ error?: string; id?: string; effectiveFrom?: string }> {
   const caller = await requireSuperAdmin();
-  if (typeof input?.replaceId !== "string" || typeof input.effectiveFrom !== "string") return { error: SAVE_ERROR };
+  if (typeof input?.replaceId !== "string") return { error: SAVE_ERROR };
   let effective = "";
   let id = "";
   try {
-    const effectiveFrom = new Date(input.effectiveFrom);
-    if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
+    if (Number.isNaN(requestedStart(input, new Date()).getTime())) return { error: SAVE_ERROR };
     // A fresh read; the database checks the replaced row's start again.
     const rows = await listAdminCreditSettings();
     const now = new Date();
+    const effectiveFrom = requestedStart(input, now);
     const replaced = rows.find((r) => r.id === input.replaceId);
     if (!replaced) return { error: REPLACE_ERROR };
     const at = new Date(replaced.effectiveFrom).getTime();

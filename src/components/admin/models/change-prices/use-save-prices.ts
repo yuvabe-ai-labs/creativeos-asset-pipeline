@@ -69,11 +69,12 @@ export function useSavePrices() {
       toast.error(start.problem);
       return "stale";
     }
-    const requested = start.at;
     const replaced = replacedRow(input.prices, input.when, now);
+    // Now is sent as a flag and starts at the server's time, not this browser's.
+    const startInput = input.when.mode === "now" ? { now: true as const } : { effectiveFrom: start.at.toISOString() };
     const row = {
+      ...startInput,
       modelId: input.modelId,
-      effectiveFrom: requested.toISOString(),
       lines: input.lines,
       estimate: input.base.estimate,
       sourceUrl: input.base.sourceUrl ?? undefined,
@@ -92,6 +93,8 @@ export function useSavePrices() {
     router.refresh();
     const effective = new Date(result.effectiveFrom);
     const after = new Date();
+    // A Now start is wherever the server's clock put it, never "moved".
+    const requested = input.when.mode === "now" ? effective : start.at;
     const message = savedMessage({
       label: input.label,
       mode: input.when.mode,

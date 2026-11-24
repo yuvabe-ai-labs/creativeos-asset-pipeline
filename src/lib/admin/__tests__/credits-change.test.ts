@@ -6,16 +6,14 @@ import {
   buildCreditReview,
   creditUndoPlan,
   creditUndoneMessage,
-  creditWhenProblem,
   dateDetail,
   defaultCreditWhen,
-  replacedSettings,
   restoredMessage,
   savedCreditMessage,
-  serverStart,
   settingsBefore,
 } from "../credits-change";
 import { typicalCreditRuns } from "../credits-page";
+import { changeWhenProblem, replacedRow, serverStart } from "../change-prices-when";
 
 const NOW = new Date("2026-11-24T06:30:00Z");
 const runs = typicalCreditRuns(seededModelCatalog(), NOW);
@@ -30,20 +28,20 @@ describe("When", () => {
     expect(tomorrow).toEqual({ mode: "date", date: "2026-11-25", time: "00:00" });
   });
   it("a Now start, or one inside the lead, is moved 2 minutes out, as the server does", () => {
-    expect(serverStart({ ...tomorrow, mode: "now" }, NOW)?.toISOString()).toBe("2026-11-24T06:32:00.000Z");
-    expect(serverStart({ mode: "date", date: "2026-11-24", time: "12:01" }, NOW)?.toISOString()).toBe("2026-11-24T06:32:00.000Z");
-    expect(serverStart(tomorrow, NOW)?.toISOString()).toBe("2026-11-24T18:30:00.000Z");
+    expect(serverStart({ ...tomorrow, mode: "now" }, NOW, "credits")?.toISOString()).toBe("2026-11-24T06:32:00.000Z");
+    expect(serverStart({ mode: "date", date: "2026-11-24", time: "12:01" }, NOW, "credits")?.toISOString()).toBe("2026-11-24T06:32:00.000Z");
+    expect(serverStart(tomorrow, NOW, "credits")?.toISOString()).toBe("2026-11-24T18:30:00.000Z");
   });
   it("refuses a time that can't be read, one that has passed, and a start another change has", () => {
     const at = (id: string, effectiveFrom: string) => ({ id, effectiveFrom });
-    expect(creditWhenProblem({ ...tomorrow, time: "25:00" }, NOW, [], null)).toBe("Type a time like 8, 8:00, 8 pm or 20:00.");
-    expect(creditWhenProblem({ ...tomorrow, date: "2026-11-24", time: "08:00" }, NOW, [], null)).toMatch(/^That moment has passed/);
-    expect(creditWhenProblem(tomorrow, NOW, [at("x", "2026-11-24T18:30:00.000Z")], null)).toBe("A change already starts then. Pick another time, or cancel that change first.");
-    expect(creditWhenProblem(tomorrow, NOW, [at("x", "2026-11-24T18:31:00.000Z")], null)).toBeNull();
-    expect(creditWhenProblem({ ...tomorrow, mode: "now" }, NOW, [at("x", "2026-11-24T18:30:00.000Z")], null)).toBeNull();
+    expect(changeWhenProblem({ ...tomorrow, time: "25:00" }, NOW, "credits", [], null)).toBe("Type a time like 8, 8:00, 8 pm or 20:00.");
+    expect(changeWhenProblem({ ...tomorrow, date: "2026-11-24", time: "08:00" }, NOW, "credits", [], null)).toMatch(/^That moment has passed/);
+    expect(changeWhenProblem(tomorrow, NOW, "credits", [at("x", "2026-11-24T18:30:00.000Z")], null)).toBe("A change already starts then. Pick another time, or cancel that change first.");
+    expect(changeWhenProblem(tomorrow, NOW, "credits", [at("x", "2026-11-24T18:31:00.000Z")], null)).toBeNull();
+    expect(changeWhenProblem({ ...tomorrow, mode: "now" }, NOW, "credits", [at("x", "2026-11-24T18:30:00.000Z")], null)).toBeNull();
   });
   it("an exact start of the change being replaced is not a clash", () => {
-    expect(creditWhenProblem(tomorrow, NOW, [{ id: "x", effectiveFrom: "2026-11-24T18:30:00.000Z" }], "x")).toBeNull();
+    expect(changeWhenProblem(tomorrow, NOW, "credits", [{ id: "x", effectiveFrom: "2026-11-24T18:30:00.000Z" }], "x")).toBeNull();
   });
   it("the Now warning says when, and a date names the settings that stay", () => {
     expect(NOW_WARNING).toBe("Now changes the credit cost of every model all together, 2 minutes after you save, with no notice to agencies. A date is safer.");
@@ -54,11 +52,11 @@ describe("When", () => {
 describe("replacing a change on the same IST day", () => {
   const scheduled = row("s", "2026-11-25T04:30:00Z", 10, 10); // 25 Nov, 10:00 IST
   it("finds a scheduled change on the start's IST day, outside the lead, for a date start only", () => {
-    expect(replacedSettings([LIVE, scheduled], tomorrow, NOW)).toBe(scheduled);
-    expect(replacedSettings([LIVE, scheduled], { ...tomorrow, date: "2026-11-26" }, NOW)).toBeNull();
-    expect(replacedSettings([LIVE, scheduled], { ...tomorrow, mode: "now" }, NOW)).toBeNull();
+    expect(replacedRow([LIVE, scheduled], tomorrow, NOW)).toBe(scheduled);
+    expect(replacedRow([LIVE, scheduled], { ...tomorrow, date: "2026-11-26" }, NOW)).toBeNull();
+    expect(replacedRow([LIVE, scheduled], { ...tomorrow, mode: "now" }, NOW)).toBeNull();
     const soon = row("z", new Date(NOW.getTime() + 60_000).toISOString(), 10, 10);
-    expect(replacedSettings([LIVE, soon], { mode: "date", date: "2026-11-24", time: "18:00" }, NOW)).toBeNull();
+    expect(replacedRow([LIVE, soon], { mode: "date", date: "2026-11-24", time: "18:00" }, NOW)).toBeNull();
   });
   it("the settings before a start leave the replaced change out", () => {
     const earlier = row("e", "2026-11-24T12:00:00Z", 30, 5);

@@ -9,7 +9,7 @@ import { lineKey, meterLabel, priceGrid, whenText, type GridCell, type OtherChar
 import { isBigChange, parsePriceEntry, percentChange } from "./percent-edit";
 import { runCredits, runSpec, specLabel } from "./typical-runs";
 import { formatIstDate, formatIstWhen, relativeIstDay } from "./ist";
-import { beforePrice, pricesByStart, replacedRow, whenInstant, type When } from "./change-prices-when";
+import { beforePrice, pricesByStart, replacedRow, serverStart, type When } from "./change-prices-when";
 import { confirmLabel } from "./change-prices-words";
 import { keepsNote } from "./change-prices-undo";
 
@@ -204,7 +204,7 @@ export function reviewWarnings(
   now: Date,
 ): ReviewWarning[] {
   const out: ReviewWarning[] = [];
-  const at = (whenInstant(w, now) ?? now).getTime();
+  const at = (serverStart(w, now, "prices") ?? now).getTime();
   const rep = replacedRow(prices, w, now);
   if (rep && priceChanges(model, rep, after).length === 0) {
     out.push({ tone: "info", text: `These are the same prices already scheduled for ${formatIstWhen(new Date(rep.effectiveFrom))}. Nothing new would be saved.`, same: true });
@@ -285,7 +285,8 @@ export function buildReview(a: {
   settings: Settings;
   agencies: readonly { orgName: string; runs: number }[];
 }): Review {
-  const at = whenInstant(a.when, a.now) ?? a.now;
+  // The start the server will give: a date inside the 2-minute lead is moved out to it.
+  const at = serverStart(a.when, a.now, "prices") ?? a.now;
   const rep = replacedRow(a.prices, a.when, a.now);
   const before = beforePrice(a.prices, a.when, a.now);
   const changes = priceChanges(a.model, before, a.after);

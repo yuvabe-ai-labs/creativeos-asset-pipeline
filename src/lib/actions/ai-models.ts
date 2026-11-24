@@ -5,7 +5,15 @@ import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { clearAiCatalogCache } from "@/lib/ai-models/catalog";
 import { RUNNABLE_ADAPTER_KEYS } from "@/lib/ai-models/runnable-keys";
 import { CATALOG_CHANGE_LEAD_MS } from "@/lib/ai-models/pricing";
-import { checkModelPatch, checkNewPrice, priceConditionProblems, undoNote, undoTarget } from "@/lib/ai-models/model-edit";
+import {
+  checkModelPatch,
+  checkNewPrice,
+  priceConditionProblems,
+  requestedStart,
+  undoNote,
+  undoTarget,
+  type StartInput,
+} from "@/lib/ai-models/model-edit";
 import {
   getAdminModel,
   listAdminModels,
@@ -57,6 +65,8 @@ function refresh(): void {
   revalidatePath("/admin/models");
   // The route pattern: a model id holds a colon, so its literal path would need encoding to match.
   revalidatePath("/admin/models/[id]", "page");
+  // The Credits page's typical runs are priced from these models.
+  revalidatePath("/admin/credits");
 }
 
 export async function updateAiModelAction(
@@ -88,9 +98,8 @@ export async function updateAiModelAction(
   return {};
 }
 
-type PriceInput = {
+type PriceInput = StartInput & {
   modelId: string;
-  effectiveFrom: string;
   lines: PriceLine[];
   estimate: Record<string, number>;
   sourceUrl?: string;
@@ -147,17 +156,24 @@ export async function addAiModelPriceAction(input: PriceInput): Promise<{ error?
   let effective = "";
   let id = "";
   try {
-    const effectiveFrom = new Date(input.effectiveFrom);
-    if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
+    if (Number.isNaN(requestedStart(input, new Date()).getTime())) return { error: SAVE_ERROR };
     const [row, rows] = await Promise.all([getAdminModel(input.modelId), listAdminPrices(input.modelId)]);
     // The model must pass the catalog's own check, or no price for it could ever be read.
     if (!row?.model) return { error: SAVE_ERROR };
+    const now = new Date();
     const price = checkPrice(
       "addAiModelPriceAction",
       row.model,
       rows,
-      { modelId: input.modelId, effectiveFrom, lines: input.lines, estimate: input.estimate, sourceUrl: shape.sourceUrl, note: input.note ?? null },
-      new Date(),
+      {
+        modelId: input.modelId,
+        effectiveFrom: requestedStart(input, now),
+        lines: input.lines,
+        estimate: input.estimate,
+        sourceUrl: shape.sourceUrl,
+        note: input.note ?? null,
+      },
+      now,
     );
     if ("error" in price) return price;
     id = (await insertAiModelPrice(price, caller.userId)).id;
@@ -183,11 +199,11 @@ export async function replaceAiModelPriceAction(
   let effective = "";
   let id = "";
   try {
-    const effectiveFrom = new Date(input.effectiveFrom);
-    if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
+    if (Number.isNaN(requestedStart(input, new Date()).getTime())) return { error: SAVE_ERROR };
     const [row, rows] = await Promise.all([getAdminModel(input.modelId), listAdminPrices(input.modelId)]);
     if (!row?.model) return { error: SAVE_ERROR };
     const now = new Date();
+    const effectiveFrom = requestedStart(input, now);
     // Scoped to the model: the rows read are this model's only. The database checks both again.
     const replaced = rows.find((r) => r.id === input.replaceId);
     if (!replaced) return { error: REPLACE_ERROR };

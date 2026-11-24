@@ -70,6 +70,22 @@ describe("addCreditSettingsAction", () => {
       vi.useRealTimers();
     }
   });
+  it("starts a Now change from the server's time, moved out by the lead as any start that is too soon", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-01T12:00:00Z"));
+    try {
+      const res = await addCreditSettingsAction({ now: true, marginPercent: 20, roundStep: 5 });
+      expect(res).toEqual({ id: "new1", effectiveFrom: "2026-06-01T12:02:00.000Z" });
+      expect(m.insertCreditSettings).toHaveBeenCalledWith(expect.objectContaining({ effectiveFrom: "2026-06-01T12:02:00.000Z" }), "u1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("revalidates the models pages too, which show credits at these settings", async () => {
+    await addCreditSettingsAction(input());
+    expect(m.revalidatePath).toHaveBeenCalledWith("/admin/models");
+    expect(m.revalidatePath).toHaveBeenCalledWith("/admin/models/[id]", "page");
+  });
   it("returns the check's message and writes nothing when a check refuses", async () => {
     expect(await addCreditSettingsAction(input({ marginPercent: 300 }))).toEqual({ error: "The margin must be between 0% and 200%." });
     expect(m.insertCreditSettings).not.toHaveBeenCalled();

@@ -234,6 +234,17 @@ export function checkNewPrice(
   return { ok: true, effectiveFrom: new Date(at) };
 }
 
+/**
+ * The start a price or credit settings save asks for: an instant, or `now: true` for Now, which the
+ * action reads from the server's clock (a browser's clock may be off).
+ */
+export type StartInput = { effectiveFrom: string; now?: false } | { now: true; effectiveFrom?: undefined };
+
+/** The instant a StartInput asks for, with `now` the server's time; an invalid date for anything else. */
+export function requestedStart(input: StartInput, now: Date): Date {
+  return input.now === true ? now : new Date(typeof input.effectiveFrom === "string" ? input.effectiveFrom : NaN);
+}
+
 // D549 — Undo of a started change: only the latest started row, made by this admin in the last day.
 export const UNDO_WINDOW_MS = 24 * 60 * 60 * 1000;
 type DatedRow = { id: string; effectiveFrom: string; createdAt: string; createdBy: string | null };

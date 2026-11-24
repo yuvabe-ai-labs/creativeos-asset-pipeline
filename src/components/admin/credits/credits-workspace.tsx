@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { buildCreditReview, creditWhenProblem, replacedSettings, settingsBefore } from "@/lib/admin/credits-change";
+import { buildCreditReview, settingsBefore } from "@/lib/admin/credits-change";
+import { changeWhenProblem, replacedRow } from "@/lib/admin/change-prices-when";
 import { creditRunRows, type AgencyModelRuns, type CreditRun, type PricedRun, type Settings } from "@/lib/admin/credits-page";
 import type { CreditSettings } from "@/lib/ai-models/types";
 import { ChangeCreditSettingsDialog } from "./change-credit-settings-dialog";
@@ -47,8 +48,8 @@ export function CreditsWorkspace({
   const editing = flow.stage !== "closed";
   const draft = creditDraft(flow, live);
   const inDialog = flow.stage === "when" || flow.stage === "review";
-  const replaced = inDialog ? replacedSettings(settings, flow.when, now) : null;
-  const whenProblem = inDialog ? creditWhenProblem(flow.when, now, starts, replaced?.id ?? null) : null;
+  const replaced = inDialog ? replacedRow(settings, flow.when, now) : null;
+  const whenProblem = inDialog ? changeWhenProblem(flow.when, now, "credits", starts, replaced?.id ?? null) : null;
   // What runs keep until a date start (the When step's "On a date" words).
   const keptUntil = settingsBefore(settings, { ...flow.when, mode: "date" }, now, replaced);
   const review =

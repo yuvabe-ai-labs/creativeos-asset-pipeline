@@ -58,7 +58,9 @@ export function useSaveCreditSettings() {
       toast.error(start.problem);
       return "stale";
     }
-    const row = { effectiveFrom: start.at.toISOString(), marginPercent: settings.marginPercent, roundStep: settings.roundStep };
+    // Now is sent as a flag: the server starts it from its own clock, moved out by the lead.
+    const startInput = when.mode === "now" ? { now: true as const } : { effectiveFrom: start.at.toISOString() };
+    const row = { ...startInput, marginPercent: settings.marginPercent, roundStep: settings.roundStep };
     let result: { error?: string; id?: string; effectiveFrom?: string };
     try {
       result = replaced ? await replaceCreditSettingsAction({ ...row, replaceId: replaced.id }) : await addCreditSettingsAction(row);

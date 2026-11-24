@@ -139,6 +139,7 @@ export default async function AdminModelPage({
         problems={<ModelProblems problems={row.problems} />}
         sheet={m ? { model: { id, kind: m.kind, label: m.label, params: m.params, providerLabel: m.providerLabel }, current, next, settings } : null}
         prices={prices}
+        starts={priceRows.map((p) => ({ id: p.id, effectiveFrom: p.effectiveFrom }))}
         agencies={agencyRuns.map((a) => ({ orgName: a.orgName, runs: a.runs }))}
         openOnLoad={openChange && !!m}
         aside={

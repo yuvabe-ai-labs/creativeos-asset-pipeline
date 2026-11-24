@@ -3,18 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { applyEdits, buildReview, editTargets, hasEditablePrices, invalidKeys, priceChanges } from "@/lib/admin/change-prices";
-import { whenProblem } from "@/lib/admin/change-prices-when";
+import { changeWhenProblem, replacedRow } from "@/lib/admin/change-prices-when";
 import type { AiModel, AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
 import { ModelHeader } from "@/components/admin/models/model-header";
 import { PriceSheet } from "@/components/admin/models/price-sheet";
+import { ChangePricesDialog } from "./change-prices-dialog";
 import { ChooserDialog } from "./chooser-dialog";
 import { EditBar } from "./edit-bar";
-import { FlowDialog } from "./flow-dialog";
 import { PriceEditorCard } from "./price-editor-card";
-import { ReviewStep } from "./review-step";
 import { defaultWhens, useChangePrices } from "./use-change-prices";
 import { useSavePrices } from "./use-save-prices";
-import { WhenStep } from "./when-step";
 
 type SheetModel = Pick<AiModel, "id" | "kind" | "label" | "params" | "providerLabel">;
 type HeaderProps = Omit<React.ComponentProps<typeof ModelHeader>, "onChangePrices" | "changingPrices">;
@@ -33,6 +31,7 @@ export function ModelWorkspace({
   problems,
   sheet,
   prices,
+  starts,
   agencies,
   openOnLoad,
 }: {
@@ -45,6 +44,8 @@ export function ModelWorkspace({
   sheet: { model: SheetModel; current: AiModelPrice | null; next: AiModelPrice | null; settings: Pick<CreditSettings, "marginPercent" | "roundStep"> } | null;
   /** This model's price rows that pass their check, for replace and compare. */
   prices: AiModelPrice[];
+  /** Every price row's id and start, broken ones too: a new price can't share a start, except the one it replaces. */
+  starts: { id: string; effectiveFrom: string }[];
   /** This month's runs per agency. */
   agencies: { orgName: string; runs: number }[];
   /** "?change=1" from the models list. */
@@ -95,6 +96,9 @@ export function ModelWorkspace({
     sheet && flow.stage === "review"
       ? buildReview({ model: sheet.model, label: sheet.model.label, prices, base, after, when: flow.when, now, settings: sheet.settings, agencies })
       : null;
+  const inDialog = flow.stage === "when" || flow.stage === "review";
+  const replaced = inDialog ? replacedRow(prices, flow.when, now) : null;
+  const whenProblem = inDialog ? changeWhenProblem(flow.when, now, "prices", starts, replaced?.id ?? null) : null;
 
   function step(stage: "when" | "review") {
     setNow(new Date());
@@ -182,28 +186,21 @@ export function ModelWorkspace({
         />
       )}
       {sheet && (
-        <FlowDialog
-          step={flow.stage === "when" || flow.stage === "review" ? flow.stage : null}
-          title={flow.stage === "review" ? `Review the new prices for ${sheet.model.label}` : "When do the new prices start?"}
-          primary={flow.stage === "review" ? (review?.confirm ?? "") : "Next: review"}
-          canGoOn={flow.stage === "review" ? !!review?.canSave : whenProblem(flow.when, now) === null}
+        <ChangePricesDialog
+          stage={flow.stage === "when" || flow.stage === "review" ? flow.stage : null}
+          label={sheet.model.label}
+          when={flow.when}
+          now={now}
+          scheduled={prices.filter((p) => new Date(p.effectiveFrom) > now).map((p) => new Date(p.effectiveFrom))}
+          shortcut={sheet.next ? new Date(sheet.next.effectiveFrom) : null}
+          whenProblem={whenProblem}
+          review={review}
           saving={flow.saving}
+          onWhen={(when) => dispatch({ type: "when", when })}
           onBack={() => dispatch({ type: "back" })}
           onClose={() => dispatch({ type: "close" })}
           onNext={() => (flow.stage === "review" ? void confirm() : step("review"))}
-        >
-          {flow.stage === "review" && review ? (
-            <ReviewStep review={review} label={sheet.model.label} />
-          ) : (
-            <WhenStep
-              when={flow.when}
-              now={now}
-              scheduled={prices.filter((p) => new Date(p.effectiveFrom) > now).map((p) => new Date(p.effectiveFrom))}
-              shortcut={sheet.next ? new Date(sheet.next.effectiveFrom) : null}
-              onChange={(when) => dispatch({ type: "when", when })}
-            />
-          )}
-        </FlowDialog>
+        />
       )}
     </>
   );

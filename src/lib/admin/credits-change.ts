@@ -4,9 +4,9 @@
 import { CREDIT_SETTINGS_LEAD_MINUTES, CREDIT_SETTINGS_LEAD_MS } from "@/lib/credits/settings-edit";
 import { creditSettingsAt } from "@/lib/credits/units";
 import type { CreditSettings } from "@/lib/ai-models/types";
-import { whenInstant, whenProblem, type When } from "./change-prices-when";
+import { replacedRow, serverStart, type When } from "./change-prices-when";
 import type { AgencyChange } from "./change-prices";
-import { addIstDays, formatIstDate, formatIstTime, formatIstWhen, istDate, relativeIstDay, todayIst } from "./ist";
+import { addIstDays, formatIstDate, formatIstTime, formatIstWhen, relativeIstDay, todayIst } from "./ist";
 import { percentChange } from "./percent-edit";
 import {
   agencyCreditImpact,
@@ -34,52 +34,14 @@ export function defaultCreditWhen(now: Date): When {
   return { mode: "date", date: addIstDays(todayIst(now), 1), time: "00:00" };
 }
 
-/** The start the server gives a When: never sooner than the lead. Null when the time can't be read. */
-export function serverStart(w: When, now: Date): Date | null {
-  const at = whenInstant(w, now);
-  return at ? new Date(Math.max(at.getTime(), now.getTime() + CREDIT_SETTINGS_LEAD_MS)) : null;
-}
-
 const startOf = (s: Pick<CreditSettings, "effectiveFrom">) => Date.parse(s.effectiveFrom);
-
-/**
- * The scheduled change a save would replace, as in the prices flow: one on the IST day of a date
- * start. Only a change the server would still replace counts (more than the lead away).
- */
-export function replacedSettings(settings: readonly CreditSettings[], w: When, now: Date): CreditSettings | null {
-  if (w.mode !== "date") return null;
-  const at = whenInstant(w, now);
-  if (!at) return null;
-  const day = istDate(at);
-  return (
-    [...settings]
-      .sort((a, b) => startOf(a) - startOf(b))
-      .find((s) => startOf(s) > now.getTime() + CREDIT_SETTINGS_LEAD_MS && istDate(new Date(s.effectiveFrom)) === day) ?? null
-  );
-}
 
 /** The settings in force just before a start, with the replaced change left out (it is deleted by the save). */
 export function settingsBefore(settings: readonly CreditSettings[], w: When, now: Date, replaced: CreditSettings | null): Settings {
-  const at = serverStart(w, now) ?? now;
+  const at = serverStart(w, now, "credits") ?? now;
   const kept = settings.filter((s) => s.id !== replaced?.id);
   const s = creditSettingsAt({ creditSettings: kept }, new Date(at.getTime() - 1));
   return { marginPercent: s.marginPercent, roundStep: s.roundStep };
-}
-
-/** Why the When can't be used: a time that can't be read or has passed, or a start another change has (not the one replaced). */
-export function creditWhenProblem(
-  w: When,
-  now: Date,
-  rows: readonly { id: string; effectiveFrom: string }[],
-  replacedId: string | null,
-): string | null {
-  const problem = whenProblem(w, now);
-  if (problem) return problem;
-  const at = serverStart(w, now);
-  if (at && rows.some((r) => r.id !== replacedId && Date.parse(r.effectiveFrom) === at.getTime())) {
-    return "A change already starts then. Pick another time, or cancel that change first.";
-  }
-  return null;
 }
 
 /** The Now choice's words: it starts after the lead, and it reaches every agency at once. */
@@ -130,9 +92,9 @@ export function buildCreditReview(a: {
   agencyRuns: readonly AgencyModelRuns[];
   modelRuns: Readonly<Record<string, PricedRun>>;
 }): CreditReview {
-  const at = serverStart(a.when, a.now) ?? a.now;
+  const at = serverStart(a.when, a.now, "credits") ?? a.now;
   const t = at.getTime();
-  const rep = replacedSettings(a.settings, a.when, a.now);
+  const rep = replacedRow(a.settings, a.when, a.now);
   // Saving over a scheduled change is compared with that change, as in the prices flow.
   const before: Settings = rep ? { marginPercent: rep.marginPercent, roundStep: rep.roundStep } : settingsBefore(a.settings, a.when, a.now, null);
   const same = sameSettings(before, a.draft);
