@@ -8,7 +8,9 @@ import { canStartBuild, fallbackSuggestions, isBuilding, nextStep, type KbContex
 import type { KBFieldPatch } from "@/lib/kb/field-patch";
 import { coerceValue as coerce, isEmpty, REVIEW_FIELD_PATHS, reviewFields, type ReviewField } from "./review";
 import { walkChoice, type TurnWalk } from "./walk";
-import type { ChangeCard } from "@/lib/journey/thread/schema";
+import type { BrandsCard, ChangeCard } from "@/lib/journey/thread/schema";
+import type { MarketActions } from "@/lib/journey/market-copilot/context";
+import { marketTools } from "@/lib/journey/market-copilot/tools";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { buildChangeCard, sameValue, type Proposal } from "@/lib/kb/changes/card";
 import { kbTarget } from "./targets";
@@ -31,6 +33,8 @@ export type KbActions = {
   /** Merges `patch` into the one field at `path` (dotted) of the KB in review, only if that field
    *  is still unreviewed as stored. False when it was not written: somebody reviewed it meanwhile. */
   setField: (path: string, patch: KBFieldPatch["patch"]) => Promise<boolean>;
+  /** Market research (D530); its tools refuse without these. */
+  market?: MarketActions;
 };
 
 /** What a brand KB turn reports while it runs (D514), on top of what every agent turn reports. */
@@ -99,7 +103,7 @@ export async function runKbTurn(input: {
   on?: KbTurnEvents;
   /** Where the turn reports what it did, for its trace (D521). */
   trace?: TraceSink;
-}): Promise<{ reply: string; suggestions: string[]; changed: boolean; saved: KbSaved; walk: TurnWalk; card: ChangeCard | null }> {
+}): Promise<{ reply: string; suggestions: string[]; changed: boolean; saved: KbSaved; walk: TurnWalk; card: ChangeCard | BrandsCard | null }> {
   const { actions, model } = input;
   // The context as the tools have changed it so far this turn, so a later tool sees an earlier one.
   let ctx = input.ctx;
@@ -130,6 +134,8 @@ export async function runKbTurn(input: {
   const statusOf = (path: string) => status.get(path) ?? kbFields.find((f) => f.path === path)?.status;
   const proposals: Proposal[] = [];
   let toldChange = false;
+  /** A list of brands this turn made (D530), stored as its own message after the reply. */
+  let brandsCard: BrandsCard | null = null;
   // How many times the model has been asked, and when a change call only saved (no card). A turn that
   // ends on that call ends on code's words: the model wrote its own expecting a card (review fix).
   let modelCalls = 0;
@@ -348,6 +354,14 @@ export async function runKbTurn(input: {
         return tell("Started the build.");
       },
     },
+    // Market research (D530): its tools refuse until the brand KB is approved.
+    ...marketTools({
+      market: () => ctx.market,
+      setMarket: (market) => { ctx = { ...ctx, market }; },
+      actions: actions.market,
+      emit: (card) => { brandsCard = card; },
+      tell, refuse,
+    }),
     reply_choices: {
       description: "Offer the person's likely answers as buttons under your message. Short phrases they could send as they are.",
       // Nothing to say back: words written beside the buttons are the reply.
@@ -397,6 +411,6 @@ export async function runKbTurn(input: {
   const reply = codeWords && said.length > 0 ? [said.join(" "), nextStep(ctx)].filter(Boolean).join("\n\n") : text;
   const card = input.kb && proposals.length > 0
     ? buildChangeCard({ versionId: input.kb.versionId, current: input.kb.output, proposals, refused: new Set() })
-    : null;
+    : brandsCard;
   return { reply, suggestions: card ? [] : choices ?? fallbackSuggestions(ctx), changed, saved, walk, card };
 }

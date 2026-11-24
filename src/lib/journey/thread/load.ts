@@ -6,13 +6,16 @@ import { loadKbContext } from "@/lib/journey/kb-copilot/load";
 import { readKBFieldValues } from "@/lib/db/kb";
 import { outOfDatePaths } from "@/lib/kb/changes/card";
 import { kbWaiting } from "@/lib/journey/kb-copilot/waiting";
+import { marketWithThread } from "@/lib/journey/market-copilot/context";
 import { ONBOARDING, VIRTUAL_OPENING_ID, type ThreadMessage, type ThreadState } from "./schema";
 
 // The one read of a client's onboarding thread, for every stage page (journey map §2). Today its
 // live status and fallback reply choices come from the brand KB alone; later stages add theirs
 // here, so the same messages are never read or cached a second way.
 
-export function threadState(ctx: KbContext, stored: ThreadMessage[]): ThreadState {
+export function threadState(read: KbContext, stored: ThreadMessage[]): ThreadState {
+  // The brands card waiting on the person is only in the thread (D530).
+  const ctx: KbContext = read.market ? { ...read, market: marketWithThread(read.market, stored) } : read;
   // Nothing is stored until the person sends a message, so opening the page writes nothing.
   const messages: ThreadMessage[] = stored.length > 0
     ? stored

@@ -403,6 +403,22 @@ export async function listBucketUrls(clientId: string): Promise<Set<string>> {
   return new Set(((data ?? []) as { image_url: string }[]).map((r) => r.image_url));
 }
 
+/** How many references are in Direct and in Adjacent, in one read (a board not made yet is 0). */
+export async function countBucketItems(clientId: string): Promise<{ direct: number; adjacent: number }> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("moodboards")
+    .select("board_type, moodboard_items(count)")
+    .eq("client_id", clientId)
+    .in("board_type", ["direct", "adjacent"]);
+  if (error) throw error;
+  const counts = { direct: 0, adjacent: 0 };
+  for (const row of (data ?? []) as { board_type: "direct" | "adjacent"; moodboard_items: { count: number }[] | null }[]) {
+    counts[row.board_type] += row.moodboard_items?.[0]?.count ?? 0;
+  }
+  return counts;
+}
+
 export async function setItemReading(itemId: string, reading: PostReading): Promise<void> {
   const supabase = createServerSupabase();
   const { error } = await supabase.from("moodboard_items").update({ reading }).eq("id", itemId);

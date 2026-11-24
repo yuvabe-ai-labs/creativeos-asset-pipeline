@@ -5,7 +5,10 @@ import { apiError, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { IMPORT_SOURCES } from "@/lib/asset-import/constants";
 import { setImportTarget, startAssetImports } from "@/lib/asset-import/start";
 import { importTargetEditValue } from "@/lib/asset-import/utils";
-import { insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-messages";
+import { claimCopilotCard, insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-messages";
+import { marketActions } from "@/lib/journey/market-copilot/actions";
+import { marketWithThread, pendingBrands } from "@/lib/journey/market-copilot/context";
+import { renderKbText } from "@/lib/scripts/copilot/prompt-context";
 import { insertTurnTrace } from "@/lib/db/copilot-traces";
 import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
 import { openaiAgentModel } from "@/lib/journey/agent-model";
@@ -20,7 +23,7 @@ import { kbTraceRow, kbTurnMarks } from "@/lib/journey/kb-copilot/trace";
 import { runKbTurn, type KbActions, type KbReview, type KbSaved } from "@/lib/journey/kb-copilot/turn";
 import { traceRecorder } from "@/lib/journey/trace/recorder";
 import { loadThread } from "@/lib/journey/thread/load";
-import { ONBOARDING, VIRTUAL_OPENING_ID, type Attachment, type ChangeCard, type ThreadMessage } from "@/lib/journey/thread/schema";
+import { ONBOARDING, VIRTUAL_OPENING_ID, type Attachment, type BrandsCard, type ChangeCard, type ThreadMessage } from "@/lib/journey/thread/schema";
 import { NDJSON_HEADERS, type KbTurnEvent } from "@/lib/journey/thread/turn-events";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { startKBBuild } from "@/lib/kb/start-build";
@@ -159,6 +162,16 @@ export async function POST(req: Request, { params }: Ctx) {
               }
               return written;
             },
+            // Market research (D530). Building them reads nothing; the tools refuse until the KB is
+            // approved. What starts paid work counts as acted.
+            market: (() => {
+              const market = marketActions({
+                client, userId, history,
+                kbText: version ? renderKbText(version.output as unknown as TraceableBrandKB) : "",
+                ownHandle: ctx.market?.ownHandle ?? null,
+              });
+              return { ...market, startFetch: done(market.startFetch), startDraft: done(market.startDraft) };
+            })(),
             startBuild: done(async () => {
               await startKBBuild(clientId);
               // Only once the build has really started, and only from sources never collected before:
@@ -178,10 +191,10 @@ export async function POST(req: Request, { params }: Ctx) {
           let changed: boolean;
           let turnWalk: TurnWalk | null = null;
           let saved: KbSaved = {};
-          let card: ChangeCard | null = null;
+          let card: ChangeCard | BrandsCard | null = null;
           try {
             const result = await runKbTurn({
-              ctx, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL), trace: recorder,
+              ctx: { ...ctx, market: marketWithThread(ctx.market, history) }, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL), trace: recorder,
               kb: version ? { versionId: version.id, output: version.output as unknown as TraceableBrandKB } : null,
               on: {
                 step: (line) => emit({ type: "step", text: line }),
@@ -226,6 +239,10 @@ export async function POST(req: Request, { params }: Ctx) {
             ...(card ? [{ role: "assistant" as const, content: "", card, suggestions: [] }] : []),
           ]);
           kept.replyId = replyId;
+          // A new list of brands replaces the one still waiting (D530): the older card goes stale, so
+          // it can no longer be confirmed. Only after the new one is stored.
+          const replaced = card?.kind === "brands" ? pendingBrands(history) : null;
+          if (replaced) await claimCopilotCard(clientId, replaced.messageId, "brands", "pending", { ...replaced.card, status: "stale" });
 
           // An attached file is a new source, so the page on the right has changed even when no tool ran.
           const refresh = changed || attachments.length > 0;

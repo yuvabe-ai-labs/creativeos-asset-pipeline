@@ -1,5 +1,6 @@
 import { KB_JOB_NON_TERMINAL_STATUSES } from "@/lib/kb/constants";
 import type { StatusLine } from "@/lib/journey/thread/schema";
+import { marketLive, marketSuggestions, type MarketContext } from "@/lib/journey/market-copilot/context";
 
 // What the brand KB copilot knows about a client, and everything it says without a model: the
 // opening line, the fallback reply choice and the live status. Pure, so the copy is tested exactly.
@@ -33,6 +34,8 @@ export type KbContext = {
   proposing?: string | null;
   /** Sources that have been collected from at least once, however it ended. */
   importedBefore: ImportSource[];
+  /** Market research (D530), read only once the brand KB is approved. */
+  market?: MarketContext;
 };
 
 const NON_TERMINAL: readonly string[] = KB_JOB_NON_TERMINAL_STATUSES;
@@ -96,6 +99,7 @@ export const ASK_OPEN_CHOICE = "Ask me the open questions";
 
 export function fallbackSuggestions(ctx: KbContext): string[] {
   if (canStartBuild(ctx)) return [START_BUILD_CHOICE];
+  if (ctx.kbStatus === "ready" && ctx.market) return marketSuggestions(ctx.market);
   const reviewing = ctx.kbStatus === "in_review" && ctx.hasVersion && !isBuilding(ctx);
   return reviewing && (ctx.unreviewed?.length ?? 0) > 0 ? [ASK_OPEN_CHOICE] : [];
 }
@@ -113,5 +117,6 @@ export function liveStatus(ctx: KbContext): StatusLine[] {
     ...ctx.importing.map((source) => running(`Collecting images and video from ${IMPORT_LABEL[source]}…`)),
     ...(ctx.studyingImages ? [running("Studying the images…")] : []),
     ...(ctx.proposing ? [running(ctx.proposing)] : []),
+    ...(ctx.market ? marketLive(ctx.market) : []),
   ];
 }

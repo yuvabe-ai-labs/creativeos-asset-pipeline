@@ -104,9 +104,9 @@ export async function claimChangeCard(clientId: string, messageId: string, next:
 /** Moves a market card (D530) from one status to the next, only while it is still in `from`: two
  *  windows or a double click act once. Returns the card as stored now, or null when it had already
  *  moved (the second caller), so the caller reports the settled card and starts nothing. */
-export async function claimCopilotCard<C extends BrandsCard | SignalDraftCard>(
-  clientId: string, messageId: string, kind: C["kind"], from: C["status"], next: C,
-): Promise<C | null> {
+export async function claimCopilotCard<K extends MarketCardKind>(
+  clientId: string, messageId: string, kind: K, from: MarketCardOf<K>["status"], next: MarketCardOf<K>,
+): Promise<MarketCardOf<K> | null> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("client_copilot_messages").update({ card: next })
@@ -115,8 +115,11 @@ export async function claimCopilotCard<C extends BrandsCard | SignalDraftCard>(
     .select("card")
     .maybeSingle();
   if (error) throw error;
-  return data ? ((data as { card: C }).card) : null;
+  return data ? (data as { card: MarketCardOf<K> }).card : null;
 }
+
+type MarketCardKind = "brands" | "signal-draft";
+type MarketCardOf<K extends MarketCardKind> = K extends "brands" ? BrandsCard : SignalDraftCard;
 
 /** Puts a card back on its message: a claimed change card whose write then failed. */
 export async function setMessageCard(clientId: string, messageId: string, card: ThreadCard): Promise<void> {

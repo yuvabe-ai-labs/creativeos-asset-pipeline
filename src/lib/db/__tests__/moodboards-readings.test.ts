@@ -20,7 +20,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: () => ({ from: (table: string) => { calls.push(["from", table]); return chain(); } }),
 }));
 
-import { listBucketUrls, listItemsByIds, setItemReading } from "../moodboards";
+import { countBucketItems, listBucketUrls, listItemsByIds, setItemReading } from "../moodboards";
 import { listSignalNames } from "../signals";
 
 beforeEach(() => { calls = []; result = { data: [], error: null }; });
@@ -52,6 +52,20 @@ describe("listBucketUrls", () => {
     expect(calls).toContainEqual(["in", "moodboards.board_type", ["direct", "adjacent"]]);
     expect(calls).toContainEqual(["eq", "moodboards.client_id", "c1"]);
     expect([...urls]).toEqual(["https://instagram.com/p/A/", "https://instagram.com/p/B/"]);
+  });
+});
+
+describe("countBucketItems", () => {
+  it("counts Direct and Adjacent in one read", async () => {
+    result = { data: [{ board_type: "direct", moodboard_items: [{ count: 4 }] }, { board_type: "adjacent", moodboard_items: [{ count: 0 }] }], error: null };
+    expect(await countBucketItems("c1")).toEqual({ direct: 4, adjacent: 0 });
+    expect(calls.filter((c) => c[0] === "from")).toEqual([["from", "moodboards"]]);
+    expect(calls).toContainEqual(["select", "board_type, moodboard_items(count)"]);
+  });
+
+  it("is zero for a board not made yet", async () => {
+    result = { data: [], error: null };
+    expect(await countBucketItems("c1")).toEqual({ direct: 0, adjacent: 0 });
   });
 });
 

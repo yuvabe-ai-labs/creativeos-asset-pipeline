@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentModel } from "@/lib/journey/agent";
-import type { ThreadMessage } from "@/lib/journey/thread/schema";
+import type { ChangeCard, ThreadMessage } from "@/lib/journey/thread/schema";
 import { KB_CONVERSATION_WINDOW } from "../constants";
 import type { KbContext } from "../context";
 import { BuildAlreadyRunningError, runKbTurn, type KbActions } from "../turn";
@@ -412,6 +412,9 @@ describe("runKbTurn, reporting as it goes", () => {
       save_website: "Saving the website…", save_socials: "Saving the handles…",
       answer_field: "Saving your answer…", confirm_field: "Saving your answer…", start_build: "Starting the build…",
       propose_change: "Preparing the change…",
+      // Market research (D530).
+      find_brands: "Searching the web…", update_brands: "Updating the list…",
+      fetch_posts: "Starting to bring in their posts…", draft_signals: "Starting to draft signals…",
     });
   });
 
@@ -473,7 +476,7 @@ describe("runKbTurn, changing reviewed fields", () => {
       call("propose_change", { changes: [{ field: WORDS, value: "cheap, chemical-free" }] }, "c2"),
     ] }]);
     const result = await turn({ ctx: approved, kb, model });
-    expect(result.card?.fields.map((f) => [f.path, f.after])).toEqual([[TONE, "Plain"], [WORDS, ["cheap", "chemical-free"]]]);
+    expect((result.card as ChangeCard | null)?.fields.map((f) => [f.path, f.after])).toEqual([[TONE, "Plain"], [WORDS, ["cheap", "chemical-free"]]]);
   });
 
   it("refuses a change that equals what is there, and makes no card", async () => {
@@ -557,7 +560,7 @@ describe("runKbTurn, a change that is only partly allowed (review fix)", () => {
     const result = await turn({ ctx: inReview, kb: { versionId: V1, output }, review: { fields: reviewFields(output), pending: null }, actions: actions({ setField }), model });
     expect(seen).toHaveLength(1);
     expect(setField).toHaveBeenCalledWith(AGE, expect.objectContaining({ value: "30 to 50", status: "edited" }));
-    expect(result.card?.fields.map((f) => f.path)).toEqual([TONE]);
+    expect((result.card as ChangeCard | null)?.fields.map((f) => f.path)).toEqual([TONE]);
     expect(result.reply).toMatch(/^Saved .+\. Here is the change. Nothing changes until you approve it.$/);
   });
 
@@ -571,7 +574,7 @@ describe("runKbTurn, a change that is only partly allowed (review fix)", () => {
     const result = await turn({ ctx: inReview, kb: { versionId: V1, output: both }, review: { fields: reviewFields(both), pending: null }, model });
     expect(seen).toHaveLength(2);
     expect(outputs(seen)[0]).toMatch(/^Error: Added .*Tone of Voice.* to the change. Not added: That is already the value.$/);
-    expect(result.card?.fields.map((f) => f.path)).toEqual([TONE]);
+    expect((result.card as ChangeCard | null)?.fields.map((f) => f.path)).toEqual([TONE]);
   });
 
   it("tells the model when a later call adds nothing, instead of saying it was added", async () => {
