@@ -60,6 +60,10 @@ const ALLOWLIST: Record<string, string> = {
     "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546).",
   cancelAiModelPriceAction:
     "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546).",
+  addCreditSettingsAction:
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D546, D548).",
+  cancelCreditSettingsAction:
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D546, D548).",
 };
 
 function findActionFiles(dir: string): string[] {

@@ -1,0 +1,62 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
+import { clearAiCatalogCache } from "@/lib/ai-models/catalog";
+import { checkNewCreditSettings } from "@/lib/credits/settings-edit";
+import { listAdminCreditSettings, insertCreditSettings, deleteCreditSettings } from "@/lib/db/credit-settings-admin";
+
+// D548 — the /admin credit settings actions. Platform administration (requireSuperAdmin()-gated), not
+// an org's data, so deliberately not wrapped in withAction() (D85). Every write runs its check first
+// and nothing is written when a check refuses.
+
+const SAVE_ERROR = "Could not save. Try again.";
+const CANCEL_ERROR = "Only a change that hasn't started can be cancelled.";
+
+function refresh(): void {
+  clearAiCatalogCache();
+  revalidatePath("/admin/credits");
+}
+
+export async function addCreditSettingsAction(input: {
+  effectiveFrom: string;
+  marginPercent: number;
+  roundStep: number;
+  note?: string;
+}): Promise<{ error?: string }> {
+  const caller = await requireSuperAdmin();
+  if (typeof input?.effectiveFrom !== "string") return { error: SAVE_ERROR };
+  try {
+    const effectiveFrom = new Date(input.effectiveFrom);
+    if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
+    // A fresh read: a cached catalog may be up to a minute old. A row that fails its check still
+    // holds its start in the database, so every row counts.
+    const rows = await listAdminCreditSettings();
+    const checked = checkNewCreditSettings(
+      { effectiveFrom, marginPercent: input.marginPercent, roundStep: input.roundStep, note: input.note },
+      rows.map((r) => ({ effectiveFrom: r.effectiveFrom })),
+      new Date(),
+    );
+    if (!checked.ok) return { error: checked.error };
+    await insertCreditSettings(checked.value, caller.userId);
+  } catch (e) {
+    console.error("addCreditSettingsAction failed", e);
+    return { error: SAVE_ERROR };
+  }
+  refresh();
+  return {};
+}
+
+export async function cancelCreditSettingsAction(id: string): Promise<{ error?: string }> {
+  await requireSuperAdmin();
+  if (typeof id !== "string") return { error: SAVE_ERROR };
+  try {
+    const { deleted } = await deleteCreditSettings(id);
+    if (!deleted) return { error: CANCEL_ERROR };
+  } catch (e) {
+    console.error("cancelCreditSettingsAction failed", id, e);
+    return { error: SAVE_ERROR };
+  }
+  refresh();
+  return {};
+}
