@@ -18,7 +18,7 @@ function ItemIcon({ item }: { item: AttentionItem }) {
   );
 }
 
-/** "Kling 3.1 Omni has no price yet" reads on; "Omni: prices drop 31%" and "Omni: Its price fails its check" take a colon. */
+/** "Kling 3.1 Omni has no price yet" reads on; "Omni: prices drop 31%" takes a colon. */
 const needsColon = (item: AttentionItem) => item.tone === "next" || /^[A-Z]/.test(item.text);
 
 /** Problems and scheduled changes above the models list. Nothing when there are none. */

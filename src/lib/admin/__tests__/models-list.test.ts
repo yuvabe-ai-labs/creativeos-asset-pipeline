@@ -116,7 +116,7 @@ describe("buildModelsList", () => {
       brokenPriceModelIds: [OMNI11],
     }));
     const items = attention.filter((a) => a.modelId === OMNI11);
-    expect(items.map((a) => a.text)).toEqual(["Its price fails its check"]);
+    expect(items.map((a) => a.text)).toEqual(["has a price that fails its check"]);
     expect(items[0]).toMatchObject({ tone: "bad", name: model(OMNI11).label, action: "Open" });
   });
 

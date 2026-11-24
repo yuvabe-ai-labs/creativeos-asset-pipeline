@@ -9033,3 +9033,20 @@ A new run reads the row valid now from the cached catalog and records it as `gen
 **Rejected.** A `credit_settings_id` on every generation (the time of the run already identifies the row, since rows are never edited and only future rows can be cancelled). An editable credit rate.
 
 **Originated →** [2026-11-24-credit-settings-5a.md](../plans/2026-11-24-credit-settings-5a.md).
+
+### D549 — The model admin follows prototype v3, with server-checked changes *(recorded 2026-11-24; refines D546, D547, D548)*
+
+**Decision.** The super-admin Models list, model page, change-prices flow and Credits page follow the approved prototype v3 ([2026-11-24-model-admin-v3-design.md](2026-11-24-model-admin-v3-design.md); the prototype is in OneDrive, `Documents\CreativeOS\ModelPricing`). The server owns every rule the screens show:
+- Replacing a scheduled price (migration 0088) and replacing a scheduled credit-settings change (0089) each run as one transaction: the old row is cancelled and the new one added, or neither happens.
+- Reordering models, listing the agencies a change affects, and Undo of a change that has already started are server operations with their own checks.
+- Every change to the catalog needs a 2-minute lead before it starts: cancelling a scheduled row, replacing one, and adding new credit settings. The server enforces it; the screen only mirrors it.
+- Times are typed in IST and shown with the UTC time beside them. Prices are shown at the precision they are stored, with no rounding.
+
+**Why.** The owner approved the prototype's layout and wording, so the screens are built from it and not re-designed per page. A change that fails halfway, or that starts while it is being saved, would charge runs at the wrong price; so the checks live where the data is written, and the lead keeps a change from starting during its own save.
+
+**Rejected.**
+- The phase-1 price sheet with one form per price line (the owner rejected it on 24 Nov); its components are removed.
+- Guards that exist only in the client. The server checks again, because a stale screen or a direct call skips the client.
+- Replacing a row as a cancel followed by an add, sent from the client. The two calls can leave the model with neither row, or with both.
+
+**Originated →** [2026-11-24-model-admin-v3-design.md](2026-11-24-model-admin-v3-design.md).

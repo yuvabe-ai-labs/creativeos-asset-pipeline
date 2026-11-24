@@ -180,7 +180,7 @@ export function buildModelsList(input: ModelsListInput): { rows: ModelListRow[];
       nextCell = { ...nextChip(d), date: formatIstDate(at, false) };
       item("next", `${changeWords(d)} on ${formatIstDate(at, false)}`, `Starts ${formatIstWhen(at)}, ${relativeIstDay(at, now)}.`, "Review");
     }
-    if (!own.prices.length && brokenPrices.has(id)) item("bad", "Its price fails its check", "Runs can't be charged until it is fixed.", "Open");
+    if (!own.prices.length && brokenPrices.has(id)) item("bad", "has a price that fails its check", "Runs can't be charged until it is fixed.", "Open");
     else if (!own.prices.length) item("bad", "has no price yet", "Runs can't be charged, so it stays a draft until it has one.", "Add prices");
     else if (m.status === "draft") item("info", "is a draft", "Only super admins can pick it.", "Open");
     if (m.status === "retired" && !m.replacedBy) item("bad", "is retired with no replacement", "Nodes using it have nothing to switch to.", "Pick one");
