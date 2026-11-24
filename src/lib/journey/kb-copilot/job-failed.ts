@@ -8,6 +8,7 @@ import type { KbProposeInput } from "@/lib/kb/changes/start";
 import { ensureOpening } from "@/lib/journey/thread/opening";
 import { ONBOARDING } from "@/lib/journey/thread/schema";
 import { IMPORT_LABEL, type ImportSource } from "./context";
+import { reopenBrandsCard } from "@/lib/journey/market-copilot/cards";
 
 // A background job the brand KB copilot speaks about failed (D518): it is said once, in the thread,
 // at the moment it fails, and stays where it happened. Never repeated at the bottom of the panel,
@@ -28,6 +29,9 @@ export function jobFailedLine(kind: JobKind, input: unknown): string | null {
     const proposal = given as Partial<KbProposeInput>;
     return proposalCopy.couldNotReadLine(readingWhat({ added: proposal.added ?? [], removed: proposal.removed ?? [] }));
   }
+  // Market research (D530).
+  if (kind === "market-fetch") return "I could not finish bringing in their posts. Nothing else changed; ask me to try again.";
+  if (kind === "market-draft") return "I could not finish drafting signals. Nothing else changed; ask me to try again.";
   return null;
 }
 
@@ -47,6 +51,9 @@ export async function sayJobFailed(job: Pick<BackgroundJobRow<unknown>, "client_
     // The opening is always the thread's first line, even when a failure is the first thing to say.
     await ensureOpening(client);
     await insertCopilotMessages(job.client_id, ONBOARDING, null, [failedLineMessage(line)]);
+    // A fetch that died leaves its list waiting for the person again, never "fetching" for ever.
+    const messageId = (job.input as { messageId?: unknown } | null)?.messageId;
+    if (job.kind === "market-fetch" && typeof messageId === "string") await reopenBrandsCard(job.client_id, messageId);
   } catch (e) {
     console.error("[copilot] could not say a job failed", { clientId: job.client_id, kind: job.kind, error: describeError(e) });
   }
