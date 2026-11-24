@@ -1,15 +1,23 @@
 // Percent edits on the change-prices grid: "−31%" in a cell, or "change every price by". Amounts here
 // are what the admin reads and types (token prices per 1M). Client-safe.
+import { storedDecimal } from "@/lib/ai-models/price-format";
 
-/** A typed percent: "−31%", "-31", "–31 %", "+20". Null when it isn't one. */
+/** The lowest percent a price can change by: −100% makes it free; anything lower would make it negative. */
+export const LOWEST_PERCENT = -100;
+
+/** A typed percent: "−31%", "-31", "–31 %", "+20". Null when it isn't one, or is below −100%. */
 export function parsePercent(typed: string): number | null {
   const s = typed.trim().replace(/[−–]/g, "-").replace(/[\s%]/g, "");
-  return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(s) ? Number(s) : null;
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(s)) return null;
+  const p = Number(s);
+  return p < LOWEST_PERCENT ? null : p;
 }
 
-/** A percent result is rounded to 4 significant figures, so it is marked approximate. */
-export function applyPercent(amount: number, percent: number): { value: number; approximate: true } {
-  return { value: Number((amount * (1 + percent / 100)).toPrecision(4)), approximate: true };
+/** A percent result is rounded to 4 significant figures, so it is marked approximate. Null below −100%: no negative prices. */
+export function applyPercent(amount: number, percent: number): { value: number; approximate: true } | null {
+  if (!(percent >= LOWEST_PERCENT)) return null;
+  // Math.max: −100% of a price works out as 0, never −0.
+  return { value: Math.max(0, Number((amount * (1 + percent / 100)).toPrecision(4))), approximate: true };
 }
 
 export type PriceEntry = { kind: "empty" } | { kind: "invalid" } | { kind: "price"; value: number; approximate: boolean };
@@ -20,8 +28,8 @@ export function parsePriceEntry(typed: string, oldAmount: number | null): PriceE
   if (s === "") return { kind: "empty" };
   if (s.endsWith("%")) {
     const p = parsePercent(s);
-    if (p === null || oldAmount === null) return { kind: "invalid" };
-    return { kind: "price", ...applyPercent(oldAmount, p) };
+    const applied = p === null || oldAmount === null ? null : applyPercent(oldAmount, p);
+    return applied ? { kind: "price", ...applied } : { kind: "invalid" };
   }
   if (!/^(\d+\.?\d*|\.\d+)$/.test(s)) return { kind: "invalid" };
   return { kind: "price", value: Number(s), approximate: false };
@@ -54,6 +62,8 @@ export type BulkTarget = { key: string; amount: number | null };
  * "Change every price by": sets each priced cell (and, when asked, each other charge that isn't at
  * cost) to its base amount changed by `percent`. A cell the admin typed by hand is left alone; a
  * cell an earlier percent set is set again from its base. Returns new values; the inputs are untouched.
+ * A percent below −100% is refused (`refused`) and changes nothing. Values are plain decimals, never
+ * exponent form, so a tiny token price reads as typed.
  */
 export function bulkApplyPercent(a: {
   cells: readonly BulkTarget[];
@@ -62,7 +72,8 @@ export function bulkApplyPercent(a: {
   percentKeys: readonly string[];
   percent: number;
   includeOtherCharges: boolean;
-}): { values: Record<string, string>; percentKeys: string[]; changed: number; kept: number } {
+}): { values: Record<string, string>; percentKeys: string[]; changed: number; kept: number; refused: boolean } {
+  if (!(a.percent >= LOWEST_PERCENT)) return { values: { ...a.values }, percentKeys: [...a.percentKeys], changed: 0, kept: 0, refused: true };
   const values = { ...a.values };
   const percentKeys = [...a.percentKeys];
   const targets = [...a.cells, ...(a.includeOtherCharges ? a.otherCharges.filter((o) => !o.atCost) : [])];
@@ -74,9 +85,11 @@ export function bulkApplyPercent(a: {
       kept++;
       continue;
     }
-    values[t.key] = String(applyPercent(t.amount, a.percent).value);
+    const applied = applyPercent(t.amount, a.percent);
+    if (!applied) continue;
+    values[t.key] = storedDecimal(applied.value);
     if (!percentKeys.includes(t.key)) percentKeys.push(t.key);
     changed++;
   }
-  return { values, percentKeys, changed, kept };
+  return { values, percentKeys, changed, kept, refused: false };
 }

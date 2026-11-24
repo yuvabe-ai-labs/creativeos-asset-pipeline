@@ -3,7 +3,7 @@ import { AddChip } from "@/components/admin/models/add-chip";
 import { ModelStatusBadge } from "@/components/admin/models/model-status-badge";
 import { PercentChip } from "@/components/admin/models/percent-chip";
 import { cn } from "@/lib/utils";
-import { modelHref, type ModelListRow } from "@/lib/admin/models-list";
+import { changePricesHref, modelHref, type ModelListRow } from "@/lib/admin/models-list";
 
 /** Shared by the header and each row so the columns line up; at phone width a row stacks in three lines. */
 export const LIST_COLUMNS =
@@ -12,12 +12,12 @@ export const LIST_COLUMNS =
 function PriceCell({ row }: { row: ModelListRow }) {
   if (row.broken) return <span className="text-xs text-destructive-text">Fails its check</span>;
   if (!row.price) {
-    // Above the row's link, so it opens the model page itself rather than the row.
+    // Above the row's link, so it opens the change-prices flow rather than the plain model page.
     return (
       <AddChip
         label="Add prices"
         nativeButton={false}
-        render={<Link href={modelHref(row.id)} prefetch={false} />}
+        render={<Link href={changePricesHref(row.id)} prefetch={false} />}
         className="relative z-10"
       />
     );

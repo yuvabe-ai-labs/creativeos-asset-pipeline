@@ -140,11 +140,12 @@ function lockedProblem(effectiveFrom: string, now: Date, startedError: string): 
   return at <= now.getTime() + CATALOG_CHANGE_LEAD_MS ? SOON_ERROR : null;
 }
 
-export async function addAiModelPriceAction(input: PriceInput): Promise<{ error?: string; effectiveFrom?: string }> {
+export async function addAiModelPriceAction(input: PriceInput): Promise<{ error?: string; id?: string; effectiveFrom?: string }> {
   const caller = await requireSuperAdmin();
   const shape = priceInputProblem(input);
   if ("error" in shape) return shape;
   let effective = "";
+  let id = "";
   try {
     const effectiveFrom = new Date(input.effectiveFrom);
     if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
@@ -159,26 +160,28 @@ export async function addAiModelPriceAction(input: PriceInput): Promise<{ error?
       new Date(),
     );
     if ("error" in price) return price;
-    await insertAiModelPrice(price, caller.userId);
+    id = (await insertAiModelPrice(price, caller.userId)).id;
     effective = price.effectiveFrom;
   } catch (e) {
     console.error("addAiModelPriceAction failed", input.modelId, e);
     return { error: SAVE_ERROR };
   }
   refresh();
-  // The start the row really got: a start in the next 2 minutes is moved out to 2 minutes.
-  return { effectiveFrom: effective };
+  // The start the row really got: a start in the next 2 minutes is moved out to 2 minutes. The id is
+  // what the toast's Undo names.
+  return { id, effectiveFrom: effective };
 }
 
 /** D549 — swaps a price that hasn't started for a new one, in one transaction. */
 export async function replaceAiModelPriceAction(
   input: PriceInput & { replaceId: string },
-): Promise<{ error?: string; effectiveFrom?: string }> {
+): Promise<{ error?: string; id?: string; effectiveFrom?: string }> {
   const caller = await requireSuperAdmin();
   if (typeof input?.replaceId !== "string") return { error: BREAK_ERROR };
   const shape = priceInputProblem(input);
   if ("error" in shape) return shape;
   let effective = "";
+  let id = "";
   try {
     const effectiveFrom = new Date(input.effectiveFrom);
     if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
@@ -199,15 +202,16 @@ export async function replaceAiModelPriceAction(
       input.replaceId,
     );
     if ("error" in price) return price;
-    const { replaced: done } = await replaceAiModelPrice(input.replaceId, price, caller.userId);
+    const { replaced: done, id: newId } = await replaceAiModelPrice(input.replaceId, price, caller.userId);
     if (!done) return { error: REPLACE_ERROR };
+    id = newId ?? "";
     effective = price.effectiveFrom;
   } catch (e) {
     console.error("replaceAiModelPriceAction failed", input.modelId, e);
     return { error: SAVE_ERROR };
   }
   refresh();
-  return { effectiveFrom: effective };
+  return { id, effectiveFrom: effective };
 }
 
 /** D549 — the order models of one kind are listed and offered in. `orderedIds` is every model of the kind once. */
@@ -240,10 +244,11 @@ export async function reorderAiModelsAction(kind: string, orderedIds: string[]):
  * hours: a new row, live now, repeats the price before it. A price that hasn't started is cancelled
  * instead (cancelAiModelPriceAction).
  */
-export async function undoAiModelPriceAction(modelId: string, priceId: string): Promise<{ error?: string; effectiveFrom?: string }> {
+export async function undoAiModelPriceAction(modelId: string, priceId: string): Promise<{ error?: string; id?: string; effectiveFrom?: string }> {
   const caller = await requireSuperAdmin();
   if (typeof modelId !== "string" || typeof priceId !== "string") return { error: SAVE_ERROR };
   let effective = "";
+  let id = "";
   try {
     const [row, rows] = await Promise.all([getAdminModel(modelId), listAdminPrices(modelId)]);
     if (!row?.model) return { error: SAVE_ERROR };
@@ -263,14 +268,14 @@ export async function undoAiModelPriceAction(modelId: string, priceId: string): 
       now,
     );
     if ("error" in price) return price;
-    await insertAiModelPrice(price, caller.userId);
+    id = (await insertAiModelPrice(price, caller.userId)).id;
     effective = price.effectiveFrom;
   } catch (e) {
     console.error("undoAiModelPriceAction failed", modelId, priceId, e);
     return { error: SAVE_ERROR };
   }
   refresh();
-  return { effectiveFrom: effective };
+  return { id, effectiveFrom: effective };
 }
 
 export async function cancelAiModelPriceAction(priceId: string, modelId: string): Promise<{ error?: string }> {

@@ -42,6 +42,7 @@ export function ModelHeader({
   replacements,
   settings,
   onChangePrices,
+  changingPrices = false,
 }: {
   model: HeaderModel;
   /** Any price row, scheduled ones included: "Change prices" rather than "Add prices". */
@@ -55,6 +56,8 @@ export function ModelHeader({
   replacements: ReplacementOption[];
   settings: SettingRow[];
   onChangePrices?: () => void;
+  /** While the change-prices flow is open, its edit bar holds the actions, so the button is hidden. */
+  changingPrices?: boolean;
 }) {
   const [status, setStatus] = useState(model.status);
   const [savedReplacement, setSavedReplacement] = useState(model.replacedBy);
@@ -114,7 +117,7 @@ export function ModelHeader({
         <div className="min-w-0 flex-1">
           <ModelName id={model.id} label={model.label} />
         </div>
-        {!model.broken && model.kind !== "scrape" && <ChangePricesButton hasPrices={hasPrices} onStart={onChangePrices} />}
+        {!model.broken && model.kind !== "scrape" && !changingPrices && <ChangePricesButton hasPrices={hasPrices} onStart={onChangePrices} />}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[0.8125rem]">
         <ModelStatusMenu status={status} onPick={pick} />

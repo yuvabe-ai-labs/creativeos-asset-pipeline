@@ -10,7 +10,7 @@ const rpcCalls: { fn: string; args: unknown }[] = [];
 function builder(table: string) {
   const b: Record<string, unknown> = {};
   const chain = (op: string) => (...args: unknown[]) => { calls.push({ table, op, args }); return b; };
-  for (const op of ["select", "order", "eq", "in", "update", "insert", "delete"]) b[op] = chain(op);
+  for (const op of ["select", "order", "eq", "in", "update", "insert", "delete", "single"]) b[op] = chain(op);
   b.then = (resolve: (v: Result) => unknown) => resolve({ error: null, ...(results[table] ?? { data: [] }) });
   return b;
 }
@@ -26,6 +26,7 @@ import {
   modelMonthStats,
   updateAiModelRow,
   deleteAiModelPrice,
+  insertAiModelPrice,
   replaceAiModelPrice,
   reorderAiModels,
   modelRunsByAgency,
@@ -114,6 +115,19 @@ describe("updateAiModelRow", () => {
     expect(written.updated_by).toBe("u9");
     expect(typeof written.updated_at).toBe("string");
     expect(calls.find((c) => c.op === "eq")?.args).toEqual(["id", "m1"]);
+  });
+});
+
+describe("insertAiModelPrice", () => {
+  const row = { modelId: "m1", effectiveFrom: "2026-12-03T08:00:00.000Z", lines: [], estimate: {}, sourceUrl: null, note: null };
+  it("returns the new row's id, so the change can be undone", async () => {
+    results.ai_model_prices = { data: { id: "p9" } };
+    expect(await insertAiModelPrice(row, "u1")).toEqual({ id: "p9" });
+    expect(calls.filter((c) => c.table === "ai_model_prices").map((c) => c.op)).toEqual(["insert", "select", "single"]);
+  });
+  it("throws on a database error", async () => {
+    results.ai_model_prices = { error: { message: "boom" } };
+    await expect(insertAiModelPrice(row, "u1")).rejects.toThrow("boom");
   });
 });
 

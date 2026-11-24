@@ -68,7 +68,7 @@ beforeEach(() => {
   m.listAdminModels.mockResolvedValue(catalog.models.map((x) => ({ raw: raw(x), model: x, problems: [], updatedBy: null })));
   m.getAiCatalog.mockResolvedValue(catalog);
   m.updateAiModelRow.mockResolvedValue(undefined);
-  m.insertAiModelPrice.mockResolvedValue(undefined);
+  m.insertAiModelPrice.mockResolvedValue({ id: "new" });
   m.deleteAiModelPrice.mockResolvedValue({ deleted: true });
   m.replaceAiModelPrice.mockResolvedValue({ replaced: true, id: "new" });
   m.reorderAiModels.mockResolvedValue(undefined);
@@ -185,7 +185,7 @@ describe("addAiModelPriceAction", () => {
   });
   it("inserts a valid price with the caller, clears the cache", async () => {
     const at = future();
-    expect(await addAiModelPriceAction(input({ effectiveFrom: at, sourceUrl: "https://x.test", note: "n" }))).toEqual({ effectiveFrom: new Date(at).toISOString() });
+    expect(await addAiModelPriceAction(input({ effectiveFrom: at, sourceUrl: "https://x.test", note: "n" }))).toEqual({ id: "new", effectiveFrom: new Date(at).toISOString() });
     expect(m.insertAiModelPrice).toHaveBeenCalledTimes(1);
     expect(m.insertAiModelPrice.mock.calls[0][0]).toMatchObject({ modelId: NANO_PRO, lines, sourceUrl: "https://x.test", note: "n" });
     expect(m.insertAiModelPrice.mock.calls[0][1]).toBe("u1");
@@ -210,9 +210,9 @@ describe("addAiModelPriceAction", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-01T12:00:00Z"));
     try {
-      expect(await addAiModelPriceAction(input({ effectiveFrom: "2026-06-01T12:00:30Z" }))).toEqual({ effectiveFrom: "2026-06-01T12:02:00.000Z" });
+      expect(await addAiModelPriceAction(input({ effectiveFrom: "2026-06-01T12:00:30Z" }))).toEqual({ id: "new", effectiveFrom: "2026-06-01T12:02:00.000Z" });
       expect(m.insertAiModelPrice.mock.calls[0][0]).toMatchObject({ effectiveFrom: "2026-06-01T12:02:00.000Z" });
-      expect(await addAiModelPriceAction(input({ effectiveFrom: "2026-06-01T12:00:00Z" }))).toEqual({ effectiveFrom: "2026-06-01T12:00:00.000Z" });
+      expect(await addAiModelPriceAction(input({ effectiveFrom: "2026-06-01T12:00:00Z" }))).toEqual({ id: "new", effectiveFrom: "2026-06-01T12:00:00.000Z" });
     } finally {
       vi.useRealTimers();
     }
@@ -278,7 +278,7 @@ describe("replaceAiModelPriceAction", () => {
   beforeEach(() => { m.listAdminPrices.mockResolvedValue([priceRow("old", at)]); });
 
   it("replaces in one rpc call at the same start, the replaced row left out of the taken-start check", async () => {
-    expect(await replaceAiModelPriceAction(input({ note: "n" }))).toEqual({ effectiveFrom: new Date(at).toISOString() });
+    expect(await replaceAiModelPriceAction(input({ note: "n" }))).toEqual({ id: "new", effectiveFrom: new Date(at).toISOString() });
     expect(m.replaceAiModelPrice).toHaveBeenCalledTimes(1);
     expect(m.replaceAiModelPrice).toHaveBeenCalledWith(
       "old",
@@ -408,7 +408,7 @@ describe("undoAiModelPriceAction", () => {
   afterEach(() => { vi.useRealTimers(); });
 
   it("adds a row live now with the earlier price's lines and estimate", async () => {
-    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual({ effectiveFrom: NOW.toISOString() });
+    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual({ id: "new", effectiveFrom: NOW.toISOString() });
     expect(m.listAdminPrices).toHaveBeenCalledWith(NANO_PRO);
     expect(m.insertAiModelPrice).toHaveBeenCalledTimes(1);
     expect(m.insertAiModelPrice).toHaveBeenCalledWith(

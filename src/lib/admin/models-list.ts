@@ -29,6 +29,8 @@ const KIND_GROUP: Record<string, ListGroup> = {
 export const groupOfKind = (kind: string): ListGroup => KIND_GROUP[kind] ?? "Other";
 
 export const modelHref = (id: string) => `/admin/models/${encodeURIComponent(id)}`;
+/** The model page with the change-prices flow open: "Add prices" and a scheduled change's "Review". */
+export const changePricesHref = (id: string) => `${modelHref(id)}?change=1`;
 export const CREDITS_HREF = "/admin/credits";
 
 export type ModelListRow = {
@@ -150,7 +152,10 @@ export function buildModelsList(input: ModelsListInput): { rows: ModelListRow[];
     const s = stats.get(id);
     const month = s && s.runs > 0 ? { runs: s.runs, cost: formatUsd(s.costUsd) } : null;
     const item = (tone: AttentionItem["tone"], text: string, detail: string, action: string) =>
-      items.push({ key: `${id}:${text}`, modelId: id, tone, name: label, text, detail, action, href: modelHref(id) });
+      items.push({
+        key: `${id}:${text}`, modelId: id, tone, name: label, text, detail, action,
+        href: action === "Add prices" || action === "Review" ? changePricesHref(id) : modelHref(id),
+      });
 
     if (!m) {
       rows.push({

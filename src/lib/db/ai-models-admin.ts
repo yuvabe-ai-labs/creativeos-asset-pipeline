@@ -174,8 +174,9 @@ export async function updateAiModelRow(id: string, fields: Record<string, unknow
   if (error) throw new Error(error.message);
 }
 
-export async function insertAiModelPrice(row: NewPriceRow, userId: string): Promise<void> {
-  const { error } = await createServerSupabase().from("ai_model_prices").insert({
+/** Inserts a price row; returns its id, which a later Undo or cancel names. */
+export async function insertAiModelPrice(row: NewPriceRow, userId: string): Promise<{ id: string }> {
+  const { data, error } = await createServerSupabase().from("ai_model_prices").insert({
     model_id: row.modelId,
     effective_from: row.effectiveFrom,
     lines: row.lines,
@@ -183,8 +184,9 @@ export async function insertAiModelPrice(row: NewPriceRow, userId: string): Prom
     source_url: row.sourceUrl,
     note: row.note,
     created_by: userId,
-  });
+  }).select("id").single();
   if (error) throw new Error(error.message);
+  return { id: String((data as { id: unknown }).id) };
 }
 
 /** A price that has started cannot be deleted: the database guard raises, and that is not an error here. Only a price of `modelId` is touched; no match means `deleted: false`. */

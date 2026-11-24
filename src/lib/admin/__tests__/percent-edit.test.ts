@@ -23,17 +23,33 @@ describe("parsePercent", () => {
   it.each(["", "abc", "%", "1-2"])("refuses %j", (typed) => {
     expect(parsePercent(typed)).toBeNull();
   });
+  it("takes −100% (free) but refuses anything below it, which would make a price negative", () => {
+    expect(parsePercent("-100%")).toBe(-100);
+    expect(parsePercent("−100.5")).toBeNull();
+    expect(parsePercent("-150%")).toBeNull();
+  });
 });
 
 describe("applyPercent", () => {
   it("rounds to 4 significant figures and marks the result approximate", () => {
     expect(applyPercent(0.10136, -31)).toEqual({ value: 0.06994, approximate: true });
     expect(applyPercent(11.7, 10)).toEqual({ value: 12.87, approximate: true });
-    expect(applyPercent(0.0337925, -31).value).toBe(0.02332);
+    expect(applyPercent(0.0337925, -31)?.value).toBe(0.02332);
+  });
+});
+
+describe("applyPercent below −100%", () => {
+  it("refuses it rather than give a negative price", () => {
+    expect(applyPercent(0.1, -101)).toBeNull();
+    expect(applyPercent(0.1, -100)).toEqual({ value: 0, approximate: true });
   });
 });
 
 describe("parsePriceEntry", () => {
+  it("refuses a percent below −100%", () => {
+    expect(parsePriceEntry("-120%", 0.1)).toEqual({ kind: "invalid" });
+  });
+
   it("reads a typed price exactly", () => {
     expect(parsePriceEntry("0.07", 0.1)).toEqual({ kind: "price", value: 0.07, approximate: false });
     expect(parsePriceEntry(" $1,000.5 ", null)).toEqual({ kind: "price", value: 1000.5, approximate: false });
@@ -84,6 +100,19 @@ describe("bulkApplyPercent", () => {
     const second = bulkApplyPercent({ cells, otherCharges: [], ...first, percent: -20, includeOtherCharges: true });
     expect(second.values).toEqual({ a: "0.08", b: "0.16" });
     expect(second.kept).toBe(0);
+  });
+
+  it("refuses a percent below −100% and changes nothing", () => {
+    const r = bulkApplyPercent({ cells, otherCharges, values: { b: "0.25" }, percentKeys: [], percent: -140, includeOtherCharges: true });
+    expect(r).toEqual({ values: { b: "0.25" }, percentKeys: [], changed: 0, kept: 0, refused: true });
+  });
+
+  it("writes tiny results as plain decimals, never in exponent form", () => {
+    const tiny = [{ key: "k", amount: 0.0000012 }];
+    const r = bulkApplyPercent({ cells: tiny, otherCharges: [], values: {}, percentKeys: [], percent: -50, includeOtherCharges: true });
+    expect(r.values.k).toBe("0.0000006");
+    const r2 = bulkApplyPercent({ cells: [{ key: "k", amount: 7.5e-8 }], otherCharges: [], values: {}, percentKeys: [], percent: 10, includeOtherCharges: true });
+    expect(r2.values.k).toBe("0.0000000825");
   });
 
   it("does not change the inputs", () => {

@@ -144,7 +144,7 @@ describe("buildModelsList", () => {
     expect(item.text).toBe("prices drop 31% on 3 Dec");
     expect(item.detail).toBe("Starts 3 Dec 2026, 13:30 IST, in 9 days.");
     expect(item.action).toBe("Review");
-    expect(item.href).toBe(`/admin/models/${encodeURIComponent(OMNI11)}`);
+    expect(item.href).toBe(`/admin/models/${encodeURIComponent(OMNI11)}?change=1`);
   });
 
   it("marks a rise of 50% or more as big", () => {
@@ -176,6 +176,7 @@ describe("buildModelsList", () => {
     expect(row.typical).toBeNull();
     const item = attention.find((a) => a.modelId === id)!;
     expect(item).toMatchObject({ tone: "bad", text: "has no price yet", action: "Add prices" });
+    expect(item.href).toMatch(/\?change=1$/);
     expect(item.detail).toBe("Runs can't be charged, so it stays a draft until it has one.");
   });
 

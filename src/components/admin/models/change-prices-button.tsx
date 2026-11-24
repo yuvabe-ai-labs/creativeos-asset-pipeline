@@ -6,13 +6,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { AddChip } from "@/components/admin/models/add-chip";
 
 /**
- * The model page's one primary action. Until the change-prices flow is wired (plan 5b Task 5) it is
- * shown, disabled, with a tooltip; pass `onStart` to turn it on.
+ * The model page's one primary action: opens the change-prices flow. Without `onStart` it is shown
+ * disabled, with a tooltip.
  */
 export function ChangePricesButton({ hasPrices, onStart }: { hasPrices: boolean; onStart?: () => void }) {
   const label = hasPrices ? "Change prices" : "Add prices";
   const button = (
-    <Button disabled={!onStart} onClick={onStart}>
+    <Button id="change-prices-start" disabled={!onStart} onClick={onStart}>
       <Pencil aria-hidden strokeWidth={1.5} />
       {label}
     </Button>

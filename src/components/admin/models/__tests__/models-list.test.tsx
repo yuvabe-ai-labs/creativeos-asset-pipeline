@@ -39,6 +39,7 @@ describe("ModelListRowView", () => {
   it("offers Add prices and says No price yet when there is no price", () => {
     const html = renderToStaticMarkup(<ModelListRowView row={rows[1]} />);
     expect(html).toContain("Add prices");
+    expect(html).toMatch(/href="\/admin\/models\/[^"]+\?change=1"/);
     expect(html).toContain("No price yet");
     expect(html).toContain("Draft");
     expect(html).toContain("No runs");
