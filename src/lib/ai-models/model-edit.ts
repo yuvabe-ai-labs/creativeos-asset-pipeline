@@ -215,6 +215,35 @@ export function checkNewPrice(
   return { ok: true };
 }
 
+// D549 — Undo of a started change: only the latest started row, made by this admin in the last day.
+export const UNDO_WINDOW_MS = 24 * 60 * 60 * 1000;
+type DatedRow = { id: string; effectiveFrom: string; createdAt: string; createdBy: string | null };
+
+/** The started row an Undo takes back and the row before it, whose values the new row repeats. */
+export function undoTarget<T extends DatedRow>(
+  rows: T[],
+  id: string,
+  userId: string,
+  now: Date,
+): { ok: true; undone: T; previous: T } | { ok: false; reason: "not-undoable" | "no-previous" } {
+  const at = (r: DatedRow) => new Date(r.effectiveFrom).getTime();
+  const started = rows.filter((r) => at(r) <= now.getTime()).sort((a, b) => at(b) - at(a));
+  const undone = started[0];
+  if (!undone || undone.id !== id || undone.createdBy !== userId) return { ok: false, reason: "not-undoable" };
+  // Written so an unreadable created_at refuses too.
+  if (!(now.getTime() - new Date(undone.createdAt).getTime() <= UNDO_WINDOW_MS)) return { ok: false, reason: "not-undoable" };
+  const previous = started[1];
+  if (!previous) return { ok: false, reason: "no-previous" };
+  return { ok: true, undone, previous };
+}
+
+/** The note an Undo row carries, naming the undone change's start as a date in IST. */
+export function undoNote(effectiveFrom: string): string {
+  const date = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })
+    .format(new Date(effectiveFrom));
+  return `Undo of the ${date} change`;
+}
+
 /** What one run at the model's default settings is reserved at. Null for kinds with no estimate. */
 export function runPreviewUsd(model: AiModel, price: AiModelPrice): number | null {
   const d = paramDefaults(model.params);

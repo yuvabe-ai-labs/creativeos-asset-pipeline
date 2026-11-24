@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import type { AiModel } from "@/lib/ai-models/types";
 
@@ -21,6 +21,8 @@ const m = vi.hoisted(() => ({
   updateAiModelRow: vi.fn(),
   insertAiModelPrice: vi.fn(),
   deleteAiModelPrice: vi.fn(),
+  replaceAiModelPrice: vi.fn(),
+  reorderAiModels: vi.fn(),
   getAiCatalog: vi.fn(),
   clearAiCatalogCache: vi.fn(),
   revalidatePath: vi.fn(),
@@ -34,6 +36,8 @@ vi.mock("@/lib/db/ai-models-admin", () => ({
   updateAiModelRow: m.updateAiModelRow,
   insertAiModelPrice: m.insertAiModelPrice,
   deleteAiModelPrice: m.deleteAiModelPrice,
+  replaceAiModelPrice: m.replaceAiModelPrice,
+  reorderAiModels: m.reorderAiModels,
 }));
 vi.mock("@/lib/ai-models/catalog", () => ({ getAiCatalog: m.getAiCatalog, clearAiCatalogCache: m.clearAiCatalogCache }));
 vi.mock("@/lib/ai-models/runnable-keys", () => ({
@@ -41,7 +45,14 @@ vi.mock("@/lib/ai-models/runnable-keys", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: m.revalidatePath }));
 
-import { updateAiModelAction, addAiModelPriceAction, cancelAiModelPriceAction } from "./ai-models";
+import {
+  updateAiModelAction,
+  addAiModelPriceAction,
+  cancelAiModelPriceAction,
+  replaceAiModelPriceAction,
+  reorderAiModelsAction,
+  undoAiModelPriceAction,
+} from "./ai-models";
 
 const GENERIC = "Could not save. Try again.";
 const future = () => new Date(Date.now() + 86_400_000 * 30).toISOString();
@@ -59,6 +70,8 @@ beforeEach(() => {
   m.updateAiModelRow.mockResolvedValue(undefined);
   m.insertAiModelPrice.mockResolvedValue(undefined);
   m.deleteAiModelPrice.mockResolvedValue({ deleted: true });
+  m.replaceAiModelPrice.mockResolvedValue({ replaced: true, id: "new" });
+  m.reorderAiModels.mockResolvedValue(undefined);
 });
 
 describe("updateAiModelAction", () => {
@@ -223,5 +236,200 @@ describe("cancelAiModelPriceAction", () => {
   it("checks the caller first", async () => {
     await cancelAiModelPriceAction("p1", NANO_PRO);
     expect(calls[0]).toBe("auth");
+  });
+});
+
+const priceRow = (id: string, effectiveFrom: string, over: Record<string, unknown> = {}) => ({
+  id, modelId: NANO_PRO, effectiveFrom, createdAt: effectiveFrom, createdBy: "u1", createdByName: "Ann", problems: [], raw: {},
+  price: { id, modelId: NANO_PRO, effectiveFrom, lines, estimate: {}, sourceUrl: null, note: null },
+  ...over,
+});
+
+describe("replaceAiModelPriceAction", () => {
+  const REPLACE = { error: "Only a price that hasn't started can be replaced." };
+  const at = future();
+  const input = (over = {}) => ({ replaceId: "old", modelId: NANO_PRO, effectiveFrom: at, lines, estimate: {}, ...over });
+  beforeEach(() => { m.listAdminPrices.mockResolvedValue([priceRow("old", at)]); });
+
+  it("replaces in one rpc call at the same start, the replaced row left out of the taken-start check", async () => {
+    expect(await replaceAiModelPriceAction(input({ note: "n" }))).toEqual({});
+    expect(m.replaceAiModelPrice).toHaveBeenCalledTimes(1);
+    expect(m.replaceAiModelPrice).toHaveBeenCalledWith(
+      "old",
+      { modelId: NANO_PRO, effectiveFrom: new Date(at).toISOString(), lines, estimate: {}, sourceUrl: null, note: "n" },
+      "u1",
+    );
+    expect(m.listAdminPrices).toHaveBeenCalledWith(NANO_PRO);
+    expect(m.insertAiModelPrice).not.toHaveBeenCalled();
+    expect(m.deleteAiModelPrice).not.toHaveBeenCalled();
+    expect(m.clearAiCatalogCache).toHaveBeenCalledTimes(1);
+    expect(m.revalidatePath).toHaveBeenCalledWith("/admin/models/[id]", "page");
+  });
+  it("still refuses a start another row holds", async () => {
+    const other = future().replace(/\.\d+Z$/, ".500Z");
+    m.listAdminPrices.mockResolvedValue([priceRow("old", at), priceRow("p2", other)]);
+    expect(await replaceAiModelPriceAction(input({ effectiveFrom: other }))).toEqual({ error: "This model already has a price starting then." });
+    expect(m.replaceAiModelPrice).not.toHaveBeenCalled();
+  });
+  it("refuses a row that is not this model's", async () => {
+    expect(await replaceAiModelPriceAction(input({ replaceId: "elsewhere" }))).toEqual(REPLACE);
+    expect(m.replaceAiModelPrice).not.toHaveBeenCalled();
+    expect(m.clearAiCatalogCache).not.toHaveBeenCalled();
+  });
+  it("refuses a row that has started", async () => {
+    m.listAdminPrices.mockResolvedValue([priceRow("old", new Date(Date.now() - 1_000).toISOString())]);
+    expect(await replaceAiModelPriceAction(input())).toEqual(REPLACE);
+    expect(m.replaceAiModelPrice).not.toHaveBeenCalled();
+  });
+  it("refuses when the database finds the row started meanwhile", async () => {
+    m.replaceAiModelPrice.mockResolvedValue({ replaced: false });
+    expect(await replaceAiModelPriceAction(input())).toEqual(REPLACE);
+    expect(m.clearAiCatalogCache).not.toHaveBeenCalled();
+  });
+  it("runs the price checks and writes nothing when they refuse", async () => {
+    expect(await replaceAiModelPriceAction(input({ effectiveFrom: "2020-01-01T00:00:00Z" }))).toEqual({ error: "A price can't start in the past." });
+    expect(await replaceAiModelPriceAction(input({ sourceUrl: "javascript:x" }))).toEqual({ error: "Enter a full web address for the source, or leave it empty." });
+    expect(await replaceAiModelPriceAction(input({ replaceId: 5 }) as never)).toEqual({ error: "These changes would break the model's settings." });
+    expect(m.replaceAiModelPrice).not.toHaveBeenCalled();
+  });
+  it("hides a raw database error", async () => {
+    m.replaceAiModelPrice.mockRejectedValue(new Error("duplicate key"));
+    expect(await replaceAiModelPriceAction(input())).toEqual({ error: GENERIC });
+    expect(console.error).toHaveBeenCalled();
+  });
+  it("checks the caller first", async () => {
+    m.requireSuperAdmin.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(replaceAiModelPriceAction(input())).rejects.toThrow();
+    expect(m.listAdminPrices).not.toHaveBeenCalled();
+    expect(m.replaceAiModelPrice).not.toHaveBeenCalled();
+  });
+});
+
+describe("reorderAiModelsAction", () => {
+  const videoIds = catalog.models.filter((x) => x.kind === "video").map((x) => x.id);
+  const ORDER = { error: "The list of models changed. Reload and try again." };
+
+  it("writes a new order of every model of the kind in one call", async () => {
+    const order = [...videoIds].reverse();
+    expect(await reorderAiModelsAction("video", order)).toEqual({});
+    expect(m.reorderAiModels).toHaveBeenCalledTimes(1);
+    expect(m.reorderAiModels).toHaveBeenCalledWith("video", order);
+    expect(m.clearAiCatalogCache).toHaveBeenCalledTimes(1);
+    expect(m.revalidatePath).toHaveBeenCalledWith("/admin/models");
+  });
+  it("refuses a missing, duplicated, unknown or other-kind id and writes nothing", async () => {
+    const image = catalog.models.find((x) => x.kind === "image")!.id;
+    expect(await reorderAiModelsAction("video", videoIds.slice(1))).toEqual(ORDER);
+    expect(await reorderAiModelsAction("video", [...videoIds.slice(1), videoIds[1]])).toEqual(ORDER);
+    expect(await reorderAiModelsAction("video", [...videoIds.slice(1), "nope"])).toEqual(ORDER);
+    expect(await reorderAiModelsAction("video", [...videoIds.slice(1), image])).toEqual(ORDER);
+    expect(await reorderAiModelsAction("video", [...videoIds, image])).toEqual(ORDER);
+    expect(m.reorderAiModels).not.toHaveBeenCalled();
+    expect(m.clearAiCatalogCache).not.toHaveBeenCalled();
+  });
+  it("counts rows that fail their check by their raw kind", async () => {
+    m.listAdminModels.mockResolvedValue(
+      catalog.models.map((x) => ({ raw: raw(x), model: x.id === videoIds[0] ? null : x, problems: [], updatedBy: null })),
+    );
+    expect(await reorderAiModelsAction("video", videoIds.slice(1))).toEqual(ORDER);
+    expect(await reorderAiModelsAction("video", [...videoIds].reverse())).toEqual({});
+  });
+  it("writes nothing when the order is the one stored", async () => {
+    m.listAdminModels.mockResolvedValue(
+      videoIds.map((id, i) => { const x = catalog.models.find((c) => c.id === id)!; return { raw: { ...raw(x), sort_order: i }, model: x, problems: [], updatedBy: null }; }),
+    );
+    expect(await reorderAiModelsAction("video", videoIds)).toEqual({});
+    expect(m.reorderAiModels).not.toHaveBeenCalled();
+    expect(m.clearAiCatalogCache).not.toHaveBeenCalled();
+  });
+  it("refuses malformed input", async () => {
+    expect(await reorderAiModelsAction("video", "x" as never)).toEqual(ORDER);
+    expect(await reorderAiModelsAction(5 as never, videoIds)).toEqual(ORDER);
+    expect(await reorderAiModelsAction("video", [5] as never)).toEqual(ORDER);
+    expect(await reorderAiModelsAction("video", [])).toEqual(ORDER);
+    expect(m.reorderAiModels).not.toHaveBeenCalled();
+  });
+  it("hides a raw database error", async () => {
+    m.reorderAiModels.mockRejectedValue(new Error("boom"));
+    expect(await reorderAiModelsAction("video", [...videoIds].reverse())).toEqual({ error: GENERIC });
+  });
+  it("checks the caller first", async () => {
+    m.requireSuperAdmin.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(reorderAiModelsAction("video", videoIds)).rejects.toThrow();
+    expect(m.listAdminModels).not.toHaveBeenCalled();
+  });
+});
+
+describe("undoAiModelPriceAction", () => {
+  const NOW = new Date("2026-11-24T12:00:00Z");
+  const UNDO = { error: "Only the latest price change you made in the last 24 hours can be undone." };
+  const oldLines = [{ meter: "output_image" as const, unit_usd: 0.05 }];
+  const previous = priceRow("p1", "2026-10-01T00:00:00.000Z", {
+    price: { id: "p1", modelId: NANO_PRO, effectiveFrom: "2026-10-01T00:00:00.000Z", lines: oldLines, estimate: { thought_token: 100 }, sourceUrl: null, note: null },
+  });
+  const latest = priceRow("p2", "2026-11-24T10:00:00.000Z");
+  const scheduled = priceRow("p3", "2026-12-03T00:00:00.000Z");
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    m.listAdminPrices.mockResolvedValue([scheduled, latest, previous]);
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("adds a row live now with the earlier price's lines and estimate", async () => {
+    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual({ effectiveFrom: NOW.toISOString() });
+    expect(m.listAdminPrices).toHaveBeenCalledWith(NANO_PRO);
+    expect(m.insertAiModelPrice).toHaveBeenCalledTimes(1);
+    expect(m.insertAiModelPrice).toHaveBeenCalledWith(
+      { modelId: NANO_PRO, effectiveFrom: NOW.toISOString(), lines: oldLines, estimate: { thought_token: 100 }, sourceUrl: null, note: "Undo of the 24 Nov 2026 change" },
+      "u1",
+    );
+    expect(m.deleteAiModelPrice).not.toHaveBeenCalled();
+    expect(m.clearAiCatalogCache).toHaveBeenCalledTimes(1);
+  });
+  it("refuses anything but the latest started row, and writes nothing", async () => {
+    expect(await undoAiModelPriceAction(NANO_PRO, "p1")).toEqual(UNDO);
+    expect(await undoAiModelPriceAction(NANO_PRO, "p3")).toEqual(UNDO);
+    expect(await undoAiModelPriceAction(NANO_PRO, "elsewhere")).toEqual(UNDO);
+    expect(m.insertAiModelPrice).not.toHaveBeenCalled();
+    expect(m.clearAiCatalogCache).not.toHaveBeenCalled();
+  });
+  it("refuses a change another admin made", async () => {
+    m.listAdminPrices.mockResolvedValue([{ ...latest, createdBy: "u2" }, previous]);
+    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual(UNDO);
+    expect(m.insertAiModelPrice).not.toHaveBeenCalled();
+  });
+  it("refuses a change made more than 24 hours ago", async () => {
+    m.listAdminPrices.mockResolvedValue([{ ...latest, createdAt: "2026-11-23T11:59:00.000Z" }, previous]);
+    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual(UNDO);
+    expect(m.insertAiModelPrice).not.toHaveBeenCalled();
+  });
+  it("refuses when there is no earlier price, or it fails its check", async () => {
+    m.listAdminPrices.mockResolvedValue([latest]);
+    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual({ error: "There is no earlier price to go back to." });
+    m.listAdminPrices.mockResolvedValue([latest, { ...previous, price: null }]);
+    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual({ error: "There is no earlier price to go back to." });
+    expect(m.insertAiModelPrice).not.toHaveBeenCalled();
+  });
+  it("runs the price checks on the restored price", async () => {
+    m.listAdminPrices.mockResolvedValue([latest, priceRow("p1", previous.effectiveFrom, {
+      price: { ...previous.price, lines: [{ meter: "output_image", unit_usd: 0.05, when: { resolution: "720p" } }] },
+    })]);
+    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual({ error: "A price condition names a setting this model doesn't have." });
+    expect(m.insertAiModelPrice).not.toHaveBeenCalled();
+  });
+  it("refuses an unknown model and malformed ids", async () => {
+    expect(await undoAiModelPriceAction("nope", "p2")).toEqual({ error: GENERIC });
+    expect(await undoAiModelPriceAction(NANO_PRO, 5 as never)).toEqual({ error: GENERIC });
+    expect(m.insertAiModelPrice).not.toHaveBeenCalled();
+  });
+  it("hides a raw database error", async () => {
+    m.insertAiModelPrice.mockRejectedValue(new Error("boom"));
+    expect(await undoAiModelPriceAction(NANO_PRO, "p2")).toEqual({ error: GENERIC });
+  });
+  it("checks the caller first", async () => {
+    m.requireSuperAdmin.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(undoAiModelPriceAction(NANO_PRO, "p2")).rejects.toThrow();
+    expect(m.listAdminPrices).not.toHaveBeenCalled();
   });
 });

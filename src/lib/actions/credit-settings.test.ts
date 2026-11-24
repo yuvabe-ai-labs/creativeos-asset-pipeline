@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const calls: string[] = [];
 const m = vi.hoisted(() => ({
@@ -19,7 +19,7 @@ vi.mock("@/lib/db/credit-settings-admin", () => ({
 vi.mock("@/lib/ai-models/catalog", () => ({ clearAiCatalogCache: m.clearAiCatalogCache }));
 vi.mock("next/cache", () => ({ revalidatePath: m.revalidatePath }));
 
-import { addCreditSettingsAction, cancelCreditSettingsAction } from "./credit-settings";
+import { addCreditSettingsAction, cancelCreditSettingsAction, undoCreditSettingsAction } from "./credit-settings";
 
 const GENERIC = "Could not save. Try again.";
 const future = () => new Date(Date.now() + 86_400_000 * 30).toISOString();
@@ -129,5 +129,77 @@ describe("cancelCreditSettingsAction", () => {
     m.deleteCreditSettings.mockRejectedValue(err);
     expect(await cancelCreditSettingsAction("c1")).toEqual({ error: GENERIC });
     expect(console.error).toHaveBeenCalledWith("cancelCreditSettingsAction failed", "c1", err);
+  });
+});
+
+describe("undoCreditSettingsAction", () => {
+  const NOW = new Date("2026-11-24T12:00:00Z");
+  const UNDO = { error: "Only the latest change you made in the last 24 hours can be undone." };
+  const settingsRow = (id: string, effectiveFrom: string, marginPercent: number, roundStep: 1 | 5 | 10, over: Record<string, unknown> = {}) => ({
+    id, effectiveFrom, createdAt: effectiveFrom, createdBy: "u1", createdByName: "Ann", problems: [],
+    settings: { id, effectiveFrom, marginPercent, roundStep, note: null },
+    ...over,
+  });
+  const previous = settingsRow("c1", "2026-01-01T00:00:00.000Z", 0, 5);
+  const latest = settingsRow("c2", "2026-11-24T10:00:00.000Z", 20, 10);
+  const scheduled = settingsRow("c3", "2026-12-03T00:00:00.000Z", 30, 10);
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    m.listAdminCreditSettings.mockImplementation(async () => { calls.push("read"); return [scheduled, latest, previous]; });
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("adds a row with the earlier settings that starts in 2 minutes, and says when", async () => {
+    expect(await undoCreditSettingsAction("c2")).toEqual({ effectiveFrom: "2026-11-24T12:02:00.000Z" });
+    expect(m.insertCreditSettings).toHaveBeenCalledTimes(1);
+    expect(m.insertCreditSettings).toHaveBeenCalledWith(
+      { effectiveFrom: "2026-11-24T12:02:00.000Z", marginPercent: 0, roundStep: 5, note: "Undo of the 24 Nov 2026 change" },
+      "u1",
+    );
+    expect(m.deleteCreditSettings).not.toHaveBeenCalled();
+    expect(m.clearAiCatalogCache).toHaveBeenCalledTimes(1);
+    expect(m.revalidatePath).toHaveBeenCalledWith("/admin/credits");
+    expect(calls).toEqual(["auth", "read"]);
+  });
+  it("refuses anything but the latest started row, and writes nothing", async () => {
+    expect(await undoCreditSettingsAction("c1")).toEqual(UNDO);
+    expect(await undoCreditSettingsAction("c3")).toEqual(UNDO);
+    expect(await undoCreditSettingsAction("nope")).toEqual(UNDO);
+    expect(m.insertCreditSettings).not.toHaveBeenCalled();
+    expect(m.clearAiCatalogCache).not.toHaveBeenCalled();
+  });
+  it("refuses a change another admin made, or one made more than 24 hours ago", async () => {
+    m.listAdminCreditSettings.mockResolvedValue([{ ...latest, createdBy: "u2" }, previous]);
+    expect(await undoCreditSettingsAction("c2")).toEqual(UNDO);
+    m.listAdminCreditSettings.mockResolvedValue([{ ...latest, createdAt: "2026-11-23T11:59:00.000Z" }, previous]);
+    expect(await undoCreditSettingsAction("c2")).toEqual(UNDO);
+    expect(m.insertCreditSettings).not.toHaveBeenCalled();
+  });
+  it("refuses when there is no earlier row, or it fails its check", async () => {
+    const NONE = { error: "There are no earlier settings to go back to." };
+    m.listAdminCreditSettings.mockResolvedValue([latest]);
+    expect(await undoCreditSettingsAction("c2")).toEqual(NONE);
+    m.listAdminCreditSettings.mockResolvedValue([latest, { ...previous, settings: null }]);
+    expect(await undoCreditSettingsAction("c2")).toEqual(NONE);
+    expect(m.insertCreditSettings).not.toHaveBeenCalled();
+  });
+  it("runs the settings checks, so a start 2 minutes out that is taken is refused", async () => {
+    m.listAdminCreditSettings.mockResolvedValue([settingsRow("c4", "2026-11-24T12:02:00.000Z", 5, 5), latest, previous]);
+    expect(await undoCreditSettingsAction("c2")).toEqual({ error: "There is already a change starting then." });
+    expect(m.insertCreditSettings).not.toHaveBeenCalled();
+  });
+  it("guards the id's shape and hides a raw database error", async () => {
+    expect(await undoCreditSettingsAction(5 as never)).toEqual({ error: GENERIC });
+    const err = new Error("db down");
+    m.insertCreditSettings.mockRejectedValue(err);
+    expect(await undoCreditSettingsAction("c2")).toEqual({ error: GENERIC });
+    expect(console.error).toHaveBeenCalledWith("undoCreditSettingsAction failed", "c2", err);
+    expect(m.clearAiCatalogCache).not.toHaveBeenCalled();
+  });
+  it("checks the caller first", async () => {
+    m.requireSuperAdmin.mockRejectedValue(new Error("nope"));
+    await expect(undoCreditSettingsAction("c2")).rejects.toThrow("nope");
+    expect(m.listAdminCreditSettings).not.toHaveBeenCalled();
   });
 });

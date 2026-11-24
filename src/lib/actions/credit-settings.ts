@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { clearAiCatalogCache } from "@/lib/ai-models/catalog";
 import { checkNewCreditSettings, CREDIT_SETTINGS_LEAD_MS } from "@/lib/credits/settings-edit";
+import { undoNote, undoTarget } from "@/lib/ai-models/model-edit";
 import { listAdminCreditSettings, insertCreditSettings, deleteCreditSettings } from "@/lib/db/credit-settings-admin";
 
 // D548 — the /admin credit settings actions. Platform administration (requireSuperAdmin()-gated), not
@@ -13,6 +14,8 @@ import { listAdminCreditSettings, insertCreditSettings, deleteCreditSettings } f
 const SAVE_ERROR = "Could not save. Try again.";
 const CANCEL_ERROR = "Only a change that hasn't started can be cancelled.";
 const CANCEL_SOON_ERROR = "This change starts in less than 2 minutes and can't be cancelled now.";
+const UNDO_ERROR = "Only the latest change you made in the last 24 hours can be undone.";
+const NO_PREVIOUS_ERROR = "There are no earlier settings to go back to.";
 
 function refresh(): void {
   clearAiCatalogCache();
@@ -68,4 +71,37 @@ export async function cancelCreditSettingsAction(id: string): Promise<{ error?: 
   }
   refresh();
   return {};
+}
+
+/**
+ * D549 — takes back the latest started settings, if this admin added them in the last 24 hours: a
+ * new row repeats the settings before it. Like any change it starts CREDIT_SETTINGS_LEAD_MS out, not
+ * now, so the start it got is returned for the screen to say so. A change that hasn't started is
+ * cancelled instead (cancelCreditSettingsAction).
+ */
+export async function undoCreditSettingsAction(id: string): Promise<{ error?: string; effectiveFrom?: string }> {
+  const caller = await requireSuperAdmin();
+  if (typeof id !== "string") return { error: SAVE_ERROR };
+  let effective = "";
+  try {
+    const rows = await listAdminCreditSettings();
+    const now = new Date();
+    const target = undoTarget(rows, id, caller.userId, now);
+    if (!target.ok) return { error: target.reason === "no-previous" ? NO_PREVIOUS_ERROR : UNDO_ERROR };
+    const before = target.previous.settings;
+    if (!before) return { error: NO_PREVIOUS_ERROR };
+    const checked = checkNewCreditSettings(
+      { effectiveFrom: now, marginPercent: before.marginPercent, roundStep: before.roundStep, note: undoNote(target.undone.effectiveFrom) },
+      rows.map((r) => ({ effectiveFrom: r.effectiveFrom })),
+      now,
+    );
+    if (!checked.ok) return { error: checked.error };
+    await insertCreditSettings(checked.value, caller.userId);
+    effective = checked.value.effectiveFrom;
+  } catch (e) {
+    console.error("undoCreditSettingsAction failed", id, e);
+    return { error: SAVE_ERROR };
+  }
+  refresh();
+  return { effectiveFrom: effective };
 }

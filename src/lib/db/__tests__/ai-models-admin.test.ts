@@ -26,6 +26,10 @@ import {
   modelMonthStats,
   updateAiModelRow,
   deleteAiModelPrice,
+  replaceAiModelPrice,
+  reorderAiModels,
+  modelRunsByAgency,
+  REPLACE_STARTED_DB_MESSAGE,
 } from "../ai-models-admin";
 
 const goodRow = {
@@ -131,5 +135,65 @@ describe("deleteAiModelPrice", () => {
   it("returns deleted false when no row matches the model", async () => {
     results.ai_model_prices = { data: [] };
     expect(await deleteAiModelPrice("p1", "other")).toEqual({ deleted: false });
+  });
+});
+
+describe("replaceAiModelPrice", () => {
+  const row = {
+    modelId: "m1", effectiveFrom: "2027-01-01T00:00:00.000Z", lines: [{ meter: "provider_unit" as const, unit_usd: 1 }],
+    estimate: { x: 1 }, sourceUrl: null, note: "n",
+  };
+  it("deletes and inserts in one rpc call and returns the new id", async () => {
+    rpcResult = { data: "new-id", error: null };
+    expect(await replaceAiModelPrice("old", row, "u1")).toEqual({ replaced: true, id: "new-id" });
+    expect(rpcCalls).toEqual([{
+      fn: "replace_ai_model_price",
+      args: {
+        p_cancel_id: "old", p_model_id: "m1", p_effective_from: row.effectiveFrom, p_lines: row.lines,
+        p_estimate: row.estimate, p_source_url: null, p_note: "n", p_created_by: "u1",
+      },
+    }]);
+    expect(calls).toEqual([]);
+  });
+  it("answers replaced false when the row has started or is another model's", async () => {
+    rpcResult = { data: null, error: { message: `P0001: ${REPLACE_STARTED_DB_MESSAGE}` } };
+    expect(await replaceAiModelPrice("old", row, "u1")).toEqual({ replaced: false });
+  });
+  it("rethrows other errors", async () => {
+    rpcResult = { data: null, error: { message: "duplicate key" } };
+    await expect(replaceAiModelPrice("old", row, "u1")).rejects.toThrow("duplicate key");
+  });
+});
+
+describe("reorderAiModels", () => {
+  it("writes the order in one rpc call", async () => {
+    await reorderAiModels("video", ["b", "a"]);
+    expect(rpcCalls).toEqual([{ fn: "reorder_ai_models", args: { p_kind: "video", p_ids: ["b", "a"] } }]);
+  });
+  it("throws on a database error", async () => {
+    rpcResult = { data: null, error: { message: "boom" } };
+    await expect(reorderAiModels("video", ["a"])).rejects.toThrow("boom");
+  });
+});
+
+describe("modelRunsByAgency", () => {
+  it("calls the one grouped rpc and maps numeric strings", async () => {
+    rpcResult = {
+      data: [
+        { model_id: "a", org_id: "o1", org_name: "Acme", runs: "4", cost_usd: "0.5", credits: "20" },
+        { model_id: "b", org_id: "o2", org_name: "Bee", runs: 1, cost_usd: 0, credits: 0 },
+      ],
+      error: null,
+    };
+    const all = await modelRunsByAgency("f", "t");
+    expect(rpcCalls[0]).toEqual({ fn: "ai_model_month_runs_by_org", args: { p_from: "f", p_to: "t" } });
+    expect(all[0]).toEqual({ modelId: "a", orgId: "o1", orgName: "Acme", runs: 4, costUsd: 0.5, credits: 20 });
+    expect((await modelRunsByAgency("f", "t", "b")).map((r) => r.orgId)).toEqual(["o2"]);
+    expect(rpcCalls).toHaveLength(2);
+    expect(calls).toEqual([]);
+  });
+  it("throws on a database error", async () => {
+    rpcResult = { data: null, error: { message: "boom" } };
+    await expect(modelRunsByAgency("f", "t")).rejects.toThrow("boom");
   });
 });
