@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { buildCreditReview, creditWhenProblem } from "@/lib/admin/credits-change";
+import { buildCreditReview, creditWhenProblem, replacedSettings, settingsBefore } from "@/lib/admin/credits-change";
 import { creditRunRows, type AgencyModelRuns, type CreditRun, type PricedRun, type Settings } from "@/lib/admin/credits-page";
 import type { CreditSettings } from "@/lib/ai-models/types";
 import { ChangeCreditSettingsDialog } from "./change-credit-settings-dialog";
@@ -32,8 +32,8 @@ export function CreditsWorkspace({
   live: Settings;
   /** The settings rows that pass their check. */
   settings: CreditSettings[];
-  /** Every row's start, broken ones too: a new change can't share one. */
-  starts: string[];
+  /** Every row's id and start, broken ones too: a new change can't share a start, except the one it replaces. */
+  starts: { id: string; effectiveFrom: string }[];
   runs: CreditRun[];
   agencyRuns: AgencyModelRuns[];
   modelRuns: Record<string, PricedRun>;
@@ -46,7 +46,11 @@ export function CreditsWorkspace({
 
   const editing = flow.stage !== "closed";
   const draft = creditDraft(flow, live);
-  const whenProblem = flow.stage === "when" || flow.stage === "review" ? creditWhenProblem(flow.when, now, starts) : null;
+  const inDialog = flow.stage === "when" || flow.stage === "review";
+  const replaced = inDialog ? replacedSettings(settings, flow.when, now) : null;
+  const whenProblem = inDialog ? creditWhenProblem(flow.when, now, starts, replaced?.id ?? null) : null;
+  // What runs keep until a date start (the When step's "On a date" words).
+  const keptUntil = settingsBefore(settings, { ...flow.when, mode: "date" }, now, replaced);
   const review =
     flow.stage === "review" && draft.settings
       ? buildCreditReview({ settings, draft: draft.settings, when: flow.when, now, runs, agencyRuns, modelRuns })
@@ -68,7 +72,7 @@ export function CreditsWorkspace({
   async function confirm() {
     if (!review?.canSave || !draft.settings) return;
     dispatch({ type: "saving", on: true });
-    const result = await save(draft.settings, flow.when);
+    const result = await save(draft.settings, flow.when, review.replacedRow, review.before);
     if (result === "stale") {
       setNow(new Date());
       dispatch({ type: "stale" });
@@ -82,7 +86,7 @@ export function CreditsWorkspace({
         <CreditEditBar
           summary={draft.summary}
           invalid={draft.settings === null}
-          canGoOn={draft.settings !== null && draft.changed}
+          canGoOn={draft.canGoOn}
           onCancel={() => dispatch({ type: "cancel" })}
           onNext={() => go("when")}
         />
@@ -116,6 +120,7 @@ export function CreditsWorkspace({
         now={now}
         scheduled={settings.filter((s) => new Date(s.effectiveFrom) > now).map((s) => new Date(s.effectiveFrom))}
         whenProblem={whenProblem}
+        keptUntil={keptUntil}
         review={review}
         saving={flow.saving}
         onWhen={(when) => dispatch({ type: "when", when })}

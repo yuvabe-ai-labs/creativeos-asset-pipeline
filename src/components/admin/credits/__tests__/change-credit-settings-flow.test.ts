@@ -37,11 +37,13 @@ describe("changeCreditsReducer", () => {
 
 describe("creditDraft", () => {
   it("is invalid with a margin the server would refuse", () => {
-    expect(creditDraft({ ...open, margin: "250" }, LIVE)).toEqual({ settings: null, changed: false, summary: null });
+    expect(creditDraft({ ...open, margin: "250" }, LIVE)).toEqual({ settings: null, changed: false, summary: null, canGoOn: false });
     expect(creditDraft({ ...open, margin: "" }, LIVE).settings).toBeNull();
   });
   it("says what changes from the live settings", () => {
-    expect(creditDraft({ ...open, margin: "10%", step: 10 }, LIVE)).toEqual({ settings: { marginPercent: 10, roundStep: 10 }, changed: true, summary: "Margin 0% → 10%, Step 5 → 10" });
-    expect(creditDraft(open, LIVE)).toEqual({ settings: LIVE, changed: false, summary: "" });
+    expect(creditDraft({ ...open, margin: "10%", step: 10 }, LIVE)).toEqual({ settings: { marginPercent: 10, roundStep: 10 }, changed: true, summary: "Margin 0% → 10%, Step 5 → 10", canGoOn: true });
+  });
+  it("goes on with today's settings too, so a return to them can be scheduled; the Review decides", () => {
+    expect(creditDraft(open, LIVE)).toEqual({ settings: LIVE, changed: false, summary: "", canGoOn: true });
   });
 });

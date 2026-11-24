@@ -72,6 +72,8 @@ const ALLOWLIST: Record<string, string> = {
     "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D546, D548).",
   undoCreditSettingsAction:
     "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D546, D548).",
+  replaceCreditSettingsAction:
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D546, D548).",
 };
 
 function findActionFiles(dir: string): string[] {

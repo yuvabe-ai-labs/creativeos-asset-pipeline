@@ -2,7 +2,7 @@ import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { listAdminModels, listAdminPrices, modelRunsByAgency } from "@/lib/db/ai-models-admin";
 import { listAdminCreditSettings } from "@/lib/db/credit-settings-admin";
 import { creditSettingsAt } from "@/lib/credits/units";
-import { creditHistory, creditsSummary, modelTypicalRuns, typicalCreditRuns } from "@/lib/admin/credits-page";
+import { creditHistory, creditsSummary, keptOnCancel, modelTypicalRuns, typicalCreditRuns } from "@/lib/admin/credits-page";
 import { CreditHistory } from "@/components/admin/credits/credit-history";
 import { CreditsWorkspace } from "@/components/admin/credits/credits-workspace";
 
@@ -44,7 +44,7 @@ export default async function AdminCreditsPage() {
         summary={creditsSummary(settings, live, now)}
         live={live}
         settings={settings}
-        starts={creditRows.map((r) => r.effectiveFrom)}
+        starts={creditRows.map((r) => ({ id: r.id, effectiveFrom: r.effectiveFrom }))}
         runs={typicalCreditRuns(catalog, now)}
         agencyRuns={agencyRuns}
         modelRuns={modelTypicalRuns(catalog, agencyRuns.map((r) => r.modelId), now)}
@@ -52,7 +52,7 @@ export default async function AdminCreditsPage() {
           <aside aria-label="History" className="flex flex-col gap-6">
             <section aria-labelledby="history-title">
               <h2 id="history-title" className="mb-3 font-display text-base font-semibold tracking-tight">History</h2>
-              <CreditHistory timeline={creditHistory(creditRows, { now, callerId: caller.userId })} />
+              <CreditHistory timeline={creditHistory(creditRows, { now, callerId: caller.userId })} kept={keptOnCancel(settings, now)} />
             </section>
             <section aria-labelledby="which-title" className="border-t pt-6">
               <h2 id="which-title" className="mb-2 font-display text-base font-semibold tracking-tight">Which settings a run uses</h2>

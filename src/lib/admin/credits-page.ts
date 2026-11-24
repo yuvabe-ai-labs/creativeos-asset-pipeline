@@ -1,10 +1,11 @@
 // The Credits page (D548 settings, prototype v3 "Credits"): the settings in words, the worked example,
 // what typical runs cost in credits now and with new settings, each agency's month at either, and the
 // settings history with Cancel and Undo where the server takes them. Client-safe.
-import { CATALOG_CHANGE_LEAD_MS, currentPrice } from "@/lib/ai-models/pricing";
+import { currentPrice } from "@/lib/ai-models/pricing";
+import { CREDIT_SETTINGS_LEAD_MS } from "@/lib/credits/settings-edit";
 import { formatUsd } from "@/lib/ai-models/price-format";
 import { undoTarget } from "@/lib/ai-models/model-edit";
-import { creditsFromUsd, rawCreditsFromUsd, USD_TO_CREDITS } from "@/lib/credits/units";
+import { creditSettingsAt, creditsFromUsd, rawCreditsFromUsd, USD_TO_CREDITS } from "@/lib/credits/units";
 import type { AiCatalog, CreditSettings } from "@/lib/ai-models/types";
 import { formatIstDate, formatIstWhen, formatUtcBeside, relativeIstDay } from "./ist";
 import { percentChange } from "./percent-edit";
@@ -210,6 +211,20 @@ export function creditsSummary(rows: readonly CreditSettings[], live: Settings, 
   };
 }
 
+/**
+ * For each scheduled change, the settings runs keep if it is cancelled (the ones in force at its start
+ * without it), for the cancel dialog: "Runs keep margin 0%, rounds up to the next 5 credits."
+ */
+export function keptOnCancel(rows: readonly CreditSettings[], now: Date): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const r of rows) {
+    if (Date.parse(r.effectiveFrom) <= now.getTime()) continue;
+    const kept = creditSettingsAt({ creditSettings: rows.filter((x) => x.id !== r.id) }, new Date(r.effectiveFrom));
+    out[r.id] = `Runs keep ${settingsWords(kept)}.`;
+  }
+  return out;
+}
+
 /** A credit settings row as the page reads it; `settings` is null when the row fails its check. */
 export type CreditHistoryRow = {
   id: string;
@@ -251,7 +266,7 @@ export function creditHistory(rows: readonly CreditHistoryRow[], ctx: { now: Dat
       note: s?.note ?? null,
       problems: s ? [] : r.problems,
       who: `Added ${r.createdByName ? `by ${r.createdByName} ` : ""}on ${formatIstDate(new Date(r.createdAt))}`,
-      canCancel: future && t(r) > now + CATALOG_CHANGE_LEAD_MS,
+      canCancel: future && t(r) > now + CREDIT_SETTINGS_LEAD_MS,
       canUndo: r === current && canUndoCurrent,
       name: `the ${formatIstDate(at, false)} change`,
     };

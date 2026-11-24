@@ -69,12 +69,19 @@ export function changeCreditsReducer(s: CreditFlow, a: CreditFlowAction): Credit
   }
 }
 
-/** The settings typed so far: null while the margin needs a fix; what changes from the live settings. */
-export function creditDraft(s: CreditFlow, live: Settings): { settings: Settings | null; changed: boolean; summary: string | null } {
+/**
+ * The settings typed so far: null while the margin needs a fix; what changes from the live settings.
+ * Next is open whenever the margin is valid, even with today's settings: a return to them can be
+ * scheduled over a later change, and the Review says when there is nothing new to save.
+ */
+export function creditDraft(
+  s: CreditFlow,
+  live: Settings,
+): { settings: Settings | null; changed: boolean; summary: string | null; canGoOn: boolean } {
   const margin = parseMargin(s.margin);
-  if (margin === null) return { settings: null, changed: false, summary: null };
+  if (margin === null) return { settings: null, changed: false, summary: null, canGoOn: false };
   const settings = { marginPercent: margin, roundStep: s.step };
-  return { settings, changed: !sameSettings(settings, live), summary: settingsChangeWords(live, settings) };
+  return { settings, changed: !sameSettings(settings, live), summary: settingsChangeWords(live, settings), canGoOn: true };
 }
 
 /** The change-credit-settings flow's state on the Credits page. */

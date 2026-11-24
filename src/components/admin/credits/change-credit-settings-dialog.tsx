@@ -1,6 +1,7 @@
 "use client";
 
-import { DATE_DETAIL, NOW_DETAIL, NOW_WARNING, type CreditReview } from "@/lib/admin/credits-change";
+import { NOW_DETAIL, NOW_WARNING, dateDetail, type CreditReview } from "@/lib/admin/credits-change";
+import type { Settings } from "@/lib/admin/credits-page";
 import type { When } from "@/lib/admin/change-prices-when";
 import { FlowDialog } from "@/components/admin/models/change-prices/flow-dialog";
 import { WhenStep } from "@/components/admin/models/change-prices/when-step";
@@ -17,6 +18,7 @@ export function ChangeCreditSettingsDialog({
   now,
   scheduled,
   whenProblem,
+  keptUntil,
   review,
   saving,
   onWhen,
@@ -30,6 +32,8 @@ export function ChangeCreditSettingsDialog({
   /** Starts of changes already scheduled, marked on the calendar. */
   scheduled: Date[];
   whenProblem: string | null;
+  /** The settings runs keep until a date start. */
+  keptUntil: Settings;
   review: CreditReview | null;
   saving: boolean;
   onWhen: (when: Partial<When>) => void;
@@ -58,7 +62,7 @@ export function ChangeCreditSettingsDialog({
           now={now}
           scheduled={scheduled}
           shortcut={null}
-          copy={{ label: "When the new settings start", now: NOW_DETAIL, date: DATE_DETAIL, nowWarning: NOW_WARNING }}
+          copy={{ label: "When the new settings start", now: NOW_DETAIL, date: dateDetail(keptUntil), nowWarning: NOW_WARNING }}
           problem={whenProblem}
           onChange={onWhen}
         />

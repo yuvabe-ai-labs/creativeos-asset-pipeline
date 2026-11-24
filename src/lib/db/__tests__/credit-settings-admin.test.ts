@@ -12,9 +12,23 @@ function builder(table: string) {
   b.then = (resolve: (v: Result) => unknown) => resolve({ error: null, ...(results[table] ?? { data: [] }) });
   return b;
 }
-vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: () => ({ from: (t: string) => builder(t) }) }));
+let rpcResult: Result = { data: null, error: null };
+const rpcCalls: { fn: string; args: unknown }[] = [];
+vi.mock("@/lib/supabase/server", () => ({
+  createServerSupabase: () => ({
+    from: (t: string) => builder(t),
+    rpc: async (fn: string, args: unknown) => { rpcCalls.push({ fn, args }); return rpcResult; },
+  }),
+}));
 
-import { listAdminCreditSettings, insertCreditSettings, deleteCreditSettings, CREDIT_SETTINGS_STARTED_DB_MESSAGE } from "../credit-settings-admin";
+import {
+  listAdminCreditSettings,
+  insertCreditSettings,
+  deleteCreditSettings,
+  replaceCreditSettings,
+  CREDIT_SETTINGS_STARTED_DB_MESSAGE,
+  CREDIT_SETTINGS_REPLACE_DB_MESSAGE,
+} from "../credit-settings-admin";
 
 const row = (id: string, by: string | null, over: Record<string, unknown> = {}) => ({
   id, effective_from: "2026-01-01T00:00:00Z", margin_percent: "0.00", round_step: 5, note: null,
@@ -23,6 +37,8 @@ const row = (id: string, by: string | null, over: Record<string, unknown> = {}) 
 
 beforeEach(() => {
   calls.length = 0;
+  rpcCalls.length = 0;
+  rpcResult = { data: null, error: null };
   for (const k of Object.keys(results)) delete results[k];
 });
 
@@ -72,5 +88,26 @@ describe("deleteCreditSettings", () => {
   it("throws any other database error", async () => {
     results.credit_settings = { error: { message: "boom" } };
     await expect(deleteCreditSettings("a")).rejects.toThrow("boom");
+  });
+});
+
+describe("replaceCreditSettings", () => {
+  const row = { effectiveFrom: "2026-12-01T00:00:00.000Z", marginPercent: 10, roundStep: 10, note: null };
+  it("deletes and inserts in one RPC call and returns the new id", async () => {
+    rpcResult = { data: "n1", error: null };
+    expect(await replaceCreditSettings("old", row, "u1")).toEqual({ replaced: true, id: "n1" });
+    expect(rpcCalls).toEqual([{
+      fn: "replace_credit_settings",
+      args: { p_cancel_id: "old", p_effective_from: row.effectiveFrom, p_margin_percent: 10, p_round_step: 10, p_note: null, p_created_by: "u1" },
+    }]);
+    expect(calls).toEqual([]);
+  });
+  it("reports a row that has started or starts within the lead as not replaced", async () => {
+    rpcResult = { data: null, error: { message: `P0001: ${CREDIT_SETTINGS_REPLACE_DB_MESSAGE}` } };
+    expect(await replaceCreditSettings("old", row, "u1")).toEqual({ replaced: false });
+  });
+  it("throws any other database error", async () => {
+    rpcResult = { data: null, error: { message: "boom" } };
+    await expect(replaceCreditSettings("old", row, "u1")).rejects.toThrow("boom");
   });
 });

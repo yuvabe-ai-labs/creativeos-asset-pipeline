@@ -41,7 +41,7 @@ export type TimelineActions = {
   cancelledMessage: (item: TimelineItem) => string;
   undoneMessage: string;
   /** The confirm dialog's words for each action. */
-  cancelDetail: string;
+  cancelDetail: string | ((item: TimelineItem) => string);
   undoDetail: string;
   empty: string;
 };
@@ -145,7 +145,7 @@ export function ChangeTimeline({ timeline, actions }: { timeline: Timeline; acti
               {undoing ? "Undo" : "Cancel"} {confirming?.item.name}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {undoing ? actions.undoDetail : actions.cancelDetail}
+              {undoing ? actions.undoDetail : typeof actions.cancelDetail === "function" ? (confirming ? actions.cancelDetail(confirming.item) : "") : actions.cancelDetail}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

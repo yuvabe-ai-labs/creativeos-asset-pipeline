@@ -1145,3 +1145,27 @@ select pg_get_function_identity_arguments(oid) from pg_proc where proname = 'reo
 -- expect 1 row: a number, no error (the grouped query runs)
 select count(*) from ai_model_month_runs_by_org(date_trunc('month', now()), now());
 ```
+
+## Migration 0089 — replace a scheduled credit settings change (D549, 2026-11-24)
+
+`supabase/migrations/0089_replace_credit_settings.sql`. Paste into the Supabase SQL editor → Run, after 0088.
+Apply before the plan 5b code deploys. It does two things:
+- `replace_credit_settings` deletes a credit settings change that starts more than 2 minutes from now and adds the new settings in one transaction. The Credits page uses it when new settings start on the same IST day as a scheduled change. A change that has started, or starts within 2 minutes, is refused and nothing changes; so are new settings that start in the past. The table's own checks (margin 0 to 200, step 1, 5 or 10, one change per start) still apply.
+- Execute on it is taken away from public, anon and authenticated and granted to the service role only.
+
+**Safe to re-run:** `create or replace function`; the revoke and grant repeat harmlessly. No table changes.
+**Ordering:** apply before deploying the 5b code. If it lands later, saving new credit settings over a scheduled change fails with "Could not save. Try again." until it is applied; other credit settings changes work.
+
+```sql
+-- expect 1 row: service_role_can = true, anon_can = false, authenticated_can = false
+select p.proname,
+       has_function_privilege('service_role', p.oid, 'execute') as service_role_can,
+       has_function_privilege('anon', p.oid, 'execute') as anon_can,
+       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_can
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname = 'replace_credit_settings';
+-- expect 1 row: p_cancel_id uuid, p_effective_from timestamp with time zone, p_margin_percent numeric, p_round_step integer, p_note text, p_created_by uuid
+select pg_get_function_identity_arguments(oid) from pg_proc where proname = 'replace_credit_settings';
+-- expect 1 row: true (a row inside the 2-minute lead is refused)
+select prosrc like '%interval ''2 minutes''%' as has_lead from pg_proc where proname = 'replace_credit_settings';
+```

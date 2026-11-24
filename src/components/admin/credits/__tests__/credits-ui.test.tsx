@@ -90,13 +90,25 @@ describe("review", () => {
   });
 });
 
+describe("review over a scheduled change", () => {
+  it("lists what the change held and what replaces it, and the button says so", () => {
+    const scheduled = { ...LIVE_ROW, id: "s", effectiveFrom: "2026-11-25T04:30:00Z", marginPercent: 10, roundStep: 10 as const };
+    const review = buildCreditReview({ settings: [LIVE_ROW, scheduled], draft: { marginPercent: 20, roundStep: 10 }, when: defaultCreditWhen(NOW), now: NOW, runs, agencyRuns: [], modelRuns: {} });
+    const t = text(renderToStaticMarkup(<CreditReviewStep review={review} />));
+    expect(t).toContain("This replaces the change scheduled for 25 Nov 2026, 10:00 IST.");
+    expect(t).toContain("Margin10%20%");
+    expect(t).toContain("Rounding step10 creditsSame");
+    expect(review.confirm).toBe("Replace the 25 Nov change");
+  });
+});
+
 describe("history and page", () => {
   it("shows the settings history with Cancel on a scheduled change", () => {
     const rows = [
       { id: "a", effectiveFrom: LIVE_ROW.effectiveFrom, createdAt: "2026-01-01T00:00:00Z", createdBy: null, createdByName: null, settings: LIVE_ROW, problems: [] },
       { id: "n", effectiveFrom: "2026-11-24T18:30:00Z", createdAt: "2026-11-24T06:00:00Z", createdBy: "u1", createdByName: "Arun", settings: { ...LIVE_ROW, id: "n", effectiveFrom: "2026-11-24T18:30:00Z", marginPercent: 10 }, problems: [] },
     ];
-    const t = text(renderToStaticMarkup(<CreditHistory timeline={creditHistory(rows, { now: NOW, callerId: "u1" })} />));
+    const t = text(renderToStaticMarkup(<CreditHistory timeline={creditHistory(rows, { now: NOW, callerId: "u1" })} kept={{}} />));
     expect(t).toContain("From 25 Nov 2026, 00:00 IST");
     expect(t).toContain("Margin 0% → 10%");
     expect(t).toContain("Cancel this change");
@@ -108,7 +120,7 @@ describe("history and page", () => {
         summary={creditsSummary([LIVE_ROW], ZERO, NOW)}
         live={ZERO}
         settings={[LIVE_ROW]}
-        starts={[LIVE_ROW.effectiveFrom]}
+        starts={[{ id: LIVE_ROW.id, effectiveFrom: LIVE_ROW.effectiveFrom }]}
         runs={runs}
         agencyRuns={[]}
         modelRuns={{}}

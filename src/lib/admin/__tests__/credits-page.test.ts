@@ -10,6 +10,7 @@ import {
   creditRunRows,
   creditsFor,
   creditsSummary,
+  keptOnCancel,
   modelTypicalRuns,
   parseMargin,
   roundingNote,
@@ -178,5 +179,15 @@ describe("creditHistory", () => {
     const t = creditHistory([hist(old, { id: "a", effectiveFrom: old.effectiveFrom }), hist(null, { id: "x", effectiveFrom: "2026-06-01T00:00:00Z" })], { now: NOW, callerId: "u1" });
     expect(t.items[1]).toMatchObject({ id: "a", state: "now" });
     expect(t.items[0]).toMatchObject({ id: "x", broken: true, badge: "Fails its check", summary: null, problems: ["bad step"] });
+  });
+});
+
+describe("keptOnCancel", () => {
+  it("names the settings runs keep when each scheduled change is cancelled", () => {
+    const rows = [setting("a", "2026-01-01T00:00:00Z", 0, 5), setting("b", "2026-12-01T00:00:00Z", 10, 5), setting("c", "2026-12-05T00:00:00Z", 20, 10)];
+    expect(keptOnCancel(rows, NOW)).toEqual({
+      b: "Runs keep margin 0%, rounds up to the next 5 credits.",
+      c: "Runs keep margin 10%, rounds up to the next 5 credits.",
+    });
   });
 });

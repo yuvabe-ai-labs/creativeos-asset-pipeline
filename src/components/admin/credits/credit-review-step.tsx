@@ -21,6 +21,26 @@ export function CreditReviewStep({ review }: { review: CreditReview }) {
       <p className="text-[0.8125rem]">
         <span className="font-semibold">{review.summary}</span>, {review.startText}
       </p>
+      {review.replaced && (
+        <div className="rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-[0.8125rem]">
+          <p className="flex items-start gap-2.5">
+            <TriangleAlert aria-hidden strokeWidth={1.5} className="mt-0.5 size-4 shrink-0 text-warning-text" />
+            <span className="font-semibold">{review.replaced.title}</span>
+          </p>
+          <dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-4 gap-y-1 border-t border-warning/40 pt-2 tabular-nums">
+            <dt className="text-xs text-muted-foreground">Setting</dt>
+            <dd className="text-xs text-muted-foreground">Scheduled</dd>
+            <dd className="text-xs text-muted-foreground">Saved instead</dd>
+            {review.replaced.rows.map((r) => (
+              <div key={r.label} className="contents">
+                <dt>{r.label}</dt>
+                <dd>{r.scheduled}</dd>
+                <dd className={cn(r.saved === "Same" ? "text-muted-foreground" : "font-semibold")}>{r.saved}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
       {review.warnings.map((w) => (
         <Note key={w.text} note={w} />
       ))}

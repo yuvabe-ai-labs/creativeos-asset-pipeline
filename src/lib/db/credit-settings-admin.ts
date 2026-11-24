@@ -18,6 +18,8 @@ export type AdminCreditSettingsRow = {
 
 // The text the guard trigger in migration 0086 raises when a row that has started is deleted.
 export const CREDIT_SETTINGS_STARTED_DB_MESSAGE = "credit settings that have started cannot be deleted";
+// The text replace_credit_settings (migration 0089) raises for a row that has started or starts within the lead.
+export const CREDIT_SETTINGS_REPLACE_DB_MESSAGE = "only credit settings that have not started can be replaced";
 
 export async function listAdminCreditSettings(): Promise<AdminCreditSettingsRow[]> {
   const { data, error } = await createServerSupabase()
@@ -70,4 +72,28 @@ export async function deleteCreditSettings(id: string): Promise<{ deleted: boole
     throw new Error(error.message);
   }
   return { deleted: ((data ?? []) as unknown[]).length > 0 };
+}
+
+/**
+ * Deletes a credit settings row that hasn't started and inserts the new one, in one transaction
+ * (migration 0089). A row that has started, or starts within the lead, is `replaced: false`.
+ */
+export async function replaceCreditSettings(
+  cancelId: string,
+  row: { effectiveFrom: string; marginPercent: number; roundStep: number; note: string | null },
+  userId: string,
+): Promise<{ replaced: boolean; id?: string }> {
+  const { data, error } = await createServerSupabase().rpc("replace_credit_settings", {
+    p_cancel_id: cancelId,
+    p_effective_from: row.effectiveFrom,
+    p_margin_percent: row.marginPercent,
+    p_round_step: row.roundStep,
+    p_note: row.note,
+    p_created_by: userId,
+  });
+  if (error) {
+    if (error.message.includes(CREDIT_SETTINGS_REPLACE_DB_MESSAGE)) return { replaced: false };
+    throw new Error(error.message);
+  }
+  return { replaced: true, id: String(data) };
 }
