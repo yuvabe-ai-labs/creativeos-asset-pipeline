@@ -151,7 +151,7 @@ describe("PriceTimeline", () => {
     }
     expect(html).not.toContain("Undo this change");
     // A screen reader hears which change each button acts on.
-    expect(html).toContain('aria-label="Cancel the 3 Dec change"');
+    expect(html).toContain('aria-label="Cancel this change: the 3 Dec change"');
   });
 
   it("names the change its Undo takes back", () => {
@@ -161,7 +161,7 @@ describe("PriceTimeline", () => {
       { now: NOW, provider: "Google", callerId: "u" },
     );
     const html = renderToStaticMarkup(<PriceTimeline modelId={OMNI11} timeline={t} />);
-    expect(html).toContain('aria-label="Undo the 24 Nov change"');
+    expect(html).toContain('aria-label="Undo this change: the 24 Nov change"');
   });
 
   it("keeps a broken row with its problems", () => {
