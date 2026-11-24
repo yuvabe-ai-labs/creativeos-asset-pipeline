@@ -1,6 +1,6 @@
 # Copilot journey: resume here (updated 2026-11-20, after piece 5.1 was built)
 
-> **Newer: piece 3 (market research) is designed and planned. Start from [2026-11-24-piece-3-HANDOFF.md](2026-11-24-piece-3-HANDOFF.md).**
+> **Newer: piece 3 (market research, D529–D532) is built on `feat/market-research` (worktree `.claude/worktrees/market-research`, from `feat/copilot-journey`), 2026-11-24. Unmerged and unpushed; migration 0067 is owed to the staging DB; QA is section 11 of `docs/qa/2026-11-18-copilot-journey-manual-qa.md`. Design and plan: [2026-11-24-piece-3-HANDOFF.md](2026-11-24-piece-3-HANDOFF.md).**
 
 For the next conversation that picks up the copilot journey. Read this first, then the documents it points to.
 

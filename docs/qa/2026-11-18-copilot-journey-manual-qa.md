@@ -204,6 +204,42 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 10.16 | Open the script In review. | The panel is folded, read-only, "Waiting for the client's review"; offers in the thread are one-line notes. |
 | 10.17 | Open a script at Generate. | Everything as before 5.1: same steps, wording, cards and drafting. |
 
+## 11. Market research agent and "Built from" (D529–D532) *(client with an approved brand KB and market research pending)*
+
+Before you start: migration 0067 is applied; the staging Trigger.dev project has the `market-fetch` and `market-draft` tasks deployed, and `APIFY_TOKEN`, the OpenAI key and the Gemini key set.
+
+| # | Do this | Expect |
+|---|---|---|
+| 11.1 | Open the Market research tab of a client whose brand KB was just approved. | The copilot panel is there (same thread as the Brand KB tab), with a "Research the market" choice. The rail waits on "Approve market research". |
+| 11.2 | Open the Market research tab of a client whose brand KB is still in review. | The stage guide shows, not the copilot. |
+| 11.3 | Press "Research the market". | "Searching the web…", then a brands card in two groups, Direct and Adjacent, each brand with its @handle, name and one line on why, a switch per brand, and "Fetch their posts (n)". At most 5 per group. The client's own handle is not on it. Nothing is fetched. |
+| 11.4 | Type "drop @x, move @y to Adjacent, add @brandy to Direct". | The same card updates: @x switched off, @y under Adjacent, @brandy added ("Added by you."). |
+| 11.5 | Type "add @a, @b, @c, @d, @e, @f to Direct" on a card with 5 Direct brands. | The copilot refuses the ones over 5 and says to drop one first. |
+| 11.6 | Ask to research again while a card is waiting. | A new card appears; the older one reads "Replaced by a newer list." and has no controls. |
+| 11.7 | Switch one brand off and press "Fetch their posts". | The card reads "Bringing in their posts…"; a live line "Bringing in posts from N brands…" shows in the panel; references appear in Direct and Adjacent as they arrive, each highlighted once. |
+| 11.8 | *(double click / second tab)* Press "Fetch their posts" in two tabs at once. | One fetch runs; the second tab shows the card already fetching, and no second set of posts arrives. |
+| 11.9 | Include a handle that does not exist or is private. | The closing line names it ("I could not bring in posts from @x…"); posts from the others still come in. |
+| 11.10 | Use a list where every handle is wrong. | A failed line says it could not finish bringing in posts; the card goes back to waiting, so "try again" works. |
+| 11.11 | When the fetch ends. | "N posts from M brands are in Direct and Adjacent. Delete any you don't want, then tell me to draft signals." with a "Draft signals" choice. Each reference's note reads "@handle · caption". |
+| 11.12 | Ask to fetch the same brands again. | No post already in Direct or Adjacent is added twice (also when the first copy was clipped by hand as a /reel/ link). |
+| 11.13 | Press "Draft signals". | "Reading the posts…" then up to 6 draft signal cards, each with a name, tags, a description and the thumbnails of the posts behind it (at least 2 each), then "Here are N signals from M posts. Keep, edit or drop each one." No draft names a claim, proof, health statement or product use. |
+| 11.14 | Press Keep on a draft. | The card reads "Kept as a signal."; the Market page switches to Signals and the new signal lands highlighted. |
+| 11.15 | Press Edit on a draft, change the name and tags, remove one post, then Keep. | The saved signal has the edited name, tags and only the posts left. |
+| 11.16 | *(double click / second tab)* Press Keep twice. | One signal is saved. |
+| 11.17 | Press Drop on a draft. | The card reads "Dropped."; no signal is saved. |
+| 11.18 | Delete a reference on the page, then ask for more signals. | No draft cites the deleted post. |
+| 11.19 | Ask the copilot to approve market research. | It says only a person can; nothing changes. Press "Approve market research" on the gate card. |
+| 11.20 | After 11.19. | "<you> approved market research. That opens scripts." in the thread; the Scripts tab opens. |
+| 11.21 | Start a script and get to the angles. | Each angle says "from <signal>" where it used one; there is no separate research card. The "Built from" line at the top of the script reads "Set when you pick an angle". |
+| 11.22 | Before the angles, type "use the Monsoon rituals signal". | "Built from" shows Monsoon rituals; the angles that follow draw only on it. |
+| 11.23 | Pick an angle. | "Built from" shows that angle's signals. Remove one with its ×, add one with "Add a signal". |
+| 11.24 | Write the draft, then change "Built from". | "Built from changed. Want me to rewrite the script with these signals?" with a "Rewrite with these signals" choice; no shot changed. Pressing it proposes the rewrite as a change to approve. |
+| 11.25 | Delete a signal on the Market page that a script is built from, then open the script. | The line no longer shows it; the next turn and the draft ignore it; nothing errors. |
+| 11.26 | Open a script In review and an approved script. | "Built from" shows the names with no ×, no "Add a signal". |
+| 11.27 | In a script, type "research what competitors post for Diwali". | The script copilot says it asked market research and where to review it. The onboarding thread gets "From <script>: research what competitors post for Diwali" and a brands card focused on it. |
+| 11.28 | In a script, type something with no research in it. | Nothing new appears in the onboarding thread. |
+| 11.29 | Open the canvas for an approved script built from signals. | The canvas script node's signal picker is unchanged; the script's "Built from" is not carried over. |
+
 ## Known limits (not bugs)
 
 - A pending change card hides the "Approve the brand KB" card until it is settled, since it may change fields the approval covers.

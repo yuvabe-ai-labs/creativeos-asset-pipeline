@@ -241,6 +241,8 @@ Spec: [docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md](docs/su
 - The page moves only for this browser's own turns; the "asking" mark is for everyone.
 - The copilot's change wins over an unsaved edit of the same thing; every other unsaved edit is kept.
 - No new request and no new polling: the page reads what the panel already holds.
+- The Market page's targets are its signals (`marketTarget.signal(id)`, D530): a kept draft switches to
+  the Signals tab and lands there; references a fetch brings in land highlighted once (`useFreshItems`).
 
 # Performance — rules we never break
 
