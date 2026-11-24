@@ -150,6 +150,18 @@ describe("PriceTimeline", () => {
       expect(html).toContain(t2);
     }
     expect(html).not.toContain("Undo this change");
+    // A screen reader hears which change each button acts on.
+    expect(html).toContain('aria-label="Cancel the 3 Dec change"');
+  });
+
+  it("names the change its Undo takes back", () => {
+    const fresh = { ...omniNow, id: "fresh", effectiveFrom: "2026-11-24T05:00:00Z" };
+    const t = priceTimeline(
+      [omniNow, fresh].map((p) => ({ id: p.id, effectiveFrom: p.effectiveFrom, createdAt: p.effectiveFrom, createdBy: "u", createdByName: "Arun", price: p, problems: [] })),
+      { now: NOW, provider: "Google", callerId: "u" },
+    );
+    const html = renderToStaticMarkup(<PriceTimeline modelId={OMNI11} timeline={t} />);
+    expect(html).toContain('aria-label="Undo the 24 Nov change"');
   });
 
   it("keeps a broken row with its problems", () => {

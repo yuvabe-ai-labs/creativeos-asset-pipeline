@@ -1126,7 +1126,7 @@ Apply before the plan 5b code deploys. It does five things:
 - Execute on the three new functions and on 0085's `ai_model_month_stats` is taken away from public, anon and authenticated and granted to the service role only.
 
 **Safe to re-run:** `create or replace function` throughout, `drop function if exists` for a two-argument `reorder_ai_models` that never shipped, and the revokes and grants repeat harmlessly. No table changes.
-**Ordering:** apply before deploying the 5b code. If it lands later, replacing a price and reordering models fail with "Could not save. Try again." and the agencies-affected numbers can't load until it is applied. The price lead is then enforced by the app only.
+**Ordering:** apply before deploying the 5b code. If it lands later, replacing a price and reordering models fail with "Could not save. Try again." until it is applied. The models list, a model's page and the Credits page still open, but their agencies-affected lists show no agencies (the failed read is logged as `modelRunsByAgency failed`). The price lead is then enforced by the app only.
 
 ```sql
 -- expect 4 rows, each with service_role_can = true and anon_can = false and authenticated_can = false
@@ -1154,7 +1154,7 @@ Apply before the plan 5b code deploys. It does two things:
 - Execute on it is taken away from public, anon and authenticated and granted to the service role only.
 
 **Safe to re-run:** `create or replace function`; the revoke and grant repeat harmlessly. No table changes.
-**Ordering:** apply before deploying the 5b code. If it lands later, saving new credit settings over a scheduled change fails with "Could not save. Try again." until it is applied; other credit settings changes work.
+**Ordering:** apply before deploying the 5b code. If it lands later, saving new credit settings over a scheduled change fails with "Could not save. Try again." until it is applied, and so does the toast's Undo after such a replace (it puts the earlier change back with a second replace). Adding, cancelling and undoing other credit settings changes work.
 
 ```sql
 -- expect 1 row: service_role_can = true, anon_can = false, authenticated_can = false

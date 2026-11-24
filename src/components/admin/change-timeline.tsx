@@ -106,7 +106,7 @@ export function ChangeTimeline({ timeline, actions }: { timeline: Timeline; acti
             <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
               <span>{item.who}</span>
               {item.canCancel && (
-                <Button variant="link" size="xs" className="h-auto px-0" disabled={busy} onClick={() => setConfirming({ item, action: "cancel" })}>
+                <Button variant="link" size="xs" className="h-auto px-0" aria-label={`Cancel ${item.name}`} disabled={busy} onClick={() => setConfirming({ item, action: "cancel" })}>
                   Cancel this change
                 </Button>
               )}
@@ -115,6 +115,7 @@ export function ChangeTimeline({ timeline, actions }: { timeline: Timeline; acti
                   variant="link"
                   size="xs"
                   className="h-auto px-0"
+                  aria-label={`Undo ${item.name}`}
                   disabled={busy}
                   onClick={() => setConfirming({ item, action: "undo" })}
                 >

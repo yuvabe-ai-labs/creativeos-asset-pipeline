@@ -124,10 +124,13 @@ export function statusChange(c: StatusChangeInput): StatusChange {
     // The server refuses it too (D546, amended).
     guard = c.priceStarts ? `Its price starts on ${c.priceStarts}.` : "Add a price first. Runs of a live model with no price are refused.";
   }
-  const needsReplacement = c.to === "retired";
+  // The server asks a retired image or video model to name where its nodes go (D546, amended); other kinds need none.
+  const needsReplacement = c.to === "retired" && isMedia(c.kind);
   let text: string;
   if (guard) text = guard;
-  else if (c.to === "retired") text = `${c.runsThisMonth > 0 ? `${runs(c.runsThisMonth)} this month. ` : ""}Nodes using it switch to the replacement.`;
+  else if (c.to === "retired") {
+    text = `${c.runsThisMonth > 0 ? `${runs(c.runsThisMonth)} this month. ` : ""}${needsReplacement ? "Nodes using it switch to the replacement." : "It is no longer offered."}`;
+  }
   else if (c.to === "hidden") text = c.runsThisMonth > 0 ? `${runs(c.runsThisMonth)} this month; nodes already using it keep working.` : "Nodes already using it keep working.";
   else text = STATUS_HELP[c.to] ?? "";
   const changed = c.to !== c.from || (needsReplacement && c.replacement !== c.savedReplacement);

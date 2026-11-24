@@ -123,10 +123,21 @@ export async function modelMonthStats(from: string, to: string, modelId?: string
   return modelId ? rows.filter((r) => r.modelId === modelId) : rows;
 }
 
-/** This month's runs per agency per model, from one grouped query (migration 0088). */
+/**
+ * This month's runs per agency per model, from one grouped query (migration 0088). It only feeds the
+ * agencies-affected lists the admin pages show and never drives a write, so a failed read (or a
+ * database without 0088) is logged and shows as no rows instead of taking the page down.
+ */
 export async function modelRunsByAgency(from: string, to: string, modelId?: string): Promise<ModelAgencyRuns[]> {
-  const { data, error } = await createServerSupabase().rpc("ai_model_month_runs_by_org", { p_from: from, p_to: to });
-  if (error) throw new Error(error.message);
+  let data: unknown;
+  try {
+    const res = await createServerSupabase().rpc("ai_model_month_runs_by_org", { p_from: from, p_to: to });
+    if (res.error) throw new Error(res.error.message);
+    data = res.data;
+  } catch (e) {
+    console.error("modelRunsByAgency failed", e instanceof Error ? e.message : e);
+    return [];
+  }
   const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
     modelId: String(r.model_id),
     orgId: String(r.org_id),

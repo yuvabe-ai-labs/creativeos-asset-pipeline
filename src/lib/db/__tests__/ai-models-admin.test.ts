@@ -206,8 +206,11 @@ describe("modelRunsByAgency", () => {
     expect(rpcCalls).toHaveLength(2);
     expect(calls).toEqual([]);
   });
-  it("throws on a database error", async () => {
+  it("logs a database error and returns no rows, since it only feeds what pages show", async () => {
     rpcResult = { data: null, error: { message: "boom" } };
-    await expect(modelRunsByAgency("f", "t")).rejects.toThrow("boom");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(modelRunsByAgency("f", "t")).resolves.toEqual([]);
+    expect(log).toHaveBeenCalledWith("modelRunsByAgency failed", "boom");
+    log.mockRestore();
   });
 });

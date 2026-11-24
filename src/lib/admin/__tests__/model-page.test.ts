@@ -129,6 +129,13 @@ describe("statusChange", () => {
     expect(statusChange({ ...base, to: "retired", replacement: "kling:kling-3-0" }).canSave).toBe(true);
   });
 
+  it("asks for a replacement only for image and video models, as the server does", () => {
+    const c = statusChange({ ...base, kind: "dub", to: "retired" });
+    expect(c).toMatchObject({ needsReplacement: false, canSave: true, blocked: false });
+    expect(c.text).toBe("174 runs this month. It is no longer offered.");
+    expect(statusChange({ ...base, kind: "image", to: "retired" })).toMatchObject({ needsReplacement: true, canSave: false });
+  });
+
   it("lets a retired model get or change its replacement without changing status", () => {
     const c = statusChange({ ...base, from: "retired", to: "retired", replacement: "kling:kling-3-0" });
     expect(c).toMatchObject({ heading: null, needsReplacement: true, canSave: true });
