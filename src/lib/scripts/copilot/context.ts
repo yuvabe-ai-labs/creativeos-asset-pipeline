@@ -3,12 +3,14 @@ import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { getActiveKBVersion } from "@/lib/db/kb";
 import { listScripts } from "@/lib/db/scripts";
 import { listCopilotAvatars } from "@/lib/db/script-generate";
-import { listSignalsWithItems } from "@/lib/db/signals";
+import { listSignalsWithItems, type SignalWithItems } from "@/lib/db/signals";
 import type { Script } from "../schema";
 import type { CopilotAvatar } from "./schema";
 import { renderKbText, renderSignalBrief, renderSignalDigest, todayLabel } from "./prompt-context";
 
-export type CopilotSignals = { brief: string; digest: string; list: { id: string; name: string }[] };
+/** `brief` and `list` cover every signal; `all` is each one whole, for a script's "Built from" to
+ *  narrow them (D531). */
+export type CopilotSignals = { brief: string; digest: string; list: { id: string; name: string }[]; all: SignalWithItems[] };
 export type CopilotContext = {
   clientName: string; kbText: string; hasKb: boolean; library: Script[]; avatars: CopilotAvatar[];
   /** "Wed 28 Oct 2026": occasions are suggested for the coming weeks. */
@@ -17,7 +19,7 @@ export type CopilotContext = {
   signals: CopilotSignals;
 };
 
-const NO_SIGNALS: CopilotSignals = { brief: "", digest: "", list: [] };
+const NO_SIGNALS: CopilotSignals = { brief: "", digest: "", list: [], all: [] };
 
 /** What the copilot knows without asking (spec 2 §4): the KB with its Content Rules, the client's
  *  scripts (examples, taken reel numbers), its saved avatars, today's date and, for a chat turn, its
@@ -33,7 +35,7 @@ export async function loadCopilotContext(client: { id: string; name: string }, o
   return {
     clientName: client.name, kbText: renderKbText(kb), hasKb: kb !== null, library, avatars, today: todayLabel(new Date()),
     signals: signals
-      ? { brief: renderSignalBrief(signals), digest: renderSignalDigest(signals), list: signals.map((s) => ({ id: s.id, name: s.name })) }
+      ? { brief: renderSignalBrief(signals), digest: renderSignalDigest(signals), list: signals.map((s) => ({ id: s.id, name: s.name })), all: signals }
       : NO_SIGNALS,
   };
 }

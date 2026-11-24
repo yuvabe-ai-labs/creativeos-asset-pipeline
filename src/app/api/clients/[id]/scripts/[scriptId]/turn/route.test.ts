@@ -38,7 +38,7 @@ describe("POST .../turn", () => {
     await allowClient();
     vi.mocked(getGenerateScript).mockResolvedValue(generateScript());
     vi.mocked(listScriptMessages).mockResolvedValue([{ id: "m0", role: "assistant", content: "What format?", card: null, suggestions: [], createdAt: "t" }]);
-    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [], all: [] } });
     vi.mocked(changeGenerateScript).mockImplementation(runChangeAgainst(generateScript()) as never);
     vi.mocked(loadGenerateState).mockResolvedValue(stateOf(generateScript()));
   });
@@ -69,6 +69,15 @@ describe("POST .../turn", () => {
     vi.mocked(getGenerateScript).mockResolvedValue(written);
     await lines(await POST(send({ text: "Shorter hook" }) as never, { params }));
     expect(vi.mocked(loadCopilotContext).mock.calls[1][1]).toEqual({ signals: false });
+  });
+
+  it("loads market signals for an edit when the script is built from some, so a rewrite can read them (D531)", async () => {
+    vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
+    const { POST } = await import("./route");
+    const built = generateScript({ doc: scriptDocSchema.parse(reel01) });
+    vi.mocked(getGenerateScript).mockResolvedValue({ ...built, brief: { ...built.brief, signalIds: ["s1"] } });
+    await lines(await POST(send({ text: "Rewrite with these signals" }) as never, { params }));
+    expect(vi.mocked(loadCopilotContext).mock.calls[0][1]).toEqual({ signals: true });
   });
 
   it("takes a pasted script longer than an ordinary message, up to 30,000 characters", async () => {
@@ -143,7 +152,7 @@ describe("POST .../turn while market research is pending", () => {
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Jackfruit365", org_id: "org-1", kb_status: "ready", market_status: "pending" } as never);
     vi.mocked(getGenerateScript).mockResolvedValue(generateScript());
     vi.mocked(listScriptMessages).mockResolvedValue([]);
-    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [], all: [] } });
     vi.mocked(changeGenerateScript).mockImplementation(runChangeAgainst(generateScript()) as never);
     vi.mocked(loadGenerateState).mockResolvedValue(stateOf(generateScript()));
     vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
@@ -202,7 +211,7 @@ describe("POST .../turn at Visualise", () => {
     await allowClient();
     vi.mocked(getGenerateScript).mockResolvedValue(atVisualise);
     vi.mocked(listScriptMessages).mockResolvedValue([]);
-    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [], all: [] } });
     vi.mocked(changeVisualiseScript).mockImplementation(runChangeAgainst(atVisualise) as never);
     vi.mocked(loadGenerateState).mockResolvedValue(stateOf(atVisualise));
     vi.mocked(getScript).mockResolvedValue(script as never);

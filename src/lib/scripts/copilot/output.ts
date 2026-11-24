@@ -76,6 +76,8 @@ export const extractionSchema = z.object({
   cardChange: z.string(),
   ack: z.string(),
   suggestions: z.array(z.string()),
+  /** Market signals the person asked to use or not use for this reel, by name (D531). */
+  signals: z.object({ add: z.array(z.string()), remove: z.array(z.string()) }),
 });
 export type Extraction = z.infer<typeof extractionSchema>;
 

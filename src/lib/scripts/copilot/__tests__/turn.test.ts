@@ -18,7 +18,7 @@ import type { Script } from "@/lib/scripts/schema";
 const doc = scriptDocSchema.parse(reel01);
 const ctx: CopilotContext = {
   clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026",
-  signals: { brief: "Market signal: Onam lunches", digest: "[S1] Onam lunches", list: [{ id: "sig-1", name: "Onam lunches" }] },
+  signals: { brief: "Market signal: Onam lunches", digest: "[S1] Onam lunches", list: [{ id: "sig-1", name: "Onam lunches" }], all: [] },
 };
 const script = (over: Partial<GenerateScript> = {}): GenerateScript => ({
   id: "s1", clientId: "c1", stage: "generate", doc: null, brief: EMPTY_BRIEF, notes: EMPTY_NOTES, docVersion: 1, createdAt: "t", updatedAt: "t", ...over,
@@ -26,7 +26,7 @@ const script = (over: Partial<GenerateScript> = {}): GenerateScript => ({
 const none = { action: "none" as const, value: "" };
 const extraction = (over: Partial<Extraction> = {}): Extraction => ({
   format: none, occasion: { ...none, postDate: "" }, lead: { ...none, avatarId: null }, narrative: { ...none, angleId: null }, suggestions: [],
-  skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", ...over,
+  skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", signals: { add: [], remove: [] }, ...over,
 });
 const angle = (id: string, signalIds: string[] = []) => ({
   id, hook: `Hook ${id}`, situation: "s", productMoment: "m", supportingCast: "c", proof: "p",
@@ -81,7 +81,7 @@ describe("before the draft", () => {
     expect(out.patch?.brief?.format).toEqual({ value: "UGC", status: "given" });
   });
 
-  it("goes straight to three angles with a Market Research card when the message gives everything but the angle", async () => {
+  it("goes straight to three angles, each naming the signals it drew on, when the message gives everything but the angle (D531)", async () => {
     const m = fakeModel({
       script_brief_read: [extraction({
         format: { action: "given", value: "UGC" }, occasion: { action: "given", value: "Kerala Piravi", postDate: "Sun 1 Nov" },
@@ -92,20 +92,16 @@ describe("before the draft", () => {
     const d = deps(m.call);
     const out = ok(await run(script(), "Reel 04, Kerala Piravi, UGC, Saraswathi", d));
     expect(m.calls).toEqual(["script_brief_read", "script_angles"]);
-    const [research, angles] = out.result;
-    // The card is the whole message: no prose explaining what signals are for.
-    expect(research.content).toBe("");
-    expect(research.card).toEqual({ kind: "research", signals: [{ id: "sig-1", name: "Onam lunches" }], perAngle: [
-      { angleId: "A", signalIds: ["sig-1"] },
-      { angleId: "B", signalIds: [] },
-      { angleId: "C", signalIds: [] },
-    ] });
-    expect(angles.card?.kind).toBe("angles");
+    // No separate research card: the angles card names the signals (D531).
+    expect(out.result).toHaveLength(1);
+    const [angles] = out.result;
+    expect(angles.card).toMatchObject({ kind: "angles", signals: [{ id: "sig-1", name: "Onam lunches" }] });
+    expect(angles.card?.kind === "angles" && angles.card.angles.map((x) => x.signalIds)).toEqual([["sig-1"], [], []]);
     expect(out.patch?.brief?.angles.map((a) => a.id)).toEqual(["A", "B", "C"]);
     expect(out.patch?.brief?.reelNumber).toBe(4);
   });
 
-  it("puts the angles call's chips on the angles message, the turn's last reply, not on the research card", async () => {
+  it("puts the angles call's chips on the angles message, the turn's last reply", async () => {
     const m = fakeModel({
       script_brief_read: [extraction({
         format: { action: "given", value: "UGC" }, occasion: { action: "given", value: "Diwali", postDate: "" },
@@ -113,8 +109,7 @@ describe("before the draft", () => {
       })],
       script_angles: [{ angles: [angle("A"), angle("B"), angle("C")], suggestions: ["Blend A and C"] }],
     });
-    const [research, angles] = ok(await run(script(), "UGC, Diwali, Asha", deps(m.call))).result;
-    expect(research.suggestions ?? []).toEqual([]);
+    const [angles] = ok(await run(script(), "UGC, Diwali, Asha", deps(m.call))).result;
     expect(angles.suggestions).toEqual(["Blend A and C"]);
   });
 
@@ -135,7 +130,7 @@ describe("before the draft", () => {
     });
     const out = ok(await run(script(), "take it from here", deps(m.call)));
     expect(m.calls).toEqual(["script_brief_read", "script_angles", "script_card"]);
-    expect(out.result.map((r) => r.card?.kind ?? null)).toEqual(["research", "angles", null, "confirmation"]);
+    expect(out.result.map((r) => r.card?.kind ?? null)).toEqual(["angles", null, "confirmation"]);
     expect(out.patch?.brief?.narrative.status).toBe("proposed");
     expect(out.patch?.brief?.lead).toEqual({ value: "Saraswathi", status: "proposed" });
     expect(out.patch?.brief?.phase).toBe("confirm");

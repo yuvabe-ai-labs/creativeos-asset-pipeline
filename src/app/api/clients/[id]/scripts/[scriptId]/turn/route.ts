@@ -79,8 +79,10 @@ export async function POST(req: Request, { params }: Ctx) {
             let replies: Reply[];
             if (pictureOnly) replies = [{ content: `Added it to ${pictured}.`, card: null }];
             else try {
-              // Signals feed the brief (suggestions, angles) only: an edit after the draft never reads them.
-              const ctx = await loadCopilotContext(client, { signals: script.doc === null });
+              // Signals feed the brief (suggestions, angles). An edit after the draft reads them only when
+              // the script is built from some (D531), so "Rewrite with these signals" can use them.
+              const builtFrom = (script.brief.signalIds?.length ?? 0) > 0;
+              const ctx = await loadCopilotContext(client, { signals: script.doc === null || builtFrom });
               const apply = await prepareTurn(
                 {
                   script, ctx, history, leadAvatarId, locked: scriptsLocked(client),

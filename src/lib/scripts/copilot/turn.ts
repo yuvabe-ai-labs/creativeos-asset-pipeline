@@ -15,7 +15,7 @@ import type { StreamingCall, StructuredCall } from "./model";
 import type { PartialDraft } from "./partial-draft";
 import { applyOps, beforeAfter, staleTargets, type OpsGen } from "./ops";
 import { anglesOutputSchema, cardOutputSchema, detectOutputSchema, draftOutputSchema, editTurnSchema, extractionSchema, inlineOutputSchema } from "./output";
-import { nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
+import { nextReelNumber, renderAvatars, renderLibrary, renderSignalBrief } from "./prompt-context";
 import { renderFormatMenu, SCRIPT_FORMATS } from "./formats";
 import { cleanSuggestions } from "./suggestions";
 import type { Brief, GenerateScript, MessageCard, OfferCard, ProposalCard, ScriptMessage, ScriptNotes } from "./schema";
@@ -24,7 +24,7 @@ import { boardText, type BoardFacts } from "./board-text";
 import { routeVisualiseOps, VISUALISE_REFUSALS } from "./visualise-edits";
 import { renderConversation } from "./conversation";
 import {
-  angleText, applyAngle, cardToNotes, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
+  anglesSignals, angleText, applyAngle, builtFromSignals, cardToNotes, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
   openItemsLine, questionFor, type Step,
 } from "./brief";
 
@@ -98,6 +98,12 @@ export async function prepareTurn(input: TurnInput, deps: TurnDeps): Promise<App
   return input.script.doc ? prepareEdit(input, deps, base, input.script.doc) : prepareBrief(input, deps, base);
 }
 
+/** The script's "Built from" signals in full, for an edit (D531): "Rewrite with these signals" is an
+ *  ordinary edit that can read them. "" when none are set or loaded. */
+function builtFromText(input: TurnInput): string {
+  return renderSignalBrief(builtFromSignals(input.ctx.signals.all, input.script.brief.signalIds));
+}
+
 const TOO_LONG = `That's longer than a chat message can be (${MAX_MESSAGE_CHARS.toLocaleString("en")} characters), and it doesn't read as a whole script. If it is one, paste the whole script, shot table included.`;
 
 async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase): Promise<Apply> {
@@ -109,7 +115,7 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
   const quick = deps.quick ?? deps.call;
 
   const ex = await quick({ name: "script_brief_read", ...extractPrompt(base, { brief: script.brief, conversation, text }), schema: extractionSchema });
-  const merged = mergeExtraction(script.brief, ex, avatarIds);
+  const merged = mergeExtraction(script.brief, ex, avatarIds, ctx.signals.list);
   let brief: Brief = merged.brief;
   let changed = merged.changed;
   // A picked lead chip is the lead, whatever the model made of the name (two avatars can share one).
@@ -144,19 +150,16 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
       break;
     }
     if (step.kind === "angles") {
-      const research = ctx.signals;
+      // Signals set before the angles limit them; otherwise they read every signal (D531, D335).
+      const read = anglesSignals(ctx.signals.all, brief.signalIds);
+      const research = read === ctx.signals.all ? ctx.signals : { brief: renderSignalBrief(read), list: read.map((s) => ({ id: s.id, name: s.name })) };
       const out = await quick({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: research.brief, conversation, text }), schema: anglesOutputSchema });
       chips = out.suggestions ?? [];
       const angles = normalizeAngles(out.angles, research.list, avatarIds);
       if (angles.length === 0) throw new Error("The copilot proposed no angles.");
       brief = { ...brief, angles };
-      // The card is the message: which signals each angle used, nothing explaining it.
-      say(withAck(""), {
-        kind: "research",
-        signals: research.list,
-        perAngle: angles.map((a) => ({ angleId: a.id, signalIds: a.signalIds })),
-      });
-      say("Here are three angles. Pick one, blend two, or write your own.", { kind: "angles", angles });
+      // Each angle names its signal on the angles card itself (D531): no separate research card.
+      say(withAck("Here are three angles. Pick one, blend two, or write your own."), { kind: "angles", angles, signals: research.list });
       if (brief.narrative.status !== "skipped") break;
       brief = applyAngle(brief, angles[0], "proposed");
       say(`You left the angle to me, so I'll go with ${angles[0].id}: ${angles[0].hook}`);
@@ -179,7 +182,8 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
         break;
       }
       const card = brief.card;
-      const draftArgs = { name: "script_draft", ...draftPrompt(base, { brief, card, conversation }), schema: draftOutputSchema };
+      const builtFrom = renderSignalBrief(builtFromSignals(ctx.signals.all, brief.signalIds));
+      const draftArgs = { name: "script_draft", ...draftPrompt(base, { brief, card, conversation, builtFrom }), schema: draftOutputSchema };
       const out = await streamDraftCall(deps, draftArgs);
       doc = toScriptDoc(out, { reelNumber: card.reelNumber, avatarIds, leadAvatarId: lead?.avatarId ?? null });
       notes = cardToNotes(card);
@@ -210,7 +214,7 @@ async function prepareEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, 
   const conversation = renderConversation(input.history);
   const out = await deps.call({
     name: "script_edit",
-    ...editPrompt(base, { doc, notes: script.notes, openItems: fillToFinal(doc, script.notes), conversation, text }),
+    ...editPrompt(base, { doc, notes: script.notes, openItems: fillToFinal(doc, script.notes), conversation, text, builtFrom: builtFromText(input) }),
     schema: editTurnSchema,
   });
   const gen: OpsGen = { newShotId: deps.newShotId ?? randomShotId, avatarIds: new Set(ctx.avatars.map((a) => a.id)) };
@@ -265,7 +269,7 @@ async function prepareVisualiseEdit(input: TurnInput, deps: TurnDeps, base: Copi
     name: "script_visualise_edit",
     ...editPrompt(base, {
       doc, notes: script.notes, openItems: fillToFinal(doc, script.notes), conversation: renderConversation(input.history), text,
-      board: boardText(board),
+      board: boardText(board), builtFrom: builtFromText(input),
     }),
     schema: visualiseTurnSchema,
   });

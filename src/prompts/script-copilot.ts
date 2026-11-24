@@ -37,6 +37,7 @@ narrative.angleId is the letter (A, B or C) of a proposed angle the person picke
 reelNumber is set when they name a slot ("Reel 04" is 4), else null.
 confirm is true only when a confirmation card is showing and the person says to write it ("write it", "go", "looks good").
 cardChange holds what they asked to change on the card, in their words, else "".
+signals.add and signals.remove hold the names of the client's market signals (as the market signals list names them) that the person asks to use, or not to use, for this reel ("use the office dry skin signal", "leave out Question hooks"); [] when they ask nothing about signals.
 ack is one short line acknowledging what you took from the message. Ask no question in it.
 suggestions: two or three short replies (under 60 characters each) the person might send next, written for this brand and this reel. Never a claim, a price or an offer the KB doesn't give. Here: replies to the first piece still open after this message, else []. For the occasion, draw on the brand, its audience's location, today's date and the market signals. With no brand KB and no market signals, suggest occasions coming up in the calendar.`;
 
