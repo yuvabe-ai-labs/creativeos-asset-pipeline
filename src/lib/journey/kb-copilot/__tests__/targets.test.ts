@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { fieldsWrittenSince, kbFieldPath, kbTarget } from "../targets";
+import { fieldsWrittenSince, kbFieldPath, kbTarget, marketSignalId, marketTarget } from "../targets";
+
+describe("market targets (D530)", () => {
+  it("names a signal on the Market page, and reads its id back", () => {
+    expect(marketTarget.signal("x")).toBe("market-signal:x");
+    expect(marketSignalId(marketTarget.signal("x"))).toBe("x");
+    expect(marketSignalId("kb:a.b")).toBeNull();
+  });
+});
 
 describe("brand KB targets", () => {
   it("builds and reads back target ids", () => {

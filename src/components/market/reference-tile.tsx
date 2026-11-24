@@ -24,13 +24,15 @@ type Props = {
   onOpen: () => void;
   /** Present = a remove affordance appears on hover; the caller owns confirmation. */
   onRemove?: () => void;
+  /** Just brought in by the copilot (D530): it lands highlighted, once. */
+  landed?: boolean;
 };
 
 /** One market reference in the masonry. The outer element is layout only — the two
  *  affordances are real primitives side by side (never nested): a Button covering the
  *  media opens/plays it, a Checkbox in the corner toggles selection. Heights are
  *  intrinsic (h-auto) so the CSS-columns masonry can stagger them. */
-export function ReferenceTile({ item, selected, selectable, onToggle, onOpen, onRemove }: Props) {
+export function ReferenceTile({ item, selected, selectable, onToggle, onOpen, onRemove, landed = false }: Props) {
   const visual =
     item.thumbnail_url ?? (item.kind === "image" || item.kind === "gif" ? item.image_url : null);
 
@@ -94,6 +96,8 @@ export function ReferenceTile({ item, selected, selectable, onToggle, onOpen, on
           <Trash2 className="size-3.5" strokeWidth={1.5} />
         </Button>
       )}
+
+      {landed && <span aria-hidden className="animate-target-land pointer-events-none absolute inset-0 bg-primary/10" />}
 
       {selectable && (
         <Checkbox
