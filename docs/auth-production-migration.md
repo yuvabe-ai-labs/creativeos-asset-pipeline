@@ -1086,3 +1086,17 @@ select count(*) from pg_proc where proname = 'ai_model_month_stats';
 -- expect rows for models used this month (or none on a fresh database), never an error
 select * from ai_model_month_stats(date_trunc('month', now()), now() + interval '1 day') limit 5;
 ```
+
+## Migration 0086 — credit settings in the database (D548, 2026-11-24)
+
+`supabase/migrations/0086_credit_settings.sql`. Paste into the Supabase SQL editor → Run, after 0085.
+Apply **before** Plan 5a deploys to Vercel. Without the `credit_settings` table the model catalog read fails, and every paid run is refused.
+It adds the `credit_settings` table (the margin and the rounding step that turn a run's cost into credits, as dated rows), a guard so a row is never edited and one that has started is never deleted, and one starting row: no margin, round up to the next 5 credits, from 2026-01-01. That is exactly how credits work today, so nothing changes until an admin adds a row.
+**Safe to re-run:** `create table if not exists`, `create or replace function`, `drop trigger if exists`, and the starting row is skipped if it is there.
+
+```sql
+-- expect 1 row: margin 0, step 5, from 2026-01-01
+select effective_from, margin_percent, round_step from credit_settings order by effective_from;
+-- expect an error: rows are never edited
+update credit_settings set round_step = 1;
+```

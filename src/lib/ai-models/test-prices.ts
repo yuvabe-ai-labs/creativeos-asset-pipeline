@@ -25,7 +25,7 @@ export function seededCatalog(): AiCatalog {
       return price;
     });
   });
-  catalog = { models: [], prices };
+  catalog = { models: [], prices, creditSettings: [] };
   return catalog;
 }
 

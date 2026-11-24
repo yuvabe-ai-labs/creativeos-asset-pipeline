@@ -3,12 +3,13 @@
 import { z } from "zod";
 import type { ParamSpec } from "@/lib/image-gen/types";
 import type { ConstraintRule } from "@/lib/video-gen/types";
-import { AI_MODEL_KINDS, AI_MODEL_STATUSES, METERS, type AiModel, type AiModelKind, type AiModelPrice, type PriceLine } from "./types";
+import { AI_MODEL_KINDS, AI_MODEL_STATUSES, METERS, type AiModel, type AiModelKind, type AiModelPrice, type CreditSettings, type PriceLine } from "./types";
 
 export const MODEL_COLUMNS =
   "id, provider, kind, label, picker_label, provider_label, description, status, replaced_by, " +
   "sort_order, adapter_key, provider_model_id, params, rules, capabilities, updated_at";
 export const PRICE_COLUMNS = "id, model_id, effective_from, lines, estimate, source_url, note";
+export const CREDIT_SETTINGS_COLUMNS = "id, effective_from, margin_percent, round_step, note";
 
 const paramConstraintsSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("select"), options: z.array(z.string()) }),
@@ -199,4 +200,30 @@ export function checkAiModelPriceRow(row: unknown): { price: AiModelPrice | null
 
 export function parseAiModelPriceRow(row: unknown): AiModelPrice | null {
   return checkAiModelPriceRow(row).price;
+}
+
+// D548 — Postgres `numeric` reaches us as a string ("0.00"); accept a number too.
+const creditSettingsRowSchema = z.object({
+  id: z.string().min(1),
+  effective_from: z.string().min(1),
+  margin_percent: z.coerce.number().min(0).max(200),
+  round_step: z.union([z.literal(1), z.literal(5), z.literal(10)]),
+  note: z.string().nullable(),
+});
+
+/** The one check a credit settings row goes through. `problems` lists each issue as `path: message`. */
+export function checkCreditSettingsRow(row: unknown): { settings: CreditSettings | null; problems: string[] } {
+  const parsed = creditSettingsRowSchema.safeParse(row);
+  if (!parsed.success) {
+    return { settings: null, problems: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) };
+  }
+  const r = parsed.data;
+  return {
+    settings: { id: r.id, effectiveFrom: r.effective_from, marginPercent: r.margin_percent, roundStep: r.round_step, note: r.note },
+    problems: [],
+  };
+}
+
+export function parseCreditSettingsRow(row: unknown): CreditSettings | null {
+  return checkCreditSettingsRow(row).settings;
 }

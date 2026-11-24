@@ -66,4 +66,13 @@ export type ProviderBill = {
   unpriced?: Meter[];
 };
 
-export type AiCatalog = { models: AiModel[]; prices: AiModelPrice[] };
+/** D548 — how a run's cost becomes credits, from `effectiveFrom` on. A row is never edited. */
+export type CreditSettings = {
+  id: string;
+  effectiveFrom: string;
+  marginPercent: number;
+  roundStep: 1 | 5 | 10;
+  note: string | null;
+};
+
+export type AiCatalog = { models: AiModel[]; prices: AiModelPrice[]; creditSettings: CreditSettings[] };

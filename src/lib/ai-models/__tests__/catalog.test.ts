@@ -41,32 +41,33 @@ beforeEach(() => {
   gate = null;
   selects.length = 0;
   tables.ai_models = { data: [MODEL], error: null };
+  tables.credit_settings = { data: [{ id: "c1", effective_from: "2026-01-01T00:00:00Z", margin_percent: "0.00", round_step: 5, note: null }], error: null };
   tables.ai_model_prices = { data: [PRICE("p1", "2026-11-01T00:00:00Z")], error: null };
   vi.useFakeTimers();
 });
 afterEach(() => vi.useRealTimers());
 
 describe("getAiCatalog", () => {
-  it("loads models and prices with one query each", async () => {
+  it("loads models, prices and credit settings with one query each", async () => {
     const catalog = await getAiCatalog();
     expect(catalog.models.map((m) => m.id)).toEqual([MODEL.id]);
     expect(catalog.prices.map((p) => p.id)).toEqual(["p1"]);
-    expect(selects.sort()).toEqual(["ai_model_prices", "ai_models"]);
+    expect(selects.sort()).toEqual(["ai_model_prices", "ai_models", "credit_settings"]);
   });
 
   it("serves the cache within 60 seconds and reloads after", async () => {
     await getAiCatalog();
     vi.advanceTimersByTime(CATALOG_CACHE_MS - 1);
     await getAiCatalog();
-    expect(selects).toHaveLength(2);
+    expect(selects).toHaveLength(3);
     vi.advanceTimersByTime(2);
     await getAiCatalog();
-    expect(selects).toHaveLength(4);
+    expect(selects).toHaveLength(6);
   });
 
   it("shares one load between concurrent callers", async () => {
     await Promise.all([getAiCatalog(), getAiCatalog(), getAiCatalog()]);
-    expect(selects).toHaveLength(2);
+    expect(selects).toHaveLength(3);
   });
 
   it("leaves out a row that fails its check", async () => {
@@ -79,7 +80,8 @@ describe("getAiCatalog", () => {
   });
 
   it("logs a plain line when the read succeeds but there are no price rows", async () => {
-    tables.ai_model_prices = { data: [], error: null };
+    tables.credit_settings = { data: [{ id: "c1", effective_from: "2026-01-01T00:00:00Z", margin_percent: "0.00", round_step: 5, note: null }], error: null };
+  tables.ai_model_prices = { data: [], error: null };
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const catalog = await getAiCatalog();
     expect(catalog.prices).toEqual([]);
@@ -113,6 +115,7 @@ describe("getAiCatalog", () => {
 describe("currentPrice", () => {
   const catalog = (): AiCatalog => ({
     models: [],
+    creditSettings: [],
     prices: [
       { id: "old", modelId: MODEL.id, effectiveFrom: "2026-11-01T00:00:00Z", lines: [], estimate: {}, sourceUrl: null, note: null },
       { id: "new", modelId: MODEL.id, effectiveFrom: "2026-12-03T08:00:00Z", lines: [], estimate: {}, sourceUrl: null, note: null },
@@ -127,5 +130,33 @@ describe("currentPrice", () => {
   it("is null before the first row, or for another model", () => {
     expect(currentPrice(catalog(), MODEL.id, new Date("2026-10-01T00:00:00Z"))).toBeNull();
     expect(currentPrice(catalog(), "other", new Date("2026-12-31T00:00:00Z"))).toBeNull();
+  });
+});
+
+describe("getAiCatalog credit settings", () => {
+  it("loads the settings rows, leaving out one that fails its check", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    tables.credit_settings = {
+      data: [
+        { id: "c1", effective_from: "2026-01-01T00:00:00Z", margin_percent: "0.00", round_step: 5, note: null },
+        { id: "bad", effective_from: "2026-06-01T00:00:00Z", margin_percent: "250", round_step: 5, note: null },
+      ],
+      error: null,
+    };
+    const catalog = await getAiCatalog();
+    expect(catalog.creditSettings.map((c) => c.id)).toEqual(["c1"]);
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it("throws when the read fails, and logs when there are no rows", async () => {
+    tables.credit_settings = { data: null, error: new Error("boom") };
+    await expect(getAiCatalog()).rejects.toThrow("boom");
+    clearAiCatalogCache();
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    tables.credit_settings = { data: [], error: null };
+    expect((await getAiCatalog()).creditSettings).toEqual([]);
+    expect(err.mock.calls.some((c) => String(c[0]).includes("migration 0086"))).toBe(true);
+    err.mockRestore();
   });
 });

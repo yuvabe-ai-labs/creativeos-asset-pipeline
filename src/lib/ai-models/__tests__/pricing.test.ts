@@ -59,6 +59,7 @@ describe("priceMeters — quantities that are not a positive number", () => {
 describe("currentPrice / priceById", () => {
   const catalog: AiCatalog = {
     models: [],
+    creditSettings: [],
     prices: [
       { ...SEEDANCE, id: "old", effectiveFrom: "2026-01-01T00:00:00Z" },
       { ...SEEDANCE, id: "new", effectiveFrom: "2026-12-03T08:00:00Z" },

@@ -1,7 +1,9 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { MODEL_COLUMNS, PRICE_COLUMNS, parseAiModelPriceRow, parseAiModelRow } from "./schema";
-import type { AiCatalog, AiModel, AiModelPrice } from "./types";
+import {
+  CREDIT_SETTINGS_COLUMNS, MODEL_COLUMNS, PRICE_COLUMNS, parseAiModelPriceRow, parseAiModelRow, parseCreditSettingsRow,
+} from "./schema";
+import type { AiCatalog, AiModel, AiModelPrice, CreditSettings } from "./types";
 
 // Kept importable from here for existing callers; it is pure and lives in pricing.ts.
 export { currentPrice } from "./pricing";
@@ -41,13 +43,15 @@ export async function getAiCatalog(): Promise<AiCatalog> {
 
 async function loadAiCatalog(): Promise<AiCatalog> {
   const db = createServerSupabase();
-  const [modelsRes, pricesRes] = await Promise.all([
+  const [modelsRes, pricesRes, settingsRes] = await Promise.all([
     db.from("ai_models").select(MODEL_COLUMNS).order("sort_order"),
     db.from("ai_model_prices").select(PRICE_COLUMNS).order("effective_from"),
+    db.from("credit_settings").select(CREDIT_SETTINGS_COLUMNS).order("effective_from"),
   ]);
   // A failed read is never an empty catalog (performance rule 13).
   if (modelsRes.error) throw modelsRes.error;
   if (pricesRes.error) throw pricesRes.error;
+  if (settingsRes.error) throw settingsRes.error;
 
   const models: AiModel[] = [];
   for (const row of modelsRes.data ?? []) {
@@ -64,5 +68,14 @@ async function loadAiCatalog(): Promise<AiCatalog> {
   if (prices.length === 0) {
     console.error("[ai-models] no model prices loaded — every paid run will be refused; is migration 0078 applied?");
   }
-  return { models, prices };
+  const creditSettings: CreditSettings[] = [];
+  for (const row of settingsRes.data ?? []) {
+    const settings = parseCreditSettingsRow(row);
+    if (settings) creditSettings.push(settings);
+    else console.error("[ai-models] credit settings row failed its check — left out", { id: (row as { id?: unknown }).id });
+  }
+  if (creditSettings.length === 0) {
+    console.error("[ai-models] no credit settings loaded — credits fall back to the code defaults; is migration 0086 applied?");
+  }
+  return { models, prices, creditSettings };
 }
