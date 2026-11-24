@@ -9023,3 +9023,13 @@ A new run reads the row valid now from the cached catalog and records it as `gen
 **Rejected.** One query per model for its numbers (performance rule 1).
 
 **Originated →** [2026-11-23-model-catalog-4-admin.md](../plans/2026-11-23-model-catalog-4-admin.md).
+
+### D548 — Margin and rounding are dated settings rows *(recorded 2026-11-24; follows D529, D546)*
+
+**Decision.** How a run's USD cost becomes credits is read from `credit_settings` (migration 0086): dated rows with a margin (0–200%) and a rounding step (1, 5 or 10), never edited, cancellable only before they start, changed by the super admin through checked actions. The credit rate (1 credit = $0.001) and rounding up stay in code: the rate changes what every credit an agency holds is worth, so it changes only with plan prices, and rounding up keeps a run from charging below its cost. The rows load with the model catalog and reach the browser in the same payload. One function, `creditsFromUsd(usd, settings)`, does the sum; an estimate or reservation uses the row live now, completion uses the row live at the run's `created_at`, so a run is charged with the settings live when it started. The seeded first row is today's behaviour (margin 0, step 5).
+
+**Why.** Margin and rounding are business decisions like prices and should not need a deploy; small runs pay a lot for a step of 5 (a $0.0059 image is 10 credits), so the step must be tunable.
+
+**Rejected.** A `credit_settings_id` on every generation (the time of the run already identifies the row, since rows are never edited and only future rows can be cancelled). An editable credit rate.
+
+**Originated →** [2026-11-24-credit-settings-5a.md](../plans/2026-11-24-credit-settings-5a.md).
