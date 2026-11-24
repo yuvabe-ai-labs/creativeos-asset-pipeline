@@ -6,6 +6,7 @@ import { formatUsd, isTokenMeter } from "@/lib/ai-models/price-format";
 import { CATALOG_CHANGE_LEAD_MS } from "@/lib/ai-models/pricing";
 import { undoTarget } from "@/lib/ai-models/model-edit";
 import { rawCreditsFromUsd } from "@/lib/credits/units";
+import { SEED_PRICE_NOTE } from "@/lib/ai-models/seed";
 import type { AiModel, AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
 import { lineKey, meterLabel, priceGrid } from "./price-grid";
 import { changeWords, priceDiff } from "./models-list";
@@ -19,6 +20,8 @@ type SheetModel = Pick<AiModel, "id" | "kind" | "label" | "params" | "providerLa
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const stepWords = (step: number) => (step === 1 ? "the next credit" : `the next ${step} credits`);
 const hasGrid = (kind: string) => kind === "image" || kind === "video";
+/** A price row's note as shown: the seed's internal note is left out. */
+const shownNote = (note: string | null) => (note === SEED_PRICE_NOTE ? null : note);
 
 /** The price sheet's title: the main price's unit. */
 export function sheetTitle(kind: string): string {
@@ -50,8 +53,8 @@ export function sheetFootnote(model: Pick<AiModel, "kind">, price: Pick<AiModelP
 const orList = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} or ${xs[xs.length - 1]}`);
 
 /** The empty sheet's text: why a price is needed, and the settings the admin will price. */
-export function noPriceText(model: SheetModel): string {
-  const lead = `Runs can't be charged without one, so ${model.label} stays a draft.`;
+export function noPriceText(model: SheetModel, status: string): string {
+  const lead = `Runs can't be charged without one${status === "draft" ? `, so ${model.label} stays a draft` : ""}.`;
   if (!hasGrid(model.kind)) return lead;
   const g = priceGrid(model, { id: "", modelId: model.id, effectiveFrom: "", lines: [], estimate: {}, sourceUrl: null, note: null });
   if (!g.rowAxis) return lead;
@@ -95,7 +98,7 @@ export function scheduledNotice(current: Pick<AiModelPrice, "lines"> | null, nex
     headline: capitalise(changeWords(current ? priceDiff(current, next) : null)),
     when: `from ${formatIstWhen(at)}, ${relativeIstDay(at, now)}.`,
     utc: formatUtcBeside(at),
-    note: next.note,
+    note: shownNote(next.note),
   };
 }
 
@@ -155,8 +158,9 @@ export function priceTimeline(rows: readonly TimelineInputRow[], ctx: { now: Dat
       when: future ? `From ${formatIstWhen(at)}` : `Since ${formatIstDate(at)}`,
       utc: future ? formatUtcBeside(at) : null,
       badge,
-      summary: r.price ? `${diffSummary(prev?.price ?? null, r.price, ctx.provider)}.` : null,
-      note: r.price?.note ?? null,
+      // The oldest row has nothing to compare with, so it has no summary (as in the prototype).
+      summary: r.price && prev?.price ? `${diffSummary(prev.price, r.price, ctx.provider)}.` : null,
+      note: shownNote(r.price?.note ?? null),
       problems: r.price ? [] : r.problems,
       who: `Added ${r.createdByName ? `by ${r.createdByName} ` : ""}on ${formatIstDate(new Date(r.createdAt))}`,
       canCancel: future && t(r) > now + CATALOG_CHANGE_LEAD_MS,

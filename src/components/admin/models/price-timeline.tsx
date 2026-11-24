@@ -36,7 +36,8 @@ const NODE = {
 
 /** "Price history": every price row, newest first, with Cancel on a scheduled change and Undo on a fresh one. */
 export function PriceTimeline({ modelId, timeline }: { modelId: string; timeline: Timeline }) {
-  const [confirming, setConfirming] = useState<TimelineItem | null>(null);
+  // The change to cancel or undo, waiting for the admin to confirm.
+  const [confirming, setConfirming] = useState<{ item: TimelineItem; action: "cancel" | "undo" } | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function run(call: () => Promise<{ error?: string }>, done: string) {
@@ -52,10 +53,14 @@ export function PriceTimeline({ modelId, timeline }: { modelId: string; timeline
     else toast.success(done);
   }
 
-  async function cancel(item: TimelineItem) {
-    await run(() => cancelAiModelPriceAction(item.id, modelId), `Cancelled ${item.name}.`);
+  async function confirm() {
+    if (!confirming) return;
+    const { item, action } = confirming;
+    if (action === "cancel") await run(() => cancelAiModelPriceAction(item.id, modelId), `Cancelled ${item.name}.`);
+    else await run(() => undoAiModelPriceAction(modelId, item.id), "Undone. The earlier prices are live again.");
     setConfirming(null);
   }
+  const undoing = confirming?.action === "undo";
 
   if (!timeline.items.length) return <p className="text-sm text-muted-foreground">No prices yet.</p>;
 
@@ -86,7 +91,7 @@ export function PriceTimeline({ modelId, timeline }: { modelId: string; timeline
             <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
               <span>{item.who}</span>
               {item.canCancel && (
-                <Button variant="link" size="xs" className="h-auto px-0" disabled={busy} onClick={() => setConfirming(item)}>
+                <Button variant="link" size="xs" className="h-auto px-0" disabled={busy} onClick={() => setConfirming({ item, action: "cancel" })}>
                   Cancel this change
                 </Button>
               )}
@@ -96,7 +101,7 @@ export function PriceTimeline({ modelId, timeline }: { modelId: string; timeline
                   size="xs"
                   className="h-auto px-0"
                   disabled={busy}
-                  onClick={() => void run(() => undoAiModelPriceAction(modelId, item.id), "Undone. The earlier prices are live again.")}
+                  onClick={() => setConfirming({ item, action: "undo" })}
                 >
                   Undo this change
                 </Button>
@@ -121,13 +126,19 @@ export function PriceTimeline({ modelId, timeline }: { modelId: string; timeline
       <AlertDialog open={confirming !== null} onOpenChange={(open) => !open && !busy && setConfirming(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel {confirming?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>It hasn&apos;t started, so no run used it.</AlertDialogDescription>
+            <AlertDialogTitle>
+              {undoing ? "Undo" : "Cancel"} {confirming?.item.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {undoing
+                ? "The prices before it go live again now. Runs already charged keep their price."
+                : "It hasn't started, so no run used it."}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Keep it</AlertDialogCancel>
-            <Button variant="destructive" disabled={busy} onClick={() => confirming && void cancel(confirming)}>
-              {busy ? "Cancelling…" : "Cancel change"}
+            <Button variant="destructive" disabled={busy} onClick={() => void confirm()}>
+              {undoing ? (busy ? "Undoing…" : "Undo change") : busy ? "Cancelling…" : "Cancel change"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

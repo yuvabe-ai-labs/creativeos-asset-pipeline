@@ -156,7 +156,7 @@ export function ModelWorkspace({
             />
           </div>
         ) : (
-          <PriceSheet model={sheet.model} current={sheet.current} next={sheet.next} settings={sheet.settings} onAddPrices={start} />
+          <PriceSheet model={sheet.model} status={header.model.status} current={sheet.current} next={sheet.next} settings={sheet.settings} onAddPrices={start} />
         )}
         {aside}
       </div>

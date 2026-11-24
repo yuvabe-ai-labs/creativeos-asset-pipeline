@@ -13,6 +13,6 @@ describe("ModelProblems", () => {
   it("says what can be fixed here and what needs a migration", () => {
     expect(html).toContain("This row fails its check");
     expect(html).toContain("The app leaves this model out until it is fixed.");
-    expect(html).toContain("Its place in the picker can still be changed here. Settings, rules and limits are fixed by a migration.");
+    expect(html).toContain("Labels, status and order can still be changed here. Settings, rules and limits are fixed by a migration.");
   });
 });

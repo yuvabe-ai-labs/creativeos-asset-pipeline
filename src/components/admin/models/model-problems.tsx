@@ -15,7 +15,7 @@ export function ModelProblems({ problems }: { problems: string[] }) {
         ))}
       </ul>
       <p className="mt-3 text-xs text-muted-foreground">
-        Its place in the picker can still be changed here. Settings, rules and limits are fixed by a migration.
+        Labels, status and order can still be changed here. Settings, rules and limits are fixed by a migration.
       </p>
     </section>
   );

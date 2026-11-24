@@ -3,6 +3,7 @@ import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import type { AiModel } from "@/lib/ai-models/types";
 import {
   STATUS_HELP,
+  arrowAfterMove,
   monthSummary,
   moveInOrder,
   ordinal,
@@ -64,6 +65,15 @@ describe("moveInOrder", () => {
   });
 });
 
+describe("arrowAfterMove", () => {
+  it("keeps focus on the arrow just used, or the other one once the model reaches an end", () => {
+    expect(arrowAfterMove(3, 10, -1)).toBe("up");
+    expect(arrowAfterMove(3, 10, 1)).toBe("down");
+    expect(arrowAfterMove(1, 10, -1)).toBe("down");
+    expect(arrowAfterMove(10, 10, 1)).toBe("up");
+  });
+});
+
 describe("statusChange", () => {
   const base = {
     label: "Gemini Omni 1.1 Flash",
@@ -74,6 +84,7 @@ describe("statusChange", () => {
     replacement: null,
     otherLive: 3,
     hasPrice: true,
+    priceStarts: null,
     canGoLive: true,
     runsThisMonth: 174,
   };
@@ -104,7 +115,11 @@ describe("statusChange", () => {
     expect(noCode.text).toBe("This build has no code to run this model, so it can't go live.");
     const noPrice = statusChange({ ...base, from: "draft", to: "live", hasPrice: false });
     expect(noPrice).toMatchObject({ blocked: true, canSave: false });
-    expect(noPrice.text).toBe("Add a price first. A live model without a price would run for free.");
+    expect(noPrice.text).toBe("Add a price first. Runs of a live model with no price are refused.");
+    const scheduled = statusChange({ ...base, from: "draft", to: "live", hasPrice: false, priceStarts: "3 Dec 2026" });
+    expect(scheduled).toMatchObject({ blocked: true, canSave: false, text: "Its price starts on 3 Dec 2026." });
+    // As on the server (D546): the price guard is for image and video models.
+    expect(statusChange({ ...base, kind: "dub", from: "draft", to: "live", hasPrice: false }).blocked).toBe(false);
   });
 
   it("asks for a replacement before a model can be retired", () => {
@@ -136,7 +151,8 @@ describe("statusPatch", () => {
 describe("settingsPeoplePick", () => {
   it("lists the settings people see, with their options and default, in plain words", () => {
     const rows = settingsPeoplePick(model("kling:kling-3-0").params);
-    expect(rows.map((r) => r.label)).toEqual(["Resolution", "Length", "Audio", "Negative prompt"].filter((l) => l !== "Negative prompt"));
+    // The free-text negative prompt and the hidden multi-shot switch are left out.
+    expect(rows.map((r) => r.label)).toEqual(["Resolution", "Length", "Audio"]);
     expect(rows[0]).toEqual({ label: "Resolution", values: "720p, 1080p, 4K", defaultText: "720p" });
     expect(rows[1]).toEqual({ label: "Length", values: "3 to 15 s", defaultText: "5 s" });
     expect(rows[2]).toEqual({ label: "Audio", values: "On, Off", defaultText: "On" });

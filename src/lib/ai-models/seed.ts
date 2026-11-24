@@ -6,6 +6,9 @@ import type { ConstraintRule } from "@/lib/video-gen/types";
 
 export const SEED_JSON_TAG = "$seed$";
 
+/** The note migration 0078 put on every seeded price row. It names a decision, not a change, so admin screens leave it out. */
+export const SEED_PRICE_NOTE = "Seeded from the code price tables (D534).";
+
 export type AiModelSeedRow = {
   id: string;
   provider: string;

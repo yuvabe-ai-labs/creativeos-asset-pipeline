@@ -66,6 +66,12 @@ export function pickerOrder(models: readonly PickerModel[], id: string): PickerO
   };
 }
 
+/** Which arrow keeps focus after a move: the one just used, or the other once the model reaches an end (that one is disabled). */
+export function arrowAfterMove(position: number, total: number, delta: -1 | 1): "up" | "down" {
+  if (delta === -1) return position <= 1 ? "down" : "up";
+  return position >= total ? "up" : "down";
+}
+
 /** The order with `id` swapped one place up (−1) or down (+1); null when it can't move that way. */
 export function moveInOrder(ids: readonly string[], id: string, delta: -1 | 1): string[] | null {
   const i = ids.indexOf(id);
@@ -85,7 +91,10 @@ export type StatusChangeInput = {
   replacement: string | null;
   /** Other live models of the same kind. */
   otherLive: number;
+  /** A price live now (passing its check). */
   hasPrice: boolean;
+  /** When the model has no live price but one is scheduled: its start date, "3 Dec 2026". */
+  priceStarts: string | null;
   /** The build has code to run this model (image and video only; other kinds always can). */
   canGoLive: boolean;
   runsThisMonth: number;
@@ -111,8 +120,9 @@ export function statusChange(c: StatusChangeInput): StatusChange {
     guard = `${c.label} is the only live ${pickerNoun(c.kind)} model. Make another one live first, or agencies lose this step altogether.`;
   } else if (c.to === "live" && c.from !== "live" && !c.canGoLive) {
     guard = "This build has no code to run this model, so it can't go live.";
-  } else if (c.to === "live" && c.from !== "live" && !c.hasPrice) {
-    guard = "Add a price first. A live model without a price would run for free.";
+  } else if (c.to === "live" && c.from !== "live" && isMedia(c.kind) && !c.hasPrice) {
+    // The server refuses it too (D546, amended).
+    guard = c.priceStarts ? `Its price starts on ${c.priceStarts}.` : "Add a price first. Runs of a live model with no price are refused.";
   }
   const needsReplacement = c.to === "retired";
   let text: string;

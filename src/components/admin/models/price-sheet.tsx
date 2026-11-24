@@ -19,12 +19,15 @@ type SheetModel = Pick<AiModel, "id" | "kind" | "label" | "params" | "providerLa
  */
 export function PriceSheet({
   model,
+  status,
   current,
   next,
   settings,
   onAddPrices,
 }: {
   model: SheetModel;
+  /** The model's status: an empty sheet says the model stays a draft only when it is one. */
+  status: string;
   current: AiModelPrice | null;
   next: AiModelPrice | null;
   settings: Pick<CreditSettings, "marginPercent" | "roundStep">;
@@ -63,7 +66,7 @@ export function PriceSheet({
         <div className="flex flex-col items-center gap-2 px-6 pt-8 pb-12 text-center">
           <Wallet aria-hidden strokeWidth={1.5} className="size-6 text-muted-foreground" />
           <h3 className="text-sm font-semibold">No price yet</h3>
-          <p className="max-w-md text-[0.8125rem] text-muted-foreground">{noPriceText(model)}</p>
+          <p className="max-w-md text-[0.8125rem] text-muted-foreground">{noPriceText(model, status)}</p>
           <AddPricesChip onStart={onAddPrices} />
         </div>
       )}

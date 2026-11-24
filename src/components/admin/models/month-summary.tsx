@@ -19,7 +19,7 @@ export function MonthSummary({ month, summary }: { month: string; summary: Summa
       </h2>
       {summary ? (
         <>
-          <dl className="grid grid-cols-3 gap-3">
+          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Stat label="Runs" value={summary.runs} />
             <Stat label="We paid" value={summary.paid} />
             <Stat label="Credits charged" value={summary.credits} />

@@ -7,12 +7,22 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 /** The status badge in the header strip; picking a status opens the pending change below it, which waits for Save. */
-export function ModelStatusMenu({ status, onPick }: { status: string; onPick: (status: string) => void }) {
+export function ModelStatusMenu({
+  status,
+  onPick,
+  triggerRef,
+}: {
+  status: string;
+  onPick: (status: string) => void;
+  /** Focus comes back here when the pending change closes. */
+  triggerRef?: React.Ref<HTMLButtonElement>;
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
           <Button
+            ref={triggerRef}
             variant="ghost"
             size="xs"
             className="-mx-1 gap-0.5 rounded-full px-1 text-muted-foreground hover:bg-transparent aria-expanded:bg-transparent"

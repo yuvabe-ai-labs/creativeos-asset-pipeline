@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
-import { getAiCatalog, clearAiCatalogCache } from "@/lib/ai-models/catalog";
+import { clearAiCatalogCache } from "@/lib/ai-models/catalog";
 import { RUNNABLE_ADAPTER_KEYS } from "@/lib/ai-models/runnable-keys";
 import { CATALOG_CHANGE_LEAD_MS } from "@/lib/ai-models/pricing";
 import { checkModelPatch, checkNewPrice, priceConditionProblems, undoNote, undoTarget } from "@/lib/ai-models/model-edit";
@@ -66,13 +66,13 @@ export async function updateAiModelAction(
   const caller = await requireSuperAdmin();
   if (typeof id !== "string" || !isObject(patch)) return { error: BREAK_ERROR };
   try {
-    // The models come from a fresh read (a cached catalog may be up to a minute old); prices can
-    // stay cached, since no model check reads them yet.
-    const [row, catalog, fresh] = await Promise.all([getAdminModel(id), getAiCatalog(), listAdminModels()]);
+    // Models and this model's prices come from a fresh read (a cached catalog may be up to a
+    // minute old): the replacement and the price needed to go live are checked against them.
+    const [row, fresh, priceRows] = await Promise.all([getAdminModel(id), listAdminModels(), listAdminPrices(id)]);
     if (!row) return { error: SAVE_ERROR };
     const checked = checkModelPatch(row.raw, patch, {
       models: fresh.flatMap((r) => (r.model ? [r.model] : [])),
-      prices: catalog.prices,
+      prices: priceRows.flatMap((r) => (r.price ? [r.price] : [])),
       runnableKeys: RUNNABLE_ADAPTER_KEYS,
     });
     if (!checked.ok) {

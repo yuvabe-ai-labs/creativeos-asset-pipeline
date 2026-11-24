@@ -116,6 +116,22 @@ describe("updateAiModelAction", () => {
     expect(r).toEqual({ error: "Pick a live model of the same kind as the replacement." });
     expect(m.updateAiModelRow).not.toHaveBeenCalled();
   });
+  it("checks a model going live against a fresh read of its prices, not the cached catalog", async () => {
+    m.getAdminModel.mockResolvedValue({ raw: { ...raw(model), status: "hidden" }, model: { ...model, status: "hidden" }, problems: [], updatedBy: null });
+    m.listAdminPrices.mockResolvedValue([]);
+    const r = await updateAiModelAction(NANO_PRO, { status: "live" });
+    expect(r).toEqual({ error: "This model needs a price before it can go live." });
+    expect(m.listAdminPrices).toHaveBeenCalledWith(NANO_PRO);
+    expect(m.getAiCatalog).not.toHaveBeenCalled();
+    expect(m.updateAiModelRow).not.toHaveBeenCalled();
+    const started = catalog.prices.find((p) => p.modelId === NANO_PRO)!;
+    m.listAdminPrices.mockResolvedValue([{ price: started, problems: [], id: started.id, modelId: NANO_PRO, effectiveFrom: started.effectiveFrom }]);
+    expect(await updateAiModelAction(NANO_PRO, { status: "live" })).toEqual({});
+  });
+  it("refuses retiring an image or video model with no replacement", async () => {
+    expect(await updateAiModelAction(NANO_PRO, { status: "retired" })).toEqual({ error: "Pick a live model of the same kind as the replacement." });
+    expect(m.updateAiModelRow).not.toHaveBeenCalled();
+  });
   it("leaves out fresh rows that fail their check", async () => {
     const SUNBURST = "openai:gpt-image-2.5-sunburst";
     m.listAdminModels.mockResolvedValue(

@@ -129,7 +129,34 @@ describe("checkModelPatch: a retired row whose replacement left live", () => {
     expect(checkModelPatch(stale, { replaced_by: GPT1 }, ctx)).toEqual(err);
     expect(checkModelPatch(stale, { status: "retired" }, ctx)).toEqual(err);
     expect(checkModelPatch(stale, { replaced_by: SUNBURST }, ctx).ok).toBe(true);
-    expect(checkModelPatch(stale, { replaced_by: null }, ctx).ok).toBe(true);
+    // An image or video model can't be retired with no replacement (D546, amended).
+    expect(checkModelPatch(stale, { replaced_by: null }, ctx)).toEqual(err);
+  });
+});
+
+describe("checkModelPatch: a price before live, a replacement before retired", () => {
+  const NOW = new Date("2026-11-24T06:30:00Z");
+  const NO_PRICE = "This model needs a price before it can go live.";
+  const REPL = { ok: false, error: "Pick a live model of the same kind as the replacement." };
+  const hidden = { ...raw(row(NANO_PRO)), status: "hidden" };
+  const others = catalog.prices.filter((p) => p.modelId !== NANO_PRO);
+  const own = catalog.prices.filter((p) => p.modelId === NANO_PRO);
+  it("refuses live for an image or video model with no started price", () => {
+    expect(checkModelPatch(hidden, { status: "live" }, { ...ctx, prices: others, now: NOW })).toEqual({ ok: false, error: NO_PRICE });
+    const scheduled = own.map((p) => ({ ...p, effectiveFrom: "2026-12-01T00:00:00Z" }));
+    expect(checkModelPatch(hidden, { status: "live" }, { ...ctx, prices: [...others, ...scheduled], now: NOW })).toEqual({ ok: false, error: NO_PRICE });
+    expect(checkModelPatch(hidden, { status: "live" }, { ...ctx, now: NOW })).toEqual({ ok: true, fields: { status: "live" } });
+  });
+  it("leaves other kinds, and a model already live, alone", () => {
+    const text = catalog.models.find((m) => m.kind === "text" && m.status === "live")!;
+    expect(checkModelPatch({ ...raw(text), status: "hidden" }, { status: "live" }, { ...ctx, prices: [], now: NOW }).ok).toBe(true);
+    expect(checkModelPatch(raw(row(NANO_PRO)), { label: "Pro" }, { ...ctx, prices: [], now: NOW }).ok).toBe(true);
+  });
+  it("refuses retiring an image or video model with no replacement", () => {
+    expect(checkModelPatch(raw(row(NANO_PRO)), { status: "retired" }, ctx)).toEqual(REPL);
+    expect(checkModelPatch(raw(row(NANO_PRO)), { status: "retired", replaced_by: null }, ctx)).toEqual(REPL);
+    const dub = catalog.models.find((m) => m.kind === "dub")!;
+    expect(checkModelPatch(raw(dub), { status: "retired" }, ctx).ok).toBe(true);
   });
 });
 

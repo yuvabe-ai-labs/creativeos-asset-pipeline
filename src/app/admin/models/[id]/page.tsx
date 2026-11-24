@@ -8,6 +8,7 @@ import { RUNNABLE_ADAPTER_KEYS } from "@/lib/ai-models/runnable-keys";
 import { currentPrice } from "@/lib/ai-models/pricing";
 import { creditSettingsAt } from "@/lib/credits/units";
 import { groupOfKind } from "@/lib/admin/models-list";
+import { formatIstDate } from "@/lib/admin/ist";
 import { monthSummary, settingsPeoplePick, type PickerModel } from "@/lib/admin/model-page";
 import { priceTimeline, scheduledNotice } from "@/lib/admin/price-sheet";
 import { ModelWorkspace } from "@/components/admin/models/change-prices/model-workspace";
@@ -115,6 +116,7 @@ export default async function AdminModelPage({
           model: { id, kind, label, provider, status, replacedBy, replacedByLabel, broken: !m },
           hasPrices: priceRows.length > 0,
           hasLivePrice: current !== null,
+          priceStarts: !current && next ? formatIstDate(new Date(next.effectiveFrom)) : null,
           canGoLive,
           runsThisMonth: s?.runs ?? 0,
           otherLive: live.length,

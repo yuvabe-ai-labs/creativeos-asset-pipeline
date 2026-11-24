@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { updateAiModelAction } from "@/lib/actions/ai-models";
 import { STATUS_TEXT, statusChange, statusPatch, type PickerModel, type SettingRow } from "@/lib/admin/model-page";
@@ -35,6 +35,7 @@ export function ModelHeader({
   model,
   hasPrices,
   hasLivePrice,
+  priceStarts = null,
   canGoLive,
   runsThisMonth,
   otherLive,
@@ -49,6 +50,8 @@ export function ModelHeader({
   hasPrices: boolean;
   /** A price live now (passing its check), so the model can go live. */
   hasLivePrice: boolean;
+  /** No live price, but one is scheduled: its start date ("3 Dec 2026"), for the go-live guard. */
+  priceStarts?: string | null;
   canGoLive: boolean;
   runsThisMonth: number;
   otherLive: number;
@@ -63,6 +66,12 @@ export function ModelHeader({
   const [savedReplacement, setSavedReplacement] = useState(model.replacedBy);
   const [pending, setPending] = useState<{ to: string; replacement: string | null } | null>(null);
   const [saving, setSaving] = useState(false);
+  const statusTrigger = useRef<HTMLButtonElement>(null);
+  /** Closes the pending change and puts focus back on the status badge it came from. */
+  function closePending() {
+    setPending(null);
+    statusTrigger.current?.focus();
+  }
   const replacementName = (id: string | null) =>
     replacements.find((r) => r.id === id)?.label ?? (id !== null && id === model.replacedBy ? model.replacedByLabel : null);
 
@@ -76,6 +85,7 @@ export function ModelHeader({
         replacement: pending.replacement,
         otherLive,
         hasPrice: hasLivePrice,
+        priceStarts,
         canGoLive,
         runsThisMonth,
       })
@@ -83,7 +93,7 @@ export function ModelHeader({
 
   function pick(to: string) {
     // Picking the status it has closes the box, except Retired, where it changes the replacement.
-    if (to === status && to !== "retired") return setPending(null);
+    if (to === status && to !== "retired") return closePending();
     setPending({ to, replacement: to === "retired" ? savedReplacement : null });
   }
 
@@ -101,7 +111,7 @@ export function ModelHeader({
     const from = status;
     setStatus(pending.to);
     setSavedReplacement(pending.to === "retired" ? pending.replacement : null);
-    setPending(null);
+    closePending();
     toast.success(
       from !== pending.to
         ? `${model.label} is now ${(STATUS_TEXT[pending.to] ?? pending.to).toLowerCase()}.`
@@ -120,7 +130,7 @@ export function ModelHeader({
         {!model.broken && model.kind !== "scrape" && !changingPrices && <ChangePricesButton hasPrices={hasPrices} onStart={onChangePrices} />}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[0.8125rem]">
-        <ModelStatusMenu status={status} onPick={pick} />
+        <ModelStatusMenu status={status} onPick={pick} triggerRef={statusTrigger} />
         <Dot />
         <span className="text-muted-foreground">Made by {model.provider}</span>
         <Dot />
@@ -151,7 +161,7 @@ export function ModelHeader({
           saving={saving}
           onReplacement={(id) => setPending({ ...pending, replacement: id })}
           onSave={() => void save()}
-          onCancel={() => setPending(null)}
+          onCancel={closePending}
         />
       )}
     </header>

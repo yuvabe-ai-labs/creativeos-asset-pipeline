@@ -14,7 +14,11 @@ export const EDITABLE_MODEL_FIELDS = [
   "label", "picker_label", "provider_label", "description", "status", "replaced_by", "sort_order",
 ] as const;
 export type ModelPatch = Partial<Record<(typeof EDITABLE_MODEL_FIELDS)[number], unknown>>;
-export type EditContext = { models: AiModel[]; prices: AiModelPrice[]; runnableKeys: ReadonlySet<string> };
+/**
+ * `prices`: price rows that pass their check, from a fresh read (the action reads this model's own);
+ * `now`: when a price counts as started (defaults to the call's time).
+ */
+export type EditContext = { models: AiModel[]; prices: AiModelPrice[]; runnableKeys: ReadonlySet<string>; now?: Date };
 
 const BREAK_ERROR = "These changes would break the model's settings.";
 const REPLACEMENT_ERROR = "Pick a live model of the same kind as the replacement.";
@@ -22,6 +26,7 @@ const NO_ADAPTER_ERROR = "This model can't go live: this build has no code to ru
 const LAST_LIVE_ERROR = "This is the last live model of its kind. Make another one live first.";
 const MIGRATION_ERROR = "This model's settings are broken and need a migration to fix.";
 const NAME_ERROR = "A model needs a name.";
+const NO_PRICE_ERROR = "This model needs a price before it can go live.";
 
 const TEXT_FIELDS = ["label", "picker_label", "provider_label", "description"];
 const NAME_FIELDS = ["label", "provider_label"];
@@ -61,11 +66,18 @@ export function checkModelPatch(
     if (!target || target.kind !== merged.kind || target.status !== "live" || target.id === rawRow.id) {
       return { ok: false, error: REPLACEMENT_ERROR };
     }
+  } else if (touchesReplacement && isMedia) {
+    // A retired image or video model must name where its nodes go (D546, amended).
+    return { ok: false, error: REPLACEMENT_ERROR };
   }
   if (merged.status === "live" && isMedia) {
     if (typeof merged.adapter_key !== "string" || !ctx.runnableKeys.has(merged.adapter_key)) {
       return { ok: false, error: NO_ADAPTER_ERROR };
     }
+    // Going live needs a price that has started; a run of a live model with none is refused (D546, amended).
+    const at = (ctx.now ?? new Date()).getTime();
+    const started = ctx.prices.some((p) => p.modelId === rawRow.id && new Date(p.effectiveFrom).getTime() <= at);
+    if (rawRow.status !== "live" && !started) return { ok: false, error: NO_PRICE_ERROR };
   }
   const checked = checkAiModelRow(merged);
   if (!checked.model) {

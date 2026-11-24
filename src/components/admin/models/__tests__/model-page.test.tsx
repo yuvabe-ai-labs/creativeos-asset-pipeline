@@ -51,9 +51,7 @@ describe("ModelHeader", () => {
     expect(html).toContain(`aria-label="Model name: ${omni.label}, edit"`);
     expect(html).toContain('aria-label="Status: Live. Change"');
     expect(html).toContain("Made by Google");
-    const pos = picker.findIndex((p) => p.id === OMNI11) + 1;
-    expect(html).toContain(`of ${picker.length} in the picker`);
-    expect(html).toContain(`>${pos}th of`);
+    expect(html).toContain("9th of 9 in the picker");
     expect(html).toContain("Settings people pick");
     expect(html).toContain("Change prices");
     // Not wired until the change-prices flow lands: shown, disabled.
@@ -78,7 +76,7 @@ describe("ModelHeader", () => {
 });
 
 describe("ModelStatusPending", () => {
-  const base = { label: omni.label, kind: "video", from: "live", savedReplacement: null, replacement: null, otherLive: 3, hasPrice: true, canGoLive: true, runsThisMonth: 174 };
+  const base = { label: omni.label, kind: "video", from: "live", savedReplacement: null, replacement: null, otherLive: 3, hasPrice: true, priceStarts: null, canGoLive: true, runsThisMonth: 174 };
   const render = (to: string, patch = {}) =>
     renderToStaticMarkup(
       <ModelStatusPending
@@ -112,7 +110,7 @@ describe("ModelStatusPending", () => {
 
 describe("PriceSheet", () => {
   it("shows the grid at stored precision with credits per second, other charges, footnote and tabs", () => {
-    const html = renderToStaticMarkup(<PriceSheet model={omni} current={omniNow} next={omniNext} settings={ZERO} />);
+    const html = renderToStaticMarkup(<PriceSheet model={omni} status="live" current={omniNow} next={omniNext} settings={ZERO} />);
     for (const t of ["Per second of video", "Live now", "From 3 Dec", "Resolution", "360p", "$0.0337925", "33.79 credits/s", "4K", "$0.30408", "Other charges", "Per 1M input tokens", "$1.50", "$17.50"]) {
       expect(html).toContain(t);
     }
@@ -124,7 +122,7 @@ describe("PriceSheet", () => {
 
   it("lays out an image model by size and quality", () => {
     const sun = model("openai:gpt-image-2.5-sunburst");
-    const html = renderToStaticMarkup(<PriceSheet model={sun} current={pricesOf(sun.id)[0]} next={null} settings={ZERO} />);
+    const html = renderToStaticMarkup(<PriceSheet model={sun} status="live" current={pricesOf(sun.id)[0]} next={null} settings={ZERO} />);
     for (const t of ["Per image", "Square", "1024 × 1024", "Extra high", "$0.2107", "210.7 credits", "References", "A typical run adds the prompt and one reference image."]) {
       expect(html).toContain(t);
     }
@@ -132,8 +130,9 @@ describe("PriceSheet", () => {
   });
 
   it("shows the empty sheet with the settings to price and the dashed Add prices chip", () => {
-    const html = renderToStaticMarkup(<PriceSheet model={model("kling:kling-3-0")} current={null} next={null} settings={ZERO} />);
+    const html = renderToStaticMarkup(<PriceSheet model={model("kling:kling-3-0")} status="draft" current={null} next={null} settings={ZERO} />);
     expect(html).toContain("No price yet");
+    expect(html).toContain("so Kling 3.0 stays a draft.");
     expect(html).toContain("720p, 1080p, 4K, each with audio and no audio.");
     expect(html).toContain("Add prices");
     expect(html).toContain("border-dashed");
@@ -175,5 +174,8 @@ describe("MonthSummary", () => {
       expect(html).toContain(t);
     }
     expect(renderToStaticMarkup(<MonthSummary month="November" summary={null} />)).toContain("No runs yet this month.");
+    // One column at phone width, three from sm up, as in the prototype.
+    expect(html).toContain("grid-cols-1");
+    expect(html).toContain("sm:grid-cols-3");
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import { CATALOG_CHANGE_LEAD_MS } from "@/lib/ai-models/pricing";
 import type { AiModel, AiModelPrice } from "@/lib/ai-models/types";
+import { SEED_PRICE_NOTE } from "@/lib/ai-models/seed";
 import {
   cellCredits,
   diffSummary,
@@ -68,11 +69,18 @@ describe("sheetFootnote", () => {
 
 describe("noPriceText", () => {
   it("names the settings the admin will price", () => {
-    expect(noPriceText(model("kling:kling-3-0"))).toBe(
+    expect(noPriceText(model("kling:kling-3-0"), "draft")).toBe(
       "Runs can't be charged without one, so Kling 3.0 stays a draft. You'll enter a price for each of its settings: 720p, 1080p, 4K, each with audio and no audio.",
     );
-    expect(noPriceText(model("openai:gpt-image-2"))).toContain("each at Low, Medium or High quality.");
-    expect(noPriceText(model("sarvam:dub"))).toBe("Runs can't be charged without one, so Dub stays a draft.".replace("Dub", model("sarvam:dub").label));
+    expect(noPriceText(model("openai:gpt-image-2"), "draft")).toContain("each at Low, Medium or High quality.");
+    expect(noPriceText(model("sarvam:dub"), "draft")).toBe("Runs can't be charged without one, so Dub stays a draft.");
+  });
+
+  it("says it stays a draft only when it is one", () => {
+    expect(noPriceText(model("sarvam:dub"), "hidden")).toBe("Runs can't be charged without one.");
+    expect(noPriceText(model("kling:kling-3-0"), "live")).toBe(
+      "Runs can't be charged without one. You'll enter a price for each of its settings: 720p, 1080p, 4K, each with audio and no audio.",
+    );
   });
 });
 
@@ -96,8 +104,13 @@ describe("scheduledNotice", () => {
       headline: "Prices drop 31%",
       when: "from 3 Dec 2026, 13:30 IST, in 9 days.",
       utc: "08:00 UTC",
-      note: "Seeded from the code price tables (D534).",
+      note: null,
     });
+  });
+
+  it("shows an admin's note, but not the seed's internal note", () => {
+    expect(scheduledNotice(omniNow, { ...omniNext, note: "Google lowers Omni 1.1 prices" }, NOW).note).toBe("Google lowers Omni 1.1 prices");
+    expect(scheduledNotice(omniNow, { ...omniNext, note: SEED_PRICE_NOTE }, NOW).note).toBeNull();
   });
 
   it("calls a first price a starting price", () => {
@@ -129,7 +142,11 @@ describe("priceTimeline", () => {
       canCancel: true,
       canUndo: false,
     });
-    expect(t.items[1]).toMatchObject({ when: "Since 1 Jan 2026", utc: null, badge: "Live now", summary: "Starting price.", canCancel: false });
+    // The oldest row has nothing to compare with, so no summary; the seed's note is not shown.
+    expect(t.items[1]).toMatchObject({ when: "Since 1 Jan 2026", utc: null, badge: "Live now", summary: null, note: null, canCancel: false });
+    expect(t.items[0].note).toBeNull();
+    const noted = priceTimeline([row(omniNow), row({ ...omniNext, note: "Google lowers Omni 1.1 prices" })], { now: NOW, provider: "Google", callerId: "u-arun" });
+    expect(noted.items[0].note).toBe("Google lowers Omni 1.1 prices");
     expect(t.source).toEqual({ href: "https://aistudio.google.com/docs/pricing", text: "Google's pricing page" });
   });
 
