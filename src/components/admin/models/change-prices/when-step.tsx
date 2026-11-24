@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, ChevronDown, Clock } from "lucide-react";
+import { CalendarDays, ChevronDown, Clock, TriangleAlert } from "lucide-react";
 import { whenInstant, whenProblem, type When } from "@/lib/admin/change-prices-when";
 import { formatIstDate, formatIstWhen, formatUtcBeside, istDate, istTime, parseIstTime, relativeIstDay, todayIst } from "@/lib/admin/ist";
 import { Button } from "@/components/ui/button";
@@ -20,12 +20,32 @@ const toLocal = (iso: string) => {
 };
 const fromLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-/** "When do the new prices start?": Now, or an IST date and time with UTC under it, and the scheduled change's start as a shortcut. */
+export type WhenCopy = {
+  /** The choices' accessible name: "When the new prices start". */
+  label: string;
+  now: string;
+  date: string;
+  /** Shown under the choices while Now is picked. */
+  nowWarning?: string;
+};
+
+const PRICE_COPY: WhenCopy = {
+  label: "When the new prices start",
+  now: "New runs use the new prices straight away. Runs already going keep the price they started with.",
+  date: "Today's prices stay until then. Use this when the vendor announces a change ahead.",
+};
+
+/**
+ * "When do the new prices start?": Now, or an IST date and time with UTC under it, and the scheduled
+ * change's start as a shortcut. The Credits page passes its own words and its own check.
+ */
 export function WhenStep({
   when,
   now,
   scheduled,
   shortcut,
+  copy = PRICE_COPY,
+  problem: problemOverride,
   onChange,
 }: {
   when: When;
@@ -34,12 +54,15 @@ export function WhenStep({
   scheduled: Date[];
   /** The scheduled change's start, offered as one click. */
   shortcut: Date | null;
+  copy?: WhenCopy;
+  /** Why the When can't be used, when the caller checks more than whenProblem does. */
+  problem?: string | null;
   onChange: (when: Partial<When>) => void;
 }) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const today = todayIst(now);
   const at = whenInstant(when, now);
-  const problem = whenProblem(when, now);
+  const problem = problemOverride === undefined ? whenProblem(when, now) : problemOverride;
   const time = parseIstTime(when.time);
   const marks = scheduled.map((d) => toLocal(istDate(d)));
   const onShortcut = shortcut && istDate(shortcut) === when.date && istTime(shortcut) === time;
@@ -47,14 +70,20 @@ export function WhenStep({
   return (
     <div className="flex flex-col gap-3">
       <ChoiceCards
-        label="When the new prices start"
+        label={copy.label}
         value={when.mode}
         onChange={(mode) => onChange({ mode })}
         choices={[
-          { value: "now", title: "Now", detail: "New runs use the new prices straight away. Runs already going keep the price they started with." },
-          { value: "date", title: "On a date", detail: "Today's prices stay until then. Use this when the vendor announces a change ahead." },
+          { value: "now", title: "Now", detail: copy.now },
+          { value: "date", title: "On a date", detail: copy.date },
         ]}
       />
+      {when.mode === "now" && copy.nowWarning && (
+        <p className="flex items-start gap-2.5 rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-[0.8125rem]">
+          <TriangleAlert aria-hidden strokeWidth={1.5} className="mt-0.5 size-4 shrink-0 text-warning-text" />
+          {copy.nowWarning}
+        </p>
+      )}
       {when.mode === "date" && (
         <>
           <div className="flex flex-wrap items-start gap-x-4 gap-y-3 pt-1">

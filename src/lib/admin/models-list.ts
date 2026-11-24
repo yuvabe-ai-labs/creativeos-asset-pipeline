@@ -10,6 +10,7 @@ import { lineKey, priceRange, type PriceRange } from "./price-grid";
 import { runCredits, runSpec, specLabel } from "./typical-runs";
 import { formatIstDate, formatIstWhen, relativeIstDay } from "./ist";
 import { BIG_CHANGE_PERCENT, percentChange, percentChipText } from "./percent-edit";
+import { settingsWords } from "./credits-page";
 
 export const LIST_GROUPS = ["Video", "Image", "Text", "Audio & lip sync", "Other"] as const;
 export type ListGroup = (typeof LIST_GROUPS)[number];
@@ -127,9 +128,6 @@ function nextChip(d: PriceDiff | null): { chip: string; tone: "down" | "up" | "b
   return { chip: text, tone: Math.abs(p) >= BIG_CHANGE_PERCENT - 1e-9 ? "big" : p < 0 ? "down" : "up" };
 }
 
-const stepWords = (step: number) => (step === 1 ? "the next credit" : `the next ${step} credits`);
-const settingsWords = (s: Pick<CreditSettings, "marginPercent" | "roundStep">) =>
-  `margin ${s.marginPercent}%, rounds up to ${stepWords(s.roundStep)}`;
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 

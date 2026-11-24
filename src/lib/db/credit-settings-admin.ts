@@ -46,15 +46,20 @@ export async function listAdminCreditSettings(): Promise<AdminCreditSettingsRow[
 export async function insertCreditSettings(
   row: { effectiveFrom: string; marginPercent: number; roundStep: number; note: string | null },
   userId: string,
-): Promise<void> {
-  const { error } = await createServerSupabase().from("credit_settings").insert({
-    effective_from: row.effectiveFrom,
-    margin_percent: row.marginPercent,
-    round_step: row.roundStep,
-    note: row.note,
-    created_by: userId,
-  });
+): Promise<{ id: string }> {
+  const { data, error } = await createServerSupabase()
+    .from("credit_settings")
+    .insert({
+      effective_from: row.effectiveFrom,
+      margin_percent: row.marginPercent,
+      round_step: row.roundStep,
+      note: row.note,
+      created_by: userId,
+    })
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
+  return { id: String((data as { id: unknown }).id) };
 }
 
 /** A row that has started cannot be deleted: the database guard raises, and that is not an error here. Scoped by id; no match means `deleted: false`. */

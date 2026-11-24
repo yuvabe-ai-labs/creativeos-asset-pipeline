@@ -8,7 +8,7 @@ const results: Record<string, Result> = {};
 function builder(table: string) {
   const b: Record<string, unknown> = {};
   const chain = (op: string) => (...args: unknown[]) => { calls.push({ table, op, args }); return b; };
-  for (const op of ["select", "order", "eq", "in", "insert", "delete"]) b[op] = chain(op);
+  for (const op of ["select", "order", "eq", "in", "insert", "delete", "single"]) b[op] = chain(op);
   b.then = (resolve: (v: Result) => unknown) => resolve({ error: null, ...(results[table] ?? { data: [] }) });
   return b;
 }
@@ -40,11 +40,14 @@ describe("listAdminCreditSettings", () => {
 });
 
 describe("insertCreditSettings", () => {
-  it("inserts the row with created_by", async () => {
-    await insertCreditSettings({ effectiveFrom: "2026-08-01T00:00:00.000Z", marginPercent: 20, roundStep: 10, note: "n" }, "u1");
+  it("inserts the row with created_by and returns its id", async () => {
+    results.credit_settings = { data: { id: "n1" } };
+    expect(await insertCreditSettings({ effectiveFrom: "2026-08-01T00:00:00.000Z", marginPercent: 20, roundStep: 10, note: "n" }, "u1")).toEqual({ id: "n1" });
     expect(calls.find((c) => c.op === "insert")?.args[0]).toEqual({
       effective_from: "2026-08-01T00:00:00.000Z", margin_percent: 20, round_step: 10, note: "n", created_by: "u1",
     });
+    expect(calls.filter((c) => c.table === "credit_settings").map((c) => c.op)).toEqual(["insert", "select", "single"]);
+    expect(calls.find((c) => c.op === "select")?.args[0]).toBe("id");
   });
   it("throws a database error", async () => {
     results.credit_settings = { error: { message: "boom" } };

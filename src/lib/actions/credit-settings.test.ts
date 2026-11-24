@@ -31,7 +31,7 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   m.requireSuperAdmin.mockImplementation(async () => { calls.push("auth"); return { userId: "u1" }; });
   m.listAdminCreditSettings.mockImplementation(async () => { calls.push("read"); return []; });
-  m.insertCreditSettings.mockResolvedValue(undefined);
+  m.insertCreditSettings.mockResolvedValue({ id: "new1" });
   m.deleteCreditSettings.mockResolvedValue({ deleted: true });
 });
 
@@ -48,7 +48,7 @@ describe("addCreditSettingsAction", () => {
   });
   it("inserts a valid change with created_by, clears the cache and revalidates", async () => {
     const at = future();
-    expect(await addCreditSettingsAction(input({ effectiveFrom: at, note: " hi " }))).toEqual({ effectiveFrom: new Date(at).toISOString() });
+    expect(await addCreditSettingsAction(input({ effectiveFrom: at, note: " hi " }))).toEqual({ id: "new1", effectiveFrom: new Date(at).toISOString() });
     expect(m.insertCreditSettings).toHaveBeenCalledWith(
       { effectiveFrom: new Date(at).toISOString(), marginPercent: 20, roundStep: 5, note: "hi" },
       "u1",
@@ -61,7 +61,7 @@ describe("addCreditSettingsAction", () => {
     vi.setSystemTime(new Date("2026-06-01T12:00:00Z"));
     try {
       const res = await addCreditSettingsAction(input({ effectiveFrom: new Date().toISOString() }));
-      expect(res).toEqual({ effectiveFrom: "2026-06-01T12:02:00.000Z" });
+      expect(res).toEqual({ id: "new1", effectiveFrom: "2026-06-01T12:02:00.000Z" });
       expect(m.insertCreditSettings).toHaveBeenCalledWith(expect.objectContaining({ effectiveFrom: "2026-06-01T12:02:00.000Z" }), "u1");
     } finally {
       vi.useRealTimers();
@@ -151,7 +151,7 @@ describe("undoCreditSettingsAction", () => {
   afterEach(() => { vi.useRealTimers(); });
 
   it("adds a row with the earlier settings that starts in 2 minutes, and says when", async () => {
-    expect(await undoCreditSettingsAction("c2")).toEqual({ effectiveFrom: "2026-11-24T12:02:00.000Z" });
+    expect(await undoCreditSettingsAction("c2")).toEqual({ id: "new1", effectiveFrom: "2026-11-24T12:02:00.000Z" });
     expect(m.insertCreditSettings).toHaveBeenCalledTimes(1);
     expect(m.insertCreditSettings).toHaveBeenCalledWith(
       { effectiveFrom: "2026-11-24T12:02:00.000Z", marginPercent: 0, roundStep: 5, note: "Undo of the 24 Nov 2026 change" },

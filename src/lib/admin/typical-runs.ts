@@ -185,8 +185,13 @@ export function runCredits(
 ): number | null {
   const usd = runCostUsd(model, price, spec);
   if (usd === null) return null;
-  if (spec.kind === "text" && hasFlatPrice(price)) return promptFlatCredits(price, spec.attachments);
-  return creditsFromUsd(usd, settings);
+  return flatCredits(model, price, spec) ?? creditsFromUsd(usd, settings);
+}
+
+/** A prompt run's flat credits (D536: no margin, no step); null for every other run. */
+export function flatCredits(model: RunModel, price: AiModelPrice, spec: RunSpec): number | null {
+  if (spec.kind !== "text" || model.kind !== "text" || !hasFlatPrice(price)) return null;
+  return promptFlatCredits(price, spec.attachments);
 }
 
 const tokens = (n: number) => (n >= 1000 && n % 1000 === 0 ? `${n / 1000}K` : String(n));

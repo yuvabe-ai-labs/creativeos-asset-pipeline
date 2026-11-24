@@ -2,13 +2,13 @@ import { Fragment } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const STEPS = ["Prices", "When", "Review"] as const;
+const PRICE_STEPS = ["Prices", "When", "Review"] as const;
 
-/** Prices, When, Review: where the change-prices flow is. `at` is 1-based. */
-export function FlowStepper({ at }: { at: 1 | 2 | 3 }) {
+/** Prices (or Settings), When, Review: where a change flow is. `at` is 1-based. */
+export function FlowStepper({ at, steps = PRICE_STEPS }: { at: 1 | 2 | 3; steps?: readonly [string, string, string] }) {
   return (
     <ol aria-label="Steps" className="flex items-center gap-2 text-[0.8125rem]">
-      {STEPS.map((name, i) => {
+      {steps.map((name, i) => {
         const n = i + 1;
         const done = n < at;
         const on = n === at;
@@ -26,7 +26,7 @@ export function FlowStepper({ at }: { at: 1 | 2 | 3 }) {
               {name}
               {done && <span className="sr-only">, done</span>}
             </li>
-            {n < STEPS.length && <li aria-hidden className="h-px w-6 bg-border" />}
+            {n < steps.length && <li aria-hidden className="h-px w-6 bg-border" />}
           </Fragment>
         );
       })}

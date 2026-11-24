@@ -16,12 +16,17 @@ const TABS = [
     href: "/admin/models",
     active: (p: string) => p.startsWith("/admin/models"),
   },
+  {
+    label: "Credits",
+    href: "/admin/credits",
+    active: (p: string) => p.startsWith("/admin/credits"),
+  },
 ];
 
 // Each admin page sets its own content width; the tabs take the same width so they line up
 // with the content below them.
 function contentWidth(pathname: string): string {
-  if (pathname.startsWith("/admin/models")) return "max-w-5xl";
+  if (pathname.startsWith("/admin/models") || pathname.startsWith("/admin/credits")) return "max-w-5xl";
   if (pathname.startsWith("/admin/orgs")) return "max-w-4xl";
   return "max-w-3xl";
 }

@@ -13,12 +13,12 @@ import { changeWords, priceDiff } from "./models-list";
 import { runCostUsd, runCredits, runSpec, specLabel, typicalRun, type RunChoice } from "./typical-runs";
 import { formatIstDate, formatIstWhen, formatUtcBeside, relativeIstDay } from "./ist";
 import { percentChange, percentChipText } from "./percent-edit";
+import { stepWords } from "./credits-page";
 
 type Settings = Pick<CreditSettings, "marginPercent" | "roundStep">;
 type SheetModel = Pick<AiModel, "id" | "kind" | "label" | "params" | "providerLabel">;
 
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const stepWords = (step: number) => (step === 1 ? "the next credit" : `the next ${step} credits`);
 const hasGrid = (kind: string) => kind === "image" || kind === "video";
 /** A price row's note as shown: the seed's internal note is left out. */
 const shownNote = (note: string | null) => (note === SEED_PRICE_NOTE ? null : note);

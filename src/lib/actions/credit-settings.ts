@@ -32,10 +32,11 @@ export async function addCreditSettingsAction(input: {
   marginPercent: number;
   roundStep: number;
   note?: string;
-}): Promise<{ error?: string; effectiveFrom?: string }> {
+}): Promise<{ error?: string; id?: string; effectiveFrom?: string }> {
   const caller = await requireSuperAdmin();
   if (typeof input?.effectiveFrom !== "string") return { error: SAVE_ERROR };
   let effective = "";
+  let id = "";
   try {
     const effectiveFrom = new Date(input.effectiveFrom);
     if (Number.isNaN(effectiveFrom.getTime())) return { error: SAVE_ERROR };
@@ -48,15 +49,16 @@ export async function addCreditSettingsAction(input: {
       new Date(),
     );
     if (!checked.ok) return { error: checked.error };
-    await insertCreditSettings(checked.value, caller.userId);
+    id = (await insertCreditSettings(checked.value, caller.userId)).id;
     effective = checked.value.effectiveFrom;
   } catch (e) {
     console.error("addCreditSettingsAction failed", e);
     return { error: SAVE_ERROR };
   }
   refresh();
-  // The start the row really got: it is moved out to the lead time when asked for sooner.
-  return { effectiveFrom: effective };
+  // The new row's id (the toast's Undo cancels it) and the start it really got: it is moved out to
+  // the lead time when asked for sooner.
+  return { id, effectiveFrom: effective };
 }
 
 export async function cancelCreditSettingsAction(id: string): Promise<{ error?: string }> {
@@ -84,10 +86,11 @@ export async function cancelCreditSettingsAction(id: string): Promise<{ error?: 
  * now, so the start it got is returned for the screen to say so. A change that hasn't started is
  * cancelled instead (cancelCreditSettingsAction).
  */
-export async function undoCreditSettingsAction(id: string): Promise<{ error?: string; effectiveFrom?: string }> {
+export async function undoCreditSettingsAction(id: string): Promise<{ error?: string; id?: string; effectiveFrom?: string }> {
   const caller = await requireSuperAdmin();
   if (typeof id !== "string") return { error: SAVE_ERROR };
   let effective = "";
+  let newId = "";
   try {
     const rows = await listAdminCreditSettings();
     const now = new Date();
@@ -104,12 +107,12 @@ export async function undoCreditSettingsAction(id: string): Promise<{ error?: st
       now,
     );
     if (!checked.ok) return { error: checked.error };
-    await insertCreditSettings(checked.value, caller.userId);
+    newId = (await insertCreditSettings(checked.value, caller.userId)).id;
     effective = checked.value.effectiveFrom;
   } catch (e) {
     console.error("undoCreditSettingsAction failed", id, e);
     return { error: SAVE_ERROR };
   }
   refresh();
-  return { effectiveFrom: effective };
+  return { id: newId, effectiveFrom: effective };
 }
