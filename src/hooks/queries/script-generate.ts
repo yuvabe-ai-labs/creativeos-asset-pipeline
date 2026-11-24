@@ -65,6 +65,12 @@ export function useSendTurn(clientId: string, scriptId: string, onDraft?: (draft
 
 /** Typing and Undo. The field changes in the cache at once (spec 2 §9); the server's state lands
  *  only when no later write is still in flight, so a slow reply never puts back an older value. */
+/** The person changes a script's "Built from" on its line (D531). After the draft the copilot's
+ *  rewrite offer comes back in the thread with the new state. */
+export function useSetBuiltFrom(clientId: string, scriptId: string) {
+  return useStateWrite(clientId, scriptId, (signalIds: string[]) => scriptGenerateService.setBuiltFrom(clientId, scriptId, signalIds));
+}
+
 export function useSetScriptField(clientId: string, scriptId: string) {
   const queryClient = useQueryClient();
   const key = scriptKeys.generate(clientId, scriptId);

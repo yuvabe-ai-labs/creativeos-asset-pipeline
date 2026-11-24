@@ -1,10 +1,18 @@
+import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import type { Angle } from "@/lib/scripts/copilot/schema";
 
 /** Spec 2 §5 piece 4 — three proposed angles, each with what it commits to (interaction model §3.3).
  *  Picking one sends the pick as the person's message; blending or writing one is typed. Without
  *   (after Generate) the angles are only shown. */
-export function CopilotAnglesCard({ angles, disabled, onPick }: { angles: Angle[]; disabled: boolean; onPick?: (id: string) => void }) {
+export function CopilotAnglesCard({ angles, signals = [], disabled, onPick }: {
+  angles: Angle[];
+  /** The signals the angles drew on, by name, so each says which it comes from (D531). */
+  signals?: { id: string; name: string }[];
+  disabled: boolean;
+  onPick?: (id: string) => void;
+}) {
+  const nameOf = new Map(signals.map((s) => [s.id, s.name]));
   return (
     <ol className="flex w-full flex-col gap-2">
       {angles.map((a) => (
@@ -26,6 +34,14 @@ export function CopilotAnglesCard({ angles, disabled, onPick }: { angles: Angle[
                 </div>
               ))}
           </dl>
+          {(() => {
+            const from = a.signalIds.flatMap((id) => (nameOf.has(id) ? [nameOf.get(id) as string] : []));
+            return from.length > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                from {from.map((name, i) => <Fragment key={name}>{i > 0 && ", "}<em>{name}</em></Fragment>)}
+              </p>
+            ) : null;
+          })()}
           {onPick && (
             <Button variant="outline" size="xs" className="self-start" disabled={disabled} onClick={() => onPick(a.id)}>
               Go with {a.id}

@@ -42,7 +42,7 @@ export function CopilotChatMessage({ message, actions, avatars }: { message: Scr
         <CopilotText content={message.content} />
       ))}
       {research && <CopilotResearchCard card={research} />}
-      {card?.kind === "angles" && <CopilotAnglesCard angles={card.angles} disabled={busy} onPick={actions ? (id) => actions.send(`Go with ${id}.`) : undefined} />}
+      {card?.kind === "angles" && <CopilotAnglesCard angles={card.angles} signals={card.signals} disabled={busy} onPick={actions ? (id) => actions.send(`Go with ${id}.`) : undefined} />}
       {card?.kind === "confirmation" && <CopilotConfirmationCard card={card.card} avatars={avatars} disabled={busy} onWrite={actions ? () => actions.send("Write it.") : undefined} />}
       {card?.kind === "proposal" && <CopilotProposalCard card={card} disabled={busy} onResolve={actions ? (d) => actions.resolve(message.id, d) : undefined} />}
       {card?.kind === "import" && <CopilotImportCard card={card} disabled={busy} onResolve={actions ? (d) => actions.resolve(message.id, d) : undefined} />}

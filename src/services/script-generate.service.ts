@@ -53,6 +53,12 @@ class ScriptGenerateService {
     return got.state;
   }
 
+  /** The signals the script is built from, set on its line (D531). */
+  async setBuiltFrom(clientId: string, scriptId: string, signalIds: string[]): Promise<GenerateState> {
+    const res = await send(`${scriptUrl(clientId, scriptId)}/signals`, "PUT", { signalIds });
+    return (await readJson<{ state: GenerateState }>(res, "Could not change what the script is built from.")).state;
+  }
+
   async setField(clientId: string, scriptId: string, path: string, value: string): Promise<GenerateState> {
     const res = await send(`${scriptUrl(clientId, scriptId)}/fields`, "PATCH", { path, value });
     return (await readJson<{ state: GenerateState }>(res, "Could not save that change.")).state;

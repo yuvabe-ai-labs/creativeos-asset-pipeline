@@ -16,9 +16,11 @@ import { cn } from "@/lib/utils";
 /** Spec 2 §3 — the Generate workspace: the copilot on the left, the script on the right. */
 /** `locked`: new scripts wait for market research approval (copilot journey spec §5.3), so an
  *  unwritten script offers no brief chips: the copilot takes only a pasted script. */
-export function GenerateWorkspace({ client, initialState, initialReview, locked = false }: {
+export function GenerateWorkspace({ client, initialState, initialReview, signals, locked = false }: {
   client: { id: string; name: string; slug: string };
   initialState: GenerateState;
+  /** The client's signals by name, for the script's "Built from" line (D531). */
+  signals: { id: string; name: string }[];
   initialReview: TeamScriptReview | null;
   locked?: boolean;
 }) {
@@ -59,7 +61,7 @@ export function GenerateWorkspace({ client, initialState, initialReview, locked 
         waiting={waiting}
         live={{ actions, suggestions: locked && !doc ? [] : suggestionsFor(state) }}
       />
-      <GenerateScriptPane clientId={clientId} state={state} chatBusy={actions.busy} draft={draft} reviewed={Boolean(doc && initialReview)} />
+      <GenerateScriptPane clientId={clientId} state={state} signals={signals} chatBusy={actions.busy} draft={draft} reviewed={Boolean(doc && initialReview)} />
       {doc && initialReview && <GenerateReviewColumn clientId={clientId} scriptId={scriptId} />}
     </div>
   );

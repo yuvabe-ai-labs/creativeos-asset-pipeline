@@ -27,6 +27,7 @@ const render = (stage: ScriptStage) => renderToStaticMarkup(
     <VisualiseCopilotWorkspace
       client={{ id: "c1", name: "Chupps", slug: "chupps" }}
       initialState={state(stage)}
+      signals={[]}
       initialBoard={{ script: makeScript(doc, stage), board: { avatars: [], takes: [], picks: {}, kits: [] } }}
       initialReview={{} as never}
     />
