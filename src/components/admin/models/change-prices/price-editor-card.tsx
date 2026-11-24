@@ -22,6 +22,7 @@ export function PriceEditorCard({
   onType,
   onReset,
   onKeys,
+  editable,
 }: {
   model: SheetModel;
   flow: FlowState;
@@ -33,6 +34,8 @@ export function PriceEditorCard({
   onType: (key: string, text: string) => void;
   onReset: (key: string) => void;
   onKeys: (open: boolean) => void;
+  /** False for a model with no price whose kind has no price grid: there is nothing to type into here. */
+  editable: boolean;
 }) {
   const fromNext = flow.base === "next";
   const at = new Date(base.effectiveFrom);
@@ -60,7 +63,13 @@ export function PriceEditorCard({
         <KeyboardChip open={flow.keysOpen} onOpenChange={onKeys} />
       </div>
       <div className="px-5 pb-5 md:px-[22px]">
-        <GridEditor model={model} base={base} values={flow.values} percentKeys={flow.percentKeys} settings={settings} onType={onType} onReset={onReset} />
+        {editable ? (
+          <GridEditor model={model} base={base} values={flow.values} percentKeys={flow.percentKeys} settings={settings} onType={onType} onReset={onReset} />
+        ) : (
+          <p className="rounded-xl border border-dashed px-4 py-6 text-center text-[0.8125rem] text-muted-foreground">
+            The first price for this kind of model can&apos;t be entered here yet. Once it has one, its prices can be changed here.
+          </p>
+        )}
       </div>
       {footnote && <p className="px-5 pb-4 text-xs text-muted-foreground md:px-[22px]">{footnote}</p>}
       {(base.lines.length > 0 || after.lines.length > 0) && (

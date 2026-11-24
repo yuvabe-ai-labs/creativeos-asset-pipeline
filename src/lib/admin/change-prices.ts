@@ -1,14 +1,17 @@
 // The change-prices flow on the admin model page (prototype v3, "Change prices flow"): typed cells
-// turned into price lines, the review's diff, replace list, warnings, typical run and agencies, and
-// the words for the buttons and toast. Amounts a person reads and types are per 1M for tokens; lines
-// store the unit price. Client-safe.
-import { lineFor, CATALOG_CHANGE_LEAD_MS } from "@/lib/ai-models/pricing";
+// turned into price lines, and the review's diff, replace list, warnings, typical run and agencies.
+// When a change starts is in change-prices-when.ts, the toast and Undo in change-prices-undo.ts.
+// Amounts a person reads and types are per 1M for tokens; lines store the unit price. Client-safe.
+import { lineFor } from "@/lib/ai-models/pricing";
 import { displayAmount, isTokenMeter, storedDecimal } from "@/lib/ai-models/price-format";
 import type { AiModel, AiModelPrice, CreditSettings, Meter, PriceLine } from "@/lib/ai-models/types";
 import { lineKey, meterLabel, priceGrid, whenText, type GridCell, type OtherCharge } from "./price-grid";
 import { isBigChange, parsePriceEntry, percentChange } from "./percent-edit";
 import { runCredits, runSpec, specLabel } from "./typical-runs";
-import { formatIstDate, formatIstTime, formatIstWhen, istDate, istInstant, parseIstTime, relativeIstDay } from "./ist";
+import { formatIstDate, formatIstWhen, relativeIstDay } from "./ist";
+import { beforePrice, pricesByStart, replacedRow, whenInstant, type When } from "./change-prices-when";
+import { confirmLabel } from "./change-prices-words";
+import { keepsNote } from "./change-prices-undo";
 
 type FlowModel = Pick<AiModel, "id" | "kind" | "params" | "providerLabel">;
 type Settings = Pick<CreditSettings, "marginPercent" | "roundStep">;
@@ -77,8 +80,8 @@ const copyLine = (l: PriceLine): PriceLine => (l.when ? { ...l, when: { ...l.whe
  * The new price lines: the base row's lines with only the edited prices changed. A cell's line is
  * the one a run at that setting matches (lineFor). When that line is the cell's own, its price
  * changes in place; when it is a broader line (or none), the cell gets its own line just before it,
- * so runs at that setting match it and every other setting keeps its price. Every other line, and
- * the order, stays as it was.
+ * so runs at that setting match it and every other setting keeps its price (an own line already
+ * behind the broader one moves there). Every other line, and the order, stays as it was.
  */
 export function applyEdits(model: FlowModel, base: AiModelPrice, values: EditValues): PriceLine[] {
   const t = editTargets(model, base);
@@ -92,7 +95,15 @@ export function applyEdits(model: FlowModel, base: AiModelPrice, values: EditVal
       lines[at] = { ...match, unit_usd: s.usd };
       continue;
     }
-    const own: PriceLine = Object.keys(cell.when).length ? { meter: cell.meter, unit_usd: s.usd, when: { ...cell.when } } : { meter: cell.meter, unit_usd: s.usd };
+    // The cell's own line may already exist behind the broader one: it takes the price and moves
+    // ahead of it, rather than a second line with the same key being added.
+    const shadowed = lines.findIndex((l) => keyOf(l) === cell.key);
+    const own: PriceLine =
+      shadowed >= 0
+        ? { ...lines.splice(shadowed, 1)[0], unit_usd: s.usd }
+        : Object.keys(cell.when).length
+          ? { meter: cell.meter, unit_usd: s.usd, when: { ...cell.when } }
+          : { meter: cell.meter, unit_usd: s.usd };
     if (at >= 0) lines.splice(at, 0, own);
     else lines.push(own);
   }
@@ -104,6 +115,15 @@ export function applyEdits(model: FlowModel, base: AiModelPrice, values: EditVal
     if (at >= 0) lines[at] = { ...lines[at], unit_usd: s.usd };
   }
   return lines;
+}
+
+/**
+ * Whether the flow has anything to edit from `base`: an image or video model always has its grid; any
+ * other kind edits the lines of the row it starts from, so with no price there is nothing to type into.
+ */
+export function hasEditablePrices(model: FlowModel, base: AiModelPrice): boolean {
+  const t = editTargets(model, base);
+  return t.cells.length > 0 || t.otherCharges.some((o) => !o.atCost);
 }
 
 /** The edited cells whose text isn't a price. */
@@ -172,44 +192,6 @@ export function replacedList(model: FlowModel, replaced: AiModelPrice, newLines:
   ];
 }
 
-/** When the new prices start: now, or an IST date ("YYYY-MM-DD") and a typed IST time. */
-export type When = { mode: "now" | "date"; date: string; time: string };
-
-/** The instant a When names; null when the date or time can't be read. */
-export function whenInstant(w: When, now: Date): Date | null {
-  if (w.mode === "now") return now;
-  const t = parseIstTime(w.time);
-  return t ? istInstant(w.date, t) : null;
-}
-
-/** Why the When can't be used yet, or null. */
-export function whenProblem(w: When, now: Date): string | null {
-  if (w.mode === "now") return null;
-  const at = whenInstant(w, now);
-  if (!at) return "Type a time like 8, 8:00, 8 pm or 20:00.";
-  return at.getTime() <= now.getTime() ? "That moment has passed. Pick a later time or choose Now." : null;
-}
-
-const startOf = (p: Pick<AiModelPrice, "effectiveFrom">) => Date.parse(p.effectiveFrom);
-const byStart = (prices: readonly AiModelPrice[]) => [...prices].sort((a, b) => startOf(a) - startOf(b));
-
-/** The scheduled change a save would replace: one of this model's that hasn't started, on the same IST day. */
-export function replacedRow(prices: readonly AiModelPrice[], w: When, now: Date): AiModelPrice | null {
-  if (w.mode !== "date") return null;
-  const at = whenInstant(w, now);
-  if (!at) return null;
-  const day = istDate(at);
-  return byStart(prices).find((p) => startOf(p) > now.getTime() && istDate(new Date(p.effectiveFrom)) === day) ?? null;
-}
-
-/** What the new prices are compared with: the change they replace, or what would be live at their start. */
-export function beforePrice(prices: readonly AiModelPrice[], w: When, now: Date): AiModelPrice | null {
-  const rep = replacedRow(prices, w, now);
-  if (rep) return rep;
-  const at = (whenInstant(w, now) ?? now).getTime();
-  return byStart(prices).filter((p) => startOf(p) <= at).at(-1) ?? null;
-}
-
 export type ReviewWarning = { tone: "info" | "warn"; text: string; same?: boolean };
 
 /** The notes under the review: nothing new to save, a later change still following, big changes, free prices. */
@@ -227,8 +209,8 @@ export function reviewWarnings(
   if (rep && priceChanges(model, rep, after).length === 0) {
     out.push({ tone: "info", text: `These are the same prices already scheduled for ${formatIstWhen(new Date(rep.effectiveFrom))}. Nothing new would be saved.`, same: true });
   }
-  for (const p of byStart(prices)) {
-    if (p.id !== rep?.id && startOf(p) > at) {
+  for (const p of pricesByStart(prices)) {
+    if (p.id !== rep?.id && Date.parse(p.effectiveFrom) > at) {
       out.push({ tone: "info", text: `The change scheduled for ${formatIstWhen(new Date(p.effectiveFrom))} still follows and replaces these prices then.` });
     }
   }
@@ -271,52 +253,6 @@ export function agenciesAffected(rows: readonly { orgName: string; runs: number 
       const after = t?.after == null ? null : r.runs * t.after;
       return { name: r.orgName, runs: r.runs, before, after, percent: percentChange(before, after) };
     });
-}
-
-const signedPercent = (p: number) => `${p < 0 ? "−" : "+"}${Math.abs(p)}%`;
-const prices = (n: number) => (n === 1 ? "1 price" : `${n} prices`);
-
-/** The line under "Change every price by" after Apply. */
-export function bulkMessage(a: { changed: number; kept: number; percent: number; hasOtherCharges: boolean; includeOtherCharges: boolean }): string {
-  const other = a.hasOtherCharges ? (a.includeOtherCharges ? ", other charges included" : ". Other charges were left out") : "";
-  const kept = a.kept ? ` ${prices(a.kept)} you typed ${a.kept > 1 ? "were" : "was"} left as ${a.kept > 1 ? "they are" : "it is"}.` : "";
-  return `Changed ${prices(a.changed)} by ${signedPercent(a.percent)}, rounded to 4 significant figures${other}.${kept}`;
-}
-
-/** The review's one primary action. */
-export function confirmLabel(a: { same: boolean; replaced: Date | null; mode: When["mode"]; at: Date }): string {
-  if (a.same) return "Nothing new to save";
-  if (a.replaced) return `Replace the ${formatIstDate(a.replaced, false)} change`;
-  return a.mode === "now" ? "Apply new prices now" : `Schedule for ${formatIstDate(a.at, false)}`;
-}
-
-/** The toast after saving, with the start the server gave (a start in the next 2 minutes is moved out to 2 minutes). */
-export function savedMessage(a: { label: string; mode: When["mode"]; replaced: Date | null; requested: Date; effective: Date; now: Date }): string {
-  if (a.replaced) return `The ${formatIstDate(a.replaced, false)} change for ${a.label} is replaced.`;
-  const moved = Math.abs(a.effective.getTime() - a.requested.getTime()) > 1000 && a.effective.getTime() > a.now.getTime();
-  if (moved) {
-    const minutes = Math.max(1, Math.round((a.effective.getTime() - a.now.getTime()) / 60_000));
-    return `New prices for ${a.label} start in ${minutes === 1 ? "1 minute" : `${minutes} minutes`}, at ${formatIstTime(a.effective)}.`;
-  }
-  if (a.mode === "now") return `New prices for ${a.label} are live.`;
-  return `New prices for ${a.label} scheduled for ${formatIstWhen(a.effective)}.`;
-}
-
-/**
- * How the toast's Undo takes the save back: cancel a row that hasn't started, put a replaced change
- * back, or undo a started row (undoAiModelPriceAction). Null when the server would refuse: a row in
- * its last 2 minutes can't be cancelled, and a started row can't be undone while a change is scheduled.
- */
-export function undoPlan(a: { effective: Date; now: Date; replaced: AiModelPrice | null; otherScheduled: boolean }): "cancel" | "restore" | "undo" | null {
-  const ahead = a.effective.getTime() - a.now.getTime();
-  if (ahead > CATALOG_CHANGE_LEAD_MS) return a.replaced ? "restore" : "cancel";
-  if (ahead > 0) return null;
-  return a.otherScheduled ? null : "undo";
-}
-
-/** Editing a scheduled change and saving over it keeps its note; anything else saved over it replaces the note too. */
-export function keepsNote(replaced: AiModelPrice | null, base: AiModelPrice): boolean {
-  return replaced !== null && replaced.id === base.id;
 }
 
 export type Review = {

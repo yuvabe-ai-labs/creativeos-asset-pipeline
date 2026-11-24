@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CalendarDays, ChevronDown, Clock } from "lucide-react";
-import { whenInstant, whenProblem, type When } from "@/lib/admin/change-prices";
+import { whenInstant, whenProblem, type When } from "@/lib/admin/change-prices-when";
 import { formatIstDate, formatIstWhen, formatUtcBeside, istDate, istTime, parseIstTime, relativeIstDay, todayIst } from "@/lib/admin/ist";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";

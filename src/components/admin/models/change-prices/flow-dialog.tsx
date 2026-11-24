@@ -6,8 +6,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { FlowStepper } from "./flow-stepper";
 
 /**
- * The When and Review steps: a modal dialog over the grid (focus stays inside; Esc or Back returns a
- * step, and focus goes back to "Next: when", or to Change prices once saved). One primary action.
+ * The When and Review steps: a modal dialog over the grid (focus stays inside). Esc or the close
+ * button returns to the grid; Back steps back. Focus goes back to "Next: when", or to Change prices
+ * once saved. One primary action.
  */
 export function FlowDialog({
   step,
@@ -16,6 +17,7 @@ export function FlowDialog({
   canGoOn,
   saving,
   onBack,
+  onClose,
   onNext,
   children,
 }: {
@@ -25,11 +27,12 @@ export function FlowDialog({
   canGoOn: boolean;
   saving: boolean;
   onBack: () => void;
+  onClose: () => void;
   onNext: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <Dialog open={step !== null} onOpenChange={(o) => !o && !saving && onBack()}>
+    <Dialog open={step !== null} onOpenChange={(o) => !o && !saving && onClose()}>
       <DialogContent
         className="max-h-[calc(100dvh-2rem)] gap-0 overflow-y-auto p-0 sm:max-w-2xl"
         finalFocus={() => document.getElementById("change-prices-next") ?? document.getElementById("change-prices-start") ?? true}

@@ -66,13 +66,24 @@ describe("PriceEditorCard and EditBar", () => {
     const flow = { ...editing, values: { [k720]: "0.05" } };
     const after = { ...scheduled, lines: applyEdits(omni, scheduled, flow.values) };
     const html = renderToStaticMarkup(
-      <PriceEditorCard model={omni} flow={flow} base={scheduled} after={after} changeCount={1} invalidCount={0} settings={ZERO} onType={() => {}} onReset={() => {}} onKeys={() => {}} />,
+      <PriceEditorCard model={omni} flow={flow} base={scheduled} after={after} changeCount={1} invalidCount={0} settings={ZERO} onType={() => {}} onReset={() => {}} onKeys={() => {}} editable />,
     );
     expect(html).toContain("New prices for the 3 Dec change");
     expect(html).toContain("Starting from the change scheduled for 3 Dec 2026, 13:30 IST.");
     expect(html).toContain("1 change");
     expect(html).toContain("Keyboard");
     expect(html).toContain("Try a run");
+  });
+
+  it("a model with nothing to type into gets a plain note instead of an empty grid", () => {
+    const gpt5 = catalog.models.find((m) => m.id === "openai:gpt-5") as AiModel;
+    const empty = { id: "", modelId: gpt5.id, effectiveFrom: "", lines: [], estimate: {}, sourceUrl: null, note: null };
+    const flow = changePricesReducer(closedFlow, { type: "start", whens: defaultWhens(null, NOW) });
+    const html = renderToStaticMarkup(
+      <PriceEditorCard model={gpt5} flow={flow} base={empty} after={empty} changeCount={0} invalidCount={0} settings={ZERO} onType={() => {}} onReset={() => {}} onKeys={() => {}} editable={false} />,
+    );
+    expect(html).toContain("The first price for this kind of model can&#x27;t be entered here yet.");
+    expect(html).not.toContain("<input");
   });
 
   it("edit bar: steps, Next waits for a change, bulk with other charges, and Choose again", () => {

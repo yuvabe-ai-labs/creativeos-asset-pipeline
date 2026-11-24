@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { applyEdits, buildReview, editTargets, invalidKeys, priceChanges, whenProblem } from "@/lib/admin/change-prices";
+import { applyEdits, buildReview, editTargets, hasEditablePrices, invalidKeys, priceChanges } from "@/lib/admin/change-prices";
+import { whenProblem } from "@/lib/admin/change-prices-when";
 import type { AiModel, AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
 import { ModelHeader } from "@/components/admin/models/model-header";
 import { PriceSheet } from "@/components/admin/models/price-sheet";
@@ -103,8 +104,12 @@ export function ModelWorkspace({
   async function confirm() {
     if (!sheet || !review?.canSave) return;
     dispatch({ type: "saving", on: true });
-    const ok = await save({ modelId, label: sheet.model.label, prices, base, lines: after.lines, when: flow.when });
-    dispatch(ok ? { type: "done" } : { type: "saving", on: false });
+    const result = await save({ modelId, label: sheet.model.label, prices, base, lines: after.lines, when: flow.when });
+    if (result === "stale") {
+      // The start passed while the review was open: back to When, which now says so.
+      setNow(new Date());
+      dispatch({ type: "stale" });
+    } else dispatch(result === "saved" ? { type: "done" } : { type: "saving", on: false });
   }
 
   const targets = sheet && editing ? editTargets(sheet.model, base) : null;
@@ -153,6 +158,7 @@ export function ModelWorkspace({
               onType={(key, text) => dispatch({ type: "type", key, text })}
               onReset={(key) => dispatch({ type: "reset", key })}
               onKeys={(open) => dispatch({ type: "keys", open })}
+              editable={hasEditablePrices(sheet.model, base)}
             />
           </div>
         ) : (
@@ -183,6 +189,7 @@ export function ModelWorkspace({
           canGoOn={flow.stage === "review" ? !!review?.canSave : whenProblem(flow.when, now) === null}
           saving={flow.saving}
           onBack={() => dispatch({ type: "back" })}
+          onClose={() => dispatch({ type: "close" })}
           onNext={() => (flow.stage === "review" ? void confirm() : step("review"))}
         >
           {flow.stage === "review" && review ? (

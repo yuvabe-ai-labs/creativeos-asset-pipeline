@@ -82,3 +82,21 @@ describe("changePricesReducer", () => {
     expect(run(s, { type: "done" })).toMatchObject({ stage: "closed", saving: false, keysSeen: true });
   });
 });
+
+describe("review fixes", () => {
+  const atReview = run(closedFlow, { type: "start", whens: defaultWhens(null, NOW) }, { type: "step", stage: "when" }, { type: "step", stage: "review" });
+  it("Esc or the close button on When or Review goes back to the grid; Back steps back", () => {
+    expect(run(atReview, { type: "close" }).stage).toBe("prices");
+    expect(run(atReview, { type: "back" }).stage).toBe("when");
+  });
+  it("a start that passed while the review was open sends the admin back to When, not saving", () => {
+    const s = run(atReview, { type: "saving", on: true }, { type: "stale" });
+    expect(s).toMatchObject({ stage: "when", saving: false });
+  });
+  it("bulk with no prices to change says so rather than 'Changed 0 prices'", () => {
+    const s = run(closedFlow, { type: "start", whens: defaultWhens(null, NOW) }, { type: "bulkText", text: "-10" }, {
+      type: "bulkApply", cells: [{ key: "a", amount: null }], otherCharges: [], hasOtherCharges: false,
+    });
+    expect(s.bulkMessage).toEqual({ tone: "error", text: "No prices to change yet. Type a price into each cell first." });
+  });
+});

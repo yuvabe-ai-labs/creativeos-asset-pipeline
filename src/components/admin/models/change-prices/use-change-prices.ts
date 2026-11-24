@@ -3,7 +3,8 @@
 import { useReducer } from "react";
 import { addIstDays, istDate, istTime, todayIst } from "@/lib/admin/ist";
 import { bulkApplyPercent, parsePercent, type BulkTarget } from "@/lib/admin/percent-edit";
-import { bulkMessage, type When } from "@/lib/admin/change-prices";
+import { bulkMessage } from "@/lib/admin/change-prices-words";
+import type { When } from "@/lib/admin/change-prices-when";
 
 /** Where the flow is: the chooser, the grid on the page, or the When / Review dialogs. */
 export type FlowStage = "closed" | "choose" | "prices" | "when" | "review";
@@ -70,6 +71,10 @@ export type FlowAction =
   | { type: "bulkApply"; cells: BulkTarget[]; otherCharges: (BulkTarget & { atCost: boolean })[]; hasOtherCharges: boolean }
   | { type: "step"; stage: "prices" | "when" | "review" }
   | { type: "back" }
+  /** Esc or the close button on When or Review: back to the grid. */
+  | { type: "close" }
+  /** The start passed while the review was open: back to When to pick another. */
+  | { type: "stale" }
   | { type: "when"; when: Partial<When> }
   | { type: "saving"; on: boolean }
   | { type: "done" }
@@ -95,7 +100,7 @@ const without = (keys: string[], key: string) => keys.filter((k) => k !== key);
 
 export function changePricesReducer(s: FlowState, a: FlowAction): FlowState {
   // While a save runs, nothing moves.
-  if (s.saving && a.type !== "saving" && a.type !== "done") return s;
+  if (s.saving && a.type !== "saving" && a.type !== "done" && a.type !== "stale") return s;
   switch (a.type) {
     case "start": {
       const fresh = { ...closedFlow, keysSeen: s.keysSeen, whens: a.whens };
@@ -134,13 +139,17 @@ export function changePricesReducer(s: FlowState, a: FlowAction): FlowState {
         ...s,
         values: r.values,
         percentKeys: r.percentKeys,
-        bulkMessage: { tone: "info", text: bulkMessage({ changed: r.changed, kept: r.kept, percent, hasOtherCharges: a.hasOtherCharges, includeOtherCharges: include }) },
+        bulkMessage: { tone: r.changed + r.kept === 0 ? "error" : "info", text: bulkMessage({ changed: r.changed, kept: r.kept, percent, hasOtherCharges: a.hasOtherCharges, includeOtherCharges: include }) },
       };
     }
     case "step":
       return { ...s, stage: a.stage, keysOpen: false };
     case "back":
       return s.stage === "review" ? { ...s, stage: "when" } : s.stage === "when" ? { ...s, stage: "prices" } : s;
+    case "close":
+      return s.stage === "when" || s.stage === "review" ? { ...s, stage: "prices" } : s;
+    case "stale":
+      return { ...s, stage: "when", saving: false };
     case "when":
       return { ...s, when: { ...s.when, ...a.when } };
     case "saving":

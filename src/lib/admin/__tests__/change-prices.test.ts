@@ -8,23 +8,19 @@ import {
   agenciesAffected,
   buildReview,
   applyEdits,
-  beforePrice,
-  bulkMessage,
   cellState,
-  confirmLabel,
   editTargets,
   editText,
+  hasEditablePrices,
   invalidKeys,
   priceChanges,
   replacedList,
-  replacedRow,
   reviewWarnings,
-  savedMessage,
   typicalBeforeAfter,
-  undoPlan,
-  whenInstant,
-  whenProblem,
 } from "../change-prices";
+import { beforePrice, replacedRow, startToSave, whenInstant, whenProblem } from "../change-prices-when";
+import { bulkMessage, confirmLabel } from "../change-prices-words";
+import { savedMessage, undoneMessage, undoPlan } from "../change-prices-undo";
 
 const catalog = seededModelCatalog();
 const model = (id: string): AiModel => {
@@ -127,6 +123,24 @@ describe("applyEdits", () => {
     expect(lineFor(next, "video_second", { resolution: "1080p" })?.unit_usd).toBe(0.1);
   });
 
+  it("a cell whose own line sits behind a broader one: that line takes the price and moves ahead, no duplicate", () => {
+    const m = model(OMNI);
+    const base: AiModelPrice = {
+      ...first(OMNI),
+      lines: [
+        { meter: "video_second", unit_usd: 0.1 },
+        { meter: "video_second", unit_usd: 0.5, when: { resolution: "720p" } },
+        { meter: "input_token", unit_usd: 0.0000015 },
+      ],
+    };
+    const lines = applyEdits(m, base, { [lineKey("video_second", { resolution: "720p" })]: "0.07" });
+    expect(lines).toEqual([
+      { meter: "video_second", unit_usd: 0.07, when: { resolution: "720p" } },
+      { meter: "video_second", unit_usd: 0.1 },
+      { meter: "input_token", unit_usd: 0.0000015 },
+    ]);
+  });
+
   it("a model with no price yet gets a line per priced cell", () => {
     const m = model(OMNI);
     const empty: AiModelPrice = { id: "", modelId: OMNI, effectiveFrom: "", lines: [], estimate: {}, sourceUrl: null, note: null };
@@ -138,6 +152,16 @@ describe("applyEdits", () => {
     const m = model(OMNI);
     const lines = applyEdits(m, first(OMNI), { [lineKey("video_second", { resolution: "8k" })]: "1" });
     expect(lines).toEqual(first(OMNI).lines);
+  });
+});
+
+describe("hasEditablePrices", () => {
+  const empty = (id: string): AiModelPrice => ({ id: "", modelId: id, effectiveFrom: "", lines: [], estimate: {}, sourceUrl: null, note: null });
+  it("an image or video model always has cells to price; a token-priced model needs a price to start from", () => {
+    expect(hasEditablePrices(model(OMNI), empty(OMNI))).toBe(true);
+    expect(hasEditablePrices(model(GPT5), first(GPT5))).toBe(true);
+    expect(hasEditablePrices(model(GPT5), empty(GPT5))).toBe(false);
+    expect(hasEditablePrices(model("apify:actor"), first("apify:actor"))).toBe(false);
   });
 });
 
@@ -214,6 +238,15 @@ describe("when", () => {
   });
 });
 
+describe("startToSave", () => {
+  it("re-checks the start when saving: a date that has passed is refused, never sent backdated", () => {
+    expect(startToSave({ mode: "date", date: "2026-11-24", time: "11:59" }, NOW)).toEqual({ problem: "That moment has passed. Pick a later time or choose Now." });
+    expect(startToSave({ mode: "date", date: "2026-11-24", time: "12:00" }, NOW)).toEqual({ problem: "That moment has passed. Pick a later time or choose Now." });
+    expect(startToSave({ mode: "date", date: "2026-11-24", time: "12:01" }, NOW)).toEqual({ at: new Date("2026-11-24T06:31:00Z") });
+    expect(startToSave({ mode: "now", date: "", time: "" }, NOW)).toEqual({ at: NOW });
+  });
+});
+
 describe("replacedRow and beforePrice", () => {
   const all = prices(OMNI);
   const [live, scheduled] = all;
@@ -281,6 +314,11 @@ describe("words", () => {
       "Changed 1 price by +20%, rounded to 4 significant figures. Other charges were left out.",
     );
   });
+  it("bulk message when nothing could change", () => {
+    expect(bulkMessage({ changed: 0, kept: 0, percent: -31, hasOtherCharges: false, includeOtherCharges: true })).toBe(
+      "No prices to change yet. Type a price into each cell first.",
+    );
+  });
   it("confirm label", () => {
     const at = new Date("2026-12-03T08:00:00Z");
     expect(confirmLabel({ same: true, replaced: null, mode: "now", at })).toBe("Nothing new to save");
@@ -300,11 +338,22 @@ describe("words", () => {
   });
   it("undo plan: cancel a future row, undo a started one, nothing inside the 2-minute lead", () => {
     const later = new Date("2026-12-03T08:00:00Z");
-    expect(undoPlan({ effective: later, now: NOW, replaced: null, otherScheduled: false })).toBe("cancel");
-    expect(undoPlan({ effective: later, now: NOW, replaced: { id: "old" } as AiModelPrice, otherScheduled: false })).toBe("restore");
-    expect(undoPlan({ effective: NOW, now: NOW, replaced: null, otherScheduled: false })).toBe("undo");
-    expect(undoPlan({ effective: NOW, now: NOW, replaced: null, otherScheduled: true })).toBeNull();
-    expect(undoPlan({ effective: new Date(NOW.getTime() + 120_000), now: NOW, replaced: null, otherScheduled: false })).toBeNull();
+    const plan = (over: Partial<Parameters<typeof undoPlan>[0]>) =>
+      undoPlan({ effective: NOW, now: NOW, replaced: null, otherScheduled: false, earlierStarted: true, ...over });
+    expect(plan({ effective: later })).toBe("cancel");
+    expect(plan({ effective: later, replaced: { id: "old" } as AiModelPrice })).toBe("restore");
+    expect(plan({})).toBe("undo");
+    expect(plan({ otherScheduled: true })).toBeNull();
+    expect(plan({ effective: new Date(NOW.getTime() + 120_000) })).toBeNull();
+  });
+  it("no Undo for a model's first price applied now: there is nothing earlier to go back to", () => {
+    expect(undoPlan({ effective: NOW, now: NOW, replaced: null, otherScheduled: false, earlierStarted: false })).toBeNull();
+  });
+  it("after Undo puts a replaced change back, says when it starts if the server moved it", () => {
+    const at = new Date("2026-12-03T08:00:00Z");
+    expect(undoneMessage(null)).toBe("Undone. Prices are back as they were.");
+    expect(undoneMessage({ requested: at, effective: at })).toBe("Undone. Prices are back as they were.");
+    expect(undoneMessage({ requested: at, effective: new Date(NOW.getTime() + 120_000) })).toBe("Prices are back as they were, starting 24 Nov 2026, 12:02 IST.");
   });
 });
 
@@ -315,7 +364,7 @@ describe("buildReview", () => {
   const k360 = lineKey("video_second", { resolution: "360p" });
   const agencies = [{ orgName: "Tide Studio", runs: 23 }];
 
-  it("editing the scheduled change at its own start replaces it, listing every price it held", () => {
+  it("editing the scheduled change at another time on its IST day replaces it, listing every price it held", () => {
     const after = { ...scheduled, lines: applyEdits(m, scheduled, { [k360]: "0.05" }) };
     const r = buildReview({ model: m, label: "Omni", prices: all, base: scheduled, after, when: { mode: "date", date: "2026-12-03", time: "20:00" }, now: NOW, settings, agencies });
     expect(r.summary).toBe("1 change, from 3 Dec 2026, 20:00 IST, in 9 days.");
