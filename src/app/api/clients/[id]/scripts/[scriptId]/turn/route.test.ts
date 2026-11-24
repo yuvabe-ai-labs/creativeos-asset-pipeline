@@ -17,6 +17,10 @@ vi.mock("@/lib/db/script-panels", () => ({ setPanelPick: vi.fn() }));
 vi.mock("@/lib/scripts/copilot/context", () => ({ loadCopilotContext: vi.fn() }));
 vi.mock("@/lib/scripts/copilot/model", () => ({ structuredCaller: vi.fn(), streamingCaller: vi.fn() }));
 vi.mock("@/lib/scripts/copilot/turn", () => ({ prepareTurn: vi.fn() }));
+vi.mock("@/lib/journey/market-copilot/from-script", () => ({ askMarketResearch: vi.fn() }));
+// Work the route asks the platform to finish after the answer has gone, kept so the tests can run it.
+const afterWork: Array<() => unknown> = [];
+vi.mock("next/server", async (original) => ({ ...(await original<typeof import("next/server")>()), after: vi.fn((work: () => unknown) => { afterWork.push(work); }) }));
 
 import { changeGenerateScript, changeVisualiseScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState } from "@/lib/db/script-generate";
 import { getScript } from "@/lib/db/scripts";
@@ -24,6 +28,7 @@ import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";
 import { setPanelPick } from "@/lib/db/script-panels";
 import { loadCopilotContext } from "@/lib/scripts/copilot/context";
 import { prepareTurn } from "@/lib/scripts/copilot/turn";
+import { askMarketResearch } from "@/lib/journey/market-copilot/from-script";
 import { structuredCaller } from "@/lib/scripts/copilot/model";
 import { allowClient, AVATAR_ID, generateScript, jsonRequest, runChangeAgainst, SCRIPT_ID, stateOf } from "@/lib/scripts/copilot/__tests__/route-mocks";
 
@@ -35,6 +40,7 @@ const send = (body: unknown) => jsonRequest(`http://localhost/api/clients/c1/scr
 describe("POST .../turn", () => {
   beforeEach(async () => {
     vi.resetAllMocks();
+    afterWork.length = 0;
     await allowClient();
     vi.mocked(getGenerateScript).mockResolvedValue(generateScript());
     vi.mocked(listScriptMessages).mockResolvedValue([{ id: "m0", role: "assistant", content: "What format?", card: null, suggestions: [], createdAt: "t" }]);
@@ -78,6 +84,28 @@ describe("POST .../turn", () => {
     vi.mocked(getGenerateScript).mockResolvedValue({ ...built, brief: { ...built.brief, signalIds: ["s1"] } });
     await lines(await POST(send({ text: "Rewrite with these signals" }) as never, { params }));
     expect(vi.mocked(loadCopilotContext).mock.calls[0][1]).toEqual({ signals: true });
+  });
+
+  it("hands research the turn asked for to market research, after the reply (D532)", async () => {
+    vi.mocked(prepareTurn).mockImplementation(async (_input, deps) => {
+      deps.onResearch?.("what competitors post for monsoon");
+      return () => ({ patch: null, result: [{ content: "Handed over.", card: null }] });
+    });
+    const { POST } = await import("./route");
+    await lines(await POST(send({ text: "research what competitors post for monsoon" }) as never, { params }));
+    expect(askMarketResearch).not.toHaveBeenCalled();
+    await Promise.all(afterWork.map((w) => w()));
+    expect(askMarketResearch).toHaveBeenCalledWith(expect.objectContaining({
+      client: expect.objectContaining({ id: "c1" }), userId: "user-1", question: "what competitors post for monsoon",
+    }));
+  });
+
+  it("asks nothing of market research when the turn asked for no research", async () => {
+    vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
+    const { POST } = await import("./route");
+    await lines(await POST(send({ text: "UGC" }) as never, { params }));
+    await Promise.all(afterWork.map((w) => w()));
+    expect(askMarketResearch).not.toHaveBeenCalled();
   });
 
   it("takes a pasted script longer than an ordinary message, up to 30,000 characters", async () => {

@@ -10,7 +10,7 @@ const AVATAR = "7a2d3c4e-0000-4000-8000-000000000002";
 const none = { action: "none" as const, value: "" };
 const ex = (over: Partial<Extraction> = {}): Extraction => ({
   format: none, occasion: { ...none, postDate: "" }, lead: { ...none, avatarId: null }, narrative: { ...none, angleId: null }, suggestions: [],
-  skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", signals: { add: [], remove: [] }, ...over,
+  skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", signals: { add: [], remove: [] }, research: null, ...over,
 });
 const angle = (id: string, over: Partial<Angle> = {}): Angle => ({
   id, hook: `Hook ${id}`, situation: `Situation ${id}`, productMoment: "Lunch, curd", supportingCast: "Husband",

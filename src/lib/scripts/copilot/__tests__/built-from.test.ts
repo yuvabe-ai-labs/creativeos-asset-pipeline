@@ -21,7 +21,7 @@ const angle = (id: string, signalIds: string[]): Angle => ({
 const none = { action: "none" as const, value: "" };
 const ex = (over: Partial<Extraction> = {}): Extraction => ({
   format: none, occasion: { ...none, postDate: "" }, lead: { ...none, avatarId: null }, narrative: { ...none, angleId: null },
-  skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", suggestions: [], signals: { add: [], remove: [] }, ...over,
+  skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", suggestions: [], signals: { add: [], remove: [] }, research: null, ...over,
 });
 const base: CopilotBase = { clientName: "C", kbText: "KB", library: "L", avatars: "A", today: "T", signalDigest: "", formatMenu: "F" };
 const CARD: ConfirmationCard = { title: "t", reelNumber: 1, lines: [], beats: [], cast: [], toConfirm: [] };

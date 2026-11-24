@@ -5,7 +5,7 @@ import type { CopilotContext } from "./context";
 import { newShotId as randomShotId, toScriptDoc } from "./draft";
 import { fieldLabel, parseFieldPath, readField, writeField } from "./fields";
 import { fillToFinal } from "./fill-to-final";
-import { MAX_MESSAGE_CHARS } from "./constants";
+import { MAX_MESSAGE_CHARS, RESEARCH_HANDED } from "./constants";
 import { streamDraftCall } from "./draft-call";
 import { mightBeScript } from "./import";
 import { SCRIPTS_LOCKED_MESSAGE } from "@/lib/journey/stages";
@@ -48,7 +48,19 @@ export type TurnDeps = {
   stream?: StreamingCall;
   onDraft?: (draft: PartialDraft) => void;
   newShotId?: (taken: Set<string>) => string;
+  /** D532 — research the person asked for goes to the market research agent; the route runs it
+   *  after the reply. Absent: nothing is handed over. */
+  onResearch?: (question: string) => void;
 };
+
+/** Hands a research question to market research (D532) and returns the line that says so, or null
+ *  when the person asked for none. The script copilot never searches itself. */
+function handOff(deps: TurnDeps, research: string | null | undefined): string | null {
+  const question = research?.trim();
+  if (!question) return null;
+  deps.onResearch?.(question);
+  return RESEARCH_HANDED;
+}
 /** `leadAvatarId` comes with a lead chip: the avatar the person picked, linked as is (D362).
  *  `history`: the messages before this one; the copilot reads the last 10 of them (conversation.ts). */
 export type TurnInput = {
@@ -116,6 +128,15 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
 
   const ex = await quick({ name: "script_brief_read", ...extractPrompt(base, { brief: script.brief, conversation, text }), schema: extractionSchema });
   const merged = mergeExtraction(script.brief, ex, avatarIds, ctx.signals.list);
+  // Asked to research: it goes to market research, and this turn only keeps what the message settled.
+  const handed = handOff(deps, ex.research);
+  if (handed) {
+    const reply = [ex.ack.trim(), handed].filter(Boolean).join("\n\n");
+    const kept = JSON.stringify(merged.brief) === JSON.stringify(script.brief) ? null : { brief: merged.brief };
+    return (current) => (current.docVersion !== script.docVersion || current.doc
+      ? { error: "The script changed while I was working. Send that again.", status: 409 }
+      : { patch: kept, result: [{ content: reply, card: null }] });
+  }
   let brief: Brief = merged.brief;
   let changed = merged.changed;
   // A picked lead chip is the lead, whatever the model made of the name (two avatars can share one).
@@ -218,7 +239,8 @@ async function prepareEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, 
     schema: editTurnSchema,
   });
   const gen: OpsGen = { newShotId: deps.newShotId ?? randomShotId, avatarIds: new Set(ctx.avatars.map((a) => a.id)) };
-  const reply = out.reply.trim() || "Done.";
+  const handed = handOff(deps, out.research);
+  const reply = [out.reply.trim() || (handed ? "" : "Done."), handed].filter(Boolean).join("\n\n");
   const suggestions = cleanSuggestions(out.suggestions ?? []);
   const answer = (content: string, card: MessageCard | null = null): Reply[] => [{ content, card, suggestions }];
   return (current) => {
@@ -274,7 +296,8 @@ async function prepareVisualiseEdit(input: TurnInput, deps: TurnDeps, base: Copi
     schema: visualiseTurnSchema,
   });
   const gen: OpsGen = { newShotId: deps.newShotId ?? randomShotId, avatarIds: new Set(ctx.avatars.map((a) => a.id)) };
-  const reply = out.reply.trim() || "Done.";
+  const handed = handOff(deps, out.research);
+  const reply = [out.reply.trim() || (handed ? "" : "Done."), handed].filter(Boolean).join("\n\n");
   const suggestions = cleanSuggestions(out.suggestions ?? []);
   const offer: OfferCard | null = out.offer === "none" ? null : { kind: "offer", action: out.offer };
   const picks = out.picks.length > 0 ? out.picks : undefined;

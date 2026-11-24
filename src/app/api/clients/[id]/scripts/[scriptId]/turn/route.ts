@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { askMarketResearch } from "@/lib/journey/market-copilot/from-script";
+import { reelLabel } from "@/lib/scripts/utils";
 import { z } from "zod";
 import { pictureUrl, targetName } from "@/lib/scripts/copilot/picture-target";
 import { apiError, withClient, withTryCatch } from "@/lib/api/route-helpers";
@@ -96,6 +98,18 @@ export async function POST(req: Request, { params }: Ctx) {
                   quick: structuredCaller(SCRIPT_QUICK_MODEL),
                   stream: streamingCaller(SCRIPT_WRITER_MODEL),
                   onDraft: (draft) => emit({ type: "draft", draft }),
+                  // D532 — research goes to the market research agent once the reply has gone: its web
+                  // search is slow, and it never holds up or fails the script's turn.
+                  onResearch: (question) => after(async () => {
+                    try {
+                      await askMarketResearch({
+                        client, userId, question,
+                        scriptTitle: script.doc ? `${reelLabel(script.doc.header.reelNumber) ?? "A script"} · ${script.doc.header.title}` : (script.brief.card?.title ?? "A new script"),
+                      });
+                    } catch (e) {
+                      console.error("[script-copilot] could not hand research to market research", e);
+                    }
+                  }),
                 },
               );
               const outcome = await (atVisualise ? changeVisualiseScript : changeGenerateScript)(clientId, scriptId, apply);
