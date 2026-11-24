@@ -72,7 +72,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     });
 
     try {
-      const credits = creditsFromUsd(usd, creditSettingsAt(catalog, new Date()));
+      const credits = creditsFromUsd(usd, creditSettingsAt(catalog, new Date(generation.created_at)));
       const reservation = await reserveCredits(effectiveOrgId, generation.id, credits);
       if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
       const upload = await signRevoicedVideoUrl({ nodeId, generationId: generation.id });

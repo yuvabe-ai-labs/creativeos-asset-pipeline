@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => ({
   getVersionById: vi.fn(),
   hasRunning: vi.fn(async () => false),
   collect: vi.fn(),
-  insertGeneration: vi.fn(async () => ({ id: "gen-7" })),
+  insertGeneration: vi.fn(async () => ({ id: "gen-7", created_at: new Date().toISOString() })),
   failGeneration: vi.fn(async () => undefined),
   reserveCredits: vi.fn(async () => ({ ok: true })),
   refundReservation: vi.fn(async () => undefined),
@@ -107,8 +107,8 @@ describe("POST /api/nodes/[id]/video-edit", () => {
   });
 
   it("refuses a model with no price before anything is recorded (D534)", async () => {
-    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
-    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const { seededModelCatalog, withoutPrice } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withoutPrice(seededModelCatalog(), GEMINI_OMNI_12_MODEL_ID);
     const res = await post(BODY);
     expect(res.status).toBe(409);
     expect(mocks.insertGeneration).not.toHaveBeenCalled();

@@ -67,7 +67,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       const insert = () => insertJob({ orgId, clientId, kind: "editor-transcribe", input, lockKey: `editor-transcribe:${nodeId}`, phaseMessage: "Listening…" });
       let jobId: string;
       try {
-        const reservation = await reserveCredits(orgId, generation.id, creditsFromUsd(usd, creditSettingsAt(catalog, new Date())));
+        const reservation = await reserveCredits(orgId, generation.id, creditsFromUsd(usd, creditSettingsAt(catalog, new Date(generation.created_at))));
         if (!reservation.ok) throw new CreditLimitError(CREDIT_LIMIT_TOAST_MESSAGE);
         try {
           jobId = (await insert()).id;

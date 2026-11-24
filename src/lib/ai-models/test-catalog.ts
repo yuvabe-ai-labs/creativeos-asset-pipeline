@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { SEED_JSON_TAG } from "./seed";
 import { parseAiModelRow, parseCreditSettingsRow } from "./schema";
 import { seededCatalog } from "./test-prices";
-import type { AiCatalog, AiModel, AiModelKind, CreditSettings } from "./types";
+import type { AiCatalog, AiModel, AiModelKind, AiModelPrice, CreditSettings } from "./types";
 
 const INSERTS = ["0077_ai_models_seed.sql", "0079_ai_service_models.sql", "0082_ai_text_models.sql"];
 const UPDATES = ["0084_ai_models_adapters.sql"];
@@ -58,6 +58,16 @@ export function seededSettingsRow(): CreditSettings {
   const row = seededModelCatalog().creditSettings[0];
   if (!row) throw new Error("0086 credit settings row not found");
   return row;
+}
+
+/** The catalog with every price row of one model removed (no price, no run). The original is untouched. */
+export function withoutPrice(catalog: AiCatalog, modelId: string): AiCatalog {
+  return { ...catalog, prices: catalog.prices.filter((p) => p.modelId !== modelId) };
+}
+
+/** The catalog with one model's price rows replaced by this one row. The original is untouched. */
+export function withPrice(catalog: AiCatalog, price: AiModelPrice): AiCatalog {
+  return { ...catalog, prices: [...catalog.prices.filter((p) => p.modelId !== price.modelId), price] };
 }
 
 /** D548 — the catalog with its credit settings rows replaced. The original is untouched. */

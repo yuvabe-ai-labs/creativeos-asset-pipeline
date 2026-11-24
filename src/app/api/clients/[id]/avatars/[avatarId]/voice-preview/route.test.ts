@@ -122,17 +122,13 @@ describe("GET voice-preview", () => {
 
 describe("POST voice-preview", () => {
   it("refuses a named preview with no voice-change price before anything is recorded (D535)", async () => {
-    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
-    vi.mocked(priceForNewRun).mockImplementation(async (id: string) => (id === VOICE_CHANGE_PRICE_MODEL_ID ? null : seededPrice(id)));
-    try {
-      const { POST } = await import("./route");
-      const res = await POST(post({ line: "Hello there." }), { params });
-      expect(res.status).toBe(409);
-      expect(insertGeneration).not.toHaveBeenCalled();
-      expect(reserveCredits).not.toHaveBeenCalled();
-    } finally {
-      vi.mocked(priceForNewRun).mockImplementation(async (id: string) => { try { return seededPrice(id); } catch { return null; } });
-    }
+    const { seededModelCatalog, withoutPrice } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withoutPrice(seededModelCatalog(), VOICE_CHANGE_PRICE_MODEL_ID);
+    const { POST } = await import("./route");
+    const res = await POST(post({ line: "Hello there." }), { params });
+    expect(res.status).toBe(409);
+    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(reserveCredits).not.toHaveBeenCalled();
   });
 
   it.each(["hidden", "retired"] as const)(
@@ -153,8 +149,8 @@ describe("POST voice-preview", () => {
   );
 
   it("refuses a preview whose model has no price before anything is recorded (D534)", async () => {
-    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
-    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const { seededModelCatalog, withoutPrice } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withoutPrice(seededModelCatalog(), VOICE_PREVIEW_ENGINE.omni.modelId);
     const { POST } = await import("./route");
     const res = await POST(post({ line: "Hello there." }), { params });
     expect(res.status).toBe(409);

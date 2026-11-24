@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { currentPrice } from "@/lib/ai-models/pricing";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
 import { videoRun } from "@/lib/video-gen/video-run";
 import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
@@ -86,11 +87,11 @@ export async function POST(req: Request, { params }: Ctx) {
       const line = parsed.data.line;
       const prompt = buildVoicePreviewPrompt(line, mode);
       const paramsSnapshot = voicePreviewParams(engine);
-      const [price, voiceChangePrice, catalog] = await Promise.all([
-        priceForNewRun(VOICE_PREVIEW_ENGINE[engine].modelId),
-        mode === "named" ? priceForNewRun(VOICE_CHANGE_PRICE_MODEL_ID) : Promise.resolve(null),
-        getAiCatalog(),
-      ]);
+      // One catalog read; the prices and the credit settings come from it.
+      const catalog = await getAiCatalog();
+      const now = new Date();
+      const price = currentPrice(catalog, VOICE_PREVIEW_ENGINE[engine].modelId, now);
+      const voiceChangePrice = mode === "named" ? currentPrice(catalog, VOICE_CHANGE_PRICE_MODEL_ID, now) : null;
       // D542 — a preview belongs to no node, so an engine model that is hidden, retired or
       // missing refuses it; nothing is recorded or reserved.
       const run = videoRun(catalog, VOICE_PREVIEW_ENGINE[engine].modelId);
@@ -123,7 +124,7 @@ export async function POST(req: Request, { params }: Ctx) {
       });
 
       try {
-        const credits = estimateVoicePreviewCredits(price, voiceChangePrice, mode, engine, voice?.priceMultiplier ?? 1, creditSettingsAt(catalog, new Date()));
+        const credits = estimateVoicePreviewCredits(price, voiceChangePrice, mode, engine, voice?.priceMultiplier ?? 1, creditSettingsAt(catalog, new Date(generation.created_at)));
         if (credits === null) throw new Error("No cost estimate available for the voice preview.");
         const reservation = await reserveCredits(client.org_id, generation.id, credits);
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");

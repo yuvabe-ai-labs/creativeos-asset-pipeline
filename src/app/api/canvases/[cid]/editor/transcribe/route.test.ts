@@ -54,7 +54,7 @@ beforeEach(() => {
   vi.mocked(loadEditorState).mockResolvedValue({ editorNodeId: NODE, doc: {}, sources: [] } as never);
   vi.mocked(planTranscription).mockReturnValue({ files: [{ url: "https://s/a.mp4", seconds: 8 }, { url: "https://s/b.mp4", seconds: 9 }], noSound: [] });
   vi.mocked(listTranscribedUrls).mockResolvedValue(new Set());
-  vi.mocked(insertGeneration).mockResolvedValue({ id: "gen1" } as never);
+  vi.mocked(insertGeneration).mockResolvedValue({ id: "gen1", created_at: new Date().toISOString() } as never);
   vi.mocked(reserveCredits).mockResolvedValue({ ok: true });
   vi.mocked(insertJob).mockResolvedValue({ id: "job1" } as never);
   vi.mocked(tasks.trigger).mockResolvedValue({ id: "run1" } as never);

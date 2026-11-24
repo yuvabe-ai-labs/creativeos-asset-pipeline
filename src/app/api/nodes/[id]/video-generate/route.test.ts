@@ -60,7 +60,7 @@ type Row = {
 // initialization").
 const mocks = vi.hoisted(() => ({
   graph: {} as Record<string, Row[]>,
-  insertGeneration: vi.fn(async () => ({ id: "gen-1" })),
+  insertGeneration: vi.fn(async () => ({ id: "gen-1", created_at: new Date().toISOString() })),
   failGeneration: vi.fn(async () => undefined),
   reserveCredits: vi.fn(async () => ({ ok: true })),
   refundReservation: vi.fn(async () => undefined),
@@ -341,8 +341,8 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
   });
 
   it("refuses a model with no price before anything is recorded (D534)", async () => {
-    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
-    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const { seededModelCatalog, withoutPrice } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withoutPrice(seededModelCatalog(), GEMINI_OMNI_MODEL_ID);
     mocks.graph = buildGraph(
       [{ id: "c1", text: "keys", seconds: 3 }, { id: "c2", text: "cab", seconds: 5 }],
       GEMINI_OMNI_MODEL_ID,
@@ -355,8 +355,8 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
   });
 
   it("says a run it can't price can't be priced, without naming the model, and refunds", async () => {
-    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
-    vi.mocked(priceForNewRun).mockResolvedValueOnce({ ...seededPrice(GEMINI_OMNI_MODEL_ID), lines: [] });
+    const { seededModelCatalog, withPrice } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withPrice(seededModelCatalog(), { ...seededPrice(GEMINI_OMNI_MODEL_ID), lines: [] });
     mocks.graph = buildGraph(
       [{ id: "c1", text: "keys", seconds: 3 }, { id: "c2", text: "cab", seconds: 5 }],
       GEMINI_OMNI_MODEL_ID,

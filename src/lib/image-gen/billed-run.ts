@@ -6,7 +6,8 @@ import {
   MODEL_UNAVAILABLE_MESSAGE, INVALID_PARAMS_MESSAGE, NO_ESTIMATE_MESSAGE, ModelRefusedError,
 } from "@/lib/ai-models/runnable";
 import { imageRun } from "@/lib/image-gen/image-run";
-import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { currentPrice } from "@/lib/ai-models/pricing";
 import { imageChargeUsd } from "@/lib/ai-models/image-price";
 import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
@@ -56,7 +57,7 @@ export async function runBilledImageGeneration(
   const validatedParams = parsed.data as Record<string, unknown>;
 
   // D534 — the price row this image is reserved and charged with; no row, no image.
-  const price = await priceForNewRun(args.modelId);
+  const price = currentPrice(catalog, args.modelId, new Date());
   if (!price) throw new Error(NO_PRICE_MESSAGE);
 
   const generation = await insertGeneration({
@@ -80,7 +81,7 @@ export async function runBilledImageGeneration(
       console.error(`[billedImageRun] no cost estimate for ${args.modelId} at aspect ${args.aspect}`);
       throw new Error(NO_ESTIMATE_MESSAGE);
     }
-    const reservedCredits = creditsFromUsd(estimateUsd, creditSettingsAt(catalog, new Date()));
+    const reservedCredits = creditsFromUsd(estimateUsd, creditSettingsAt(catalog, new Date(generation.created_at)));
     const reservation = await reserveCredits(args.orgId, generation.id, reservedCredits);
     if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
 

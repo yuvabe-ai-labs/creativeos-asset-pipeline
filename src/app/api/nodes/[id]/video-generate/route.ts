@@ -4,7 +4,8 @@ import { tasks } from "@trigger.dev/sdk/v3";
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
 import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
-import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { currentPrice } from "@/lib/ai-models/pricing";
 import { videoEstimateUsd } from "@/lib/ai-models/video-price";
 import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
@@ -339,7 +340,7 @@ export async function POST(
     const referenceAudioUrl = presenterVoice?.referenceAudioUrl ?? undefined;
 
     // D534 — the price row this run is reserved and charged with; no row, no run.
-    const price = await priceForNewRun(modelId);
+    const price = currentPrice(catalog, modelId, new Date());
     if (!price) return apiError(NO_PRICE_MESSAGE, 409);
 
     // Insert generation record (status: 'running')
@@ -380,7 +381,7 @@ export async function POST(
         throw new Error(NO_ESTIMATE_MESSAGE);
       }
       // D548 — reserved with the credit settings live now, from the catalog read above.
-      const estimatedCredits = creditsFromUsd(estimateUsd, creditSettingsAt(catalog, new Date()));
+      const estimatedCredits = creditsFromUsd(estimateUsd, creditSettingsAt(catalog, new Date(generation.created_at)));
       const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw new CreditLimitError("Monthly credit limit reached");

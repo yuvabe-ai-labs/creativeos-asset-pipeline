@@ -13,7 +13,7 @@ vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () =
 const mocks = vi.hoisted(() => ({
   resolve: vi.fn(),
   getVoiceCached: vi.fn(),
-  insertGeneration: vi.fn(async () => ({ id: "gen-9" })),
+  insertGeneration: vi.fn(async () => ({ id: "gen-9", created_at: new Date().toISOString() })),
   failGeneration: vi.fn(async () => undefined),
   reserveCredits: vi.fn(async () => ({ ok: true })),
   refundReservation: vi.fn(async () => undefined),

@@ -74,7 +74,7 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
     // Independent, so in parallel (AGENTS.md rule 5). Nothing is started until both succeed; a
     // failure of either lands in the catch, which refunds.
     const [reservation, { uploads, maskUrl }] = await Promise.all([
-      reserveCredits(orgId, generation.id, creditsFromUsd(costUsd, creditSettingsAt(catalog, new Date()))),
+      reserveCredits(orgId, generation.id, creditsFromUsd(costUsd, creditSettingsAt(catalog, new Date(generation.created_at)))),
       prepareImageGenUploads({ nodeId, generationId: generation.id, mask }),
     ]);
     if (!reservation.ok) throw new CreditLimitError(CREDIT_LIMIT_MESSAGE);

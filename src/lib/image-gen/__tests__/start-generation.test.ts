@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 
 const m = vi.hoisted(() => ({
   hasRunningGeneration: vi.fn(async () => false),
-  insertGeneration: vi.fn(async () => ({ id: "g1" })),
+  insertGeneration: vi.fn(async () => ({ id: "g1", created_at: new Date().toISOString() })),
   failGeneration: vi.fn(async () => undefined),
   insertVersion: vi.fn(async () => ({ id: "v-failed" })),
   reserveCredits: vi.fn(async () => ({ ok: true })),

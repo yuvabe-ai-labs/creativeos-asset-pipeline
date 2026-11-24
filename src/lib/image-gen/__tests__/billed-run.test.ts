@@ -3,10 +3,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 const generate = vi.fn();
 // "seed" = the model's seeded row; "none" = no row; an object = that row.
-const priceState = vi.hoisted(() => ({ mode: "seed" as "seed" | "none" | Record<string, unknown> }));
+const priceState = vi.hoisted(() => ({
+  mode: "seed" as "seed" | "none" | Record<string, unknown>,
+  extraSettings: [] as Record<string, unknown>[],
+}));
+const MODEL = "gemini:gemini-3.1-flash-image";
 vi.mock("@/lib/ai-models/catalog", async () => {
   const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
-  return { getAiCatalog: async () => seededModelCatalog() };
+  return {
+    // The price comes from this catalog now, so the test shapes it: no row, or one given row.
+    getAiCatalog: async () => {
+      const base = seededModelCatalog();
+      const others = base.prices.filter((p) => p.modelId !== MODEL);
+      const prices = priceState.mode === "none" ? others : typeof priceState.mode === "object" ? [...others, priceState.mode as never] : base.prices;
+      return { ...base, prices, creditSettings: [...base.creditSettings, ...(priceState.extraSettings as never[])] };
+    },
+  };
 });
 vi.mock("@/lib/image-gen/adapters", () => ({
   imageAdapters: { "image:gemini-3.1-flash-image": (...a: unknown[]) => generate(...a) },
@@ -16,17 +28,9 @@ vi.mock("@/lib/db/credit-transactions", () => {
   class CreditLimitError extends Error {}
   return { reserveCredits: vi.fn(), settleGeneration: vi.fn(), refundReservation: vi.fn(), CreditLimitError };
 });
-vi.mock("@/lib/ai-models/run-price", async () => {
-  const { seededPrice } = await import("@/lib/ai-models/test-prices");
-  return {
-    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
-    priceForNewRun: async (modelId: string) => {
-      if (priceState.mode === "none") return null;
-      if (typeof priceState.mode === "object") return priceState.mode;
-      try { return seededPrice(modelId); } catch { return null; }
-    },
-  };
-});
+vi.mock("@/lib/ai-models/run-price", () => ({
+  NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+}));
 vi.mock("sharp", () => ({ default: () => ({ metadata: async () => ({ width: 768, height: 1365 }) }) }));
 
 import { runBilledImageGeneration } from "../billed-run";
@@ -45,6 +49,7 @@ const args = () => ({
 beforeEach(() => {
   vi.resetAllMocks();
   priceState.mode = "seed";
+  priceState.extraSettings = [];
   vi.mocked(failGeneration).mockResolvedValue(undefined);
   vi.mocked(refundReservation).mockResolvedValue(undefined);
   vi.mocked(insertGeneration).mockResolvedValue({ id: "g1", created_at: "2026-11-22T00:00:00Z", status: "running" } as never);
@@ -54,6 +59,19 @@ beforeEach(() => {
 });
 
 describe("runBilledImageGeneration", () => {
+  it("reserves with the settings row live when the run was recorded, not one that started after", async () => {
+    await runBilledImageGeneration(args());
+    const baseline = vi.mocked(reserveCredits).mock.calls[0][2];
+    vi.mocked(reserveCredits).mockClear();
+    // Starts after the insert (created_at 2026-11-22) and before the reservation (now).
+    priceState.extraSettings = [{
+      id: "late", effectiveFrom: "2026-11-23T00:00:00Z", marginPercent: 150, roundStep: 1, note: null,
+    }];
+    await runBilledImageGeneration(args());
+    expect(vi.mocked(reserveCredits).mock.calls[0][2]).toBe(baseline);
+    expect(vi.mocked(settleGeneration).mock.calls[1][0].actualAmount).toBeLessThanOrEqual(baseline);
+  });
+
   it("records a script-owned generation and hands the provider's bytes to the owner's store", async () => {
     const out = await runBilledImageGeneration(args());
     expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({
