@@ -7,10 +7,10 @@ import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { signLipSyncedUpload } from "@/lib/storage";
 import { durationOfParams } from "@/lib/voice-change/record";
-import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { pricingForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { lipSyncUsd } from "@/lib/ai-models/service-price";
 import { LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { LIP_SYNC_ENGINE } from "@/lib/dubbing/providers";
 import { DUBBING_NOT_SET_UP_MESSAGE } from "@/lib/dubbing/copy";
 import { readDubbingOutput, type LipSyncRecord } from "@/lib/dubbing/types";
@@ -30,11 +30,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (node.active_version_id !== versionId) return apiError("Lip sync runs on the dub you're viewing. Reopen the node and try again.", 400);
 
       // D535 - the price row this run is reserved and charged with is read beside the rest (rule 5).
-      const [version, running, locked, price] = await Promise.all([
+      const [version, running, locked, { price, catalog }] = await Promise.all([
         getVersionById(versionId),
         hasRunningGeneration(nodeId),
         editorLockResponse(nodeId, { canvasId: node.canvas_id, sessionId: editorSessionId }),
-        priceForNewRun(LIP_SYNC_MODEL_ID),
+        pricingForNewRun(LIP_SYNC_MODEL_ID),
       ]);
       if (locked) return locked; // D390
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
@@ -62,7 +62,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       });
 
       try {
-        const reservation = await reserveCredits(effectiveOrgId, generation.id, usdToFinalCredits(usd));
+        const reservation = await reserveCredits(effectiveOrgId, generation.id, creditsFromUsd(usd, creditSettingsAt(catalog, new Date())));
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
         const upload = await signLipSyncedUpload({ nodeId, generationId: generation.id });
         await tasks.trigger("video-lip-sync", {

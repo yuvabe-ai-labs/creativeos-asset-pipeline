@@ -4,10 +4,10 @@ import { tasks } from "@trigger.dev/sdk/v3";
 import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db/generations";
 import { insertVersion } from "@/lib/db/versions";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
-import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { pricingForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { NO_ESTIMATE_MESSAGE } from "@/lib/ai-models/runnable";
 import { imageEstimateUsd } from "@/lib/ai-models/image-price";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { prepareImageGenUploads } from "@/lib/storage";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import type { CallerContext } from "@/lib/dal-logic";
@@ -43,7 +43,7 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
   }
 
   // D534 — the price row this run is reserved and charged with; no row, no run.
-  const price = await priceForNewRun(modelId);
+  const { price, catalog } = await pricingForNewRun(modelId);
   if (!price) return apiError(NO_PRICE_MESSAGE, 409);
 
   const generation = await insertGeneration({
@@ -74,7 +74,7 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
     // Independent, so in parallel (AGENTS.md rule 5). Nothing is started until both succeed; a
     // failure of either lands in the catch, which refunds.
     const [reservation, { uploads, maskUrl }] = await Promise.all([
-      reserveCredits(orgId, generation.id, usdToFinalCredits(costUsd)),
+      reserveCredits(orgId, generation.id, creditsFromUsd(costUsd, creditSettingsAt(catalog, new Date()))),
       prepareImageGenUploads({ nodeId, generationId: generation.id, mask }),
     ]);
     if (!reservation.ok) throw new CreditLimitError(CREDIT_LIMIT_MESSAGE);

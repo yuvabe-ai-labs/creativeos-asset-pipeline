@@ -6,15 +6,19 @@ import { DubbingLipSyncPanel } from "../dubbing-lip-sync-panel";
 import { dubUsd, lipSyncUsd } from "@/lib/ai-models/service-price";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { DUB_MODEL_ID, LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededSettingsRow } from "@/lib/ai-models/test-catalog";
 
-const dubCredits = (s: number) => usdToFinalCredits(dubUsd(seededPrice(DUB_MODEL_ID), s)!);
-const lipSyncCredits = (s: number) => usdToFinalCredits(lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), s)!);
+const dubCredits = (s: number) => creditsFromUsd(dubUsd(seededPrice(DUB_MODEL_ID), s)!, seededSettingsRow());
+const lipSyncCredits = (s: number) => creditsFromUsd(lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), s)!, seededSettingsRow());
 // D535 - the panels price from the price row; this stands in for the catalog read.
 const priceState = vi.hoisted(() => ({ loading: false, missing: false, error: false }));
 vi.mock("@/hooks/queries/ai-models", async () => {
   const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  const { seededSettingsRow } = await import("@/lib/ai-models/test-catalog");
   return {
+    // D548 - the live credit settings row comes from the same catalog read.
+    useCreditSettings: () => (priceState.loading || priceState.error ? null : seededSettingsRow()),
     useModelPrice: (modelId: string) => ({
       price: priceState.loading || priceState.missing || priceState.error ? null : seededPrice(modelId),
       loading: priceState.loading,

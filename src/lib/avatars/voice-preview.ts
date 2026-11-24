@@ -1,8 +1,8 @@
 import type { GenerationRow } from "@/lib/db/types";
 import { videoSecondsUsd } from "@/lib/ai-models/video-price";
-import type { AiModelPrice } from "@/lib/ai-models/types";
+import type { AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
 import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
 import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 import {
   AVATAR_VOICE_PREVIEW_ASPECT, AVATAR_VOICE_PREVIEW_RESOLUTION, AVATAR_VOICE_PREVIEW_SECONDS,
@@ -135,11 +135,12 @@ export function estimateVoicePreviewCredits(
   voiceChangePrice: AiModelPrice | null,
   mode: VoicePreviewMode,
   engine: VoicePreviewEngine,
-  priceMultiplier = 1,
+  priceMultiplier: number,
+  settings: CreditSettings | null,
 ): number | null {
   const spec = VOICE_PREVIEW_ENGINE[engine];
   const usd = voicePreviewCostUsd(price, voiceChangePrice, mode, engine, spec.seconds, spec.resolution, priceMultiplier);
-  return usd === null ? null : usdToFinalCredits(usd);
+  return usd === null || !settings ? null : creditsFromUsd(usd, settings);
 }
 
 /** Why this avatar cannot have a preview made, or null when it can. */

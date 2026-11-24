@@ -3,12 +3,12 @@ import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { isTokenUsage, readVideoUsage, type VideoProviderUsage } from "@/lib/video-gen/provider-usage";
-import { priceForGeneration, priceForNewRun } from "@/lib/ai-models/run-price";
+import { pricingForGeneration, pricingForNewRun } from "@/lib/ai-models/run-price";
 import { voiceChangeCharge } from "@/lib/ai-models/service-price";
 import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { videoChargeUsd } from "@/lib/ai-models/video-price";
 import { settleGeneration, refundReservation, getReservationAmounts } from "@/lib/db/credit-transactions";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
@@ -87,7 +87,7 @@ async function completeImageGeneration(
   });
 
   // D534 — priced with the row this run was reserved with: billed images (Seedream) or tokens.
-  const price = await priceForGeneration(generation);
+  const { price, catalog } = await pricingForGeneration(generation);
   const charge = price
     ? imageChargeUsd(price, { tokens: input.tokensUsed ?? null, billedImages: input.billedImages ?? null })
     : null;
@@ -101,9 +101,10 @@ async function completeImageGeneration(
     !!charge && charge.unpriced.length > 0 && charge.usd === 0 && Object.values(charge.meters).some((q) => (q ?? 0) > 0);
   const cost = charge && !nothingPriced ? { usd: charge.usd } : null;
   // A paid image with a missing price settles at what was reserved. A provider that reported
-  // neither tokens nor billed images still settles at 0 (unchanged).
+  // neither tokens nor billed images still settles at 0 (unchanged). D548 — with the credit
+  // settings live when the run started.
   const actualCredits = cost
-    ? usdToFinalCredits(cost.usd)
+    ? creditsFromUsd(cost.usd, creditSettingsAt(catalog, new Date(generation.created_at)))
     : price && !nothingPriced
       ? 0
       : await reservedAmountForUnpriced(input.generationId, generation, "image");
@@ -367,7 +368,15 @@ export async function completeGeneration(
   // D528/D534 — the provider's reported usage when it sent one, else the seconds, both priced
   // with the row this run was reserved with. A voice change is ElevenLabs' work, priced by its voice.
   const usage = voiceChange ? null : readVideoUsage(input.usage);
-  const price = voiceChange ? null : await priceForGeneration(generation);
+  // D535 — the generation records the VIDEO's model, so a voice change's row is found by the
+  // ElevenLabs id; an older voice job (no recorded row) uses the row valid when it started.
+  // One catalog read either way; D548 takes the credit settings from it too.
+  const { price: rowPrice, catalog } = voiceChange
+    ? generation.model_price_id
+      ? await pricingForGeneration({ ...generation, model_used: VOICE_CHANGE_PRICE_MODEL_ID })
+      : await pricingForNewRun(VOICE_CHANGE_PRICE_MODEL_ID, new Date(generation.created_at))
+    : await pricingForGeneration(generation);
+  const price = voiceChange ? null : rowPrice;
   const charge = price
     ? videoChargeUsd(price, { usage, durationSeconds: input.durationSeconds, audioEnabled, resolution })
     : null;
@@ -379,14 +388,9 @@ export async function completeGeneration(
   // D535 — a voice change is charged by the credits ElevenLabs reported (the last attempt's only:
   // an earlier paid attempt that failed later is not counted), else by seconds x the voice's
   // multiplier. The reported credits already reflect the voice's real charge, so the multiplier
-  // applies to the fallback alone. The generation records the VIDEO's model, so its row is found by
-  // the ElevenLabs id; an older voice job (no recorded row) uses the row valid when it started.
+  // applies to the fallback alone.
   const reported = Number((input.meta?.voiceChange as { characterCost?: unknown } | undefined)?.characterCost);
-  const voicePrice = voiceChange
-    ? generation.model_price_id
-      ? await priceForGeneration({ ...generation, model_used: VOICE_CHANGE_PRICE_MODEL_ID })
-      : await priceForNewRun(VOICE_CHANGE_PRICE_MODEL_ID, new Date(generation.created_at))
-    : null;
+  const voicePrice = voiceChange ? rowPrice : null;
   const voiceCharge = voiceChange && voicePrice
     ? voiceChangeCharge(voicePrice, {
         characterCost: Number.isFinite(reported) && reported > 0 ? reported : null,
@@ -401,8 +405,9 @@ export async function completeGeneration(
       : null;
   // D534 — a finished video is never charged 0 because its price is missing: the provider has
   // billed us and the video is kept, so settle at what was reserved and record no dollar cost.
+  // D548 — with the credit settings live when the run started.
   const actualCredits = cost
-    ? usdToFinalCredits(cost.usd)
+    ? creditsFromUsd(cost.usd, creditSettingsAt(catalog, new Date(generation.created_at)))
     : await reservedAmountForUnpriced(input.generationId, generation, voiceChange ? "voice" : "video");
 
   await settleGeneration({

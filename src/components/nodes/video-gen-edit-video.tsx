@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
-import { useModelPrice, useVideoModels } from "@/hooks/queries/ai-models";
+import { useCreditSettings, useModelPrice, useVideoModels } from "@/hooks/queries/ai-models";
 import { durationOfParams } from "@/lib/voice-change/record";
 import { mentionedImageIds } from "@/lib/video-edit/prompt";
 import {
@@ -86,7 +86,8 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
 
   const duration = durationOfParams(source?.paramsUsed ?? {});
   const { price, loading: priceLoading } = useModelPrice(modelId);
-  const credits = duration > 0 ? videoEditEstimateCredits(price, duration, resolution, selectedIds.length) : null;
+  const creditSettings = useCreditSettings();
+  const credits = duration > 0 ? videoEditEstimateCredits(price, duration, resolution, selectedIds.length, creditSettings) : null;
   const gate = videoEditGate(videos, {
     sourceId,
     instruction: draft,

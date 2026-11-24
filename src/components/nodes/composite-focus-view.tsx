@@ -9,11 +9,11 @@ import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
 import { imageEstimateUsd } from "@/lib/ai-models/image-price";
-import { useImageModels, useModelPrice } from "@/hooks/queries/ai-models";
+import { useCreditSettings, useImageModels, useModelPrice } from "@/hooks/queries/ai-models";
 import { paramDefaults } from "@/lib/ai-models/model-lists";
 import { RetiredModelNotice } from "@/components/models/retired-model-notice";
 import { validateReferenceImages } from "@/lib/image-gen/validate";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
 import {
   COMPOSITE_ASPECT_RATIOS,
   COMPOSITE_MODEL_HINTS,
@@ -124,6 +124,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
       })
     : null;
   const actionUsd = editing ? editUsd : costUsd;
+  const settings = useCreditSettings();
   // The Composite runs Edit from the same button, so its reasons follow the mode it is in.
   const compositeBlocker = imageGenerateBlocker({
     editing: false,
@@ -235,7 +236,7 @@ export function CompositeFocusView({ open, onOpenChange, nodeId, title, imageUrl
                     }
                     disabled={imageGenerateDisabled(compositeBlocker, generating || viewing.isViewingOther, priceLoading)}
                     disabledReason={compositeBlocker}
-                    credits={actionUsd === null ? null : usdToFinalCredits(actionUsd)}
+                    credits={actionUsd === null || !settings ? null : creditsFromUsd(actionUsd, settings)}
                     estimating={priceLoading}
                   />
                 </div>

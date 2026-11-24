@@ -53,6 +53,24 @@ export function withModel(catalog: AiCatalog, id: string, patch: Partial<AiModel
   return { ...catalog, models: catalog.models.map((m) => (m.id === id ? { ...m, ...patch } : m)) };
 }
 
+/** The seeded credit settings row (0086: margin 0, step 5), for tests that work out credits. */
+export function seededSettingsRow(): CreditSettings {
+  const row = seededModelCatalog().creditSettings[0];
+  if (!row) throw new Error("0086 credit settings row not found");
+  return row;
+}
+
+/** D548 — the catalog with its credit settings rows replaced. The original is untouched. */
+export function withCreditSettings(
+  catalog: AiCatalog,
+  rows: Array<Pick<CreditSettings, "effectiveFrom" | "marginPercent" | "roundStep">>,
+): AiCatalog {
+  return {
+    ...catalog,
+    creditSettings: rows.map((r) => ({ id: `credit-settings@${r.effectiveFrom}`, note: null, ...r })),
+  };
+}
+
 /** An adapter map with `adapter` under every non-retired seeded row of this kind. */
 export function stubAdapters<A>(kind: AiModelKind, adapter: A): Record<string, A> {
   return Object.fromEntries(

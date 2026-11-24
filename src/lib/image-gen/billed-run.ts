@@ -8,7 +8,7 @@ import {
 import { imageRun } from "@/lib/image-gen/image-run";
 import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { imageChargeUsd } from "@/lib/ai-models/image-price";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import {
   reserveCredits, settleGeneration, refundReservation, CreditLimitError,
@@ -80,7 +80,7 @@ export async function runBilledImageGeneration(
       console.error(`[billedImageRun] no cost estimate for ${args.modelId} at aspect ${args.aspect}`);
       throw new Error(NO_ESTIMATE_MESSAGE);
     }
-    const reservedCredits = usdToFinalCredits(estimateUsd);
+    const reservedCredits = creditsFromUsd(estimateUsd, creditSettingsAt(catalog, new Date()));
     const reservation = await reserveCredits(args.orgId, generation.id, reservedCredits);
     if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
 
@@ -112,7 +112,8 @@ export async function runBilledImageGeneration(
     const nothingPriced =
       !!charge && charge.unpriced.length > 0 && charge.usd === 0 && Object.values(charge.meters).some((q) => (q ?? 0) > 0);
     const cost = charge && !nothingPriced ? { usd: charge.usd } : null;
-    const creditsCharged = cost ? usdToFinalCredits(cost.usd) : nothingPriced ? reservedCredits : 0;
+    // D548 - settled with the credit settings live when the run started.
+    const creditsCharged = cost ? creditsFromUsd(cost.usd, creditSettingsAt(catalog, new Date(generation.created_at))) : nothingPriced ? reservedCredits : 0;
     const meta = { ...(args.userEmail ? { email: args.userEmail } : {}), width, height, sizeBytes: bytes.length };
 
     await settleGeneration({ orgId: args.orgId, generationId: generation.id, actualAmount: creditsCharged });

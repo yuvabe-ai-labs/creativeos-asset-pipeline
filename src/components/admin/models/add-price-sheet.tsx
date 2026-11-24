@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { addAiModelPriceAction } from "@/lib/actions/ai-models";
 import { priceConditionProblems } from "@/lib/ai-models/model-edit";
+import { useCreditSettings } from "@/hooks/queries/ai-models";
 import type { AiModel, AiModelPrice } from "@/lib/ai-models/types";
 import { allowanceOptions, allowanceWarning, draftFromCurrent, draftLines, draftToPayload, localDay, minStartDay, previewText, type PriceDraft } from "./price-draft";
 import { AddChip } from "./add-chip";
@@ -47,6 +48,7 @@ export function AddPriceForm({
   const set = (patch: Partial<PriceDraft>) => onChange({ ...draft, ...patch });
   const lines = draftLines(draft);
   const problems = lines ? priceConditionProblems(model, lines) : [];
+  const settings = useCreditSettings();
   return (
     <div className="flex flex-col gap-5">
       <Field label="Starts" htmlFor="price-date">
@@ -87,7 +89,7 @@ export function AddPriceForm({
         <Textarea id="price-note" value={draft.note} onChange={(e) => set({ note: e.target.value })} />
       </Field>
       <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3">
-        <p className="text-sm font-medium">{previewText(model, draft, current)}</p>
+        <p className="text-sm font-medium">{previewText(model, draft, current, settings)}</p>
         {problems.length > 0 && (
           <ul className="list-disc pl-5 text-xs text-warning-text">
             {problems.map((p) => (

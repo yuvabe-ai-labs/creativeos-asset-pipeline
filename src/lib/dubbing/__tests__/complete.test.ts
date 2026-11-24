@@ -4,11 +4,14 @@ import { completeDubGeneration, completeLipSyncGeneration, type CompleteDeps } f
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { dubUsd, lipSyncUsd } from "@/lib/ai-models/service-price";
 import { DUB_MODEL_ID, LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededModelCatalog, seededSettingsRow } from "@/lib/ai-models/test-catalog";
+
+const seededCredits = (usd: number) => creditsFromUsd(usd, seededSettingsRow());
 
 const OWN = (p: string) => `https://storage.googleapis.com/bucket/${p}`;
 const DUB = { sourceNodeId: "vg", sourceVersionId: "sv", sourceUrl: OWN("src.mp4"), srcLang: "en-IN", targetLang: "hi-IN", durationSeconds: 8, provider: "sarvam", model: "sarvam-dub" };
-const gen = (over: Record<string, unknown> = {}) => ({ id: "g1", org_id: "org", user_id: "u", node_id: "n1", type: "dub", model_used: "sarvam:dub", inputs_snapshot: { dub: DUB }, params_snapshot: {}, status: "running", ...over }) as never;
+const gen = (over: Record<string, unknown> = {}) => ({ id: "g1", org_id: "org", user_id: "u", node_id: "n1", type: "dub", model_used: "sarvam:dub", inputs_snapshot: { dub: DUB }, params_snapshot: {}, status: "running", created_at: "2026-11-22T00:00:00Z", ...over }) as never;
 
 let deps: CompleteDeps;
 beforeEach(() => {
@@ -21,7 +24,7 @@ beforeEach(() => {
     succeedGeneration: vi.fn(async () => undefined),
     failAndRefund: vi.fn(async () => undefined),
     isOwnStoredUrl: (u: string) => u.startsWith("https://storage.googleapis.com/bucket/"),
-    priceFor: vi.fn(async (g: { model_used: string | null }) => (g.model_used ? seededPrice(g.model_used) : null)),
+    pricingFor: vi.fn(async (g: { model_used: string | null }) => ({ price: g.model_used ? seededPrice(g.model_used) : null, catalog: seededModelCatalog() })),
     reservedFor: vi.fn(async () => 77),
     now: () => "2026-10-15T00:00:00.000Z",
   } as unknown as CompleteDeps;
@@ -37,13 +40,13 @@ describe("completeDubGeneration", () => {
       paramsUsed: { durationSeconds: 8 },
     }));
     const usd = dubUsd(seededPrice(DUB_MODEL_ID), 8)!;
-    expect(deps.settleGeneration).toHaveBeenCalledWith({ orgId: "org", generationId: "g1", actualAmount: usdToFinalCredits(usd) });
+    expect(deps.settleGeneration).toHaveBeenCalledWith({ orgId: "org", generationId: "g1", actualAmount: seededCredits(usd) });
     expect(deps.setActiveVersion).toHaveBeenCalledWith("n1", "ver-1");
-    expect(deps.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ versionId: "ver-1", creditsCharged: usdToFinalCredits(usd), costUsd: usd, providerBill: { source: "request", meters: { audio_second: 8 } } }));
+    expect(deps.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ versionId: "ver-1", creditsCharged: seededCredits(usd), costUsd: usd, providerBill: { source: "request", meters: { audio_second: 8 } } }));
   });
 
   it("settles a delivered dub at the reserved amount when its price is missing", async () => {
-    (deps.priceFor as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    (deps.pricingFor as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ price: null, catalog: seededModelCatalog() });
     await completeDubGeneration("n1", gen(), { generationId: "g1", status: "succeeded", kind: "dub", stored: true, dubbedUrl: OWN("d.mp4"), dubbedAudioUrl: OWN("d.mp3"), durationSeconds: 8, vendorJobId: "dub_1" }, deps);
     expect(deps.reservedFor).toHaveBeenCalledWith("g1", expect.anything(), "dub");
     expect(deps.settleGeneration).toHaveBeenCalledWith({ orgId: "org", generationId: "g1", actualAmount: 77 });
@@ -74,12 +77,12 @@ describe("completeLipSyncGeneration", () => {
       { dub: DUB, lipSync: { versionId: "ver-1", provider: "fal", model: "lipsync-2-pro", runs: 2, lastRanAt: "2026-10-15T00:00:00.000Z", vendorRequestId: "r9" } },
     );
     expect(deps.insertVersion).not.toHaveBeenCalled();
-    expect(deps.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ versionId: "ver-1", creditsCharged: usdToFinalCredits(lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), 8)!), costUsd: lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), 8), providerBill: { source: "request", meters: { video_second: 8 } } }));
+    expect(deps.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ versionId: "ver-1", creditsCharged: seededCredits(lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), 8)!), costUsd: lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), 8), providerBill: { source: "request", meters: { video_second: 8 } } }));
   });
 
   it("settles a delivered lip sync at the reserved amount when its price is missing", async () => {
     (deps.getVersionById as ReturnType<typeof vi.fn>).mockResolvedValue(VERSION);
-    (deps.priceFor as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    (deps.pricingFor as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ price: null, catalog: seededModelCatalog() });
     await completeLipSyncGeneration("n1", lgen, { generationId: "g1", status: "succeeded", kind: "lipsync", stored: true, videoUrl: OWN("new.mp4"), durationSeconds: 8, vendorRequestId: "r9" }, deps);
     expect(deps.reservedFor).toHaveBeenCalledWith("g1", expect.anything(), "lipsync");
     expect(deps.settleGeneration).toHaveBeenCalledWith({ orgId: "org", generationId: "g1", actualAmount: 77 });

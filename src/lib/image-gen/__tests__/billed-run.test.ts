@@ -47,7 +47,7 @@ beforeEach(() => {
   priceState.mode = "seed";
   vi.mocked(failGeneration).mockResolvedValue(undefined);
   vi.mocked(refundReservation).mockResolvedValue(undefined);
-  vi.mocked(insertGeneration).mockResolvedValue({ id: "g1", created_at: "x", status: "running" } as never);
+  vi.mocked(insertGeneration).mockResolvedValue({ id: "g1", created_at: "2026-11-22T00:00:00Z", status: "running" } as never);
   vi.mocked(reserveCredits).mockResolvedValue({ ok: true });
   store.mockResolvedValue({ url: "https://storage.googleapis.com/b/panel.png" });
   generate.mockResolvedValue({ imageBase64: BYTES.toString("base64"), mimeType: "image/png", tokensUsed: { text_input_tokens: 180, image_input_tokens: 0, image_output_tokens: 1120, total_tokens: 1300 } });

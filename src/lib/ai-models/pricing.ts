@@ -35,7 +35,7 @@ export function priceMeters(
 }
 
 /** D530 — the price row a run starting at `at` uses: the latest one at or before it. */
-export function currentPrice(catalog: AiCatalog, modelId: string, at: Date): AiModelPrice | null {
+export function currentPrice(catalog: Pick<AiCatalog, "prices">, modelId: string, at: Date): AiModelPrice | null {
   let best: AiModelPrice | null = null;
   for (const p of catalog.prices) {
     if (p.modelId !== modelId || new Date(p.effectiveFrom) > at) continue;
@@ -44,6 +44,6 @@ export function currentPrice(catalog: AiCatalog, modelId: string, at: Date): AiM
   return best;
 }
 
-export function priceById(catalog: AiCatalog, id: string): AiModelPrice | null {
+export function priceById(catalog: Pick<AiCatalog, "prices">, id: string): AiModelPrice | null {
   return catalog.prices.find((p) => p.id === id) ?? null;
 }

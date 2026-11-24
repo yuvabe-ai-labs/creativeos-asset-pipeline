@@ -14,7 +14,8 @@ const m = vi.hoisted(() => ({
   failGeneration: vi.fn(async () => undefined),
   settleGeneration: vi.fn(async () => undefined),
   refundReservation: vi.fn(async () => undefined),
-  priceForGeneration: vi.fn(async () => null),
+  // No price: settled at the reserved amount, so the catalog is never read for settings.
+  pricingForGeneration: vi.fn(async () => ({ price: null, catalog: { models: [], prices: [], creditSettings: [] } })),
   reservedAmountForUnpriced: vi.fn(async () => 25),
 }));
 
@@ -34,7 +35,7 @@ vi.mock("@/lib/db/generations", () => ({
   failGeneration: m.failGeneration,
 }));
 vi.mock("@/lib/db/credit-transactions", () => ({ settleGeneration: m.settleGeneration, refundReservation: m.refundReservation }));
-vi.mock("@/lib/ai-models/run-price", () => ({ priceForGeneration: m.priceForGeneration }));
+vi.mock("@/lib/ai-models/run-price", () => ({ pricingForGeneration: m.pricingForGeneration }));
 vi.mock("@/lib/generations/complete", () => ({ reservedAmountForUnpriced: m.reservedAmountForUnpriced }));
 
 import { editorTranscribeTask } from "../../../../trigger/editor-transcribe";

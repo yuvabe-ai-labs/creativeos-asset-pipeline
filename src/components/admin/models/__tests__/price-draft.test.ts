@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import { seededModelCatalog, seededSettingsRow } from "@/lib/ai-models/test-catalog";
 import { runPreviewUsd } from "@/lib/ai-models/model-edit";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
 import {
   allowanceOptions,
   allowanceWarning,
@@ -159,25 +159,35 @@ describe("draftToPayload", () => {
   });
 });
 
+const S = seededSettingsRow();
+
 describe("previewText", () => {
   it("prices a default run on the draft and on the current price", () => {
     const d = draftFromCurrent(current, now);
-    const was = usdToFinalCredits(runPreviewUsd(model, current)!);
+    const was = creditsFromUsd(runPreviewUsd(model, current)!, S);
     const doubled = { ...d, lines: d.lines.map((l) => (l.meter === "output_image" ? { ...l, unit: "0.268" } : l)) };
     const draftPrice = { ...current, lines: current.lines.map((l) => (l.meter === "output_image" ? { ...l, unit_usd: 0.268 } : l)) };
-    const n = usdToFinalCredits(runPreviewUsd(model, draftPrice)!);
-    expect(previewText(model, doubled, current)).toBe(`A default run: ${n} credits (was ${was})`);
-    expect(previewText(model, d, null)).toBe(`A default run: ${was} credits`);
+    const n = creditsFromUsd(runPreviewUsd(model, draftPrice)!, S);
+    expect(previewText(model, doubled, current, S)).toBe(`A default run: ${n} credits (was ${was})`);
+    expect(previewText(model, d, null, S)).toBe(`A default run: ${was} credits`);
   });
 
   it("has no preview for a text model", () => {
-    expect(previewText(textModel, draftFromCurrent(null, now), null)).toBe("No run preview for this kind of model.");
+    expect(previewText(textModel, draftFromCurrent(null, now), null, S)).toBe("No run preview for this kind of model.");
   });
 
   it("asks for every price while a line is empty, and says when no line prices a default run", () => {
-    expect(previewText(model, draftFromCurrent(null, now), current)).toBe("Fill in every price to see a default run.");
+    expect(previewText(model, draftFromCurrent(null, now), current, S)).toBe("Fill in every price to see a default run.");
     const d = { ...draftFromCurrent(null, now), lines: [{ meter: "request" as const, unit: "1", when: [] }] };
-    expect(previewText(model, d, current)).toBe("No line prices a run at the default settings.");
+    expect(previewText(model, d, current, S)).toBe("No line prices a run at the default settings.");
+  });
+
+  it("works the credits out with the settings it is given (D548)", () => {
+    const d = draftFromCurrent(current, now);
+    const usd = runPreviewUsd(model, current)!;
+    const live = { ...S, marginPercent: 10, roundStep: 1 as const };
+    expect(previewText(model, d, null, live)).toBe(`A default run: ${creditsFromUsd(usd, live)} credits`);
+    expect(previewText(model, d, null, null)).toBe("Loading the credit settings…");
   });
 });
 

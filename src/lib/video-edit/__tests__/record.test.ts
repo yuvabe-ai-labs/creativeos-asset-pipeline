@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { videoSecondsUsd, videoEstimateUsd } from "@/lib/ai-models/video-price";
 import { seededPrice } from "@/lib/ai-models/test-prices";
-import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
+import { seededModelCatalog, seededSettingsRow, withModel } from "@/lib/ai-models/test-catalog";
 import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { videoEditTooLongMessage } from "../record";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
 import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID } from "@/lib/ai-models/model-ids";
 import {
   plainVideoEditFailure, VIDEO_EDIT_FAILED_MESSAGE, VIDEO_EDIT_REFUSED_MESSAGE, VIDEO_EDIT_DEFAULT_MODEL_ID,
@@ -32,23 +32,25 @@ describe("readVideoEdit", () => {
   });
 });
 
+const S = seededSettingsRow();
+
 describe("videoEditEstimateCredits", () => {
   it("prices the take at the chosen model's rate for the resolution, plus the take sent as input (D528)", () => {
     for (const m of [GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_11_MODEL_ID] as const) {
       const usd = videoEstimateUsd(seededPrice(m), { durationSeconds: 6, audioEnabled: true, resolution: "720p", images: 0, editInputSeconds: 6 })!;
       expect(usd).toBeGreaterThan(videoSecondsUsd(seededPrice(m), 6, true, "720p")!);
-      expect(videoEditEstimateCredits(seededPrice(m), 6, "720p")).toBe(usdToFinalCredits(usd));
-      expect(videoEditEstimateCredits(seededPrice(m), 6, "4k")).toBeGreaterThan(videoEditEstimateCredits(seededPrice(m), 6, "720p")!);
+      expect(videoEditEstimateCredits(seededPrice(m), 6, "720p", 0, S)).toBe(creditsFromUsd(usd, S));
+      expect(videoEditEstimateCredits(seededPrice(m), 6, "4k", 0, S)).toBeGreaterThan(videoEditEstimateCredits(seededPrice(m), 6, "720p", 0, S)!);
     }
   });
 
   it("counts reference images as input", () => {
-    expect(videoEditEstimateCredits(seededPrice(GEMINI_OMNI_12_MODEL_ID), 6, "720p", 3))
-      .toBeGreaterThan(videoEditEstimateCredits(seededPrice(GEMINI_OMNI_12_MODEL_ID), 6, "720p")!);
+    expect(videoEditEstimateCredits(seededPrice(GEMINI_OMNI_12_MODEL_ID), 6, "720p", 3, S))
+      .toBeGreaterThan(videoEditEstimateCredits(seededPrice(GEMINI_OMNI_12_MODEL_ID), 6, "720p", 0, S)!);
   });
 
   it("is null before a price is known", () => {
-    expect(videoEditEstimateCredits(null, 6, "720p")).toBeNull();
+    expect(videoEditEstimateCredits(null, 6, "720p", 0, S)).toBeNull();
   });
 });
 

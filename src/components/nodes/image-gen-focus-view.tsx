@@ -120,9 +120,9 @@ import { groupByTimecode } from "@/lib/review-annotations/group";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { RegionBounds } from "@/lib/review-annotations/draft";
 import { MAX_ANNOTATIONS_PER_DECISION } from "@/lib/review-annotations/constants";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
 import { imageEstimateUsd } from "@/lib/ai-models/image-price";
-import { useModelPrice } from "@/hooks/queries/ai-models";
+import { useCreditSettings, useModelPrice } from "@/hooks/queries/ai-models";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
 import { ShotAssetsRail } from "./shot-assets-rail";
@@ -460,11 +460,12 @@ export function ImageGenFocusView({
   // own action button, out of scope per this plan) and once there's a prompt to estimate from.
   // D534 — priced from the model's row in the session's catalog.
   const { price: modelPrice, loading: priceLoading } = useModelPrice(model.id);
+  const settings = useCreditSettings();
   const modelPriceId = modelPrice?.id ?? null;
   const hasPromptUpstream = Boolean(promptUpstream);
   const paramValuesKey = JSON.stringify(paramValues);
   const estimatedCredits = useMemo(() => {
-    if (!open || activeTab === "edit" || !promptUpstream || !fetchedPrompt?.text || !modelPrice) return null;
+    if (!open || activeTab === "edit" || !promptUpstream || !fetchedPrompt?.text || !modelPrice || !settings) return null;
     const costUsd = imageEstimateUsd(modelPrice, {
       modelId: model.id,
       quality: paramValues.quality as string | undefined,
@@ -472,7 +473,7 @@ export function ImageGenFocusView({
       imageSize: paramValues.image_size as string | undefined,
       referenceCount: connectedImageUrls.length,
     });
-    return costUsd === null ? null : usdToFinalCredits(costUsd);
+    return costUsd === null ? null : creditsFromUsd(costUsd, settings);
     // paramValues/connectedImageUrls omitted on purpose — each is a new object/array
     // reference on renders that don't actually change its contents; stable JSON-stringified/
     // primitive stand-ins (hasPromptUpstream, paramValuesKey, connectedImageUrlsKey) avoid
@@ -489,6 +490,7 @@ export function ImageGenFocusView({
     connectedImageUrlsKey,
     fetchedPrompt?.text,
     modelPriceId,
+    settings,
   ]);
   // The connected prompt node's output (fetched by the separate effect above) hasn't loaded
   // yet — the Generate button stays disabled/spinning for that, independent of the now-
@@ -595,7 +597,7 @@ export function ImageGenFocusView({
   // post-max-count/dedup list the real route actually reserves against — an existing,
   // accepted gap between estimate and reservation, kept consistent rather than special-cased.
   const editEstimatedCredits = useMemo(() => {
-    if (!open || activeTab !== "edit" || !canEditBase || !finalPrompt.trim() || !modelPrice) return null;
+    if (!open || activeTab !== "edit" || !canEditBase || !finalPrompt.trim() || !modelPrice || !settings) return null;
     const referenceUrls = [editBaseUrl, ...selectedExtraUrls].filter(
       (u): u is string => Boolean(u),
     );
@@ -606,7 +608,7 @@ export function ImageGenFocusView({
       imageSize: paramValues.image_size as string | undefined,
       referenceCount: referenceUrls.length,
     });
-    return costUsd === null ? null : usdToFinalCredits(costUsd);
+    return costUsd === null ? null : creditsFromUsd(costUsd, settings);
     // paramValuesKey stands in for paramValues (an object), same reason as the Generate
     // estimate above — a stable primitive avoids recomputing on renders that don't actually
     // change its contents, and react-hooks/use-memo requires a simple dependency expression.
@@ -621,6 +623,7 @@ export function ImageGenFocusView({
     finalPrompt,
     editReferenceUrlsKey,
     modelPriceId,
+    settings,
   ]);
   // D534 — the only thing the Edit estimate waits for is the price.
   const editEstimating = priceLoading;

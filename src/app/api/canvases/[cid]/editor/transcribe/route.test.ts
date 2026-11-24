@@ -13,15 +13,7 @@ vi.mock("@/lib/supabase/server", () => ({
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: "cv1", client_id: "cl1", clients: { org_id: "org-1" } }, error: null }) }) }) }),
   }),
 }));
-vi.mock("@/lib/ai-models/run-price", async () => {
-  const { seededPrice } = await import("@/lib/ai-models/test-prices");
-  return {
-    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
-    priceForNewRun: vi.fn(async (modelId: string) => {
-      try { return seededPrice(modelId); } catch { return null; }
-    }),
-  };
-});
+vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock());
 vi.mock("@/lib/editor/load-state", () => ({ loadEditorState: vi.fn() }));
 vi.mock("@/lib/editor/transcribe-plan", () => ({ planTranscription: vi.fn(), playableSoundUrls: vi.fn(() => ["https://s/a.mp4", "https://s/b.mp4"]) }));
 vi.mock("@/lib/db/media-transcripts", () => ({ listTranscribedUrls: vi.fn(), listTranscripts: vi.fn() }));
@@ -38,7 +30,8 @@ import { priceForNewRun } from "@/lib/ai-models/run-price";
 import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { transcribeFilesEstimateUsd } from "@/lib/ai-models/service-price";
 import { seededPrice } from "@/lib/ai-models/test-prices";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededSettingsRow } from "@/lib/ai-models/test-catalog";
 import { runs, tasks } from "@trigger.dev/sdk";
 import { refundReservation, reserveCredits } from "@/lib/db/credit-transactions";
 import { insertGeneration } from "@/lib/db/generations";
@@ -95,7 +88,7 @@ describe("POST /api/canvases/[cid]/editor/transcribe", () => {
     await post({ nodeId: NODE });
     const row = seededPrice(TRANSCRIBE_MODEL_ID);
     expect(vi.mocked(insertGeneration).mock.calls[0][0]).toMatchObject({ modelPriceId: row.id });
-    expect(reserveCredits).toHaveBeenCalledWith("org-1", "gen1", usdToFinalCredits(transcribeFilesEstimateUsd(row, [8, 9])!));
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "gen1", creditsFromUsd(transcribeFilesEstimateUsd(row, [8, 9])!, seededSettingsRow()));
   });
 
   it("reserves each file's credits rounded up on its own, as ElevenLabs bills them", async () => {

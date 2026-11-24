@@ -3,18 +3,11 @@ import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
 import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededSettingsRow } from "@/lib/ai-models/test-catalog";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/ai-models/run-price", async () => {
-  const { seededPrice } = await import("@/lib/ai-models/test-prices");
-  return {
-    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
-    priceForNewRun: vi.fn(async (modelId: string) => {
-      try { return seededPrice(modelId); } catch { return null; }
-    }),
-  };
-});
+vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock());
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
 vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 const mocks = vi.hoisted(() => ({
@@ -69,7 +62,7 @@ describe("POST /api/nodes/[id]/voice-change", () => {
         },
       },
     }));
-    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-9", usdToFinalCredits(voiceChangeEstimateUsd(seededPrice(VOICE_CHANGE_PRICE_MODEL_ID), 8, 2)!));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-9", creditsFromUsd(voiceChangeEstimateUsd(seededPrice(VOICE_CHANGE_PRICE_MODEL_ID), 8, 2)!, seededSettingsRow()));
     expect(mocks.trigger).toHaveBeenCalledWith("video-voice-change", {
       generationId: "gen-9", sourceUrl: "https://storage.googleapis.com/b/v2.mp4", voiceId: "a1",
       settings: DEFAULT_VOICE_CHANGE_SETTINGS, revoicedPutUrl: "https://put/r",

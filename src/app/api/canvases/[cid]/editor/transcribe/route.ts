@@ -1,10 +1,10 @@
 import { tasks } from "@trigger.dev/sdk";
 import * as z from "zod";
 import { apiError, apiOk, withCanvas, withTryCatch } from "@/lib/api/route-helpers";
-import { NO_PRICE_MESSAGE, priceForNewRun } from "@/lib/ai-models/run-price";
+import { NO_PRICE_MESSAGE, pricingForNewRun } from "@/lib/ai-models/run-price";
 import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { transcribeFilesEstimateUsd } from "@/lib/ai-models/service-price";
-import { CREDIT_LIMIT_TOAST_MESSAGE, usdToFinalCredits } from "@/lib/credits/units";
+import { CREDIT_LIMIT_TOAST_MESSAGE, creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { CreditLimitError, refundReservation, reserveCredits } from "@/lib/db/credit-transactions";
 import { failGeneration, insertGeneration } from "@/lib/db/generations";
@@ -33,7 +33,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       if (!process.env.ELEVEN_LABS_API_KEY) return apiError("Captions aren't set up yet.", 400);
 
       // D535 - the row prices the run: its estimate is the reservation, and the run records it.
-      const [state, orgId, caller, price] = await Promise.all([loadEditorState(canvasId), resolveOrgId(), resolveCallerContext(), priceForNewRun(TRANSCRIBE_MODEL_ID)]);
+      const [state, orgId, caller, { price, catalog }] = await Promise.all([loadEditorState(canvasId), resolveOrgId(), resolveCallerContext(), pricingForNewRun(TRANSCRIBE_MODEL_ID)]);
       if (!state || state.editorNodeId !== nodeId) return apiError("Editor not found.", 404);
 
       const { files, noSound } = planTranscription(state.doc, state.sources, pieceIds);
@@ -67,7 +67,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       const insert = () => insertJob({ orgId, clientId, kind: "editor-transcribe", input, lockKey: `editor-transcribe:${nodeId}`, phaseMessage: "Listening…" });
       let jobId: string;
       try {
-        const reservation = await reserveCredits(orgId, generation.id, usdToFinalCredits(usd));
+        const reservation = await reserveCredits(orgId, generation.id, creditsFromUsd(usd, creditSettingsAt(catalog, new Date())));
         if (!reservation.ok) throw new CreditLimitError(CREDIT_LIMIT_TOAST_MESSAGE);
         try {
           jobId = (await insert()).id;

@@ -15,7 +15,7 @@ import {
   estimateAvatarImageCredits, imageModelWorksWith, isSeedanceFaceModel, listSentence,
   seedanceFaceModelLabel,
 } from "@/lib/avatars/generation";
-import { useImageModels, useModelPrice } from "@/hooks/queries/ai-models";
+import { useCreditSettings, useImageModels, useModelPrice } from "@/hooks/queries/ai-models";
 import type { GenerateFrontInput } from "@/lib/avatars/schema";
 import { AvatarCreditCost } from "./avatar-credit-cost";
 import { AvatarAdvancedSettings } from "./avatar-advanced-settings";
@@ -39,7 +39,8 @@ export function AvatarDescribePanel({ busy, composer, onComposerChange, onGenera
 
   const { price } = useModelPrice(modelId);
   const images = useImageModels();
-  const perImage = estimateAvatarImageCredits(images, price, { modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
+  const settings = useCreditSettings();
+  const perImage = estimateAvatarImageCredits(images, price, { modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 }, settings);
   const canGenerate = description.trim().length > 0 && perImage !== null && !busy;
   const seedanceFaceLabel = seedanceFaceModelLabel(images);
 

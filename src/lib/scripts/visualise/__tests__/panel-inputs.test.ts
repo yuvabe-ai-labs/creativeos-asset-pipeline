@@ -9,12 +9,14 @@ import { shotKey } from "../keys";
 import type { ScriptDoc } from "@/lib/scripts/schema";
 import { seededPrice } from "@/lib/ai-models/test-prices";
 import { estimateAvatarImageCredits } from "@/lib/avatars/generation";
-import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
+import { seededModelCatalog, seededSettingsRow, withModel } from "@/lib/ai-models/test-catalog";
 import { imageModelsFrom } from "@/lib/ai-models/model-lists";
 import { isPanelModel, panelModelIds, PANEL_MODEL_ID } from "../constants";
 import {
   avatarMap, HUSBAND_AVATAR, linkedDoc, MEENAKSHI_AVATAR, readyAvatar, reel01Doc,
 } from "./fixtures";
+
+const S = seededSettingsRow();
 
 const images = imageModelsFrom(seededModelCatalog());
 const KITS = parseRegionalKits(
@@ -94,7 +96,7 @@ describe("panelInputs on Reel 01 (D342)", () => {
   });
 
   it("prices the house style image in, so the cost shown is what is reserved", () => {
-    expect(estimatePanelCredits(images, seededPrice(PANEL_MODEL_ID), 8, "9:16")).toBe(estimateAvatarImageCredits(images, seededPrice(PANEL_MODEL_ID), { modelId: PANEL_MODEL_ID, aspect: "9:16", referenceCount: 9 }));
+    expect(estimatePanelCredits(images, seededPrice(PANEL_MODEL_ID), 8, "9:16", S)).toBe(estimateAvatarImageCredits(images, seededPrice(PANEL_MODEL_ID), { modelId: PANEL_MODEL_ID, aspect: "9:16", referenceCount: 9 }, S));
   });
 
   it("draws the setting, the kit, the sketch style, and never any text or brand", () => {
@@ -167,11 +169,11 @@ describe("panelInputs on Reel 01 (D342)", () => {
   });
 
   it("prices a panel like any Nano Banana 2 image, by its reference count", () => {
-    expect(estimatePanelCredits(images, seededPrice(PANEL_MODEL_ID), 8, "9:16")).toBeGreaterThan(0);
+    expect(estimatePanelCredits(images, seededPrice(PANEL_MODEL_ID), 8, "9:16", S)).toBeGreaterThan(0);
   });
 
   it("is null before a price is known", () => {
-    expect(estimatePanelCredits(images, null, 0, "9:16")).toBeNull();
+    expect(estimatePanelCredits(images, null, 0, "9:16", S)).toBeNull();
   });
 });
 
@@ -207,7 +209,7 @@ describe("the panel model (D424: Nano Banana 2.1 by default, changeable under Ad
   it("sizes the reference cap and the price to the chosen model", () => {
     const nb2 = "gemini:gemini-3.1-flash-image";
     expect(panelReferenceCap(images, nb2)).toBe(images.get(nb2)!.maxReferenceImages! - 1);
-    expect(estimatePanelCredits(images, seededPrice(nb2), 8, "9:16", nb2)).toBe(estimateAvatarImageCredits(images, seededPrice(nb2), { modelId: nb2, aspect: "9:16", referenceCount: 9 }));
+    expect(estimatePanelCredits(images, seededPrice(nb2), 8, "9:16", S, nb2)).toBe(estimateAvatarImageCredits(images, seededPrice(nb2), { modelId: nb2, aspect: "9:16", referenceCount: 9 }, S));
   });
 });
 

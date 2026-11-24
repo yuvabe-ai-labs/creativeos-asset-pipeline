@@ -1,7 +1,7 @@
 import { paramDefaults, type ImageModels } from "@/lib/ai-models/model-lists";
 import { imageEstimateUsd } from "@/lib/ai-models/image-price";
-import type { AiModelPrice } from "@/lib/ai-models/types";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import type { AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
+import { creditsFromUsd } from "@/lib/credits/units";
 import {
   AVATAR_FRAMING_CLAUSE, AVATAR_SHEET_ASPECT, AVATAR_STYLES, AVATAR_WORKS_WITH, SEEDANCE_FACE_MODEL_ID,
   type AvatarAttributes, type AvatarStyleId,
@@ -42,8 +42,8 @@ export function familyClause(relatives: string[]): string {
 
 /** D395 — the sheet is one 16:9 image with the front as its reference; its four views are cut
  *  from it at no further cost. */
-export function estimateSheetCredits(images: ImageModels, price: AiModelPrice | null, modelId: string): number | null {
-  return estimateAvatarImageCredits(images, price, { modelId, aspect: AVATAR_SHEET_ASPECT, referenceCount: 1 });
+export function estimateSheetCredits(images: ImageModels, price: AiModelPrice | null, modelId: string, settings: CreditSettings | null): number | null {
+  return estimateAvatarImageCredits(images, price, { modelId, aspect: AVATAR_SHEET_ASPECT, referenceCount: 1 }, settings);
 }
 
 /** The model's own defaults with the aspect ratio forced. Null for a model the catalog lacks. */
@@ -73,9 +73,10 @@ export function estimateAvatarImageCredits(
   images: ImageModels,
   price: AiModelPrice | null,
   input: { modelId: string; aspect: string; referenceCount: number },
+  settings: CreditSettings | null,
 ): number | null {
   const usd = estimateAvatarImageCostUsd(images, price, input);
-  return usd === null ? null : usdToFinalCredits(usd);
+  return usd === null || !settings ? null : creditsFromUsd(usd, settings);
 }
 
 export function isSeedanceFaceModel(modelId: string): boolean {

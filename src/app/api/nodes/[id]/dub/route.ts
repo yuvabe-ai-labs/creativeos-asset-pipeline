@@ -8,10 +8,10 @@ import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { signDubbingUploads } from "@/lib/storage";
 import { resolveDubSource } from "@/lib/dubbing/source";
-import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { pricingForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { dubUsd } from "@/lib/ai-models/service-price";
 import { DUB_MODEL_ID } from "@/lib/ai-models/service-models";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { DUB_ENGINE } from "@/lib/dubbing/providers";
 import { DUBBING_NOT_SET_UP_MESSAGE } from "@/lib/dubbing/copy";
 import { DEFAULT_DUB_PACE, DEFAULT_DUB_STYLE, DUB_SOURCE_LANGUAGE, PRESENTER_VOICE, isDubLanguage, isDubPace, isDubStyle, isDubVoice, type DubRecord } from "@/lib/dubbing/types";
@@ -43,11 +43,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       // Independent reads run side by side (performance rule 5). D535 - the price row this run is
       // reserved and charged with is one of them; none, no run.
-      const [source, running, locked, price] = await Promise.all([
+      const [source, running, locked, { price, catalog }] = await Promise.all([
         resolveDubSource(nodeId, { getUpstreamOutputs, getVersionById }),
         hasRunningGeneration(nodeId),
         editorLockResponse(nodeId, { canvasId: node.canvas_id, sessionId: parsed.data.editorSessionId }), // D390, D408
-        priceForNewRun(DUB_MODEL_ID),
+        pricingForNewRun(DUB_MODEL_ID),
       ]);
       if (locked) return locked;
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
@@ -82,7 +82,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       });
 
       try {
-        const reservation = await reserveCredits(effectiveOrgId, generation.id, usdToFinalCredits(usd));
+        const reservation = await reserveCredits(effectiveOrgId, generation.id, creditsFromUsd(usd, creditSettingsAt(catalog, new Date())));
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
         const uploads = await signDubbingUploads({ nodeId, generationId: generation.id });
         await tasks.trigger("video-dub", {

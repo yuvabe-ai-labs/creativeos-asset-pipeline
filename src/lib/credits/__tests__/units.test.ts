@@ -93,6 +93,7 @@ describe("creditSettingsAt", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const catalog = { creditSettings: [row("f", "2027-01-01T00:00:00Z", 50)] };
     expect(creditSettingsAt(catalog, new Date("2026-10-01T00:00:00Z"))).toEqual(DEFAULT_CREDIT_SETTINGS);
+    expect(creditSettingsAt({ creditSettings: [] }, new Date("2026-10-02T00:00:00Z"))).toEqual(DEFAULT_CREDIT_SETTINGS);
     expect(spy).toHaveBeenCalledTimes(1);
   });
 });

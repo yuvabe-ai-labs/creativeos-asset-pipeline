@@ -3,11 +3,11 @@ import { succeedGeneration, failGeneration } from "@/lib/db/generations";
 import { settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
 import { getClientById } from "@/lib/db/clients";
 import { updateAvatar } from "@/lib/db/avatars";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { isOwnStoredUrl } from "@/lib/storage";
 import { asResolutionString } from "@/lib/video-gen/cost";
 import type { GenerationRow } from "@/lib/db/types";
-import { priceForGeneration, priceForNewRun } from "@/lib/ai-models/run-price";
+import { pricingForGeneration, priceForNewRun } from "@/lib/ai-models/run-price";
 import { voiceChangeCharge } from "@/lib/ai-models/service-price";
 import { videoSecondsUsd } from "@/lib/ai-models/video-price";
 import type { ProviderBill } from "@/lib/ai-models/types";
@@ -71,7 +71,7 @@ export async function completeAvatarVoicePreview(
   // ElevenLabs' row (valid when the preview started), charged by the credits ElevenLabs reported
   // when it sent them (the last attempt's only), else by seconds x the voice's multiplier. Only the
   // voice part has a provider report, so it alone is the bill.
-  const clipPrice = await priceForGeneration(generation);
+  const { price: clipPrice, catalog } = await pricingForGeneration(generation);
   const clipUsd = clipPrice
     ? videoSecondsUsd(clipPrice, input.durationSeconds, false, asResolutionString(generation.params_snapshot?.resolution))
     : null;
@@ -94,7 +94,7 @@ export async function completeAvatarVoicePreview(
   // was reserved and record no dollar cost.
   const credits = usd === null
     ? await reservedAmountForUnpriced(generation.id, generation, "video")
-    : usdToFinalCredits(usd);
+    : creditsFromUsd(usd, creditSettingsAt(catalog, new Date(generation.created_at)));
 
   await settleGeneration({ orgId: generation.org_id, generationId: generation.id, actualAmount: credits });
   // The voice the clip was generated with, kept as what every later generation sends (§6.7) and

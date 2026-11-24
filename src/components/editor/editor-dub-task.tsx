@@ -7,10 +7,10 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useModelPrice } from "@/hooks/queries/ai-models";
+import { useCreditSettings, useModelPrice } from "@/hooks/queries/ai-models";
 import { dubUsd } from "@/lib/ai-models/service-price";
 import { DUB_MODEL_ID, priceUnavailableReason } from "@/lib/ai-models/service-models";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
 import { DEFAULT_DUB_LANGUAGE, DEFAULT_DUB_STYLE, DUB_LANGUAGES, DUB_STYLES, dubLanguageLabel, type DubLanguage, type DubStyle } from "@/lib/dubbing/types";
 import type { Piece, SourceView } from "@/lib/editor/types";
 import { useAutoCaptionsContext } from "./auto-captions-context";
@@ -55,6 +55,8 @@ export function EditorDubTask({ piece, source }: { piece: Piece; source: SourceV
   // D535 - the cost comes from the price row; Dub waits until it is known.
   const { price, loading: priceLoading, error: priceError } = useModelPrice(DUB_MODEL_ID);
   const usd = price && seconds > 0 ? dubUsd(price, seconds) : null;
+  const settings = useCreditSettings();
+  const credits = usd !== null && settings ? creditsFromUsd(usd, settings) : null;
   const priceWhy = seconds > 0 ? priceUnavailableReason({ loading: priceLoading, error: priceError }, usd !== null) : null;
 
   return (
@@ -103,7 +105,7 @@ export function EditorDubTask({ piece, source }: { piece: Piece; source: SourceV
           <Button size="sm" variant={hasDub ? "outline" : "default"} disabled={Boolean(why) || seconds === 0 || priceLoading || usd === null} title={why ?? priceWhy ?? undefined} onClick={() => void dub.startDub(piece, { language, style })} className="self-start">
             {priceLoading && seconds > 0 && <Loader2 className="size-3.5 animate-spin" strokeWidth={1.5} />}
             {hasDub ? "Dub again" : "Dub clip"}
-            {!priceLoading && usd !== null && <span className="font-normal opacity-75">· {usdToFinalCredits(usd)} credits</span>}
+            {!priceLoading && credits !== null && <span className="font-normal opacity-75">· {credits} credits</span>}
           </Button>
         </>
       )}

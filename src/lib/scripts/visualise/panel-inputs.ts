@@ -1,6 +1,6 @@
 import type { ImageModels } from "@/lib/ai-models/model-lists";
 import { AVATAR_VIEWS } from "@/lib/avatars/constants";
-import type { AiModelPrice } from "@/lib/ai-models/types";
+import type { AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
 import { estimateAvatarImageCredits } from "@/lib/avatars/generation";
 import { hasFourViews } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
@@ -114,7 +114,8 @@ export function estimatePanelCredits(
   price: AiModelPrice | null,
   referenceCount: number,
   aspect: string,
+  settings: CreditSettings | null,
   modelId: string = PANEL_MODEL_ID,
 ): number | null {
-  return estimateAvatarImageCredits(images, price, { modelId, aspect, referenceCount: referenceCount + 1 });
+  return estimateAvatarImageCredits(images, price, { modelId, aspect, referenceCount: referenceCount + 1 }, settings);
 }

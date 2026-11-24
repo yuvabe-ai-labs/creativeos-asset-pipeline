@@ -63,7 +63,7 @@ export const editorTranscribeTask = task({
       const { credits: charged, usd, bill } = await settle.settleTranscribe(
         { generation, secondsDone, providerCredits: characterCost, providerUsd },
         {
-          priceFor: (g) => runPrice.priceForGeneration(g),
+          pricingFor: (g) => runPrice.pricingForGeneration(g),
           reservedFor: (id, g) => complete.reservedAmountForUnpriced(id, g as GenerationRow, "transcribe"),
         },
       );

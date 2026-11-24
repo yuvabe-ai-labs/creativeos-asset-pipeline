@@ -14,8 +14,11 @@ import { videoSecondsUsd } from "@/lib/ai-models/video-price";
 import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
 import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { seededPrice } from "@/lib/ai-models/test-prices";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededSettingsRow } from "@/lib/ai-models/test-catalog";
 import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
+
+const S = seededSettingsRow();
 
 const NAMED: AvatarVoice = { mode: "named", voiceId: "v1", name: "Surabhi", labels: {}, previewUrl: null };
 const NATIVE: AvatarVoice = { mode: "native" };
@@ -151,11 +154,11 @@ describe("cost", () => {
     expect(voicePreviewCostUsd(P.seedance, null, "native", "seedance", 5, "480p", 3)).toBe(voicePreviewCostUsd(P.seedance, null, "native", "seedance", 5, "480p", 1));
   });
   it("estimates each mode at its own fixed length", () => {
-    expect(estimateVoicePreviewCredits(P.seedance, null, "native", "seedance")).toBe(
-      usdToFinalCredits(voicePreviewCostUsd(P.seedance, null, "native", "seedance", AVATAR_VOICE_SAMPLE_SECONDS, "480p", 1)!),
+    expect(estimateVoicePreviewCredits(P.seedance, null, "native", "seedance", 1, S)).toBe(
+      creditsFromUsd(voicePreviewCostUsd(P.seedance, null, "native", "seedance", AVATAR_VOICE_SAMPLE_SECONDS, "480p", 1)!, S),
     );
-    expect(estimateVoicePreviewCredits(P.omni, V, "named", "omni", 1)).toBe(
-      usdToFinalCredits(voicePreviewCostUsd(P.omni, V, "named", "omni", 6, "720p", 1)!),
+    expect(estimateVoicePreviewCredits(P.omni, V, "named", "omni", 1, S)).toBe(
+      creditsFromUsd(voicePreviewCostUsd(P.omni, V, "named", "omni", 6, "720p", 1)!, S),
     );
   });
   it("an engine's own voice on Omni is the Omni clip alone — nothing is re-voiced", () => {
@@ -163,7 +166,7 @@ describe("cost", () => {
       .toBeCloseTo(videoSecondsUsd(seededPrice(GEMINI_OMNI_MODEL_ID), 6, false, "720p")!);
   });
   it("is null before the clip's price is known", () => {
-    expect(estimateVoicePreviewCredits(null, null, "native", "omni")).toBeNull();
+    expect(estimateVoicePreviewCredits(null, null, "native", "omni", 1, S)).toBeNull();
   });
   it("has no price for a resolution the engine does not sell", () => {
     expect(voicePreviewCostUsd(P.omni, V, "named", "omni", 6, "8k", 1)).toBeNull();

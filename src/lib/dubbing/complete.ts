@@ -3,10 +3,9 @@ import { insertVersion, setActiveVersion, getVersionById, updateVersionOutputAnd
 import { succeedGeneration } from "@/lib/db/generations";
 import { settleGeneration } from "@/lib/db/credit-transactions";
 import { isOwnStoredUrl } from "@/lib/storage";
-import { usdToFinalCredits } from "@/lib/credits/units";
-import { priceForGeneration } from "@/lib/ai-models/run-price";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
+import { pricingForGeneration, type RunPricing } from "@/lib/ai-models/run-price";
 import { dubUsd, lipSyncUsd } from "@/lib/ai-models/service-price";
-import type { AiModelPrice } from "@/lib/ai-models/types";
 import type { GenerationRow } from "@/lib/db/types";
 import { readDubRecord, readDubbingOutput, readLipSyncRecord, type DubbingOutput } from "./types";
 
@@ -28,7 +27,7 @@ export type CompleteDeps = {
   succeedGeneration: typeof succeedGeneration;
   failAndRefund: (generationId: string, orgId: string, error: string) => Promise<void>;
   isOwnStoredUrl: (url: string) => boolean;
-  priceFor: (g: GenerationRow) => Promise<AiModelPrice | null>;
+  pricingFor: (g: GenerationRow) => Promise<RunPricing>;
   reservedFor: (generationId: string, g: GenerationRow, kind: "dub" | "lipsync") => Promise<number>;
   now: () => string;
 };
@@ -39,7 +38,7 @@ export const dubbingCompleteDeps = (
 ): CompleteDeps => ({
   insertVersion, setActiveVersion, getVersionById, updateVersionOutputAndInputs,
   settleGeneration, succeedGeneration, failAndRefund, isOwnStoredUrl,
-  priceFor: (g) => priceForGeneration(g),
+  pricingFor: (g) => pricingForGeneration(g),
   reservedFor,
   now: () => new Date().toISOString(),
 });
@@ -73,10 +72,11 @@ export async function completeDubGeneration(
     modelUsed: generation.model_used,
     output,
   });
-  // D535 - priced with the row this run was reserved with; never 0 for a delivered dub.
-  const price = await deps.priceFor(generation);
+  // D535 - priced with the row this run was reserved with; never 0 for a delivered dub. D548 -
+  // credits with the settings live when the run started.
+  const { price, catalog } = await deps.pricingFor(generation);
   const usd = price ? dubUsd(price, input.durationSeconds) : null;
-  const credits = usd === null ? await deps.reservedFor(input.generationId, generation, "dub") : usdToFinalCredits(usd);
+  const credits = usd === null ? await deps.reservedFor(input.generationId, generation, "dub") : creditsFromUsd(usd, creditSettingsAt(catalog, new Date(generation.created_at)));
   await deps.settleGeneration({ orgId: generation.org_id, generationId: input.generationId, actualAmount: credits });
   await deps.setActiveVersion(nodeId, version.id);
   await deps.succeedGeneration({
@@ -112,9 +112,9 @@ export async function completeLipSyncGeneration(
     { ...current, lipSynced: input.videoUrl },
     { ...(version.inputs_used ?? {}), lipSync },
   );
-  const price = await deps.priceFor(generation);
+  const { price, catalog } = await deps.pricingFor(generation);
   const usd = price ? lipSyncUsd(price, input.durationSeconds) : null;
-  const credits = usd === null ? await deps.reservedFor(input.generationId, generation, "lipsync") : usdToFinalCredits(usd);
+  const credits = usd === null ? await deps.reservedFor(input.generationId, generation, "lipsync") : creditsFromUsd(usd, creditSettingsAt(catalog, new Date(generation.created_at)));
   await deps.settleGeneration({ orgId: generation.org_id, generationId: input.generationId, actualAmount: credits });
   await deps.succeedGeneration({
     generationId: input.generationId, versionId: version.id, costUsd: usd ?? undefined,

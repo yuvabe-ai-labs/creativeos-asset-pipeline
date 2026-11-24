@@ -32,15 +32,7 @@ vi.mock("@/lib/db/credit-transactions", () => ({
   CreditLimitError: class CreditLimitError extends Error {},
 }));
 vi.mock("@/lib/storage", () => ({ prepareImageGenUploads: m.prepareImageGenUploads }));
-vi.mock("@/lib/ai-models/run-price", async () => {
-  const { seededPrice } = await import("@/lib/ai-models/test-prices");
-  return {
-    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
-    priceForNewRun: vi.fn(async (modelId: string) => {
-      try { return seededPrice(modelId); } catch { return null; }
-    }),
-  };
-});
+vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock());
 vi.mock("@trigger.dev/sdk/v3", () => ({ tasks: { trigger: m.trigger } }));
 
 import { startImageGeneration, type StartImageGenerationInput } from "../start-generation";

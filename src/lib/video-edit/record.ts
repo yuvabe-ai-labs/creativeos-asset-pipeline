@@ -1,7 +1,7 @@
 // D483 — Video Gen's Edit mode. Client-safe: the focus view, History and the route all read this.
 import { videoEstimateUsd } from "@/lib/ai-models/video-price";
-import type { AiModelPrice } from "@/lib/ai-models/types";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import type { AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
+import { creditsFromUsd } from "@/lib/credits/units";
 import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { modelPickerLabel, type VideoModels } from "@/lib/ai-models/model-lists";
 
@@ -134,13 +134,14 @@ export function videoEditEstimateCredits(
   price: AiModelPrice | null,
   durationSeconds: number,
   resolution: VideoEditResolution,
-  referenceImages = 0,
+  referenceImages: number,
+  settings: CreditSettings | null,
 ): number | null {
   if (!price) return null;
   const usd = videoEstimateUsd(price, {
     durationSeconds, audioEnabled: true, resolution, images: referenceImages, editInputSeconds: durationSeconds,
   });
-  return usd === null ? null : usdToFinalCredits(usd);
+  return usd === null || !settings ? null : creditsFromUsd(usd, settings);
 }
 
 export function videoEditGate(videos: VideoModels, a: {

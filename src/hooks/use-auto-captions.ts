@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useEditorStore, useEditorStoreApi } from "@/components/editor/editor-store-provider";
-import { useModelPrice } from "@/hooks/queries/ai-models";
+import { useCreditSettings, useModelPrice } from "@/hooks/queries/ai-models";
 import { NO_PRICE_MESSAGE, NO_PRICE_REASON, TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { useStartTranscribe, useTranscribeStatus, useTranscripts } from "@/hooks/queries/editor";
 import { autoCaptionCost, captionsFollowSound, fillFromTranscripts, pieceSound, staleAutoPieces, uncaptionedPieces } from "@/lib/editor/auto-captions";
@@ -54,7 +54,8 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
   }, []);
 
   const transcribed = useMemo(() => new Set(transcripts.data?.keys() ?? []), [transcripts.data]);
-  const cost = useCallback((pieceIds?: string[]) => autoCaptionCost(price, doc, sources, transcribed, pieceIds), [price, doc, sources, transcribed]);
+  const settings = useCreditSettings();
+  const cost = useCallback((pieceIds?: string[]) => autoCaptionCost(price, doc, sources, transcribed, settings, pieceIds), [price, doc, sources, transcribed, settings]);
   const stale = useMemo(() => staleAutoPieces(doc, sources), [doc, sources]);
   const todo = useMemo(() => uncaptionedPieces(doc, sources, transcripts.data ?? NO_TRANSCRIPTS), [doc, sources, transcripts.data]);
 

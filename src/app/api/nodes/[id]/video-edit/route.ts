@@ -7,6 +7,7 @@ import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { creditSettingsAt } from "@/lib/credits/units";
 import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { nodeModelId } from "@/lib/ai-models/runnable";
 import { videoRun } from "@/lib/video-gen/video-run";
@@ -123,7 +124,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       });
 
       try {
-        const credits = videoEditEstimateCredits(price, durationSeconds, resolution, referenceUrls.length);
+        const credits = videoEditEstimateCredits(price, durationSeconds, resolution, referenceUrls.length, creditSettingsAt(catalog, new Date()));
         if (credits === null) throw new Error(`No price for ${modelId} at ${resolution}.`);
         const reservation = await reserveCredits(effectiveOrgId, generation.id, credits);
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");

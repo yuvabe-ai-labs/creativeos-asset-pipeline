@@ -3,9 +3,9 @@ import { seededCatalog } from "../test-prices";
 import { currentPrice } from "../pricing";
 import { videoEstimateUsd } from "../video-price";
 import { imageEstimateUsd } from "../image-price";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
 import { imageModelsFrom, videoModelsFrom } from "../model-lists";
-import { seededModelCatalog } from "../test-catalog";
+import { seededModelCatalog, seededSettingsRow } from "../test-catalog";
 import { isVideoAudioEnabled } from "@/lib/video-gen/cost";
 import { videoEditEstimateCredits, VIDEO_EDIT_MODEL_IDS, VIDEO_EDIT_RESOLUTIONS } from "@/lib/video-edit/record";
 import type { ParamSpec } from "@/lib/image-gen/types";
@@ -17,7 +17,7 @@ const REFERENCES = [0, 1, 3];
 
 const priceOf = (modelId: string) => currentPrice(seededCatalog(), modelId, AT);
 const param = (params: ParamSpec[], ...names: string[]) => params.find((p) => names.includes(p.name));
-const credits = (usd: number | null) => (usd === null ? null : usdToFinalCredits(usd));
+const credits = (usd: number | null) => (usd === null ? null : creditsFromUsd(usd, seededSettingsRow()));
 
 function options(spec: ParamSpec | undefined, withUndefined: boolean): Array<string | undefined> {
   const out: Array<string | undefined> = [];
@@ -82,7 +82,7 @@ describe("migration 0078's prices over every setting", () => {
         for (const durationSeconds of durations(param(model.params, "duration")))
           for (const references of REFERENCES) {
             grid[`${modelId}|res=${resolution}|s=${durationSeconds}|refs=${references}`] =
-              videoEditEstimateCredits(priceOf(modelId), durationSeconds, resolution, references);
+              videoEditEstimateCredits(priceOf(modelId), durationSeconds, resolution, references, seededSettingsRow());
           }
     }
     expect(Object.keys(grid).length).toBeGreaterThan(20);

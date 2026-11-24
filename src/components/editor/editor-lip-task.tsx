@@ -3,10 +3,10 @@
 // presenter's mouth to it, and chooses which picture the clip shows.
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useModelPrice } from "@/hooks/queries/ai-models";
+import { useCreditSettings, useModelPrice } from "@/hooks/queries/ai-models";
 import { lipSyncUsd } from "@/lib/ai-models/service-price";
 import { LIP_SYNC_MODEL_ID, priceUnavailableReason } from "@/lib/ai-models/service-models";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
 import { setPicture } from "@/lib/editor/pieces";
 import type { Piece, SourceView } from "@/lib/editor/types";
 import { ClipDubNotices, useClipDub } from "./editor-dub-task";
@@ -39,6 +39,8 @@ export function EditorLipTask({
   // D535 - the cost comes from the price row; Lip sync waits until it is known.
   const { price, loading: priceLoading, error: priceError } = useModelPrice(LIP_SYNC_MODEL_ID);
   const usd = price && seconds > 0 ? lipSyncUsd(price, seconds) : null;
+  const settings = useCreditSettings();
+  const credits = usd !== null && settings ? creditsFromUsd(usd, settings) : null;
   const priceWhy = seconds > 0 ? priceUnavailableReason({ loading: priceLoading, error: priceError }, usd !== null) : null;
 
   return (
@@ -67,9 +69,9 @@ export function EditorLipTask({
             >
               {priceLoading && seconds > 0 && <Loader2 className="size-3.5 animate-spin" strokeWidth={1.5} />}
               {hasLip ? "Lip sync again" : "Lip sync"}
-              {!priceLoading && usd !== null && (
+              {!priceLoading && credits !== null && (
                 <span className="font-normal opacity-75">
-                  · {usdToFinalCredits(usd)} credits
+                  · {credits} credits
                 </span>
               )}
             </Button>

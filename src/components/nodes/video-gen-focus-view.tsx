@@ -66,10 +66,10 @@ import { VideoGenApiError } from "@/lib/video-gen/api";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { videoEstimateUsd } from "@/lib/ai-models/video-price";
-import { useModelPrice, useVideoModels } from "@/hooks/queries/ai-models";
+import { useCreditSettings, useModelPrice, useVideoModels } from "@/hooks/queries/ai-models";
 import { paramDefaults, type VideoModels } from "@/lib/ai-models/model-lists";
 import { RetiredModelNotice } from "@/components/models/retired-model-notice";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useIdentity } from "@/hooks/use-identity";
@@ -1469,7 +1469,8 @@ export function VideoGenFocusView({
   const videoCostEstimateUsd = modelPrice
     ? videoEstimateUsd(modelPrice, { durationSeconds, audioEnabled, resolution, images: Object.keys(effectiveImageRoles).length })
     : null;
-  const estimatedCredits = videoCostEstimateUsd === null ? null : usdToFinalCredits(videoCostEstimateUsd);
+  const creditSettings = useCreditSettings();
+  const estimatedCredits = videoCostEstimateUsd === null || !creditSettings ? null : creditsFromUsd(videoCostEstimateUsd, creditSettings);
 
   // D236 — Video Gen's own disabled-Generate check for an illegal ladder. checkLadder's doc
   // comment (multishot-models.ts) has always claimed its reason "is shown verbatim on ... Video

@@ -6,7 +6,7 @@ import { insertGeneration, failGeneration } from "@/lib/db/generations";
 import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { priceForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { videoEstimateUsd } from "@/lib/ai-models/video-price";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { getAiCatalog } from "@/lib/ai-models/catalog";
 import { nodeModelId, NO_ESTIMATE_MESSAGE } from "@/lib/ai-models/runnable";
@@ -379,7 +379,8 @@ export async function POST(
         console.error(`[video-generate] no cost estimate for ${modelId}`, { durationSeconds, audioEnabled, resolution, images });
         throw new Error(NO_ESTIMATE_MESSAGE);
       }
-      const estimatedCredits = usdToFinalCredits(estimateUsd);
+      // D548 — reserved with the credit settings live now, from the catalog read above.
+      const estimatedCredits = creditsFromUsd(estimateUsd, creditSettingsAt(catalog, new Date()));
       const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw new CreditLimitError("Monthly credit limit reached");

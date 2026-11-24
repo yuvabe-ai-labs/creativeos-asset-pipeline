@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
 import { AvatarCreditCost } from "@/components/avatars/avatar-credit-cost";
-import { useImageModels, useModelPrice } from "@/hooks/queries/ai-models";
+import { useCreditSettings, useImageModels, useModelPrice } from "@/hooks/queries/ai-models";
 import { estimateSheetCredits } from "@/lib/avatars/generation";
 import type { Avatar } from "@/lib/avatars/schema";
 import { estimateMakeCredits, nextMakerStep } from "@/lib/scripts/visualise/maker";
@@ -22,12 +22,13 @@ export function CastSlotAiMaker({ avatar, modelId, busy, onMake }: {
 }) {
   const { price } = useModelPrice(modelId);
   const images = useImageModels();
+  const settings = useCreditSettings();
   const [instructions, setInstructions] = useState("");
   const id = useId();
   const next = nextMakerStep(avatar);
   const hasFace = Boolean(avatar?.front);
-  const makeCredits = estimateMakeCredits(images, price, modelId);
-  const sheetCredits = estimateSheetCredits(images, price, modelId);
+  const makeCredits = estimateMakeCredits(images, price, settings, modelId);
+  const sheetCredits = estimateSheetCredits(images, price, modelId, settings);
 
   return (
     <div className="flex flex-col gap-2">

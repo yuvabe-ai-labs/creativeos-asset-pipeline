@@ -7,14 +7,15 @@ import {
 } from "../service-price";
 import { seededPrice } from "../test-prices";
 import { videoChargeUsd } from "../video-price";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededSettingsRow } from "../test-catalog";
 import { DUB_MODEL_ID, LIP_SYNC_MODEL_ID, VOICE_CHANGE_PRICE_MODEL_ID, TRANSCRIBE_MODEL_ID, PROMPT_MODEL_ID } from "../service-models";
 
 const SECONDS = [0.4, 1, 3, 9.6, 30, 61, 600];
 const MULTIPLIERS = [1, 1.5, 2, 3];
 const ATTACHMENTS = [0, 1, 2, 5];
 const KLING = ["kling:kling-3-0", "kling:kling-o1", "kling:kling-3-0-omni"];
-const credits = (usd: number | null) => (usd === null ? null : usdToFinalCredits(usd));
+const credits = (usd: number | null) => (usd === null ? null : creditsFromUsd(usd, seededSettingsRow()));
 
 describe("frozen service prices (0080)", () => {
   it("pins every service price", () => {

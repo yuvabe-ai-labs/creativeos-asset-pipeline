@@ -2,10 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 vi.mock("@/lib/actions/ai-models", () => ({ addAiModelPriceAction: vi.fn() }));
+vi.mock("@/hooks/queries/ai-models", async () => {
+  const { seededSettingsRow } = await import("@/lib/ai-models/test-catalog");
+  return { useCreditSettings: () => seededSettingsRow() };
+});
 
 import { AddPriceSheet, AddPriceForm, previewText } from "../add-price-sheet";
 import { draftFromCurrent } from "../price-draft";
-import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import { seededModelCatalog, seededSettingsRow } from "@/lib/ai-models/test-catalog";
 
 const catalog = seededModelCatalog();
 const NANO_PRO = "gemini:gemini-3-pro-image";
@@ -22,7 +26,7 @@ describe("AddPriceSheet", () => {
   });
 
   it("re-exports previewText", () => {
-    expect(previewText(textModel, draftFromCurrent(null, now), null)).toBe("No run preview for this kind of model.");
+    expect(previewText(textModel, draftFromCurrent(null, now), null, seededSettingsRow())).toBe("No run preview for this kind of model.");
   });
 });
 
@@ -48,10 +52,10 @@ describe("AddPriceForm", () => {
     const d = draftFromCurrent(current, now);
     const bad = { ...d, lines: [{ ...d.lines[0], when: [{ key: "colour", value: "red" }] }, ...d.lines.slice(1)] };
     const html = render(bad);
-    expect(html).toContain(previewText(model, bad, current));
+    expect(html).toContain(previewText(model, bad, current, seededSettingsRow()));
     expect(renderToStaticMarkup(<AddPriceForm model={model} current={current} draft={d} onChange={noop} minDay="2026-11-23" />))
-      .toContain(previewText(model, d, current));
-    expect(previewText(model, d, current)).toMatch(/^A default run: \d+ credits \(was \d+\)$/);
+      .toContain(previewText(model, d, current, seededSettingsRow()));
+    expect(previewText(model, d, current, seededSettingsRow())).toMatch(/^A default run: \d+ credits \(was \d+\)$/);
     expect(html).toContain("output_image: colour is not a price setting of this model");
   });
 

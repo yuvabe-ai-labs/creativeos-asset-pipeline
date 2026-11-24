@@ -9,11 +9,13 @@ import {
   AVATAR_SHEET_ASPECT, SEEDANCE_FACE_MODEL_ID,
 } from "../constants";
 import { seededPrice } from "@/lib/ai-models/test-prices";
-import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
+import { seededModelCatalog, seededSettingsRow, withModel } from "@/lib/ai-models/test-catalog";
 import { imageModelsFrom, paramDefaults } from "@/lib/ai-models/model-lists";
 
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
 import type { AvatarCandidate } from "../schema";
+
+const S = seededSettingsRow();
 
 const images = imageModelsFrom(seededModelCatalog());
 
@@ -55,11 +57,11 @@ describe("buildAvatarFrontPrompt", () => {
 
 describe("estimateSheetCredits (D395)", () => {
   it("is one 16:9 image with the front as its reference, whatever it holds", () => {
-    expect(estimateSheetCredits(images, seededPrice("gemini:gemini-3.1-flash-image"), "gemini:gemini-3.1-flash-image")).toBe(estimateAvatarImageCredits(images, seededPrice("gemini:gemini-3.1-flash-image"), {
+    expect(estimateSheetCredits(images, seededPrice("gemini:gemini-3.1-flash-image"), "gemini:gemini-3.1-flash-image", S)).toBe(estimateAvatarImageCredits(images, seededPrice("gemini:gemini-3.1-flash-image"), {
       modelId: "gemini:gemini-3.1-flash-image", aspect: AVATAR_SHEET_ASPECT, referenceCount: 1,
-    }));
-    expect(estimateSheetCredits(images, seededPrice("gemini:gemini-3.1-flash-image"), "gemini:gemini-3.1-flash-image")).toBeGreaterThan(0);
-    expect(estimateSheetCredits(images, null, "nope:none")).toBeNull();
+    }, S));
+    expect(estimateSheetCredits(images, seededPrice("gemini:gemini-3.1-flash-image"), "gemini:gemini-3.1-flash-image", S)).toBeGreaterThan(0);
+    expect(estimateSheetCredits(images, null, "nope:none", S)).toBeNull();
   });
 });
 
@@ -83,23 +85,23 @@ describe("estimates", () => {
     expect(usd).toBeCloseTo(0.035, 5);
     expect(estimateAvatarImageCredits(images, seededPrice(SEEDANCE_FACE_MODEL_ID), {
       modelId: SEEDANCE_FACE_MODEL_ID, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0,
-    })).toBe(35);
+    }, S)).toBe(35);
   });
 
   it("prices a sheet with one reference image above zero", () => {
     const credits = estimateAvatarImageCredits(images, seededPrice(AVATAR_DEFAULT_SHEET_MODEL_ID), {
       modelId: AVATAR_DEFAULT_SHEET_MODEL_ID, aspect: AVATAR_SHEET_ASPECT, referenceCount: 1,
-    });
+    }, S);
     expect(credits).toBeGreaterThan(0);
   });
 
   it("is null for an unknown model, so the caller can fail closed", () => {
-    expect(estimateAvatarImageCredits(images, null, { modelId: "nope:none", aspect: "3:4", referenceCount: 0 })).toBeNull();
+    expect(estimateAvatarImageCredits(images, null, { modelId: "nope:none", aspect: "3:4", referenceCount: 0 }, S)).toBeNull();
   });
 });
 
 it("is null before a price is known", () => {
-  expect(estimateAvatarImageCredits(images, null, { modelId: "gemini:gemini-3-pro-image", aspect: "1:1", referenceCount: 0 })).toBeNull();
+  expect(estimateAvatarImageCredits(images, null, { modelId: "gemini:gemini-3-pro-image", aspect: "1:1", referenceCount: 0 }, S)).toBeNull();
 });
 
 describe("isSeedanceFaceModel", () => {
@@ -207,4 +209,10 @@ describe("a face drawn beside a relative's (D471)", () => {
   it("says nothing of family without a relative", () => {
     expect(buildAvatarFrontPrompt(base)).not.toContain("Family:");
   });
+});
+
+it("is null before the credit settings are known (D548)", () => {
+  expect(estimateAvatarImageCredits(images, seededPrice(SEEDANCE_FACE_MODEL_ID), {
+    modelId: SEEDANCE_FACE_MODEL_ID, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0,
+  }, null)).toBeNull();
 });

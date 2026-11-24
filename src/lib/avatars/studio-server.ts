@@ -1,7 +1,8 @@
 import "server-only";
 import { failGeneration, getLatestAvatarVoicePreview, listAvatarGenerations, sumAvatarCredits } from "@/lib/db/generations";
 import { refundReservation } from "@/lib/db/credit-transactions";
-import { priceForNewRun } from "@/lib/ai-models/run-price";
+import { priceForNewRun, pricingForNewRun } from "@/lib/ai-models/run-price";
+import { creditSettingsAt } from "@/lib/credits/units";
 import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
 import { generationToCandidate } from "./rows";
@@ -52,14 +53,18 @@ async function estimateFor(avatar: Avatar): Promise<number | null> {
   const engine = voicePreviewEngine(avatar);
   if (!mode || !engine) return null;
   const modelId = VOICE_PREVIEW_ENGINE[engine].modelId;
-  if (mode === "native") return estimateVoicePreviewCredits(await priceForNewRun(modelId), null, "native", engine);
+  // D548 — the estimate uses the credit settings live now, from the catalog the price came from.
+  if (mode === "native") {
+    const { price, catalog } = await pricingForNewRun(modelId);
+    return estimateVoicePreviewCredits(price, null, "native", engine, 1, creditSettingsAt(catalog, new Date()));
+  }
   // The prices and the voice do not depend on each other: one round trip, not three.
-  const [price, voiceChangePrice, voice] = await Promise.all([
-    priceForNewRun(modelId),
+  const [{ price, catalog }, voiceChangePrice, voice] = await Promise.all([
+    pricingForNewRun(modelId),
     priceForNewRun(VOICE_CHANGE_PRICE_MODEL_ID),
     avatar.voice?.mode === "named" ? getVoiceCached(avatar.voice.voiceId).catch(() => null) : Promise.resolve(null),
   ]);
-  return estimateVoicePreviewCredits(price, voiceChangePrice, "named", engine, voice?.priceMultiplier ?? 1);
+  return estimateVoicePreviewCredits(price, voiceChangePrice, "named", engine, voice?.priceMultiplier ?? 1, creditSettingsAt(catalog, new Date()));
 }
 
 /** The latest preview in whatever state it is in, and what the next one would cost. */

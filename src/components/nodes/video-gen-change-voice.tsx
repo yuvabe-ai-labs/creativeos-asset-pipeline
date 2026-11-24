@@ -9,7 +9,7 @@ import { durationOfParams } from "@/lib/voice-change/record";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import { useVoiceChoice } from "@/hooks/use-voice-choice";
 import { useChangeVoice } from "@/hooks/use-change-voice";
-import { useModelPrice } from "@/hooks/queries/ai-models";
+import { useCreditSettings, useModelPrice } from "@/hooks/queries/ai-models";
 import { VOICE_CHANGE_PRICE_MODEL_ID, priceUnavailableReason } from "@/lib/ai-models/service-models";
 import { useVoicePreview } from "@/hooks/use-voice-preview";
 import type { VideoGenVersionSummary } from "./video-gen-version-history";
@@ -59,7 +59,8 @@ export function VideoGenChangeVoice({ nodeId, versions, sourceId, running, locke
 
   const duration = durationOfParams(sourceVersion?.paramsUsed ?? {});
   const { price: voicePrice, loading: voicePriceLoading, error: voicePriceError } = useModelPrice(VOICE_CHANGE_PRICE_MODEL_ID);
-  const estimatedCredits = choice.voice && duration > 0 ? voiceChangeEstimateCredits(voicePrice, duration, choice.voice.priceMultiplier) : null;
+  const creditSettings = useCreditSettings();
+  const estimatedCredits = choice.voice && duration > 0 ? voiceChangeEstimateCredits(voicePrice, duration, choice.voice.priceMultiplier, creditSettings) : null;
   const priceReason = choice.voice && duration > 0
     ? priceUnavailableReason({ loading: voicePriceLoading, error: voicePriceError }, estimatedCredits !== null)
     : null;

@@ -1,8 +1,8 @@
 // The add-price form's state and how it becomes an addAiModelPriceAction payload. Pure, client-safe.
 import { estimateAllowanceKeys, runPreviewUsd } from "@/lib/ai-models/model-edit";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { creditsFromUsd } from "@/lib/credits/units";
 import { plainDecimal } from "@/lib/ai-models/price-format";
-import type { AiModel, AiModelPrice, Meter, PriceLine } from "@/lib/ai-models/types";
+import type { AiModel, AiModelPrice, CreditSettings, Meter, PriceLine } from "@/lib/ai-models/types";
 import type { AdminPriceRow } from "@/lib/db/ai-models-admin";
 
 /** `custom`: the admin chose to type the name (an allowance) rather than pick one. */
@@ -193,8 +193,8 @@ export function draftToPayload(
   return { ok: true, input };
 }
 
-/** The live preview line under the form. */
-export function previewText(model: AiModel, draft: PriceDraft, current: AiModelPrice | null): string {
+/** The live preview line under the form, in credits with the settings live now (D548). */
+export function previewText(model: AiModel, draft: PriceDraft, current: AiModelPrice | null, settings: CreditSettings | null): string {
   if (model.kind !== "image" && model.kind !== "video") return "No run preview for this kind of model.";
   const lines = draftLines(draft);
   if (!lines) return "Fill in every price to see a default run.";
@@ -209,9 +209,10 @@ export function previewText(model: AiModel, draft: PriceDraft, current: AiModelP
   };
   const usd = runPreviewUsd(model, price);
   if (usd === null) return "No line prices a run at the default settings.";
+  if (!settings) return "Loading the credit settings…";
   const wasUsd = current ? runPreviewUsd(model, current) : null;
-  const was = wasUsd === null ? "" : ` (was ${usdToFinalCredits(wasUsd)})`;
-  return `A default run: ${usdToFinalCredits(usd)} credits${was}`;
+  const was = wasUsd === null ? "" : ` (was ${creditsFromUsd(wasUsd, settings)})`;
+  return `A default run: ${creditsFromUsd(usd, settings)} credits${was}`;
 }
 
 /** The row in effect now: the newest one that has started and passes its check. */

@@ -15,16 +15,7 @@ vi.mock("@/lib/video-gen/adapters", async () => {
   const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
   return { videoAdapters: stubAdapters("video", async () => { throw new Error("a route never generates"); }) };
 });
-vi.mock("@/lib/ai-models/run-price", async () => {
-  const { seededPrice } = await import("@/lib/ai-models/test-prices");
-  return {
-    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
-    priceForNewRun: vi.fn(async (modelId: string) => {
-      try { return seededPrice(modelId); } catch { return null; }
-    }),
-    priceForGeneration: vi.fn(async (g: { model_used: string | null }) => (g.model_used ? seededPrice(g.model_used) : null)),
-  };
-});
+vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock());
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
 vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 
@@ -623,5 +614,40 @@ describe("the Editor's generation lock", () => {
     } finally {
       editorLock.value = null;
     }
+  });
+});
+
+// D548 — a new run is reserved with the credit settings live now, not an older row.
+describe("POST video-generate — credit settings live now (D548)", () => {
+  it("reserves with the row that started an hour ago, not yesterday's", async () => {
+    const { seededModelCatalog, withCreditSettings } = await import("@/lib/ai-models/test-catalog");
+    const { creditsFromUsd } = await import("@/lib/credits/units");
+    const { videoEstimateUsd } = await import("@/lib/ai-models/video-price");
+    const { isVideoAudioEnabled, asResolutionString } = await import("@/lib/video-gen/cost");
+    const hour = 3_600_000;
+    const OLD = { marginPercent: 0, roundStep: 5 } as const;
+    const NEW = { marginPercent: 10, roundStep: 1 } as const;
+    cat.value = withCreditSettings(seededModelCatalog(), [
+      { effectiveFrom: new Date(Date.now() - 24 * hour).toISOString(), ...OLD },
+      { effectiveFrom: new Date(Date.now() - hour).toISOString(), ...NEW },
+    ]);
+    mocks.graph = buildGraph(
+      [{ id: "c1", text: "keys", seconds: 3 }, { id: "c2", text: "cab", seconds: 5 }],
+      GEMINI_OMNI_MODEL_ID,
+      PLAN,
+    );
+
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: { duration: 5 }, imageRoles: { ig: "reference" } });
+
+    expect(res.status).toBe(202);
+    const snap = (mocks.insertGeneration.mock.calls[0] as unknown as [{ paramsSnapshot: Record<string, unknown> }])[0].paramsSnapshot;
+    const usd = videoEstimateUsd(seededPrice(GEMINI_OMNI_MODEL_ID), {
+      durationSeconds: Number(snap.seconds ?? snap.duration ?? 0),
+      audioEnabled: isVideoAudioEnabled(snap.audio),
+      resolution: asResolutionString(snap.resolution),
+      images: 1,
+    })!;
+    expect(creditsFromUsd(usd, NEW)).not.toBe(creditsFromUsd(usd, OLD));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-1", creditsFromUsd(usd, NEW));
   });
 });

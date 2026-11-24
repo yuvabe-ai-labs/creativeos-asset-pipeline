@@ -9,7 +9,7 @@ import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar } from "@/lib/db/avatars";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { CREDIT_LIMIT_TOAST_MESSAGE, creditSettingsAt } from "@/lib/credits/units";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
 import { VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
@@ -123,7 +123,7 @@ export async function POST(req: Request, { params }: Ctx) {
       });
 
       try {
-        const credits = estimateVoicePreviewCredits(price, voiceChangePrice, mode, engine, voice?.priceMultiplier ?? 1);
+        const credits = estimateVoicePreviewCredits(price, voiceChangePrice, mode, engine, voice?.priceMultiplier ?? 1, creditSettingsAt(catalog, new Date()));
         if (credits === null) throw new Error("No cost estimate available for the voice preview.");
         const reservation = await reserveCredits(client.org_id, generation.id, credits);
         if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");

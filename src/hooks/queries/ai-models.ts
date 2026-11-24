@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { aiModelsService } from "@/services/ai-models.service";
 import { currentPrice } from "@/lib/ai-models/pricing";
 import { imageModelsFrom, videoModelsFrom, type ImageModels, type VideoModels } from "@/lib/ai-models/model-lists";
-import type { AiCatalog, AiModelPrice } from "@/lib/ai-models/types";
+import { creditSettingsAt } from "@/lib/credits/units";
+import type { AiCatalog, AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
 
 // D529 — the model catalog, through TanStack Query. One request per session: pickers and focus
 // views select from this cache, never fetch per node (performance rule 1).
@@ -50,4 +51,12 @@ export function useModelPrice(modelId: string): { price: AiModelPrice | null; lo
     loading: catalog.isPending,
     error: catalog.isError && !catalog.data,
   };
+}
+
+/** D548 — the credit settings row live now, selected from the session's one catalog query (no
+ *  request of its own). Null until the catalog has loaded, so no screen shows credits worked out
+ *  with settings it hasn't read; a price from the same catalog is null then too. */
+export function useCreditSettings(): CreditSettings | null {
+  const { data } = useAiCatalog();
+  return data ? creditSettingsAt(data, new Date()) : null;
 }

@@ -5,9 +5,6 @@
 import type { AiCatalog, CreditSettings } from "@/lib/ai-models/types";
 
 export const USD_TO_CREDITS = 1000;
-export const MARGIN_PERCENT = 0;
-export const CREDIT_ROUND_STEP = 5;
-export const CREDIT_ROUND_DIRECTION: "up" | "down" | "nearest" = "up";
 
 /** Fallback only, used when no settings row is in force. */
 export const DEFAULT_CREDIT_SETTINGS: CreditSettings = {
@@ -33,6 +30,9 @@ export function creditsFromUsd(
   return Math.ceil(raw / settings.roundStep) * settings.roundStep;
 }
 
+// Once per process: a missing row would otherwise log on every estimate a screen renders.
+let loggedFallback = false;
+
 /**
  * The settings row in force at `at`: the latest row whose effectiveFrom is not after it.
  * Falls back to DEFAULT_CREDIT_SETTINGS (logged once) when no row has started.
@@ -52,13 +52,11 @@ export function creditSettingsAt(
     }
   }
   if (best) return best;
-  console.error("[credits] no credit settings row in force; using defaults", at.toISOString());
+  if (!loggedFallback) {
+    loggedFallback = true;
+    console.error("[credits] no credit settings row in force; using defaults", at.toISOString());
+  }
   return DEFAULT_CREDIT_SETTINGS;
-}
-
-/** @deprecated Task 4 removes it */
-export function usdToFinalCredits(costUsd: number): number {
-  return creditsFromUsd(costUsd, DEFAULT_CREDIT_SETTINGS);
 }
 
 // Shown wherever a 402 (CreditLimitError, src/lib/db/credit-transactions.ts) reaches the
