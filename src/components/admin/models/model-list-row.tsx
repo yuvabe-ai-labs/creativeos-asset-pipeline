@@ -1,19 +1,13 @@
 import Link from "next/link";
 import { AddChip } from "@/components/admin/models/add-chip";
 import { ModelStatusBadge } from "@/components/admin/models/model-status-badge";
+import { PercentChip } from "@/components/admin/models/percent-chip";
 import { cn } from "@/lib/utils";
 import { modelHref, type ModelListRow } from "@/lib/admin/models-list";
 
 /** Shared by the header and each row so the columns line up; at phone width a row stacks in three lines. */
 export const LIST_COLUMNS =
   "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 px-4 md:grid-cols-[minmax(0,2.2fr)_84px_minmax(0,1.6fr)_minmax(0,1.4fr)_110px_92px] md:gap-4 md:px-5";
-
-const CHIP_TONE = {
-  down: "bg-success/15 text-success-text",
-  up: "bg-warning/20 text-warning-text",
-  big: "bg-destructive/10 text-destructive-text",
-  new: "bg-primary/10 text-primary",
-} as const;
 
 function PriceCell({ row }: { row: ModelListRow }) {
   if (row.broken) return <span className="text-xs text-destructive-text">Fails its check</span>;
@@ -97,9 +91,7 @@ export function ModelListRowView({ row }: { row: ModelListRow }) {
       <div role="cell" className="justify-self-end md:justify-self-start">
         {row.next ? (
           <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-            <span className={cn("inline-flex h-[18px] items-center rounded-full px-1.5 text-[0.72rem] font-semibold tabular-nums", CHIP_TONE[row.next.tone])}>
-              {row.next.chip}
-            </span>
+            <PercentChip text={row.next.chip} tone={row.next.tone} />
             <span className="text-xs text-muted-foreground">{row.next.date}</span>
           </span>
         ) : (

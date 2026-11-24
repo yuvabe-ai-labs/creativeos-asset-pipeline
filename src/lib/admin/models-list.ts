@@ -104,7 +104,7 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` :
 const signed = (p: number) => `${p < 0 ? "−" : "+"}${Math.abs(p)}%`;
 
 /** "prices drop 31%", "3 prices −50% to +10%, adds 1 price", "starting price". */
-function changeWords(d: PriceDiff | null): string {
+export function changeWords(d: PriceDiff | null): string {
   if (!d) return "starting price";
   const bits: string[] = [];
   const p = uniformPercent(d);
