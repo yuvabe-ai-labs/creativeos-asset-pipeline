@@ -48,13 +48,24 @@ describe("addCreditSettingsAction", () => {
   });
   it("inserts a valid change with created_by, clears the cache and revalidates", async () => {
     const at = future();
-    expect(await addCreditSettingsAction(input({ effectiveFrom: at, note: " hi " }))).toEqual({});
+    expect(await addCreditSettingsAction(input({ effectiveFrom: at, note: " hi " }))).toEqual({ effectiveFrom: new Date(at).toISOString() });
     expect(m.insertCreditSettings).toHaveBeenCalledWith(
       { effectiveFrom: new Date(at).toISOString(), marginPercent: 20, roundStep: 5, note: "hi" },
       "u1",
     );
     expect(m.clearAiCatalogCache).toHaveBeenCalledTimes(1);
     expect(m.revalidatePath).toHaveBeenCalledWith("/admin/credits");
+  });
+  it("moves a start that is too soon and returns the start the row got", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-01T12:00:00Z"));
+    try {
+      const res = await addCreditSettingsAction(input({ effectiveFrom: new Date().toISOString() }));
+      expect(res).toEqual({ effectiveFrom: "2026-06-01T12:02:00.000Z" });
+      expect(m.insertCreditSettings).toHaveBeenCalledWith(expect.objectContaining({ effectiveFrom: "2026-06-01T12:02:00.000Z" }), "u1");
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it("returns the check's message and writes nothing when a check refuses", async () => {
     expect(await addCreditSettingsAction(input({ marginPercent: 300 }))).toEqual({ error: "The margin must be between 0% and 200%." });
@@ -83,6 +94,20 @@ describe("addCreditSettingsAction", () => {
 });
 
 describe("cancelCreditSettingsAction", () => {
+  it("refuses a row starting within 2 minutes and deletes nothing", async () => {
+    m.listAdminCreditSettings.mockResolvedValue([{ id: "c1", effectiveFrom: new Date(Date.now() + 90_000).toISOString() }]);
+    expect(await cancelCreditSettingsAction("c1")).toEqual({ error: "This change starts in less than 2 minutes and can't be cancelled now." });
+    expect(m.deleteCreditSettings).not.toHaveBeenCalled();
+    expect(m.clearAiCatalogCache).not.toHaveBeenCalled();
+  });
+  it("deletes a row that starts after the lead time, matched by id", async () => {
+    m.listAdminCreditSettings.mockResolvedValue([
+      { id: "c0", effectiveFrom: new Date(Date.now() + 1_000).toISOString() },
+      { id: "c1", effectiveFrom: new Date(Date.now() + 600_000).toISOString() },
+    ]);
+    expect(await cancelCreditSettingsAction("c1")).toEqual({});
+    expect(m.deleteCreditSettings).toHaveBeenCalledWith("c1");
+  });
   it("deletes by id, clears the cache and revalidates", async () => {
     expect(await cancelCreditSettingsAction("c1")).toEqual({});
     expect(m.deleteCreditSettings).toHaveBeenCalledWith("c1");

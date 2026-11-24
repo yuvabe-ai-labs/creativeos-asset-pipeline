@@ -1094,9 +1094,23 @@ Apply **before** Plan 5a deploys to Vercel. Without the `credit_settings` table 
 It adds the `credit_settings` table (the margin and the rounding step that turn a run's cost into credits, as dated rows), a guard so a row is never edited and one that has started is never deleted, and one starting row: no margin, round up to the next 5 credits, from 2026-01-01. That is exactly how credits work today, so nothing changes until an admin adds a row.
 **Safe to re-run:** `create table if not exists`, `create or replace function`, `drop trigger if exists`, and the starting row is skipped if it is there.
 
+**Ordering:** apply before deploying the app code **and** the Trigger.dev tasks. Without it every client page shows "Could not load the models.", paid runs are refused, and runs that finish can't be settled.
+
 ```sql
 -- expect 1 row: margin 0, step 5, from 2026-01-01
 select effective_from, margin_percent, round_step from credit_settings order by effective_from;
 -- expect an error: rows are never edited
 update credit_settings set round_step = 1;
+```
+
+## Migration 0087 — credit settings can't be cancelled at the last minute (D548, 2026-11-24)
+
+`supabase/migrations/0087_credit_settings_lead.sql`. Paste into the Supabase SQL editor → Run, after 0086.
+Apply with Plan 5a, before the super admin adds or cancels a credit setting. It replaces the guard function so a row can't be deleted in the 2 minutes before it starts (other servers keep the old catalog for up to a minute). The app also refuses it, and says so; this is the database's own check.
+**Safe to re-run:** `create or replace function`; the trigger from 0086 is unchanged.
+**Ordering:** apply before deploying the app code. If it lands later, only the database's check is missing; the app's check still works.
+
+```sql
+-- expect 1 row: true
+select prosrc like '%interval ''2 minutes''%' as has_lead from pg_proc where proname = 'credit_settings_guard';
 ```

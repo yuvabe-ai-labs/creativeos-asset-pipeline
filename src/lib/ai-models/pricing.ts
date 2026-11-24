@@ -2,6 +2,9 @@
 // Client-safe: the focus views price their estimate with it too.
 import type { AiCatalog, AiModelPrice, Meter, PriceLine } from "./types";
 
+// How long each server instance keeps the catalog (D529). Pure, so client-safe code can use it.
+export const CATALOG_CACHE_MS = 60_000;
+
 export type PriceDims = Record<string, string | number | boolean | undefined>;
 export type MeterQuantities = Partial<Record<Meter, number>>;
 

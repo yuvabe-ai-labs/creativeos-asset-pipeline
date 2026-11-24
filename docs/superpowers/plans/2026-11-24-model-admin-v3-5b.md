@@ -24,12 +24,14 @@
 
 ---
 
-### Task 1: Server pieces (migration 0087, actions)
+### Task 1: Server pieces (migration 0088, actions)
 
-**Files:** `supabase/migrations/0087_admin_price_ops.sql`, `docs/auth-production-migration.md` (CRLF entry), `src/lib/db/ai-models-admin.ts`, `src/lib/actions/ai-models.ts`, `src/lib/actions/credit-settings.ts` (from 5a), tests next to each.
+Migration 0087 is taken by plan 5a (`0087_credit_settings_lead.sql`), so this migration is 0088.
+
+**Files:** `supabase/migrations/0088_admin_price_ops.sql`, `docs/auth-production-migration.md` (CRLF entry), `src/lib/db/ai-models-admin.ts`, `src/lib/actions/ai-models.ts`, `src/lib/actions/credit-settings.ts` (from 5a), tests next to each.
 
 - **Replace a scheduled price:** SQL function `replace_ai_model_price(p_cancel_id uuid, p_model_id text, p_effective_from timestamptz, p_lines jsonb, p_estimate jsonb, p_source_url text, p_note text, p_created_by uuid)` that deletes the future row (must belong to `p_model_id` and not have started) and inserts the new row in one transaction; returns the new id. Action `replaceAiModelPriceAction({ replaceId, modelId, … })` runs `checkNewPrice` with the replaced row excluded from the duplicate check.
-- **Reorder:** action `reorderAiModelsAction(kind, orderedIds)`: every id must exist and be of that kind (rule 14); writes `sort_order` 0..n-1 in one update (an SQL function `reorder_ai_models(p_kind text, p_ids text[])` in 0087).
+- **Reorder:** action `reorderAiModelsAction(kind, orderedIds)`: every id must exist and be of that kind (rule 14); writes `sort_order` 0..n-1 in one update (an SQL function `reorder_ai_models(p_kind text, p_ids text[])` in 0088).
 - **Agencies affected:** SQL function `ai_model_month_runs_by_org(p_from, p_to)` → `(model_id, org_id, org_name, runs, cost_usd, credits)`; helper `modelRunsByAgency(from, to, modelId?)`.
 - **Undo a started change:** action `undoAiModelPriceAction(modelId, priceId)`: only for the latest started row of that model created by this admin within the last 24 h; inserts a new row live now with the previous row's lines and estimate (through `checkNewPrice`), note "Undo of the <date> change". Same for credit settings (`undoCreditSettingsAction`). A future row's Undo is the existing cancel.
 - Tests for each: refusals write nothing; scoped ids; the replace is one RPC call; plain copy. Migration doc: what, when to apply (before 5b deploys), safe to re-run, verify SQL.

@@ -3,16 +3,16 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import {
   CREDIT_SETTINGS_COLUMNS, MODEL_COLUMNS, PRICE_COLUMNS, parseAiModelPriceRow, parseAiModelRow, parseCreditSettingsRow,
 } from "./schema";
+import { CATALOG_CACHE_MS } from "./pricing";
 import type { AiCatalog, AiModel, AiModelPrice, CreditSettings } from "./types";
 
 // Kept importable from here for existing callers; it is pure and lives in pricing.ts.
-export { currentPrice } from "./pricing";
+export { currentPrice, CATALOG_CACHE_MS } from "./pricing";
 
 // D529 — the catalog is read once and kept for a minute per server instance: a run reads its
 // model and price from memory, never with a query of its own. An admin change clears the cache
 // in the instance that made it; other instances pick it up within a minute (a price applies by
 // its date, so that delay never changes a charge).
-export const CATALOG_CACHE_MS = 60_000;
 
 let cached: { at: number; catalog: AiCatalog } | null = null;
 let inflight: Promise<AiCatalog> | null = null;
