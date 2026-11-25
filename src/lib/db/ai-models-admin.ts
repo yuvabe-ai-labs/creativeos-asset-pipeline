@@ -73,9 +73,19 @@ export async function getAdminModel(id: string): Promise<AdminModelRow | null> {
 export async function displayNames(userIds: string[]): Promise<Map<string, string>> {
   const names = new Map<string, string>();
   if (userIds.length === 0) return names;
-  const { data, error } = await createServerSupabase().from("profiles").select("id, display_name").in("id", userIds);
-  if (error) throw new Error(error.message);
-  for (const p of (data ?? []) as unknown as { id: string; display_name: string }[]) names.set(p.id, p.display_name);
+  // profiles is keyed by user_id (migration 0012). Names are only shown, never acted on, so a failed
+  // lookup leaves them out instead of taking the admin page down.
+  const { data, error } = await createServerSupabase()
+    .from("profiles")
+    .select("user_id, display_name")
+    .in("user_id", userIds);
+  if (error) {
+    console.error("[admin] display names lookup failed", error.message);
+    return names;
+  }
+  for (const p of (data ?? []) as unknown as { user_id: string; display_name: string }[]) {
+    names.set(p.user_id, p.display_name);
+  }
   return names;
 }
 

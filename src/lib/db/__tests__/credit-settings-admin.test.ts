@@ -45,7 +45,7 @@ beforeEach(() => {
 describe("listAdminCreditSettings", () => {
   it("maps created_by to a name with one profiles query and keeps broken rows", async () => {
     results.credit_settings = { data: [row("a", "u1"), row("b", "u1"), row("c", null, { round_step: 7 })] };
-    results.profiles = { data: [{ id: "u1", display_name: "Asha" }] };
+    results.profiles = { data: [{ user_id: "u1", display_name: "Asha" }] };
     const rows = await listAdminCreditSettings();
     expect(rows.map((r) => r.createdByName)).toEqual(["Asha", "Asha", null]);
     expect(rows[0].settings).toMatchObject({ id: "a", marginPercent: 0, roundStep: 5 });

@@ -66,13 +66,28 @@ describe("listAdminPrices", () => {
       estimate: {}, source_url: null, note: null, created_at: "2026-01-02", created_by: by,
     });
     results.ai_model_prices = { data: [price("a", "u1"), price("b", "u2"), price("c", "u1")] };
-    results.profiles = { data: [{ id: "u1", display_name: "Ann" }, { id: "u2", display_name: "Bo" }] };
+    results.profiles = { data: [{ user_id: "u1", display_name: "Ann" }, { user_id: "u2", display_name: "Bo" }] };
     const rows = await listAdminPrices("m");
     expect(rows.map((r) => r.createdByName)).toEqual(["Ann", "Bo", "Ann"]);
     const inCalls = calls.filter((c) => c.table === "profiles" && c.op === "in");
     expect(inCalls).toHaveLength(1);
-    expect(inCalls[0].args[0]).toBe("id");
+    // profiles is keyed by user_id (migration 0012); it has no id column.
+    expect(inCalls[0].args[0]).toBe("user_id");
+    expect(calls.find((c) => c.table === "profiles" && c.op === "select")?.args[0]).toBe("user_id, display_name");
     expect([...(inCalls[0].args[1] as string[])].sort()).toEqual(["u1", "u2"]);
+  });
+});
+
+describe("listAdminPrices names", () => {
+  it("still lists the prices when the name lookup fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    results.ai_model_prices = {
+      data: [{ id: "a", model_id: "m", effective_from: "2026-01-01", lines: [{ meter: "provider_unit", unit_usd: 1 }], estimate: {}, source_url: null, note: null, created_at: "2026-01-02", created_by: "u1" }],
+    };
+    results.profiles = { data: null, error: { message: "column profiles.id does not exist" } };
+    const rows = await listAdminPrices("m");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].createdByName).toBeNull();
   });
 });
 
