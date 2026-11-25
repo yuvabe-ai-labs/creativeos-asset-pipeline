@@ -699,6 +699,40 @@ describe("runKbTurn, review fixes", () => {
   });
 });
 
+// ── Likely answers on an empty-field question (D533) ─────────────────────────
+
+describe("runKbTurn, a tapped likely answer", () => {
+  const AGE = "target_audience.age_range";
+  const PAIN = "target_audience.pain_points";
+  const inReview: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "in_review", unreviewed: [AGE, PAIN] };
+  const fields = () => reviewFields(kbWith({}));
+
+  it("saves the tapped answer as the person's own, without asking the model", async () => {
+    const setField = vi.fn(async () => true);
+    const { model, seen } = scripted([say("never asked")]);
+    const result = await turn({ ctx: inReview, review: { fields: fields(), pending: AGE, answers: ["25–34"] }, actions: actions({ setField }), model, text: "25–34" });
+    expect(seen).toHaveLength(0);
+    expect(setField).toHaveBeenCalledWith(AGE, expect.objectContaining({ value: "25–34", status: "edited" }));
+    expect(result.walk.settled).toEqual([AGE]);
+  });
+
+  it("saves a tapped answer to a list field as its items", async () => {
+    const setField = vi.fn(async () => true);
+    const { model } = scripted([say("never asked")]);
+    await turn({ ctx: inReview, review: { fields: fields(), pending: PAIN, answers: ["Warm, playful"] }, actions: actions({ setField }), model, text: "Warm, playful" });
+    expect(setField).toHaveBeenCalledWith(PAIN, expect.objectContaining({ value: ["Warm", "playful"] }));
+  });
+
+  it("writes nothing when the field was reviewed on the page meanwhile", async () => {
+    const setField = vi.fn(async () => false);
+    const { model, seen } = scripted([say("never asked")]);
+    const result = await turn({ ctx: inReview, review: { fields: fields(), pending: AGE, answers: ["25–34"] }, actions: actions({ setField }), model, text: "25–34" });
+    expect(seen).toHaveLength(0);
+    expect(result.walk.settled).toEqual([]);
+    expect(result.reply).toBe("That field is already reviewed. Use propose_change to suggest a new value; the person approves it.");
+  });
+});
+
 // ── The page shows the copilot's work (D520) ────────────────────────────────
 
 describe("runKbTurn, naming what it changes", () => {

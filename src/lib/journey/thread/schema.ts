@@ -93,7 +93,8 @@ export type SignalDraftDecision =
 export const threadCardSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("status"), lines: z.array(statusLineSchema) }),
   /** A question about one thing, named by `field`; `label` is shown above the words. */
-  z.object({ kind: z.literal("question"), field: z.string().min(1), label: z.string() }),
+  /** `answers`: likely answers offered on an empty field (D533), kept so a tap can be read in code. */
+  z.object({ kind: z.literal("question"), field: z.string().min(1), label: z.string(), answers: z.array(z.string()).optional() }),
   /** Who approved a stage or a card. The name is kept as it was that day. */
   z.object({ kind: z.literal("approval"), what: z.string(), by: z.string(), byId: z.string().uuid().nullable() }),
   /** Something that happened beside the chat, said in one line (a save on the page). */

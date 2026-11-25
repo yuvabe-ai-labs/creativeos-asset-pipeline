@@ -127,7 +127,11 @@ export async function POST(req: Request, { params }: Ctx) {
           const walk = walkOf(history);
           const fields = version && reviewing ? reviewFields(version.output as unknown as TraceableBrandKB) : null;
           const review: KbReview | null = fields
-            ? { fields, pending: fields.some((f) => f.path === walk.pending && f.status === "needs_review") ? walk.pending : null }
+            ? (() => {
+                const pending = fields.some((f) => f.path === walk.pending && f.status === "needs_review") ? walk.pending : null;
+                // A tapped likely answer (D533) counts only while its question is still waiting.
+                return { fields, pending, answers: pending ? walk.answers : [] };
+              })()
             : null;
           kept.pending = review?.pending ?? null;
 

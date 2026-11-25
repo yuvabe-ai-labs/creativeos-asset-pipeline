@@ -49,7 +49,8 @@ export type KbTurnEvents = AgentEvents & {
 };
 
 /** The brand KB in review as this turn sees it: its fields, and the question waiting for an answer. */
-export type KbReview = { fields: ReviewField[]; pending: string | null };
+/** `answers`: the likely answers the waiting question offered (D533), read as taps in code. */
+export type KbReview = { fields: ReviewField[]; pending: string | null; answers?: string[] };
 
 const ALREADY_RUNNING = "A build is already running.";
 const ALREADY_BUILT = "The brand KB is already built. Changes to it come in a later step.";
