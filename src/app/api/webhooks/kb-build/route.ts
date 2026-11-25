@@ -118,7 +118,8 @@ export async function POST(req: Request) {
     try {
       const fields = reviewFields(body.kbOutput);
       const questions = walkMessages({ fields, walk: { asked: [], pending: null }, turn: null });
-      const answered = (async () => withAnswers(questions, fields, renderKbText(body.kbOutput as TraceableBrandKB)))().catch((e) => {
+      const recordFor = { orgId: job.org_id, clientId: job.client_id };
+      const answered = (async () => withAnswers(questions, fields, renderKbText(body.kbOutput as TraceableBrandKB), { recordFor }))().catch((e) => {
         console.error("[webhooks/kb-build] could not suggest answers", e);
         return questions;
       });

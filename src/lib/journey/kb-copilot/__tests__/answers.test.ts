@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/scripts/copilot/model", () => ({ structuredCaller: vi.fn() }));
 
-import type { StructuredCall } from "@/lib/scripts/copilot/model";
+import { structuredCaller, type StructuredCall } from "@/lib/scripts/copilot/model";
+import { KB_COPILOT_MODEL } from "../constants";
 import type { ReviewField } from "../review";
 import { questionMessage } from "../walk";
 import { suggestAnswers, withAnswers } from "../answers";
@@ -29,6 +30,13 @@ describe("suggestAnswers (D533)", () => {
     const call = answering(["a"]);
     await suggestAnswers(field(), "KB", { call });
     expect((call as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].system).toMatch(/never offer "none"/i);
+  });
+
+  it("records the call's cost for whom it is told, as a copilot call (D560)", async () => {
+    vi.mocked(structuredCaller).mockReturnValue(answering(["18–24"]));
+    const recordFor = { orgId: "org-1", clientId: "c1", userId: "u1" };
+    expect(await suggestAnswers(field(), "KB", { recordFor })).toEqual(["18–24"]);
+    expect(structuredCaller).toHaveBeenCalledWith(KB_COPILOT_MODEL, { recordFor, recordType: "copilot" });
   });
 
   it("gives nothing when the call fails or takes too long", async () => {

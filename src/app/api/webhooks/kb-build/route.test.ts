@@ -45,6 +45,8 @@ describe("POST /api/webhooks/kb-build, the copilot thread", () => {
     await POST(post({ ...succeeded, kbOutput: kbWith({ "target_audience.age_range": { evidence_type: "inferred", value: "" } }) }));
     const messages = vi.mocked(insertCopilotMessages).mock.calls[0][3];
     expect(messages[1].suggestions).toEqual(["Tapped"]);
+    // D560: the answers call's cost is recorded for the build's client.
+    expect(vi.mocked(withAnswers).mock.calls[0][3]).toEqual({ recordFor: { orgId: "org-1", clientId: "c1" } });
   });
 
   it("starts looking for likely answers before it saves the KB, so the thread is not held up (review fix)", async () => {

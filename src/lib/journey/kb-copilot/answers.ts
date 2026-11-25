@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import type { NewCopilotMessage } from "@/lib/db/copilot-messages";
+import type { RecordFor } from "@/lib/generations/record-for";
 import { structuredCaller, type StructuredCall } from "@/lib/scripts/copilot/model";
 import { KB_ANSWERS_SYSTEM, kbAnswersUser } from "@/prompts/kb-answer-options";
 import { KB_ANSWERS_TIMEOUT_MS, KB_COPILOT_MODEL, KB_REPLY_CHOICE_MAX_CHARS, KB_REPLY_CHOICES_MAX } from "./constants";
@@ -11,7 +12,8 @@ import { CONFIRM_CHOICE, KEEP_ASKING_CHOICE, NONE_CHOICE, REVIEW_REST_CHOICE, SK
 // Likely answers for a question about an empty field (D533): one quick call per question, when it
 // is asked. They never hold the question up: a failure or a slow answer gives none.
 
-type Deps = { call?: StructuredCall; timeoutMs?: number };
+/** `recordFor` names whom the call's cost is recorded for (D560); without it nothing is recorded. */
+type Deps = { call?: StructuredCall; timeoutMs?: number; recordFor?: RecordFor };
 
 const answersSchema = z.object({ answers: z.array(z.string()) });
 /** Compared without case or a closing full stop. */
@@ -24,7 +26,7 @@ const NOT_OFFERED = new Set([
 ].map(plain));
 
 export async function suggestAnswers(field: ReviewField, kbText: string, deps: Deps = {}): Promise<string[]> {
-  const call = deps.call ?? structuredCaller(KB_COPILOT_MODEL);
+  const call = deps.call ?? structuredCaller(KB_COPILOT_MODEL, deps.recordFor ? { recordFor: deps.recordFor, recordType: "copilot" } : {});
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), deps.timeoutMs ?? KB_ANSWERS_TIMEOUT_MS); });
   try {

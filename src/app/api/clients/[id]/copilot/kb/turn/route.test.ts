@@ -322,9 +322,11 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       vi.mocked(runKbTurn).mockResolvedValue({ reply: "Good.", suggestions: [], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] }, card: null });
       vi.mocked(withAnswers).mockImplementation(async (messages) => messages.map((m) => (m.card?.kind === "question" ? { ...m, suggestions: ["Tapped", ...(m.suggestions ?? [])] } : m)));
       await send({ text: "yes", attachments: [] });
-      const [, fields, kbText] = vi.mocked(withAnswers).mock.calls[0];
+      const [, fields, kbText, deps] = vi.mocked(withAnswers).mock.calls[0];
       expect(fields).toHaveLength(43);
       expect(kbText).not.toBe("");
+      // D560: the answers call's cost is recorded for this client and person.
+      expect(deps?.recordFor).toMatchObject({ orgId: "org-1", clientId: "c1" });
       expect(vi.mocked(insertCopilotMessages).mock.calls[1][3][1].suggestions?.[0]).toBe("Tapped");
     });
 

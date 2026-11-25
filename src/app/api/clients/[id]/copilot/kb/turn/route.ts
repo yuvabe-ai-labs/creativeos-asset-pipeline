@@ -233,7 +233,11 @@ export async function POST(req: Request, { params }: Ctx) {
             : [];
           // While they are found, a line says so, unless the reply's words are already showing (D514).
           if (fields && !showing && needsAnswers(questions, fields)) emit({ type: "step", text: FINDING_ANSWERS });
-          const extra = fields ? await withAnswers(questions, fields, version ? renderKbText(version.output as unknown as TraceableBrandKB) : "") : questions;
+          const extra = fields
+            ? await withAnswers(questions, fields, version ? renderKbText(version.output as unknown as TraceableBrandKB) : "", {
+              recordFor: { orgId: client.org_id, clientId, userId, userEmail: caller.email },
+            })
+            : questions;
           // The reply's id is made here so the trace can name the reply this turn produced.
           const replyId = crypto.randomUUID();
           kept.reply = reply.content;
