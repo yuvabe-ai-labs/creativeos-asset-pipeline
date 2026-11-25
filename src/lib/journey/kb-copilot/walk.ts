@@ -102,10 +102,17 @@ export function questionMessage(field: ReviewField, answers: string[] = []): New
 }
 
 /** Whether any of these messages asks about an empty field, so likely answers will be looked for (D533). */
+/** Whether a question about this field offers likely answers (D533): only an empty field, and never
+ *  a Compliance Rules one, where a tap would make a guessed rule the brand's own (Cyril, 2026-11-25). */
+export function offersAnswers(field: ReviewField): boolean {
+  return isEmpty(field.value) && field.module !== "compliance";
+}
+
 export function needsAnswers(messages: NewCopilotMessage[], fields: ReviewField[]): boolean {
   return messages.some((m) => {
     const card = m.card;
-    return card?.kind === "question" && isEmpty(fields.find((f) => f.path === card.field)?.value ?? "x");
+    const field = card?.kind === "question" ? fields.find((f) => f.path === card.field) : undefined;
+    return field !== undefined && offersAnswers(field);
   });
 }
 

@@ -5,9 +5,9 @@ import type { RecordFor } from "@/lib/generations/record-for";
 import { structuredCaller, type StructuredCall } from "@/lib/scripts/copilot/model";
 import { KB_ANSWERS_SYSTEM, kbAnswersUser } from "@/prompts/kb-answer-options";
 import { KB_ANSWERS_TIMEOUT_MS, KB_COPILOT_MODEL, KB_REPLY_CHOICE_MAX_CHARS, KB_REPLY_CHOICES_MAX } from "./constants";
-import { isEmpty, type ReviewField } from "./review";
+import type { ReviewField } from "./review";
 import { ASK_OPEN_CHOICE, START_BUILD_CHOICE } from "./context";
-import { CONFIRM_CHOICE, KEEP_ASKING_CHOICE, NONE_CHOICE, REVIEW_REST_CHOICE, SKIP_CHOICE, questionMessage } from "./walk";
+import { CONFIRM_CHOICE, KEEP_ASKING_CHOICE, NONE_CHOICE, REVIEW_REST_CHOICE, SKIP_CHOICE, offersAnswers, questionMessage } from "./walk";
 
 // Likely answers for a question about an empty field (D533): one quick call per question, when it
 // is asked. They never hold the question up: a failure or a slow answer gives none.
@@ -56,7 +56,7 @@ export async function withAnswers(messages: NewCopilotMessage[], fields: ReviewF
   return Promise.all(messages.map(async (m) => {
     const card = m.card;
     const field = card?.kind === "question" ? fields.find((f) => f.path === card.field) : undefined;
-    if (!field || !isEmpty(field.value)) return m;
+    if (!field || !offersAnswers(field)) return m;
     return questionMessage(field, await suggestAnswers(field, kbText, deps));
   }));
 }

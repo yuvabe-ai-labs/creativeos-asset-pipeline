@@ -68,4 +68,12 @@ describe("withAnswers (D533)", () => {
     expect(out[2]).toEqual(questionMessage(inferred));
     expect(call).toHaveBeenCalledTimes(1);
   });
+
+  it("leaves a question about an empty compliance field plain, with no call (Cyril 2026-11-25)", async () => {
+    const rules = field({ path: "compliance.never_use_claims", module: "compliance", title: "Compliance Rules · Claims never to use" } as Partial<ReviewField>);
+    const call = answering(["No health claims"]);
+    const out = await withAnswers([questionMessage(rules)], [rules], "KB", { call });
+    expect(out[0]).toEqual(questionMessage(rules));
+    expect(call).not.toHaveBeenCalled();
+  });
 });

@@ -104,7 +104,7 @@ Built on `feat/market-research` after `0e50feda` (Start the build in code), 3 ta
 
 ### Rulings
 - Ruling: when the reply's words are already on screen, no "Finding likely answers…" line is shown — a step event clears the streamed words in the panel (`applyTurnEvent`) — cost if wrong: up to 5 s with the reply shown and the composer locked, with no line saying why.
-- Ruling: compliance fields (content rules, claims and words never to use, disclaimers) still get likely answers until Cyril decides (reviewer's Important 3, a product question) — cost if wrong: one tap can make a model-invented compliance rule the brand's own.
+- Ruling: compliance fields (content rules, claims and words never to use, disclaimers) still get likely answers until Cyril decides (reviewer's Important 3, a product question) — cost if wrong: one tap can make a model-invented compliance rule the brand's own. **Decided by Cyril 2026-11-25: compliance is left out** (`offersAnswers` in `walk.ts`, used by `withAnswers` and `needsAnswers`).
 
 ### Deferred minors
 - A question asked again (the person typed something else) pays for new answers, and the chips can change.

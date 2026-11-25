@@ -81,7 +81,7 @@
 | 4.14 | Type "yes, that's right but make it 30 to 45" as an answer. | The copilot reads it (not treated as the button): the field gets "30 to 45". |
 | 4.15 | Watch any reply made of two sentences. | The sentences are separated ("Got it." never runs into the previous sentence with no space). |
 | 4.16 | While a question about a *different* field waits, type "edit the mission statement to: you tell us what you need, we do the rest" (pick any field not reviewed yet). | The reply reads "Saved {field}." and the field on the right shows your words, marked as coming from you. It never says it "can only save your wording as a new answer". |
-| 4.17 | Wait for a question about a field the build left empty (it says "I could not find this in the sources"). Tap one of the likely answers. | Up to 4 likely answers show before "There is none" and "Skip this one", and the question says they are guesses. Tapping one saves it at once (no "thinking"), the field on the right shows it, and the next question follows. A question about an inferred value has no likely answers. |
+| 4.17 | Wait for a question about a field the build left empty (it says "I could not find this in the sources"). Tap one of the likely answers. | Up to 4 likely answers show before "There is none" and "Skip this one", and the question says they are guesses. Tapping one saves it at once (no "thinking"), the field on the right shows it, and the next question follows. A question about an inferred value has no likely answers, and neither does one about an empty Compliance Rules field (content rules, claims or words never to use, disclaimers). |
 
 ## 5. Background jobs that fail
 

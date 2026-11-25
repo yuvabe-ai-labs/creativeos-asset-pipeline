@@ -197,3 +197,23 @@ describe("walkChoice", () => {
     expect(walkChoice("Keep asking", null)).toBeNull();
   });
 });
+
+// ── Compliance fields get no likely answers (D533, Cyril 2026-11-25) ───────────
+
+import { needsAnswers, offersAnswers } from "../walk";
+
+describe("offersAnswers", () => {
+  const rules = f("compliance.content_rules", { module: "compliance", value: null, inferred: false });
+  const age = f("target_audience.age_range", { module: "audience_casting", value: null, inferred: false });
+
+  it("is true only for an empty field outside Compliance Rules", () => {
+    expect(offersAnswers(age)).toBe(true);
+    expect(offersAnswers(rules)).toBe(false);
+    expect(offersAnswers({ ...age, value: "25–34" })).toBe(false);
+  });
+
+  it("means no answers are looked for when the only question is about a compliance field", () => {
+    expect(needsAnswers([questionMessage(rules)], [rules])).toBe(false);
+    expect(needsAnswers([questionMessage(age)], [age])).toBe(true);
+  });
+});
