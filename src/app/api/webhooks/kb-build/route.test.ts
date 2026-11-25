@@ -47,6 +47,13 @@ describe("POST /api/webhooks/kb-build, the copilot thread", () => {
     expect(messages[1].suggestions).toEqual(["Tapped"]);
   });
 
+  it("starts looking for likely answers before it saves the KB, so the thread is not held up (review fix)", async () => {
+    const { kbWith } = await import("@/lib/kb/__tests__/fixtures");
+    const { POST } = await import("./route");
+    await POST(post({ ...succeeded, kbOutput: kbWith({ "target_audience.age_range": { evidence_type: "inferred", value: "" } }) }));
+    expect(vi.mocked(withAnswers).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(insertKBVersion).mock.invocationCallOrder[0]);
+  });
+
   it("still writes the build message and the plain question when likely answers fail (D533)", async () => {
     const { kbWith } = await import("@/lib/kb/__tests__/fixtures");
     vi.mocked(withAnswers).mockRejectedValue(new Error("down"));

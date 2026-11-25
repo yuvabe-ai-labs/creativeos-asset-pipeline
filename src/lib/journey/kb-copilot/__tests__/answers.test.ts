@@ -20,6 +20,17 @@ describe("suggestAnswers (D533)", () => {
     expect(await suggestAnswers(field(), "KB", { call })).toEqual(["18–24", "25–34", "35–44", "45+"]);
   });
 
+  it("drops 'none'-like answers and any button the walk already has, however written (review fix)", async () => {
+    const call = answering(["None", "there is none.", "Not applicable", "N/A", "keep asking", "Yes, that's right", "Start the build", "18–24"]);
+    expect(await suggestAnswers(field(), "KB", { call })).toEqual(["18–24"]);
+  });
+
+  it("tells the model a 'none' answer has its own button", async () => {
+    const call = answering(["a"]);
+    await suggestAnswers(field(), "KB", { call });
+    expect((call as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].system).toMatch(/never offer "none"/i);
+  });
+
   it("gives nothing when the call fails or takes too long", async () => {
     const failing = vi.fn(async () => { throw new Error("down"); }) as unknown as StructuredCall;
     expect(await suggestAnswers(field(), "KB", { call: failing })).toEqual([]);

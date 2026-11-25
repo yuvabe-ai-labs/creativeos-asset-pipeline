@@ -328,6 +328,25 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       expect(vi.mocked(insertCopilotMessages).mock.calls[1][3][1].suggestions?.[0]).toBe("Tapped");
     });
 
+    it("says what it is doing while it finds likely answers, when nothing else is showing (review fix, D514)", async () => {
+      vi.mocked(getActiveKBVersion).mockResolvedValue({ id: "v1", output: kbWith({ [AGE]: { evidence_type: "inferred" }, [TONE]: { evidence_type: "inferred", value: "" } }) } as never);
+      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Good.", suggestions: [], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] }, card: null });
+      const sent = await send({ text: "yes", attachments: [] });
+      const stepAt = sent.events.findIndex((e) => e.type === "step" && e.text === "Finding likely answers…");
+      expect(stepAt).toBeGreaterThanOrEqual(0);
+      expect(stepAt).toBeLessThan(sent.events.findIndex((e) => e.type === "state"));
+    });
+
+    it("never wipes a reply already on screen with that line (review fix)", async () => {
+      vi.mocked(getActiveKBVersion).mockResolvedValue({ id: "v1", output: kbWith({ [AGE]: { evidence_type: "inferred" }, [TONE]: { evidence_type: "inferred", value: "" } }) } as never);
+      vi.mocked(runKbTurn).mockImplementation(async ({ on }) => {
+        on?.text?.("Good.");
+        return { reply: "Good.", suggestions: [], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] }, card: null };
+      });
+      const sent = await send({ text: "yes", attachments: [] });
+      expect(sent.events.some((e) => e.type === "step")).toBe(false);
+    });
+
     it("gives the turn the waiting question's likely answers, and none once it is no longer waiting (D533)", async () => {
       vi.mocked(listCopilotMessages).mockResolvedValue([{ ...question(AGE), card: { kind: "question", field: AGE, label: AGE, answers: ["25–34"] } }]);
       await send({ text: "25–34", attachments: [] });

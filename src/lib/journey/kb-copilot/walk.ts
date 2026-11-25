@@ -101,6 +101,14 @@ export function questionMessage(field: ReviewField, answers: string[] = []): New
   };
 }
 
+/** Whether any of these messages asks about an empty field, so likely answers will be looked for (D533). */
+export function needsAnswers(messages: NewCopilotMessage[], fields: ReviewField[]): boolean {
+  return messages.some((m) => {
+    const card = m.card;
+    return card?.kind === "question" && isEmpty(fields.find((f) => f.path === card.field)?.value ?? "x");
+  });
+}
+
 /** What code adds to the thread after a turn, or after a build lands (`turn: null`): the next
  *  question, the offer to stop after the first few, the "that is everything" line, or nothing.
  *  `fields` is the KB as it stands after the turn; `walk` is the thread as it stood before it. */

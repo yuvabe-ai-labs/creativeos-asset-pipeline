@@ -90,3 +90,26 @@
 - [ ] **Step 3:** Implement. Webhook fallback on a throw: the un-answered `walkMessages` result.
 - [ ] **Step 4:** Route tests PASS; full `npx vitest run` → known failures only; `tsc` clean.
 - [ ] **Step 5:** Append D533 (Decision / Why / Rejected / Refines brand KB spec §6 / Originated → this design). QA 4.x: "A question about an empty field shows up to 4 likely answers before There is none; tapping one saves it, and the page shows it." Commit `feat(kb-copilot): questions about empty fields offer likely answers (D533)`.
+
+---
+
+## Outcome (2026-11-25)
+
+Built on `feat/market-research` after `0e50feda` (Start the build in code), 3 tasks test-first, then one fresh review (opus) of 1481376c..d2f1e468: *With fixes*, 0 Critical, 3 Important. Full suite after the fix pass: the 2 known deprecated-model failures only; `tsc` clean.
+
+### Review fixes
+- A tapped button's reply is shown as soon as it is done, and "Finding likely answers…" shows while they are found when no reply words are on screen (D514). Tests: "shows a button's reply as soon as it is done…", "says what it is doing while it finds likely answers…", "never wipes a reply already on screen…".
+- The build webhook starts looking for likely answers before it saves the KB, so the thread message is not held up (also guards a throw while rendering the KB). Test: "starts looking for likely answers before it saves the KB…".
+- Re-graded Minor → Important: likely answers never repeat a button code already reads ("Keep asking", "Start the build"…), however written, and never offer a "none"-style answer (tapping "None" would have saved the word as the field's value); the prompt says so too. Tests: "drops 'none'-like answers…", "tells the model a 'none' answer has its own button".
+
+### Rulings
+- Ruling: when the reply's words are already on screen, no "Finding likely answers…" line is shown — a step event clears the streamed words in the panel (`applyTurnEvent`) — cost if wrong: up to 5 s with the reply shown and the composer locked, with no line saying why.
+- Ruling: compliance fields (content rules, claims and words never to use, disclaimers) still get likely answers until Cyril decides (reviewer's Important 3, a product question) — cost if wrong: one tap can make a model-invented compliance rule the brand's own.
+
+### Deferred minors
+- A question asked again (the person typed something else) pays for new answers, and the chips can change.
+- The answers do not see the answer saved in the same turn (the KB is rendered from before the turn).
+- A tap after the field was reviewed on the page goes to the model (as "Yes, that's right" already does), which may propose a change card.
+- The trace keeps the question's words but not the offered answers or the answers call's prompt.
+- The prompt gets only the field's title, not whether it is a list or what it means.
+- A timed-out call is not aborted, so it still runs and is billed.

@@ -723,6 +723,13 @@ describe("runKbTurn, a tapped likely answer", () => {
     expect(setField).toHaveBeenCalledWith(PAIN, expect.objectContaining({ value: ["Warm", "playful"] }));
   });
 
+  it("shows a button's reply as soon as it is done, not when the turn ends (review fix, D514)", async () => {
+    const text = vi.fn();
+    const { model } = scripted([say("never asked")]);
+    await turn({ ctx: inReview, review: { fields: fields(), pending: AGE, answers: ["25–34"] }, model, text: "25–34", on: { text } });
+    expect(text).toHaveBeenCalledWith("Saved Age Range.");
+  });
+
   it("writes nothing when the field was reviewed on the page meanwhile", async () => {
     const setField = vi.fn(async () => false);
     const { model, seen } = scripted([say("never asked")]);

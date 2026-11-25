@@ -396,6 +396,8 @@ export async function runKbTurn(input: {
     }
     input.trace?.choice({ tool: choice.tool, args: choice.args, output });
     const reply = said.length > 0 ? said.join(" ") : CHOICE_REPLY[choice.tool];
+    // Final already, so it is shown now (D514): the next question may still take a moment.
+    input.on?.text?.(reply);
     return { reply, suggestions: fallbackSuggestions(ctx), changed, saved, walk, card: null };
   }
 

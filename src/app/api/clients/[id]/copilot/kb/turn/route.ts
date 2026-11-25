@@ -13,11 +13,11 @@ import { insertTurnTrace } from "@/lib/db/copilot-traces";
 import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
 import { openaiAgentModel } from "@/lib/journey/agent-model";
 import {
-  KB_COPILOT_MODEL, KB_TURN_FAILED_AFTER_SAVE_REPLY, KB_TURN_FAILED_REPLY, KB_TURN_MAX_ATTACHMENTS, KB_TURN_MAX_CHARS,
+  FINDING_ANSWERS, KB_COPILOT_MODEL, KB_TURN_FAILED_AFTER_SAVE_REPLY, KB_TURN_FAILED_REPLY, KB_TURN_MAX_ATTACHMENTS, KB_TURN_MAX_CHARS,
 } from "@/lib/journey/kb-copilot/constants";
 import { isBuilding, openingMessage } from "@/lib/journey/kb-copilot/context";
 import { reviewFields } from "@/lib/journey/kb-copilot/review";
-import { walkMessages, walkOf, type TurnWalk } from "@/lib/journey/kb-copilot/walk";
+import { needsAnswers, walkMessages, walkOf, type TurnWalk } from "@/lib/journey/kb-copilot/walk";
 import { withAnswers } from "@/lib/journey/kb-copilot/answers";
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
 import { kbTraceRow, kbTurnMarks } from "@/lib/journey/kb-copilot/trace";
@@ -197,14 +197,16 @@ export async function POST(req: Request, { params }: Ctx) {
           let turnWalk: TurnWalk | null = null;
           let saved: KbSaved = {};
           let card: ChangeCard | BrandsCard | null = null;
+          // Whether the reply's words are on screen now: a step would wipe them (applyTurnEvent).
+          let showing = false;
           try {
             const result = await runKbTurn({
               ctx: { ...ctx, market: marketWithThread(ctx.market, history) }, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL, { orgId: client.org_id, clientId, userId, userEmail: caller.email }), trace: recorder,
               kb: version ? { versionId: version.id, output: version.output as unknown as TraceableBrandKB } : null,
               on: {
-                step: (line) => emit({ type: "step", text: line }),
-                text: (delta) => emit({ type: "text", delta }),
-                reset: () => emit({ type: "reset" }),
+                step: (line) => { showing = false; emit({ type: "step", text: line }); },
+                text: (delta) => { showing = true; emit({ type: "text", delta }); },
+                reset: () => { showing = false; emit({ type: "reset" }); },
                 saved: (stored) => emit({ type: "saved", saved: stored }),
                 page: () => emit({ type: "page" }),
                 target: (target, phase) => emit({ type: "target", target, phase }),
@@ -226,12 +228,12 @@ export async function POST(req: Request, { params }: Ctx) {
           // over them.
           const settled = turnWalk?.settled ?? [];
           // A question about an empty field comes with likely answers (D533); they never hold it up.
-          const extra: NewCopilotMessage[] = fields && turnWalk && !isBuilding(ctx)
-            ? await withAnswers(
-              walkMessages({ fields: fields.map((f) => (settled.includes(f.path) ? { ...f, status: "approved" as const } : f)), walk, turn: turnWalk }),
-              fields, version ? renderKbText(version.output as unknown as TraceableBrandKB) : "",
-            )
+          const questions: NewCopilotMessage[] = fields && turnWalk && !isBuilding(ctx)
+            ? walkMessages({ fields: fields.map((f) => (settled.includes(f.path) ? { ...f, status: "approved" as const } : f)), walk, turn: turnWalk })
             : [];
+          // While they are found, a line says so, unless the reply's words are already showing (D514).
+          if (fields && !showing && needsAnswers(questions, fields)) emit({ type: "step", text: FINDING_ANSWERS });
+          const extra = fields ? await withAnswers(questions, fields, version ? renderKbText(version.output as unknown as TraceableBrandKB) : "") : questions;
           // The reply's id is made here so the trace can name the reply this turn produced.
           const replyId = crypto.randomUUID();
           kept.reply = reply.content;

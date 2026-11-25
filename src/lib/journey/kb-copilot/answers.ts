@@ -5,7 +5,8 @@ import { structuredCaller, type StructuredCall } from "@/lib/scripts/copilot/mod
 import { KB_ANSWERS_SYSTEM, kbAnswersUser } from "@/prompts/kb-answer-options";
 import { KB_ANSWERS_TIMEOUT_MS, KB_COPILOT_MODEL, KB_REPLY_CHOICE_MAX_CHARS, KB_REPLY_CHOICES_MAX } from "./constants";
 import { isEmpty, type ReviewField } from "./review";
-import { NONE_CHOICE, SKIP_CHOICE, questionMessage } from "./walk";
+import { ASK_OPEN_CHOICE, START_BUILD_CHOICE } from "./context";
+import { CONFIRM_CHOICE, KEEP_ASKING_CHOICE, NONE_CHOICE, REVIEW_REST_CHOICE, SKIP_CHOICE, questionMessage } from "./walk";
 
 // Likely answers for a question about an empty field (D533): one quick call per question, when it
 // is asked. They never hold the question up: a failure or a slow answer gives none.
@@ -13,7 +14,14 @@ import { NONE_CHOICE, SKIP_CHOICE, questionMessage } from "./walk";
 type Deps = { call?: StructuredCall; timeoutMs?: number };
 
 const answersSchema = z.object({ answers: z.array(z.string()) });
-const OWN_BUTTONS = new Set([NONE_CHOICE, SKIP_CHOICE]);
+/** Compared without case or a closing full stop. */
+const plain = (text: string) => text.trim().toLowerCase().replace(/[.!]+$/, "");
+/** Never offered: a button code already reads (a tap would run that, not save the words), and a
+ *  "none" answer, which the "There is none" button gives properly (review fix). */
+const NOT_OFFERED = new Set([
+  NONE_CHOICE, SKIP_CHOICE, CONFIRM_CHOICE, KEEP_ASKING_CHOICE, REVIEW_REST_CHOICE, ASK_OPEN_CHOICE, START_BUILD_CHOICE,
+  "none", "n/a", "na", "not applicable", "nothing", "no",
+].map(plain));
 
 export async function suggestAnswers(field: ReviewField, kbText: string, deps: Deps = {}): Promise<string[]> {
   const call = deps.call ?? structuredCaller(KB_COPILOT_MODEL);
@@ -28,7 +36,7 @@ export async function suggestAnswers(field: ReviewField, kbText: string, deps: D
     const kept: string[] = [];
     for (const raw of answer.answers) {
       const text = raw.trim();
-      if (!text || text.length > KB_REPLY_CHOICE_MAX_CHARS || OWN_BUTTONS.has(text) || kept.includes(text)) continue;
+      if (!text || text.length > KB_REPLY_CHOICE_MAX_CHARS || NOT_OFFERED.has(plain(text)) || kept.includes(text)) continue;
       kept.push(text);
     }
     return kept.slice(0, KB_REPLY_CHOICES_MAX);

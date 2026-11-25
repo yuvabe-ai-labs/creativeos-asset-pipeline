@@ -21,6 +21,8 @@ export const KB_TURN_FAILED_AFTER_SAVE_REPLY = "Something went wrong on my side 
 
 /** The longest a question waits for its likely answers (D533); after this it goes out without them. */
 export const KB_ANSWERS_TIMEOUT_MS = 5_000;
+/** The live line while they are found, when nothing else is showing. */
+export const FINDING_ANSWERS = "Finding likely answers…";
 
 /** How many questions the review walk asks before it offers to stop (brand KB spec §2.3). */
 export const REVIEW_QUESTIONS_FIRST = 5;
