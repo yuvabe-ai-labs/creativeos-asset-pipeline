@@ -4,7 +4,7 @@ import type { Attachment, ThreadMessage } from "@/lib/journey/thread/schema";
 import { BuildAlreadyRunningError } from "@/lib/kb/build-errors";
 import { kbCopilotSystem } from "@/prompts/kb-copilot";
 import { KB_CONVERSATION_WINDOW, KB_REPLY_CHOICE_MAX_CHARS, KB_REPLY_CHOICES_MAX } from "./constants";
-import { canStartBuild, fallbackSuggestions, isBuilding, nextStep, type KbContext } from "./context";
+import { canStartBuild, fallbackSuggestions, isBuilding, nextStep, START_BUILD_CHOICE, type KbContext } from "./context";
 import type { KBFieldPatch } from "@/lib/kb/field-patch";
 import { coerceValue as coerce, isEmpty, REVIEW_FIELD_PATHS, reviewFields, type ReviewField } from "./review";
 import { walkChoice, type TurnWalk } from "./walk";
@@ -377,7 +377,11 @@ export async function runKbTurn(input: {
   // A button the walk offered is carried out here, with no model call (D519): the model once
   // answered "Yes, that's right" with words and no tool, so nothing was saved and the question came
   // back. The tool's own code runs, so its refusals still apply, and its sentence is the reply.
-  const choice = input.attachments.length === 0 ? walkChoice(input.text, review) : null;
+  // "Start the build" too: the model once re-saved the website and handles instead, and a save ends
+  // the turn, so the button had to be pressed again and again.
+  const choice = input.attachments.length === 0
+    ? walkChoice(input.text, review) ?? (input.text.trim() === START_BUILD_CHOICE ? { tool: "start_build", args: {} } : null)
+    : null;
   if (choice) {
     const tool = tools[choice.tool];
     if (tool.label) input.on?.step?.(tool.label);

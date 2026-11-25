@@ -90,6 +90,35 @@ describe("runKbTurn", () => {
     expect(outputs(seen)).toEqual(["The brand KB is already built. Changes to it come in a later step."]);
   });
 
+  it("starts the build when the Start the build button is pressed, without asking the model (D519)", async () => {
+    // Seen on staging: the model re-saved the website and handles instead, which ends the turn.
+    const a = actions();
+    const { model, seen } = scripted([{ text: "", calls: [call("save_website", { url: "acme.com" })] }]);
+    const result = await turn({ ctx: { ...empty, websiteUrl: "https://acme.com" }, text: "Start the build", actions: a, model });
+    expect(seen).toHaveLength(0);
+    expect(a.saveWebsite).not.toHaveBeenCalled();
+    expect(a.startBuild).toHaveBeenCalledOnce();
+    expect(result.reply).toBe("Started the build.");
+    expect(result.changed).toBe(true);
+  });
+
+  it("says a build is running when Start the build is pressed again", async () => {
+    const a = actions();
+    const { model, seen } = scripted([say("never asked")]);
+    const ctx = { ...empty, websiteUrl: "https://acme.com", job: { status: "researching", phaseMessage: null } };
+    const result = await turn({ ctx, text: "Start the build", actions: a, model });
+    expect(seen).toHaveLength(0);
+    expect(a.startBuild).not.toHaveBeenCalled();
+    expect(result.reply).toBe("A build is already running.");
+  });
+
+  it("leaves Start the build with an attachment to the model", async () => {
+    const a = actions();
+    const { model, seen } = scripted([say("ok")]);
+    await turn({ ctx: { ...empty, websiteUrl: "https://acme.com" }, text: "Start the build", attachments: [{ kind: "document", name: "a.pdf", url: "u" }] as never, actions: a, model });
+    expect(seen).toHaveLength(1);
+  });
+
   it("saves the website and starts the build in one turn on an empty client", async () => {
     const a = actions();
     const { model } = scripted([
