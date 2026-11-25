@@ -20,7 +20,15 @@ describe("speechToSpeech", () => {
     );
     expect(fetchImpl.mock.calls[0][0]).toBe("https://api.elevenlabs.io/v1/speech-to-speech/voice-1");
     expect((fetchImpl.mock.calls[0][1] as RequestInit).headers).toEqual({ "xi-api-key": "k" });
-    expect([...out]).toEqual([1, 2, 3]);
+    expect([...out.audio]).toEqual([1, 2, 3]);
+    expect(out.characterCost).toBeNull();
+  });
+
+  it("reports the credits ElevenLabs charged from the character-cost header", async () => {
+    process.env.ELEVEN_LABS_API_KEY = "k";
+    const fetchImpl = vi.fn(async () => new Response(new Uint8Array([1]), { headers: { "character-cost": "30", "request-id": "r1" } }));
+    const out = await speechToSpeech({ audio: Buffer.from([9]), voiceId: "v" }, fetchImpl as unknown as typeof fetch);
+    expect(out).toEqual({ audio: Buffer.from([1]), characterCost: 30 });
   });
 
   it("sends model, voice_settings, noise removal and seed when settings are given", async () => {

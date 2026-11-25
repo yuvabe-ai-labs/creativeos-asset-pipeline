@@ -1,6 +1,6 @@
 # Billing catalog schema: ready for every plan shape we expect
 
-**Date:** 2026-11-21 · **Branch:** `feat/razorpay-test` · **Migration:** 0068 · **Map:**
+**Date:** 2026-11-21 · **Branch:** `feat/razorpay-test` · **Migration:** 0092 · **Map:**
 `2026-11-19-billing-phase-1-design.md` (pieces 3 to 7 build on it)
 
 ## Goal
@@ -9,7 +9,7 @@ One schema that phase 1 uses as it is and later work only fills in: custom plans
 monthly, quarterly, half-yearly and yearly plans with their own prices, yearly plans whose credits
 arrive monthly, top-ups that end with the plan month or after their own number of days, discount
 codes, price changes that apply from the next payment, invoices with GST, and other currencies.
-0068 adds tables and columns only. No behaviour changes; nothing reads them until piece 3.
+0092 adds tables and columns only. No behaviour changes; nothing reads them until piece 3.
 
 ## Rules the schema follows
 
@@ -26,10 +26,10 @@ codes, price changes that apply from the next payment, invoices with GST, and ot
    suggest prices and to check margins. It never changes how many credits a run costs.
 4. **Every payment keeps what it was charged with:** price, discount, tax, total and the rate in
    force, so reports and refunds match what the owner paid.
-5. **Credits are always grants** (0067). A plan with monthly credit drops writes one grant a month,
+5. **Credits are always grants** (0091). A plan with monthly credit drops writes one grant a month,
    whatever its billing interval; a top-up writes one grant with its own end.
 
-## Tables (migration 0068)
+## Tables (migration 0092)
 
 ### billing_products
 
@@ -72,7 +72,7 @@ Index: `(product_id, active)`.
 
 The pricing inputs over time; the latest row with `effective_from <= now()` is in force.
 
-`id`, `inr_per_usd` numeric > 0 (the planning rate, D516), `plan_margin_pct`, `topup_margin_pct`,
+`id`, `inr_per_usd` numeric > 0 (the planning rate, D575), `plan_margin_pct`, `topup_margin_pct`,
 `min_margin_pct` (Admin warns below it), `effective_from` timestamptz, `created_by`, `note`. Seeded
 with one row: ₹100, 1%, 20%, 10% (examples until the real figures are set). Index:
 `effective_from`.
@@ -121,12 +121,12 @@ Every webhook stored once: `event_id` text PK, `type`, `payload` jsonb, `receive
 
 ### Changes to existing tables
 
-- `billing_payments` (0066) gains: `kind` (`test`, `plan`, `renewal`, `topup`; existing rows are
+- `billing_payments` (0090) gains: `kind` (`test`, `plan`, `renewal`, `topup`; existing rows are
   `test`), `price_id`, `subscription_id`, `discount_id`, `currency` (default `INR`),
   `discount_minor`, `tax_minor`, `total_minor`, `inr_per_usd`, `razorpay_invoice_id`. `status`
   also allows `failed` and `refunded`. `amount_paise` stays the amount before discount and tax.
   Indexes on the new foreign keys.
-- `credit_grants` (0067) gains `price_id` and `subscription_id` (which purchase a grant came from),
+- `credit_grants` (0091) gains `price_id` and `subscription_id` (which purchase a grant came from),
   with indexes.
 
 ## Who can read
@@ -153,7 +153,7 @@ read them through the server).
 ## Scale
 
 Every list or lookup has an index on the column it filters by, foreign keys included. A run still
-touches only the agency's few open grants (0067). The catalog is small (tens of rows). Payments
+touches only the agency's few open grants (0091). The catalog is small (tens of rows). Payments
 and events grow by a few rows per agency per month.
 
 ## Checking

@@ -13,7 +13,7 @@ import { PersonEntryRow } from "./person-entry-row";
 import type { PeopleColumns } from "./person-layout";
 
 // Spec §6.2: who works on this client. Invite, add and remove; permissions are shown but set only
-// on the Team page (D509). Rendered on /clients/[id]/members for the owner and Invite holders on
+// on the Team page (D547). Rendered on /clients/[id]/members for the owner and Invite holders on
 // this client, and in Admin's Clients tab. The rows are the Team page's, without the Clients
 // column. An Invite holder's read carries no permissions (inviteHolderView), so for them the
 // Permissions column is left out rather than showing everyone as "Can look"; Remove, Resend,

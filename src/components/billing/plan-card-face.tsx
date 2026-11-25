@@ -1,7 +1,7 @@
 import { GST_PCT, formatRupees } from "@/lib/billing/pricing";
 
 // How a plan or top-up pack looks to an owner: the same face in Admin › Plans and prices (with
-// Admin's footer under it) and on the owner's plans and billing pages (D520, D523).
+// Admin's footer under it) and on the owner's plans and billing pages (D579, D582).
 export function PlanCardFace({
   name,
   amountMinor,

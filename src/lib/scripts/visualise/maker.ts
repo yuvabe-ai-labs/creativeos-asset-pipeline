@@ -1,6 +1,8 @@
 import {
   AVATAR_FRONT_ASPECT, AVATAR_NAME_MAX, AVATAR_STORY_MAX, type AvatarAttributes,
 } from "@/lib/avatars/constants";
+import type { AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
+import type { ImageModels } from "@/lib/ai-models/model-lists";
 import { estimateAvatarImageCredits, estimateSheetCredits } from "@/lib/avatars/generation";
 import { hasFourViews, needsLikenessConsent } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
@@ -128,9 +130,9 @@ export function castChipStatus(avatar: Avatar | null, step: string | null): Cast
   return { label: "Ready", tone: "ready" };
 }
 
-/** What Make avatar costs: one face, then one sheet. */
-export function estimateMakeCredits(modelId: string = VISUALISE_AVATAR_MODEL_ID): number | null {
-  const face = estimateAvatarImageCredits({ modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
-  const sheet = estimateSheetCredits(modelId);
+/** What Make avatar costs: one face, then one sheet. D557: null until the price is known. */
+export function estimateMakeCredits(images: ImageModels, price: AiModelPrice | null, settings: CreditSettings | null, modelId: string = VISUALISE_AVATAR_MODEL_ID): number | null {
+  const face = estimateAvatarImageCredits(images, price, { modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 }, settings);
+  const sheet = estimateSheetCredits(images, price, modelId, settings);
   return face === null || sheet === null ? null : face + sheet;
 }

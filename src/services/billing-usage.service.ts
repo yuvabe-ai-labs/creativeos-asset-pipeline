@@ -4,7 +4,7 @@ import type { UsageRow, UsageRunsPage } from "@/lib/db/billing-usage";
 
 export type UsageSummary = { rows: UsageRow[]; total: number };
 
-// Who used what (D524): one call per route, typed through readJson.
+// Who used what (D583): one call per route, typed through readJson.
 export async function fetchUsage(by: UsageBy, period: UsagePeriod): Promise<UsageSummary> {
   return readJson<UsageSummary>(await fetch(`/api/billing/usage?by=${by}&period=${period}`), "Could not load usage.");
 }

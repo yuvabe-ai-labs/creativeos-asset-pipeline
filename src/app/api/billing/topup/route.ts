@@ -1,7 +1,7 @@
 import { apiError, apiOk, withAccess, withQuietErrors } from "@/lib/api/route-helpers";
 import { startTopUp } from "@/lib/billing/top-ups";
 
-// The owner buys a top-up pack (D522). Answers the Razorpay order for Checkout; credits arrive only
+// The owner buys a top-up pack (D581). Answers the Razorpay order for Checkout; credits arrive only
 // with the signed order.paid webhook.
 export async function POST(req: Request) {
   return withAccess(req, { need: "view_credits" }, (caller, orgId) =>

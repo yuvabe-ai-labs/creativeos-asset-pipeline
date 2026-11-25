@@ -1,9 +1,9 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-// Razorpay through its REST API, no SDK (D514). The setting names are the same in every
+// Razorpay through its REST API, no SDK (D573). The setting names are the same in every
 // environment. Live keys work only where RAZORPAY_LIVE=1 (production alone), and test keys only
-// where it is not set (D530): a key pasted into the wrong place stops payments instead of charging
+// where it is not set (D589): a key pasted into the wrong place stops payments instead of charging
 // real cards on staging or running production on test money.
 
 export type RazorpayOrder = { id: string; amount: number; currency: string; status: string };
@@ -62,7 +62,7 @@ export async function createOrder(input: {
 
 const PLAN_FAILED = "Could not start the plan.";
 
-/** A Razorpay plan: a fixed monthly amount, GST included (one per price row, D521). */
+/** A Razorpay plan: a fixed monthly amount, GST included (one per price row, D580). */
 export async function createPlan(input: { amountPaise: number; name: string; description: string; notes: Record<string, string> }): Promise<{ id: string }> {
   return razorpay<{ id: string }>(
     "/plans",

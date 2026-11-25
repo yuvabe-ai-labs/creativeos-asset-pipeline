@@ -19,7 +19,7 @@ Tasks 1 to 10 were built with six permissions; Task 11 moves the code to five.
 - shadcn on Base UI (`Button`, `Tooltip`), React Flow (`@xyflow/react`)
 - Vitest in the `node` environment; components render with `renderToStaticMarkup`
 
-**Spec:** [docs/superpowers/specs/2026-11-12-agency-permissions-design.md](../specs/2026-11-12-agency-permissions-design.md) (revised 13 Nov), ADRs D500–D509 in [the roadmap §7](../specs/2026-05-30-creativeos-staging-roadmap.md). Plans 1 and 2: [core](2026-11-11-permission-access-core.md), [browser](2026-11-11-permission-access-browser.md). Plan 4 (people, invites, admin): [2026-11-13-permissions-people-and-invites.md](2026-11-13-permissions-people-and-invites.md).
+**Spec:** [docs/superpowers/specs/2026-11-12-agency-permissions-design.md](../specs/2026-11-12-agency-permissions-design.md) (revised 13 Nov), ADRs D538–D547 in [the roadmap §7](../specs/2026-05-30-creativeos-staging-roadmap.md). Plans 1 and 2: [core](2026-11-11-permission-access-core.md), [browser](2026-11-11-permission-access-browser.md). Plan 4 (people, invites, admin): [2026-11-13-permissions-people-and-invites.md](2026-11-13-permissions-people-and-invites.md).
 
 ## Global Constraints
 
@@ -52,7 +52,7 @@ Tasks 1 to 10 were built with six permissions; Task 11 moves the code to five.
 - **One bridge commit each way, then gone.** Task 5 switches the server to the new `Access` while routes still name the old keys: `src/lib/permissions/legacy-need.ts` maps an old key to its action (spec §4.3), and Task 6 renames every `need` and deletes the file. Task 5 also turns the new access back into CASL rules for the browser (`packAccessRules`), deleted in Task 7. Each task stays reviewable on its own and every commit compiles.
 - **Page denials are all the 404 page** (`notFound()`), including another agency's client, which used to redirect home (spec §4.4). `loadCanvasPage` keeps answering `null` for "not found" so `/eval` keeps its own "Canvas not found".
 - **A new client row always starts as a copy of the person's agency set**, set by the `before insert` trigger that also refuses owner rows, so no insert path can forget it (spec §2.3).
-- **Downloads come with being on the client** (D507): the download gates from plan 2 Task 10 (`5b19e86a`, committed, never reviewed) are reverted in Task 3, and its review is this plan's Task 3.
+- **Downloads come with being on the client** (D545): the download gates from plan 2 Task 10 (`5b19e86a`, committed, never reviewed) are reverted in Task 3, and its review is this plan's Task 3.
 - **Review counts are of the clients where the person has Approve; the inbox lists the clients they are on**, with pending work only when they hold Approve somewhere. The per-type count path (`org_review_counts_for_types`) is no longer called; the SQL function stays (spec §3).
 - **`useCanvasEditable()` stays the lock's answer**, and the lock is only requested by someone who can edit (plan 2 Task 7), so it is `can("edit")` (Generate) and the edit lock held. Nothing about the D33 lock changes.
 - **Plan 2 Task 11** (profile shows the role; `orgRole` and `Identity.role` go) is folded into Tasks 5 and 7. **Task 12** (a lint rule against comparing preset names) is dropped: there are no presets left to compare. **Task 13's** verification is Task 12 here.
@@ -324,10 +324,10 @@ Expected: FAIL, `Failed to resolve import "./model"`.
 
 ```ts
 // src/lib/permissions/model.ts
-// D500, D507: six permissions. The owner sets a person's agency-level set on the Team page; each
+// D538, D545: six permissions. The owner sets a person's agency-level set on the Team page; each
 // client the person is on stores the effective copy (migration 0062, membership_clients). No
 // server-only imports: the browser builds the same Access from /api/me and runs the same check()
-// (D504), so the two cannot disagree.
+// (D542), so the two cannot disagree.
 
 export const PERMISSIONS = ["view", "edit", "generate", "approve", "share", "delete"] as const;
 export type Permission = (typeof PERMISSIONS)[number];
@@ -378,7 +378,7 @@ export type OrgAccess = {
 export type Access = {
   userId: string;
   isSuperAdmin: boolean;
-  /** One entry in this version (one agency per person, D508); keyed so several can follow. */
+  /** One entry in this version (one agency per person, D546); keyed so several can follow. */
   orgs: ReadonlyMap<string, OrgAccess>;
 };
 
@@ -468,7 +468,7 @@ import { isPermission, type Access as SixAccess, type Action, type Permission } 
 At the end of the file, add:
 
 ```ts
-// ── D504: the one checker (spec §4.2). Task 5 moves every caller onto it and removes the
+// ── D542: the one checker (spec §4.2). Task 5 moves every caller onto it and removes the
 // functions above. Every step is a Map or Set lookup.
 
 export type Decision = "allow" | "not_found" | "forbidden";
@@ -527,7 +527,7 @@ Expected: only the known tsc line; eslint clean.
 
 ```bash
 git add src/lib/permissions/model.ts src/lib/permissions/model.test.ts src/lib/permissions/check.ts src/lib/permissions/check.test.ts
-git commit -m "feat(permissions): six permissions, one Access and one check() (D504, D507)"
+git commit -m "feat(permissions): six permissions, one Access and one check() (D542, D545)"
 git log -1 --format=%B
 ```
 
@@ -630,7 +630,7 @@ Expected: FAIL (the current file still has `role_presets` and no `permissions <@
 Replace the whole of `supabase/migrations/0062_permission_based_access.sql` with (Write tool):
 
 ```sql
--- D500–D509: six permissions on the person, copied onto each client they are on; one owner per
+-- D538–D547: six permissions on the person, copied onto each client they are on; one owner per
 -- agency; invitations sent from inside a client. This file was never applied anywhere before
 -- 13 Nov 2026, so it was rewritten in place (the 11 Nov version, with presets, is at the local
 -- tag perm-granular-v1).
@@ -655,11 +655,11 @@ begin
 end
 $$;
 
--- One owner per agency (D500). Several owners later = drop this index; no check assumes one.
+-- One owner per agency (D538). Several owners later = drop this index; no check assumes one.
 create unique index if not exists org_memberships_one_owner
   on org_memberships (org_id) where is_owner;
 create index if not exists org_memberships_invited_by_idx on org_memberships (invited_by);
--- org_memberships_one_org_per_user (0012) stays: one agency per person in this version (D508).
+-- org_memberships_one_org_per_user (0012) stays: one agency per person in this version (D546).
 
 -- ── 2. A person's clients, each with the effective permissions there ──────────
 do $$
@@ -1005,7 +1005,7 @@ begin
 end
 $$;
 
--- ── 8. RLS ready for more than one agency per person (D508) ───────────────────
+-- ── 8. RLS ready for more than one agency per person (D546) ───────────────────
 create or replace function auth_org_ids()
 returns setof uuid language sql stable security definer set search_path = public as $$
   select org_id from org_memberships where user_id = auth.uid()
@@ -1103,7 +1103,7 @@ Run: `git rm src/lib/permissions/seed-matches-catalogue.test.ts`
 In `docs/auth-production-migration.md`, replace the whole section that starts at `## Migration 0062 — permission-based access (D495–D498, 2026-11-11)` (to the end of the file) with:
 
 ````markdown
-## Migration 0062 — six permissions, one owner, client members (D500–D509, 2026-11-13)
+## Migration 0062 — six permissions, one owner, client members (D538–D547, 2026-11-13)
 
 `supabase/migrations/0062_permission_based_access.sql`. Never applied before 13 Nov 2026, so it
 was rewritten in place; the 11 Nov presets version is not applied anywhere and never will be.
@@ -1209,7 +1209,7 @@ Expected: PASS.
 ```bash
 git add supabase/migrations/0062_permission_based_access.sql src/lib/permissions/migration-0062.test.ts docs/auth-production-migration.md
 git add -u src/lib/permissions/seed-matches-catalogue.test.ts
-git commit -m "feat(db): rewrite 0062 for six permissions, one owner and client members (D500-D509)"
+git commit -m "feat(db): rewrite 0062 for six permissions, one owner and client members (D538-D547)"
 git log -1 --format=%B
 ```
 
@@ -1217,7 +1217,7 @@ git log -1 --format=%B
 
 ### Task 3: Downloads come with View (reviews plan 2 Task 10)
 
-Plan 2 Task 10 (`5b19e86a`) hid download buttons behind `downloads.view` / `downloads.share`. D507 folds downloads into View, and anyone who sees a file can view its client, so the gates go. Nothing else has touched those files since, so the commit reverts cleanly; the revert also puts the two `downloads.*` keys back on `NOT_YET_CHECKED`, which keeps the catalogue coverage test green until Task 6 replaces it.
+Plan 2 Task 10 (`5b19e86a`) hid download buttons behind `downloads.view` / `downloads.share`. D545 folds downloads into View, and anyone who sees a file can view its client, so the gates go. Nothing else has touched those files since, so the commit reverts cleanly; the revert also puts the two `downloads.*` keys back on `NOT_YET_CHECKED`, which keeps the catalogue coverage test green until Task 6 replaces it.
 
 **Files:**
 - Revert: `5b19e86a` (touches `src/components/editor/editor-export-dialog.tsx`, `src/components/editor/editor-render-dialog.tsx`, `src/components/nodes/image-gen-focus-view.tsx`, `src/components/nodes/post-focus-view.tsx`, `src/components/permissions/use-can.ts`, `src/lib/actions/with-action-coverage.test.ts`, `src/lib/permissions/not-yet-checked.ts`; deletes `src/lib/permissions/downloads.ts` and `downloads.test.ts`, whose module goes)
@@ -1234,7 +1234,7 @@ Plan 2 Task 10 (`5b19e86a`) hid download buttons behind `downloads.view` / `down
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 
-// D507: View covers downloads. A person who can see a file can see its client, so no download
+// D545: View covers downloads. A person who can see a file can see its client, so no download
 // button has a permission of its own.
 const SURFACES = [
   "src/components/nodes/image-gen-focus-view.tsx",
@@ -1276,7 +1276,7 @@ Expected: only the known tsc line; eslint clean.
 
 ```bash
 git add src/components/permissions/__tests__/downloads-come-with-view.test.ts
-git commit -m "refactor(permissions): downloads come with View; the download gates go (D507)"
+git commit -m "refactor(permissions): downloads come with View; the download gates go (D545)"
 git log -1 --format=%B
 ```
 
@@ -1305,7 +1305,7 @@ import { CLIENT_SECTIONS } from "../client-sections";
 import { ClientSectionLinks } from "../client-section-links";
 
 describe("client sections", () => {
-  it("are the same for everyone who can see the client (D507: View covers every section)", () => {
+  it("are the same for everyone who can see the client (D545: View covers every section)", () => {
     expect(CLIENT_SECTIONS.map((s) => s.label)).toEqual(["Scripts", "Brand KB", "Brand assets", "Market", "Avatars"]);
     expect(CLIENT_SECTIONS.some((s) => "need" in s)).toBe(false);
   });
@@ -1371,7 +1371,7 @@ Expected: only the known tsc line; eslint clean.
 
 ```bash
 git add -A src/components/clients "src/app/clients/[id]/(canvases)/page.tsx"
-git commit -m "refactor(clients): every section shows to anyone who can view the client (D507)"
+git commit -m "refactor(clients): every section shows to anyone who can view the client (D545)"
 git log -1 --format=%B
 ```
 
@@ -1470,7 +1470,7 @@ export class ForbiddenError extends Error {
   }
 }
 
-// D504: the one checker (spec §4.2), on the server and in the browser. Every step is a Map or
+// D542: the one checker (spec §4.2), on the server and in the browser. Every step is a Map or
 // Set lookup. Rules that depend on the resource itself can be added behind this function later
 // without touching routes or screens.
 
@@ -1595,7 +1595,7 @@ vi.mock("@/lib/permissions/server", async (importOriginal) => {
 
 - [ ] **Step 4: The caller carries the new access**
 
-`src/lib/dal-logic.ts`: change the first line to `import type { Access } from "@/lib/permissions/model";`; in `CallerContext`, delete the `orgRole` field and its comment and change the `access` comment to `/** D500: what this person may do. Read it through accessOf(), never directly. */`; delete `orgRoleToIdentityRole` and `presetKeyToOrgRole` with their comments. Keep `export type OrgRole` (the admin screens write `org_role` until plan 4).
+`src/lib/dal-logic.ts`: change the first line to `import type { Access } from "@/lib/permissions/model";`; in `CallerContext`, delete the `orgRole` field and its comment and change the `access` comment to `/** D538: what this person may do. Read it through accessOf(), never directly. */`; delete `orgRoleToIdentityRole` and `presetKeyToOrgRole` with their comments. Keep `export type OrgRole` (the admin screens write `org_role` until plan 4).
 
 `src/lib/dal-logic.test.ts`: change the import to `import { mapAppMetadataToPlatformRole, mapAppMetadataToMustChangePassword } from "./dal-logic";` and delete the `describe("orgRoleToIdentityRole", …)` and `describe("presetKeyToOrgRole", …)` blocks (the functions are gone).
 
@@ -1613,7 +1613,7 @@ import { accessFromRows, type MembershipAccessRow } from "@/lib/permissions/mode
 Replace `loadMembershipAccess` and `buildCallerContext` with:
 
 ```ts
-// D500/D508: ONE round trip returns the membership and everything access needs. Several rows
+// D538/D546: ONE round trip returns the membership and everything access needs. Several rows
 // = several agencies, which is not allowed yet (the one_org_per_user index).
 // cache() dedupes within one render (so both resolvers share one RPC per user id), not inside
 // route handlers. A failed read throws: it is an error page, never "no access" (spec §4.1).
@@ -1682,7 +1682,7 @@ import { actionForNeed, type Need } from "@/lib/permissions/legacy-need";
 - Replace the `Guard` type and `denial` function with:
 
 ```ts
-// D496/D504: every handler names the one action it needs. Required, so TypeScript forces the
+// D496/D542: every handler names the one action it needs. Required, so TypeScript forces the
 // decision; route-coverage.test.ts fails on any handler that skips the chokepoints.
 export type Guard = { need: Need };
 
@@ -1743,7 +1743,7 @@ change `| { need: PermissionKey; on: ActionTarget }` to `| { need: Need; on: Act
 }
 ```
 
-Change the comment above `checkActionAccess` from `// D496 for server actions: the same agency + client scope + tick rule as the API chokepoints.` to `// D496/D504 for server actions: the same agency, client and permission rule as the API chokepoints.`
+Change the comment above `checkActionAccess` from `// D496 for server actions: the same agency + client scope + tick rule as the API chokepoints.` to `// D496/D542 for server actions: the same agency, client and permission rule as the API chokepoints.`
 
 Replace the whole of `src/lib/permissions/page.ts` with:
 
@@ -1800,7 +1800,7 @@ export const REVIEWABLE_NODE_TYPES = ["image-gen", "video-gen"] as const;
 
 ```ts
 // R5.1/R5.2/R5.3: one read, never one query per row (PRD §8: the client list renders for every
-// org member on every visit). Pending counts are of the work the person can approve (D507): the
+// org member on every visit). Pending counts are of the work the person can approve (D545): the
 // clients whose row has Approve, or every client for the owner (null). An empty list reads nothing.
 export async function getOrgReviewCounts(orgId: string, clientIds: readonly string[] | null): Promise<ReviewCounts> {
   if (clientIds !== null && clientIds.length === 0) return summarizeCounts([]);
@@ -1903,7 +1903,7 @@ Replace the guard line with:
 Replace the block from `// R2.1/R2.2, D495 — approving needs Approve on the node's area.` to the closing `}` of the `MEDIA_APPROVE_KEYS` check with:
 
 ```ts
-    // R2.1/R2.2, D507 — approving needs Approve on the version's client. D166 kept: refuse before
+    // R2.1/R2.2, D545 — approving needs Approve on the version's client. D166 kept: refuse before
     // any read when the person can approve on no client, so version ids can't be probed. The UI
     // also hides the control, but that is a courtesy on top of this, never the mechanism (R2.3).
     const access = accessOf(caller);
@@ -2361,7 +2361,7 @@ describe("client scope decision", () => {
 `src/lib/api/route-helpers.test.ts`: replace everything from the line `describe("withClient guard (D496)", () => {` to the end of the file with:
 
 ```ts
-describe("withClient guard (D504)", () => {
+describe("withClient guard (D542)", () => {
   beforeEach(() => {
     callerHolder.access = null;
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
@@ -2573,7 +2573,7 @@ and change its fixtures import line to `import { testAccess, testOwnerAccess } f
 - Replace `it("approves a prompt node with image approve, and a video prompt with video approve", …)` with:
 
 ```ts
-  it("approves any node type with Approve on its client (D507: no areas)", async () => {
+  it("approves any node type with Approve on its client (D545: no areas)", async () => {
     setAccess(testAccess({ permissions: ["view", "approve"], clientIds: ["c1"] }));
     for (const nodeType of ["image-gen", "prompt", "video-gen", "video-prompt", "multishot-prompt", "dubbing"]) {
       stubDb("org-1", { nodeType });
@@ -2705,7 +2705,7 @@ Expected: clean.
 
 ```bash
 git add -A src vitest.setup.ts
-git commit -m "feat(permissions): the server decides with six permissions from get_membership_access (D500, D504)"
+git commit -m "feat(permissions): the server decides with six permissions from get_membership_access (D538, D542)"
 git log -1 --format=%B
 ```
 
@@ -2726,7 +2726,7 @@ Spec §4.3's table, applied mechanically: `*.view` → `view`; `*.edit` → `edi
 
 - [ ] **Step 1: Rewrite the coverage tests (they fail on every old key)**
 
-In `src/lib/permissions/route-coverage.test.ts`: change `import { isPermissionKey } from "./catalogue";` to `import { isAction } from "./model";`, the comment above `ALLOWLIST` to `// D496/D504: every API handler names its action through a chokepoint or withAccess, or is on this` (keep the second comment line), and replace `GUARDED_RE` and the two `expect` lines inside the loop with:
+In `src/lib/permissions/route-coverage.test.ts`: change `import { isPermissionKey } from "./catalogue";` to `import { isAction } from "./model";`, the comment above `ALLOWLIST` to `// D496/D542: every API handler names its action through a chokepoint or withAccess, or is on this` (keep the second comment line), and replace `GUARDED_RE` and the two `expect` lines inside the loop with:
 
 ```ts
 const GUARDED_RE = /\b(withClient|withCanvas|withNode|withMoodboard|withAccess)\s*\([^]*?need:\s*"([a-z_.]+)"/;
@@ -2737,7 +2737,7 @@ const GUARDED_RE = /\b(withClient|withCanvas|withNode|withMoodboard|withAccess)\
         expect(isAction(m![2]), `"${m![2]}" is one of the nine actions`).toBe(true);
 ```
 
-and the `describe` title to `"every API handler declares an action (D496, D504)"`.
+and the `describe` title to `"every API handler declares an action (D496, D542)"`.
 
 In `src/lib/actions/with-action-coverage.test.ts`: replace the two permission imports with
 
@@ -2868,7 +2868,7 @@ import { check } from "@/lib/permissions/check";
 import { accessFromMe } from "./access";
 import { testMePayload } from "./test-fixtures";
 
-// D504: the browser builds the same Access the server checked, from what /api/me sent.
+// D542: the browser builds the same Access the server checked, from what /api/me sent.
 describe("accessFromMe", () => {
   it("answers each client the way its row says", () => {
     const access = accessFromMe(testMePayload({
@@ -3091,7 +3091,7 @@ export async function loadInitialMe(): Promise<MePayload | null> {
 import { buildOrgAccess, type Access } from "@/lib/permissions/model";
 import type { MePayload } from "./types";
 
-// D504: the browser builds the same Access the server checked, from what /api/me sent, and runs
+// D542: the browser builds the same Access the server checked, from what /api/me sent, and runs
 // the same check() on it. userId is not sent: no check reads it.
 export function accessFromMe(me: MePayload): Access {
   return {
@@ -3186,7 +3186,7 @@ import { NO_ACCESS } from "@/lib/permissions/model";
 import type { MePayload } from "@/lib/me/types";
 import { AccessContext, type BrowserAccess } from "./access-context";
 
-// D504. The root layout hands over the payload it built for this request; it seeds the me query
+// D542. The root layout hands over the payload it built for this request; it seeds the me query
 // (so the first render already shows the right buttons, with no request) and becomes the ONE
 // Access for the whole app. Components read it from context (performance rules 1 and 2).
 export function AccessProvider({ initial, children }: { initial: MePayload | null; children: ReactNode }) {
@@ -3274,7 +3274,7 @@ Replace the whole of `src/components/permissions/use-can-approve-node.ts` with (
 import { useClientId } from "@/components/canvas/client-id-context";
 import { useCan } from "./use-can";
 
-// D507: Approve / Request changes show with Approve on the canvas's client, for every node type.
+// D545: Approve / Request changes show with Approve on the canvas's client, for every node type.
 export function useCanApproveNode(nodeType: string): boolean {
   void nodeType; // one Approve for every node type now; the argument goes in Task 8
   return useCan("approve", useClientId());
@@ -3311,7 +3311,7 @@ Replace the whole of `src/lib/identity.ts` with:
 
 ```ts
 // The signed-in person's display name, from the session via /api/me (useIdentity()). What they
-// may do is their Access (D504), never here. Use this to decide what to RENDER, never what to
+// may do is their Access (D542), never here. Use this to decide what to RENDER, never what to
 // permit: the server checks every route and action.
 export type Identity = { name: string };
 ```
@@ -3962,7 +3962,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-// D504: one checker on server and browser; CASL, the area catalogue and presets are removed.
+// D542: one checker on server and browser; CASL, the area catalogue and presets are removed.
 const GONE = ["catalogue", "effective", "presets", "node-area", "ability", "browser", "downloads", "access"];
 
 function sourceFiles(dir: string): string[] {
@@ -4035,7 +4035,7 @@ Run: `npx tsc --noEmit` (only the known line).
 
 ```bash
 git add -A src package.json package-lock.json
-git commit -m "chore(permissions): remove CASL, the area catalogue and presets (D504)"
+git commit -m "chore(permissions): remove CASL, the area catalogue and presets (D542)"
 git log -1 --format=%B
 ```
 
@@ -4178,7 +4178,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Welcome — CreativeOS" };
 
 // Spec §6.4. Only for someone waiting (spec §2.4); anyone else goes home. No live update: the
-// person is emailed when their access is ready and opens the app again (D506).
+// person is emailed when their access is ready and opens the app again (D544).
 export default async function OnboardingPage() {
   const { caller, effectiveOrgId } = await resolveActingCaller();
   const access = accessOf(caller);
@@ -4251,7 +4251,7 @@ Expected: FAIL.
 - An exported `permissionFor(action: Permission | ClientAction): Permission | null`: `view` → `null` (the row is enough), `edit` → `"generate"`, a permission → itself. `check.ts` and anything else share it.
 - `anyClient` is built from every client row once access is given (no `view` requirement); "has at least one client" stays O(1) (`clients.size > 0`, no new field).
 - `ClientPermissions` becomes `Readonly<Record<Permission | ClientAction, boolean>>`; update `NO_CLIENT_PERMISSIONS` and `ALL_CLIENT_PERMISSIONS`.
-- Header comment: five permissions, view and edit are actions (D500, D504, D507). The `OWNER_ACTIONS` comment: inviting is the `invite` permission; removing people, giving access, editing permissions, resend and cancel stay `manage_team`.
+- Header comment: five permissions, view and edit are actions (D538, D542, D545). The `OWNER_ACTIONS` comment: inviting is the `invite` permission; removing people, giving access, editing permissions, resend and cancel stay `manage_team`.
 
 - [ ] **Step 3: Change the checker** (`check.ts`)
 - `check` follows the check order in the Global Constraints exactly, using `permissionFor` in step 7 (with no client named, the needed permission in `anyClient`).
@@ -4293,7 +4293,7 @@ Run: `npx tsc --noEmit` (only the known TS2304) and `npx eslint <changed files>`
 Stage only the files this task changed.
 
 ```bash
-git commit -m "refactor(permissions): five permissions; seeing comes from being on a client, editing from Generate (D507)"
+git commit -m "refactor(permissions): five permissions; seeing comes from being on a client, editing from Generate (D545)"
 git log -1 --format=%B
 ```
 
@@ -4302,14 +4302,14 @@ git log -1 --format=%B
 ### Task 12: Verify everything and record the plan's decisions
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7, a new ADR after D509)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7, a new ADR after D547)
 
 - [ ] **Step 1: Record the decisions**
 
-Append after the last ADR in the roadmap. Check the roadmap for the next free number rather than assuming it: D510 was free on 13 Nov; if a D510 exists by now, use the next free number and change the heading and commit message to match. Confirm against `staging`'s roadmap before merging, since `staging` has used numbers this branch picked before:
+Append after the last ADR in the roadmap. Check the roadmap for the next free number rather than assuming it: D548 was free on 13 Nov; if a D548 exists by now, use the next free number and change the heading and commit message to match. Confirm against `staging`'s roadmap before merging, since `staging` has used numbers this branch picked before:
 
 ```markdown
-### D510 — How the permission checker is built *(recorded 2026-11-13; refines D500, D504, D507; originated → `2026-11-13-permissions-core.md`)*
+### D548 — How the permission checker is built *(recorded 2026-11-13; refines D538, D542, D545; originated → `2026-11-13-permissions-core.md`)*
 
 **Decision.**
 - `check(access, action, { orgId, clientId })` takes `clientId: null` for "on at least one client the person is on": routes and nav items not rooted at one client use it. Each agency's access carries `anyClient`, built once per request, so it is one Set lookup.
@@ -4360,7 +4360,7 @@ Expected: no `/api/me` request on load; the same requests and channels as before
 
 ```bash
 git add docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
-git commit -m "docs(permissions): record how the permission checker is built (D510)"
+git commit -m "docs(permissions): record how the permission checker is built (D548)"
 git log -1 --format=%B
 ```
 
@@ -4380,4 +4380,4 @@ git log -1 --format=%B
 4. **`loadCanvasPage` on not found.** The spec says both page loaders call `notFound()`; this plan keeps `/eval`'s own "Canvas not found" for not-found cases (it is a not-found rendering) and uses `notFound()` for a missing permission.
 5. **Approving by node type.** The node-type-to-area map goes (spec §1), so Approve now applies to a version of any node type, including types that show no approve control. No screen offers it there.
 6. **0012's last-owner trigger** stays until `org_role` is dropped; the new code keeps `org_role` in step instead of changing that trigger.
-7. **ADR number D510** must be checked against `staging` before merging.
+7. **ADR number D548** must be checked against `staging` before merging.

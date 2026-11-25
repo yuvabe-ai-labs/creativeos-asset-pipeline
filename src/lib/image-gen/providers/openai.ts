@@ -1,17 +1,13 @@
 import "server-only";
 import sharp from "sharp";
 import { createOpenAI } from "@/lib/openai/server";
-import { buildZodFromParams } from "../schema-builder";
-import { gptImage25Params, gptImage2Params, gptImage1Params, gptImage1MiniParams } from "../params/openai";
 import { aspectRatioToOpenAISize } from "../cost";
-import type { ImageGenInput, ImageGenResult, MediaGenModelSpec } from "../types";
+import type { ImageGenInput, ImageGenResult } from "../types";
 
 // Re-exported for existing consumers (e.g. providers/__tests__/aspect-ratio.test.ts) — the
 // mapping itself now lives in cost.ts, not here, so it stays importable from client
 // components (see cost.ts's own comment for why).
 export { aspectRatioToOpenAISize };
-
-export { gptImage2Params, gptImage1Params, gptImage1MiniParams };
 
 // Params ref: https://platform.openai.com/docs/api-reference/images/create
 
@@ -42,8 +38,8 @@ async function urlToFile(url: string): Promise<{ file: File; width: number; heig
   };
 }
 
-// Mirrors the maxAspectRatio/maxImageEdgePx/minDimensionMultiple values declared on all three
-// OpenAI model configs below — kept as separate constants because this runs before a specific
+// Mirrors the maxAspectRatio/maxImageEdgePx/minDimensionMultiple values on the OpenAI models'
+// catalog rows — kept as separate constants because this runs before a specific
 // model is known to urlToFile's caller chain, not because the values are expected to diverge.
 const MAX_ASPECT_RATIO = 3.0;
 const MAX_EDGE_PX = 3840;
@@ -279,73 +275,3 @@ export async function generateWithOpenAI(
     },
   };
 }
-
-// ── Model configs ─────────────────────────────────────────────────────────────
-
-export const openaiModels: MediaGenModelSpec[] = [
-  {
-    id: "openai:gpt-image-2.5-sunburst",
-    provider: "openai", mediaType: "image",
-    label: "GPT Image 2.5 Sunburst", providerLabel: "OpenAI",
-    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
-    maxImageEdgePx: 3840,
-    maxAspectRatio: 3.0,
-    minDimensionMultiple: 16,
-    supportsMask: true,
-    params: gptImage25Params,
-    schema: buildZodFromParams(gptImage25Params),
-    generate: (input) => generateWithOpenAI("gpt-image-2.5-sunburst", input),
-  },
-  {
-    id: "openai:gpt-image-2.5-flare",
-    provider: "openai", mediaType: "image",
-    label: "GPT Image 2.5 Flare", providerLabel: "OpenAI",
-    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
-    maxImageEdgePx: 3840,
-    maxAspectRatio: 3.0,
-    minDimensionMultiple: 16,
-    supportsMask: true,
-    params: gptImage25Params,
-    schema: buildZodFromParams(gptImage25Params),
-    generate: (input) => generateWithOpenAI("gpt-image-2.5-flare", input),
-  },
-  {
-    id: "openai:gpt-image-2",
-    provider: "openai", mediaType: "image",
-    label: "GPT Image 2", providerLabel: "OpenAI",
-    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
-    maxImageEdgePx: 3840,
-    maxAspectRatio: 3.0,
-    minDimensionMultiple: 16,
-    supportsMask: true,
-    params: gptImage2Params,
-    schema: buildZodFromParams(gptImage2Params),
-    generate: (input) => generateWithOpenAI("gpt-image-2", input),
-  },
-  {
-    id: "openai:gpt-image-1",
-    provider: "openai", mediaType: "image",
-    label: "GPT Image 1", providerLabel: "OpenAI",
-    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
-    maxImageEdgePx: 3840,
-    maxAspectRatio: 3.0,
-    minDimensionMultiple: 16,
-    supportsMask: true,
-    params: gptImage1Params,
-    schema: buildZodFromParams(gptImage1Params),
-    generate: (input) => generateWithOpenAI("gpt-image-1", input),
-  },
-  {
-    id: "openai:gpt-image-1-mini",
-    provider: "openai", mediaType: "image",
-    label: "GPT Image 1 Mini", providerLabel: "OpenAI",
-    maxReferenceImages: 16, maxReferenceSizeBytes: 50 * 1024 * 1024,
-    maxImageEdgePx: 3840,
-    maxAspectRatio: 3.0,
-    minDimensionMultiple: 16,
-    supportsMask: true,
-    params: gptImage1MiniParams,
-    schema: buildZodFromParams(gptImage1MiniParams),
-    generate: (input) => generateWithOpenAI("gpt-image-1-mini", input),
-  },
-];

@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, RefreshCw, FileUp, Clapperboard, MoreHorizontal } from "lucide-react";
 import { ScriptDocumentSkeleton } from "./script-document-skeleton";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EditableField } from "./editable-field";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -208,6 +209,20 @@ export function ScriptFocusView({
     onPatch({ kbSlices: next });
   }
 
+  // Re-extract from the stored original; over unsaved edits, confirm first (they'd be overwritten).
+  function reExtract() {
+    if (!dirty) {
+      runParse(source);
+      return;
+    }
+    setConfirm({
+      title: "Re-extract the script?",
+      description: "Re-extracting will overwrite your unsaved edits with a fresh extraction.",
+      actionLabel: "Re-extract",
+      onConfirm: () => runParse(source),
+    });
+  }
+
   function requestClose(then?: () => void) {
     const close = () => {
       onOpenChange(false);
@@ -249,7 +264,7 @@ export function ScriptFocusView({
               <ArrowLeft className="size-4" /> Back to canvas
             </Button>
 
-            <header className="mt-4 flex items-start justify-between gap-4">
+            <header className="mt-4 flex items-center justify-between gap-8">
               <div>
                 <SheetTitle className="p-0 font-display text-3xl font-semibold tracking-tight">
                   <EditableField
@@ -259,16 +274,6 @@ export function ScriptFocusView({
                     className="font-display text-3xl font-semibold tracking-tight"
                   />
                 </SheetTitle>
-                {/* D298 — the script's presenter. Opening the gallery closes this sheet first:
-                    the drawer cannot sit over a modal sheet. */}
-                <div className="mt-3">
-                  <ScriptPresenterBlock
-                    scriptId={nodeId}
-                    onOpenGallery={() =>
-                      requestClose(() => openDrawer({ tab: "avatars", connectToNodeId: nodeId }))
-                    }
-                  />
-                </div>
               </div>
 
               {/* Three tiers, and exactly ONE filled button at any time:
@@ -298,29 +303,8 @@ export function ScriptFocusView({
                       </>
                     )}
                   </Button>
-                  <div className="mx-1 h-6 w-px bg-border" aria-hidden />
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => {
-                      if (!dirty) {
-                        runParse(source);
-                        return;
-                      }
-                      setConfirm({
-                        title: "Re-extract the script?",
-                        description:
-                          "Re-extracting will overwrite your unsaved edits with a fresh extraction.",
-                        actionLabel: "Re-extract",
-                        onConfirm: () => runParse(source),
-                      });
-                    }}
-                  >
-                    <RefreshCw className="size-4 text-muted-foreground" /> Re-extract
-                  </Button>
-                  <Button variant="outline" size="lg" onClick={() => setReplacing(true)}>
-                    <FileUp className="size-4 text-muted-foreground" /> Replace script
-                  </Button>
+                  {/* Re-extract and Replace script act on the original, so they live in the
+                      Original script card's ⋯ menu (shown by this toggle), not up here. */}
                   <div className="mx-1 h-6 w-px bg-border" aria-hidden />
                   {/* Fan out is always the filled primary: it keeps its look while edits
                       are pending (it saves them first), and Save is the purple outline. */}
@@ -348,6 +332,17 @@ export function ScriptFocusView({
                 </Button>
               )}
             </header>
+            {/* D298 — the script's presenter, a full-width row under the header so it lays out
+                in one horizontal strip. Opening the gallery closes this sheet first: the drawer
+                cannot sit over a modal sheet. */}
+            <div className="mt-4">
+              <ScriptPresenterBlock
+                scriptId={nodeId}
+                onOpenGallery={() =>
+                  requestClose(() => openDrawer({ tab: "avatars", connectToNodeId: nodeId }))
+                }
+              />
+            </div>
           </div>
         </div>
 
@@ -392,10 +387,43 @@ export function ScriptFocusView({
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 8 }}
                       transition={{ ease: [0.22, 1, 0.36, 1], duration: 0.32 }}
-                      className="mb-6 rounded-xl border bg-muted/20 p-5"
+                      className="mb-6 rounded-xl border bg-card px-5 pb-4 pt-4"
                     >
-                      <span className="text-eyebrow">Original script</span>
-                      <pre className="mt-3 max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-eyebrow">Original script</span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            openOnHover
+                            delay={100}
+                            closeDelay={200}
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Original script options"
+                                className="text-muted-foreground hover:text-foreground"
+                              />
+                            }
+                          >
+                            <MoreHorizontal className="size-4" strokeWidth={1.5} />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-44">
+                            <DropdownMenuItem
+                              onClick={reExtract}
+                              className="gap-2 data-highlighted:bg-primary/8 data-highlighted:text-primary"
+                            >
+                              <RefreshCw className="size-4" strokeWidth={1.5} /> Re-extract
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setReplacing(true)}
+                              className="gap-2 data-highlighted:bg-primary/8 data-highlighted:text-primary"
+                            >
+                              <FileUp className="size-4" strokeWidth={1.5} /> Replace script
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <pre className="mt-3 max-h-60 overflow-y-auto whitespace-pre-wrap pr-3 font-sans text-sm leading-relaxed text-foreground/80">
                         {source || "No original script."}
                       </pre>
                     </motion.div>

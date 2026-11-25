@@ -93,14 +93,11 @@ import {
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useRailDisconnect } from "./use-rail-disconnect";
 import { standingChangeRequest, type ApprovalStatus } from "@/lib/approval";
-import {
-  imageGenClientModelMap,
-  isImageModelDeprecated,
-  DEFAULT_CLIENT_MODEL_ID,
-  defaultsForModel,
-} from "@/lib/image-gen/client-models";
+import { useImageModels } from "@/hooks/queries/ai-models";
+import { paramDefaults } from "@/lib/ai-models/model-lists";
+import { RetiredModelNotice } from "@/components/models/retired-model-notice";
 import { smartMergeParams } from "@/lib/image-gen/params/merge";
-import { paramsForRestore } from "@/lib/generations/version-params";
+import { imageVersionRestore } from "@/lib/generations/version-params";
 import { ImageGenOutputSettingsBody } from "./image-gen-output-settings-body";
 import { GenerateFooter } from "./generate-footer";
 import { imageGenerateBlocker, imageGenerateDisabled } from "@/lib/image-gen/generate-blocker";
@@ -123,8 +120,9 @@ import { groupByTimecode } from "@/lib/review-annotations/group";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type { RegionBounds } from "@/lib/review-annotations/draft";
 import { MAX_ANNOTATIONS_PER_DECISION } from "@/lib/review-annotations/constants";
-import { usdToFinalCredits } from "@/lib/credits/units";
-import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { imageEstimateUsd } from "@/lib/ai-models/image-price";
+import { useCreditSettings, useModelPrice } from "@/hooks/queries/ai-models";
 import { LeftSection } from "./focus-left-section";
 import { RailItem } from "./focus-rail-item";
 import { ShotAssetsRail } from "./shot-assets-rail";
@@ -158,6 +156,8 @@ export type ImageGenFocusViewProps = {
     /** D436 — an Avatar node's avatar, whose pictures the focus view reads from the cache. */
     avatarId?: string;
   }>;
+  /** D567 — the retired model this node was moved off when the canvas opened. */
+  retiredModelId?: string;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
@@ -214,8 +214,10 @@ export function ImageGenFocusView({
   editReferenceNodeIds,
   baseReferenceNodeId,
   upstream: wiredUpstream,
+  retiredModelId,
   onPatch,
 }: ImageGenFocusViewProps) {
+  const images = useImageModels();
   // Connected inputs, as the Prompt node's are: the rail LIST is the canvas's (what is wired in,
   // and into its Prompt); every preview's CONTENT is the server's (compile-preview →
   // resolveImageGenInputs, the rows image-generate sends), matched by node id. One read per open,
@@ -234,14 +236,12 @@ export function ImageGenFocusView({
       }),
     [wiredUpstream, compiled.status, compiled.data, compiled.isPlaceholderData],
   );
-  const selectedModelId = modelId ?? DEFAULT_CLIENT_MODEL_ID;
-  const model =
-    imageGenClientModelMap[selectedModelId] ??
-    imageGenClientModelMap[DEFAULT_CLIENT_MODEL_ID];
+  const selectedModelId = modelId ?? images.defaultId;
+  const model = images.specOrDefault(modelId);
   const editMode = editModeForModel(model.supportsMask); // "paint" | "type"
 
   const [paramValues, setParamValues] = useState<ParamFormValues>(() => {
-    const base = { ...defaultsForModel(model), ...(params ?? {}) };
+    const base = { ...paramDefaults(model.params), ...(params ?? {}) };
     // Migrate legacy pixel-size params to unified aspect_ratio (one-time at mount).
     if (base.size && !base.aspect_ratio) {
       const SIZE_TO_RATIO: Record<string, string> = {
@@ -455,21 +455,25 @@ export function ImageGenFocusView({
   // own API route. The previous fetch-based version still paid a real DB+auth round trip on
   // every param change (withNode's node/canvas/client lookup in the now-deleted
   // image-generate/estimate route) even after D92 removed the live vendor token-counting
-  // call — this eliminates that hop entirely, matching video-gen's computeVideoCost (called
+  // call — this eliminates that hop entirely, matching video-gen's price lookup (called
   // directly in render, no fetch at all). Only meaningful on the Generate tab (Edit has its
   // own action button, out of scope per this plan) and once there's a prompt to estimate from.
+  // D557 — priced from the model's row in the session's catalog.
+  const { price: modelPrice, loading: priceLoading } = useModelPrice(model.id);
+  const settings = useCreditSettings();
+  const modelPriceId = modelPrice?.id ?? null;
   const hasPromptUpstream = Boolean(promptUpstream);
   const paramValuesKey = JSON.stringify(paramValues);
   const estimatedCredits = useMemo(() => {
-    if (!open || activeTab === "edit" || !promptUpstream || !fetchedPrompt?.text) return null;
-    const costUsd = estimateImageGenerationCostUsd({
+    if (!open || activeTab === "edit" || !promptUpstream || !fetchedPrompt?.text || !modelPrice || !settings) return null;
+    const costUsd = imageEstimateUsd(modelPrice, {
       modelId: model.id,
       quality: paramValues.quality as string | undefined,
       aspectRatio: paramValues.aspect_ratio as string | undefined,
       imageSize: paramValues.image_size as string | undefined,
-      referenceUrls: connectedImageUrls,
+      referenceCount: connectedImageUrls.length,
     });
-    return costUsd === null ? null : usdToFinalCredits(costUsd);
+    return costUsd === null ? null : creditsFromUsd(costUsd, settings);
     // paramValues/connectedImageUrls omitted on purpose — each is a new object/array
     // reference on renders that don't actually change its contents; stable JSON-stringified/
     // primitive stand-ins (hasPromptUpstream, paramValuesKey, connectedImageUrlsKey) avoid
@@ -485,12 +489,14 @@ export function ImageGenFocusView({
     paramValuesKey,
     connectedImageUrlsKey,
     fetchedPrompt?.text,
+    modelPriceId,
+    settings,
   ]);
   // The connected prompt node's output (fetched by the separate effect above) hasn't loaded
   // yet — the Generate button stays disabled/spinning for that, independent of the now-
   // synchronous cost estimate above.
   const estimating =
-    open && activeTab !== "edit" && Boolean(promptUpstream) && !fetchedPrompt?.text;
+    (open && activeTab !== "edit" && Boolean(promptUpstream) && !fetchedPrompt?.text) || priceLoading;
 
   // Connected image NODES (id + url), for the edit-mode reference tiles.
   const connectedImageNodes = upstream
@@ -591,18 +597,18 @@ export function ImageGenFocusView({
   // post-max-count/dedup list the real route actually reserves against — an existing,
   // accepted gap between estimate and reservation, kept consistent rather than special-cased.
   const editEstimatedCredits = useMemo(() => {
-    if (!open || activeTab !== "edit" || !canEditBase || !finalPrompt.trim()) return null;
+    if (!open || activeTab !== "edit" || !canEditBase || !finalPrompt.trim() || !modelPrice || !settings) return null;
     const referenceUrls = [editBaseUrl, ...selectedExtraUrls].filter(
       (u): u is string => Boolean(u),
     );
-    const costUsd = estimateImageGenerationCostUsd({
+    const costUsd = imageEstimateUsd(modelPrice, {
       modelId: model.id,
       quality: paramValues.quality as string | undefined,
       aspectRatio: paramValues.aspect_ratio as string | undefined,
       imageSize: paramValues.image_size as string | undefined,
-      referenceUrls,
+      referenceCount: referenceUrls.length,
     });
-    return costUsd === null ? null : usdToFinalCredits(costUsd);
+    return costUsd === null ? null : creditsFromUsd(costUsd, settings);
     // paramValuesKey stands in for paramValues (an object), same reason as the Generate
     // estimate above — a stable primitive avoids recomputing on renders that don't actually
     // change its contents, and react-hooks/use-memo requires a simple dependency expression.
@@ -616,11 +622,11 @@ export function ImageGenFocusView({
     paramValuesKey,
     finalPrompt,
     editReferenceUrlsKey,
+    modelPriceId,
+    settings,
   ]);
-  // No async dependency left on this tab (finalPrompt/canEditBase are already synchronously
-  // known, unlike the Generate tab's connected-prompt fetch) — nothing to show a loading
-  // state for.
-  const editEstimating = false;
+  // D557 — the only thing the Edit estimate waits for is the price.
+  const editEstimating = priceLoading;
 
   // The rail lists one row per wired node; the @-mention box lists the images, numbered as the
   // server numbers them (an avatar's sheet is its own entry).
@@ -879,27 +885,16 @@ export function ImageGenFocusView({
     const toastId = toast.loading("Restoring version…");
     try {
       const json = await restoreVersion.mutateAsync(versionId);
-      // params_used carries its own modelId for image versions (the image-generate route writes
-      // it there); model_used is the same value, and the fallback covers either being absent.
-      const restoredModelId =
-        (typeof json.paramsUsed?.modelId === "string" ? json.paramsUsed.modelId : null) ??
-        json.modelUsed ??
-        null;
-      // D467 — a version made on a deprecated model brings back its picture, not its model.
-      const restoredParams = restoredModelId && !isImageModelDeprecated(restoredModelId)
-        ? paramsForRestore(imageGenClientModelMap[restoredModelId]?.params, json.paramsUsed ?? {})
-        : null;
-      if (restoredModelId && restoredParams) {
-        seenModelIdRef.current = restoredModelId;
+      // D467/D565 — a version made on a model no longer offered (retired, or hidden and not this
+      // node's own) brings back its picture, not its model. A move to another model clears the
+      // retired notice (D567).
+      const restored = imageVersionRestore(images, json, modelId);
+      const restoredParams = restored.params;
+      if (restored.modelId && restoredParams) {
+        seenModelIdRef.current = restored.modelId;
         setParamValues(restoredParams);
-        onPatch({
-          ...(json.output ? { parsed: json.output } : {}),
-          modelId: restoredModelId,
-          params: restoredParams,
-        });
-      } else if (json.output) {
-        onPatch({ parsed: json.output });
       }
+      if (Object.keys(restored.patch).length > 0) onPatch(restored.patch);
       setActiveVersionId(versionId);
       setHasMaskRegion(false); // restored a different base — drop any stale mask-region flag
       // The restored version carries its OWN approval state (D29 reads the badge off the
@@ -1002,7 +997,7 @@ export function ImageGenFocusView({
   }
 
   function changeModel(nextId: string) {
-    onPatch({ modelId: nextId });
+    onPatch({ modelId: nextId, retiredModelId: undefined });
   }
 
   async function handleDownload() {
@@ -1050,6 +1045,11 @@ export function ImageGenFocusView({
   const outputSettingsBody = (
     <>
     {viewing.isViewingOther && activeTab !== "edit" && <ActiveOnlyNotice label={viewedLabel} />}
+    <RetiredModelNotice
+      className="mb-3"
+      retiredModelId={retiredModelId}
+      onDismiss={() => onPatch({ retiredModelId: undefined })}
+    />
     <ImageGenOutputSettingsBody
       model={model}
       values={paramValues}

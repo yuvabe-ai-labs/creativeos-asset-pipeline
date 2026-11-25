@@ -2,13 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 const generate = vi.fn();
-vi.mock("@/lib/image-gen/registry", () => ({
-  imageGenRegistry: {
-    "seedream:seedream-5-0-lite": {
-      schema: { safeParse: (p: unknown) => ({ success: true, data: p }) },
-      generate: (...a: unknown[]) => generate(...a),
-    },
-  },
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: async () => seededModelCatalog() };
+});
+vi.mock("@/lib/image-gen/adapters", () => ({
+  imageAdapters: { "image:seedream-5-0-lite": (...a: unknown[]) => generate(...a) },
 }));
 vi.mock("@/lib/db/generations", () => ({
   insertGeneration: vi.fn(), succeedGeneration: vi.fn(), failGeneration: vi.fn(),
@@ -16,6 +15,13 @@ vi.mock("@/lib/db/generations", () => ({
 vi.mock("@/lib/db/credit-transactions", () => {
   class CreditLimitError extends Error {}
   return { reserveCredits: vi.fn(), settleGeneration: vi.fn(), refundReservation: vi.fn(), CreditLimitError };
+});
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  return {
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: async (modelId: string) => seededPrice(modelId),
+  };
 });
 vi.mock("@/lib/storage", () => ({ uploadAvatarGenerated: vi.fn() }));
 vi.mock("sharp", () => ({ default: () => ({ metadata: async () => ({ width: 1536, height: 2048 }) }) }));
@@ -53,7 +59,7 @@ beforeEach(() => {
   generate.mockResolvedValue({
     imageBase64: BYTES.toString("base64"), mimeType: "image/png",
     tokensUsed: { text_input_tokens: 0, image_input_tokens: 0, image_output_tokens: 0, total_tokens: 0 },
-    costUsd: 0.035,
+    billedImages: { output_image: 1, input_image: 0, size: "2K" },
   });
 });
 
@@ -66,7 +72,8 @@ describe("runAvatarGeneration", () => {
       inputsSnapshot: { slot: "front", prompt: "A chef.", batchId: "b1", referenceUrls: [] },
     }));
     expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", 35);
-    expect(generate).toHaveBeenCalledWith(expect.objectContaining({
+    // The adapter takes (input, ctx): check the input.
+    expect(generate.mock.calls[0][0]).toEqual(expect.objectContaining({
       prompt: "A chef.", referenceUrls: [], params: expect.objectContaining({ aspect_ratio: "3:4" }),
     }));
     const upload = vi.mocked(uploadAvatarGenerated).mock.calls[0][0];
@@ -105,7 +112,7 @@ describe("runAvatarGeneration", () => {
   });
 
   it("rejects an unknown model before creating a generation", async () => {
-    await expect(runAvatarGeneration({ ...args, modelId: "nope:none" })).rejects.toThrow(/Unknown model/);
+    await expect(runAvatarGeneration({ ...args, modelId: "nope:none" })).rejects.toThrow("This model isn't available. Pick another.");
     expect(insertGeneration).not.toHaveBeenCalled();
   });
 });

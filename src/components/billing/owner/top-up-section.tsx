@@ -7,7 +7,7 @@ import { useBillingCheckout } from "@/hooks/use-billing-checkout";
 import { PlanCardFace } from "@/components/billing/plan-card-face";
 import { CheckoutStatusLine } from "./checkout-status-line";
 
-// Top-up packs on Billing (D522): the same card face as everywhere, with Buy. Only on a running
+// Top-up packs on Billing (D581): the same card face as everywhere, with Buy. Only on a running
 // plan; otherwise says why.
 export function TopUpSection({ packs, planRunning }: { packs: OfferPrice[]; planRunning: boolean }) {
   const { buyTopUp, busy, status } = useBillingCheckout();

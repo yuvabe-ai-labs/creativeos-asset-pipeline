@@ -24,7 +24,9 @@ import { GenerateFooter } from "./generate-footer";
 import { useConnectedInputsKey } from "@/hooks/use-connected-inputs-key";
 import { promptGenerateBlocker } from "@/lib/nodes/prompt-generate-blocker";
 import { imageGenerateDisabled } from "@/lib/image-gen/generate-blocker";
-import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { useModelPrice, useVideoModels } from "@/hooks/queries/ai-models";
+import { PROMPT_MODEL_ID, priceUnavailableReason } from "@/lib/ai-models/service-models";
+import { promptFlatCredits } from "@/lib/ai-models/service-price";
 import { isVisionAttachment, visionAttachmentsOf } from "@/lib/nodes/compose-message";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { CameraSelect } from "./camera-select";
@@ -34,7 +36,6 @@ import { DEFAULT_VIDEO_CONTROLS, type VideoControls } from "@/lib/nodes/video-co
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { findDescendantsOfType } from "@/lib/canvas/graph";
 import { ReferenceImageStrip } from "./reference-image-strip";
-import { videoGenClientModelMap, DEFAULT_VIDEO_CLIENT_MODEL_ID } from "@/lib/video-gen/client-models";
 import type { VideoProvider } from "@/prompts/video-prompt-generate";
 import { type UpstreamNode, type ConnectedPreview } from "./connected-inputs-card";
 import type { VersionSummary } from "./prompt-version-history";
@@ -101,6 +102,7 @@ export function VideoPromptFocusView({
   onPatch,
   onSaveOutput,
 }: VideoPromptFocusViewProps) {
+  const videos = useVideoModels();
   // The @-mention list: the wired inputs plus the script's avatar while it is in this shot.
   const mentionUpstream = useMentionUpstream(nodeId, upstream);
   const params = useParams<{ id: string }>();
@@ -196,9 +198,12 @@ export function VideoPromptFocusView({
     ? selectedInputPreview(preview.connected, upstream, selected)
     : null;
 
-  // Mirrors the image Prompt node's Generate button (prompt-focus-view.tsx) — same
-  // estimatePromptCredits heuristic, folded into the button label below.
-  const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
+  // Mirrors the image Prompt node's Generate button (prompt-focus-view.tsx) — the
+  // flat price, folded into the button label below.
+  // D559 - the flat price comes from the catalog row; the button waits for it.
+  const { price: promptPrice, loading: promptPriceLoading, error: promptPriceError } = useModelPrice(PROMPT_MODEL_ID);
+  const estimatedCredits = promptPrice ? promptFlatCredits(promptPrice, upstream.filter(isVisionAttachment).length) : null;
+  const noPriceReason = priceUnavailableReason({ loading: promptPriceLoading, error: promptPriceError }, estimatedCredits !== null);
   // Held until the inputs are saved and resolved, and while one of them is still empty.
   const generateBlocker = promptGenerateBlocker({
     editable,
@@ -225,7 +230,7 @@ export function VideoPromptFocusView({
   // D216 — Omni gets its own motion-prompt variant (the timecode ladder), so it maps to
   // "gemini-omni" rather than folding into Veo as it did before that variant existed.
   const providerOf = (modelId?: string): VideoProvider => {
-    const provider = videoGenClientModelMap[modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.provider;
+    const provider = videos.get(modelId ?? videos.defaultId)?.provider;
     if (provider === "kling") return "kling";
     if (provider === "gemini") return "gemini-omni";
     if (provider === "seedance") return "seedance";
@@ -251,7 +256,7 @@ export function VideoPromptFocusView({
   const lockedLabel = mixed
     ? "Mixed downstream — writing provider-neutral"
     : locked
-      ? `${videoGenClientModelMap[(downstreamGen[0].data as { modelId?: string })?.modelId ?? DEFAULT_VIDEO_CLIENT_MODEL_ID]?.label ?? "Video model"} · set by connected video node`
+      ? `${videos.get((downstreamGen[0].data as { modelId?: string })?.modelId ?? videos.defaultId)?.label ?? "Video model"} · set by connected video node`
       : undefined;
 
   // Memoized on the id list rather than the array identity: `upstream` is rebuilt on every render,
@@ -686,9 +691,10 @@ export function VideoPromptFocusView({
                     label={output ? "Re-generate" : "Generate motion prompt"}
                     busy={generating}
                     onClick={runGenerate}
-                    disabled={imageGenerateDisabled(generateBlocker, generating || isViewingOther, loadingPreview)}
-                    disabledReason={generateBlocker}
+                    disabled={imageGenerateDisabled(generateBlocker ?? noPriceReason, generating || isViewingOther, loadingPreview || promptPriceLoading)}
+                    disabledReason={generateBlocker ?? noPriceReason}
                     credits={estimatedCredits}
+                    estimating={promptPriceLoading}
                     notice={isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
                   />
                 </div>

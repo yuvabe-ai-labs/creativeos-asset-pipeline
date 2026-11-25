@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { fetchUsage, fetchUsageRuns } from "@/services/billing-usage.service";
 import type { UsageBy, UsagePeriod } from "@/lib/billing/usage-period";
 
-// Who used what (D524). Read-only, so nothing invalidates it; a minute of freshness is plenty for
+// Who used what (D583). Read-only, so nothing invalidates it; a minute of freshness is plenty for
 // a monthly view, and switching groups keeps the last table on screen while the next loads.
 export const usageKeys = {
   all: ["billing-usage"] as const,

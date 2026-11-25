@@ -6,14 +6,14 @@ export type OrgRow = {
   name: string;
   slug: string;
   monthly_credit_limit: number | null;
-  /** Migration 0067 (billing piece 1): managed by Yuvabe, or paying for a plan. */
+  /** Migration 0091 (billing piece 1): managed by Yuvabe, or paying for a plan. */
   billing_mode: "managed" | "plans";
   plan_type: "standard" | "custom";
   created_at: string;
 };
 
 /** owned: has an owner. invited: no owner, an open owner invite (Resend). none: neither (Invite
- *  an owner). Spec §6.6, D505. */
+ *  an owner). Spec §6.6, D543. */
 export type OwnerStatus = "owned" | "invited" | "none";
 export type OrgWithCount = OrgRow & { client_count: number; owner_status: OwnerStatus };
 

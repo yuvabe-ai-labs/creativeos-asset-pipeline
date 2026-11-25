@@ -69,7 +69,7 @@ export async function authFetch(input: RequestInfo | URL, init?: RequestInit): P
   // report it as its own generic failure. Reads and every other status fall straight
   // through — this only inspects 403s.
   await notifyIfReadOnlyBlocked(res);
-  // Any 403 may mean access changed mid-session (D504); the listener refreshes /api/me.
+  // Any 403 may mean access changed mid-session (D542); the listener refreshes /api/me.
   reportStatus(res.status);
   return res;
 }

@@ -7,7 +7,7 @@ import { useCan } from "@/components/permissions/use-can";
 import { useIdentity } from "@/hooks/use-identity";
 import { cn } from "@/lib/utils";
 
-// The owner's way to Billing (D523), beside Team. Only for an agency that pays for a plan: a
+// The owner's way to Billing (D582), beside Team. Only for an agency that pays for a plan: a
 // managed agency has nothing to buy, and its credits stay in the profile popover. A dot marks a
 // payment that needs attention. Rides on /api/me; no request of its own.
 export function BillingNavLink() {

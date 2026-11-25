@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import type { AnnotationHandle } from "@/components/nodes/image-gen-annotation-canvas";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
 import { editModeForModel } from "@/lib/image-gen/edit-mode";
-import type { ClientModelSpec } from "@/lib/image-gen/client-models";
+import type { ClientModelSpec } from "@/lib/image-gen/types";
 import { compositeEditPreview } from "@/lib/composite/edit-preview";
 import type { CompositeUpstreamItem } from "@/lib/composite/upstream-items";
 import type { useCompositeVersions } from "./use-composite-versions";

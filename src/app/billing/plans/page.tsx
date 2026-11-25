@@ -7,7 +7,7 @@ import { PlansGrid } from "@/components/billing/owner/plans-grid";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Plans · CreativeOS" };
 
-// The owner's plans (D523): the same cards as Admin › Plans and prices, to pick or change a plan.
+// The owner's plans (D582): the same cards as Admin › Plans and prices, to pick or change a plan.
 export default async function BillingPlansPage() {
   const orgId = await requireBillingOwner();
   const billing = await getOwnerBilling(orgId);

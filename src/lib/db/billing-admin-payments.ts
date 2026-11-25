@@ -2,7 +2,7 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ADMIN_PAYMENTS_PAGE_SIZE } from "@/lib/billing/usage-page-size";
 
-// Admin › Payments (spec 2026-11-21-admin-payments-design.md, D525): money across every agency.
+// Admin › Payments (spec 2026-11-21-admin-payments-design.md, D584): money across every agency.
 // Three reads in parallel, each bounded, whatever the number of agencies.
 
 export type AdminPayment = {
@@ -39,7 +39,7 @@ type PaymentRow = {
 
 export type AdminPaymentsPage = { payments: AdminPayment[]; total: number };
 
-/** One page of payments that went through or failed, newest first, with the total (D529). */
+/** One page of payments that went through or failed, newest first, with the total (D588). */
 export async function listRecentPayments(page = 1): Promise<AdminPaymentsPage> {
   const from = (page - 1) * ADMIN_PAYMENTS_PAGE_SIZE;
   const { data, error, count } = await createServerSupabase()
@@ -84,7 +84,7 @@ type SubRow = {
   price: { product: { name: string } | null } | null;
 };
 
-/** Plans that need a person (D529): a payment due, then plans ending (cancelled) within `days`,
+/** Plans that need a person (D588): a payment due, then plans ending (cancelled) within `days`,
  *  soonest first. Plans that simply renew need nothing and are only counted (countRenewingWithin). */
 export async function listPlansNeedingAttention(days = 7): Promise<AttentionPlan[]> {
   const until = new Date(Date.now() + days * 86_400_000).toISOString();

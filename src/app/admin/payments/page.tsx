@@ -5,7 +5,6 @@ import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { countRenewingWithin, listPlansNeedingAttention, listRecentPayments, sumPaidSince } from "@/lib/db/billing-admin-payments";
 import { usageRange } from "@/lib/billing/usage-period";
 import { formatRupees } from "@/lib/billing/pricing";
-import { AdminSectionNav } from "@/components/admin/admin-section-nav";
 import { AdminPaymentsList } from "@/components/admin/payments/admin-payments-list";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +12,8 @@ export const metadata = { title: "Payments · Admin" };
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
-// Admin › Payments (spec 2026-11-21-admin-payments-design.md, D525): what agencies paid, what needs
-// attention, and every payment, a page at a time (D529). Four reads in parallel, each bounded.
+// Admin › Payments (spec 2026-11-21-admin-payments-design.md, D584): what agencies paid, what needs
+// attention, and every payment, a page at a time (D588). Four reads in parallel, each bounded.
 export default async function AdminPaymentsPage() {
   await requireSuperAdmin();
   const [paid, attention, renewing, payments] = await Promise.all([
@@ -27,7 +26,6 @@ export default async function AdminPaymentsPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-14">
-      <AdminSectionNav />
       <div className="mb-6 flex flex-col gap-1">
         <h1 className="font-display text-2xl font-semibold tracking-tight">Payments</h1>
         <p className="text-sm text-muted-foreground">What agencies paid, and what needs a look. Amounts include GST.</p>

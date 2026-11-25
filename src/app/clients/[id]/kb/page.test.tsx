@@ -22,7 +22,7 @@ vi.mock("@/components/clients/client-members-button", () => ({
 import KBPage from "./page";
 
 const client = (kb_status: string) => ({ id: "c1", slug: "chupps", name: "Chupps", kb_status, logo_url: null, website_url: null });
-const render = async () => renderToStaticMarkup(await KBPage({ params: Promise.resolve({ id: "chupps" }) }));
+const render = async () => renderToStaticMarkup(await KBPage({ params: Promise.resolve({ id: "chupps" }), searchParams: Promise.resolve({}) }));
 
 describe("/clients/[id]/kb", () => {
   beforeEach(() => {

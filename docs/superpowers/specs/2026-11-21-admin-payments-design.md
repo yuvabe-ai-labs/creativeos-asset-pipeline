@@ -16,9 +16,9 @@ changed.
   recent payments failed.
 - **Needs a look:** plans with a payment due first, then plans ending (cancelled) within 7 days,
   soonest first. Plans that simply renew need nothing, so they are only counted in the totals
-  (D529).
+  (D588).
 - **All payments:** every payment that went through, failed or was refunded, newest first, 25 a
-  page with Newer / Older (D529).
+  page with Newer / Older (D588).
 
 ## Calls
 

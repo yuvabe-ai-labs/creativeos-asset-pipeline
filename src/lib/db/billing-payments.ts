@@ -1,7 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-/** The order as started; credits are added only when its webhook arrives (D514). A top-up (D522)
+/** The order as started; credits are added only when its webhook arrives (D573). A top-up (D581)
  *  also keeps its price, plan, tax, total and the rate in force. */
 export async function insertCreatedPayment(row: {
   orgId: string;
@@ -32,7 +32,7 @@ export async function insertCreatedPayment(row: {
   if (error) throw error;
 }
 
-/** Migration 0066: marks the order paid and adds its credits, once. False for an unknown or
+/** Migration 0090: marks the order paid and adds its credits, once. False for an unknown or
  *  already-paid order. */
 export async function recordRazorpayPayment(orderId: string, paymentId: string): Promise<boolean> {
   const { data, error } = await createServerSupabase().rpc("record_razorpay_payment", {

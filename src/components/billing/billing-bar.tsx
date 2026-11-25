@@ -9,7 +9,7 @@ import { formatDay, lastDayOf } from "@/lib/billing/dates";
 import type { OwnerBillingSummary } from "@/lib/billing/summary";
 import { cn } from "@/lib/utils";
 
-// The one line at the top of the workspace about credits (D523). Owners of a paying agency see free
+// The one line at the top of the workspace about credits (D582). Owners of a paying agency see free
 // credits and their end, "pick a plan", a due payment, credits used up, or 80% used. Members see a
 // line only when AI runs are paused, and are told to ask the owner. Nothing for managed agencies,
 // and nowhere it would repeat the page (billing) or doesn't belong (sign-in, Admin).

@@ -7,7 +7,7 @@ import { BillingChangeDialog } from "./billing-change-dialog";
 import { CreditsInput, LastDayInput } from "./grant-fields";
 import { SegmentedChoice } from "./segmented-choice";
 
-// One way to add credits (D528). Both kinds cost the agency nothing and are spent by end date; they
+// One way to add credits (D587). Both kinds cost the agency nothing and are spent by end date; they
 // differ only in what the owner is shown, so the choice sits inside the dialog, preset from the
 // agency: free credits before a paid plan, extra credits once it pays.
 const KINDS: { value: AdminGrantKind; label: string }[] = [

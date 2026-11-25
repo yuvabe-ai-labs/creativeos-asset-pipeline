@@ -3,8 +3,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import type { UsageBy } from "@/lib/billing/usage-period";
 import { USAGE_RUNS_PAGE_SIZE } from "@/lib/billing/usage-page-size";
 
-// Who used what (spec 2026-11-21-usage-by-design.md, D524). Two calls per view: the grouped sums
-// (org_credit_usage_by, 0073) and the names for those keys.
+// Who used what (spec 2026-11-21-usage-by-design.md, D583). Two calls per view: the grouped sums
+// (org_credit_usage_by, 0097) and the names for those keys.
 
 export type UsageRow = { key: string | null; name: string; detail: string | null; credits: number; runs: number };
 export type UsageRun = { id: string; type: string; model: string | null; credits: number; createdAt: string; memberName: string | null };

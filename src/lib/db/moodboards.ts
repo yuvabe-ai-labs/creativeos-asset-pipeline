@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { ReferenceKind } from "@/lib/market/constants";
+import type { PostReading } from "@/lib/journey/market-copilot/read-post";
 
 /** Lifecycle of the media archive for one item (D265).
  *  `skipped` is terminal and not a failure — a link or a TikTok has no media of ours
@@ -42,6 +43,8 @@ export type MoodboardItem = {
   archive_attempts: number;
   archive_started_at: string | null;
   archived_at: string | null;
+  /** The market agent's reading of the post (D530, 0067); null until read. */
+  reading?: PostReading | null;
 };
 
 export async function listMoodboards(clientId: string): Promise<Moodboard[]> {
@@ -190,6 +193,31 @@ export async function getItem(itemId: string): Promise<MoodboardItem | null> {
     .maybeSingle();
   if (error) throw error;
   return (data as MoodboardItem) ?? null;
+}
+
+/**
+ * The item the archive works on, with its board's client and that client's org read in the
+ * same query (D560: a paid archive call is recorded for them). Both are null when the board or
+ * client row is gone.
+ */
+export async function getArchiveItem(
+  itemId: string,
+): Promise<(MoodboardItem & { client_id: string | null; org_id: string | null }) | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("moodboard_items")
+    .select("*, moodboards(client_id, clients(org_id))")
+    .eq("id", itemId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  type One<T> = T | T[] | null;
+  const first = <T,>(v: One<T>) => (Array.isArray(v) ? v[0] : v) ?? null;
+  const { moodboards, ...item } = data as unknown as MoodboardItem & {
+    moodboards: One<{ client_id: string; clients: One<{ org_id: string }> }>;
+  };
+  const board = first(moodboards);
+  return { ...item, client_id: board?.client_id ?? null, org_id: first(board?.clients ?? null)?.org_id ?? null };
 }
 
 /**
@@ -364,4 +392,60 @@ export async function listClientsWithMoodboards(
   return (
     (data ?? []) as { slug: string; name: string; moodboards: { id: string; name: string }[] | null }[]
   ).map((c) => ({ slug: c.slug, name: c.name, boards: c.moodboards ?? [] }));
+}
+
+// ── The market research agent (D530) ─────────────────────────────────────────
+
+/** The items with these ids that are on this client's boards; any other id is left out. The ids come
+ *  from a card or a job, so another client's item is never read through them. */
+export async function listItemsByIds(clientId: string, itemIds: string[]): Promise<MoodboardItem[]> {
+  const unique = [...new Set(itemIds)];
+  if (unique.length === 0) return [];
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("moodboard_items")
+    .select("*, moodboards!inner(client_id)")
+    .in("id", unique)
+    .eq("moodboards.client_id", clientId);
+  if (error) throw error;
+  return ((data ?? []) as (MoodboardItem & { moodboards?: unknown })[]).map((row) => {
+    const item = { ...row };
+    delete item.moodboards;
+    return item;
+  });
+}
+
+/** Every url already saved in the client's Direct and Adjacent boards, so fetching again never adds
+ *  a post twice. Throws when it cannot be read: never "nothing saved", which would add duplicates. */
+export async function listBucketUrls(clientId: string): Promise<Set<string>> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("moodboard_items")
+    .select("image_url, moodboards!inner(client_id, board_type)")
+    .eq("moodboards.client_id", clientId)
+    .in("moodboards.board_type", ["direct", "adjacent"]);
+  if (error) throw error;
+  return new Set(((data ?? []) as { image_url: string }[]).map((r) => r.image_url));
+}
+
+/** How many references are in Direct and in Adjacent, in one read (a board not made yet is 0). */
+export async function countBucketItems(clientId: string): Promise<{ direct: number; adjacent: number }> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("moodboards")
+    .select("board_type, moodboard_items(count)")
+    .eq("client_id", clientId)
+    .in("board_type", ["direct", "adjacent"]);
+  if (error) throw error;
+  const counts = { direct: 0, adjacent: 0 };
+  for (const row of (data ?? []) as { board_type: "direct" | "adjacent"; moodboard_items: { count: number }[] | null }[]) {
+    counts[row.board_type] += row.moodboard_items?.[0]?.count ?? 0;
+  }
+  return counts;
+}
+
+export async function setItemReading(itemId: string, reading: PostReading): Promise<void> {
+  const supabase = createServerSupabase();
+  const { error } = await supabase.from("moodboard_items").update({ reading }).eq("id", itemId);
+  if (error) throw error;
 }

@@ -31,7 +31,7 @@ const LABELS: Record<PersonActionId, string> = {
 };
 
 // A person on the Team page or a client's Members list. Permissions are set in the Team page's
-// person panel only (D509): there, Set and Edit open it (`onOpen`); on a Members list they link
+// person panel only (D547): there, Set and Edit open it (`onOpen`); on a Members list they link
 // to it (`teamHref`). Removals and Make owner ask first, in the existing dialogs.
 export function PersonEntryRow({
   orgId,

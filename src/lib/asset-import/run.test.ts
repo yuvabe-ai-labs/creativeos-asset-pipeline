@@ -33,6 +33,7 @@ vi.mock("@/lib/storage", () => ({
   }),
 }));
 vi.mock("./apify", () => ({ runImportActor: vi.fn() }));
+vi.mock("@/lib/journey/kb-copilot/job-failed", () => ({ sayJobFailed: vi.fn() }));
 // sharp decodes real images; these tests only care that a preview is made and stored.
 vi.mock("sharp", () => {
   const chain = {
@@ -50,6 +51,7 @@ import { failJob, getJob, listRecentJobs, saveJobCheckpoint, setJobPhase, succee
 import { insertImportedBrandImage, latestImportedPostAt, listBrandImageRefs } from "@/lib/db/kb";
 import { removeObject, uploadImportedBrandMedia, uploadImportedBrandMediaStream } from "@/lib/storage";
 import { runImportActor } from "./apify";
+import { sayJobFailed } from "@/lib/journey/kb-copilot/job-failed";
 import { runAssetImport } from "./run";
 
 const job = (source: string) => ({
@@ -88,6 +90,17 @@ describe("runAssetImport", () => {
     // No history and nothing kept: a full fetch, unless a test says otherwise.
     vi.mocked(listRecentJobs).mockResolvedValue([]);
     vi.mocked(latestImportedPostAt).mockResolvedValue(null);
+  });
+
+  it("records each Apify run's cost for the job's org, client and user (D560)", async () => {
+    vi.mocked(getJob).mockResolvedValue({ ...job("instagram"), org_id: "org-1", created_by: "user-1" } as never);
+    vi.mocked(runImportActor).mockResolvedValue([post(1)]);
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(vi.mocked(runImportActor).mock.calls[0][2].recordFor).toEqual({
+      orgId: "org-1",
+      clientId: "client-1",
+      userId: "user-1",
+    });
   });
 
   it("downloads, stores and records each new asset, then succeeds with the count", async () => {
@@ -186,6 +199,7 @@ describe("runAssetImport", () => {
     expect(result).toMatchObject({ assetCount: 1, failed: 1 });
     expect(succeedJob).toHaveBeenCalled();
     expect(failJob).not.toHaveBeenCalled();
+    expect(sayJobFailed).not.toHaveBeenCalled();
     log.mockRestore();
   });
 
@@ -197,6 +211,7 @@ describe("runAssetImport", () => {
     await runAssetImport("job-1", { fetchImpl: mediaFetch() });
     expect(succeedJob).not.toHaveBeenCalled();
     expect(failJob).toHaveBeenCalledWith("job-1", "Found 2 new assets but couldn't save them. Try again in a few minutes.");
+    expect(sayJobFailed).toHaveBeenCalledWith(expect.objectContaining({ client_id: "client-1", kind: "asset-import", input: job("instagram").input }));
     expect(JSON.stringify(log.mock.calls)).toContain("width");
     log.mockRestore();
   });
@@ -219,6 +234,8 @@ describe("runAssetImport", () => {
     vi.mocked(runImportActor).mockResolvedValue([{ error: "not_available" }]);
     expect(await runAssetImport("job-1", { fetchImpl: mediaFetch() })).toBeNull();
     expect(failJob).toHaveBeenCalledWith("job-1", expect.stringMatching(/isn't public/));
+    expect(sayJobFailed).toHaveBeenCalledTimes(1);
+    expect(sayJobFailed).toHaveBeenCalledWith(expect.objectContaining({ kind: "asset-import", input: job("facebook").input }));
   });
 
   it("fails in plain words when the provider breaks, keeping the cause out of sight", async () => {
@@ -229,6 +246,7 @@ describe("runAssetImport", () => {
     const shown = vi.mocked(failJob).mock.calls[0][1];
     expect(shown).toBe("We couldn't load the website right now. Try again in a few minutes.");
     expect(shown).not.toMatch(/apify|http|scrape/i);
+    expect(sayJobFailed).toHaveBeenCalledWith(expect.objectContaining({ client_id: "client-1", kind: "asset-import", input: job("website").input }));
     expect(log).toHaveBeenCalled(); // the real cause is logged on the server
     log.mockRestore();
   });
@@ -388,6 +406,38 @@ describe("runAssetImport, memory and crashes", () => {
     vi.mocked(runImportActor).mockResolvedValue([post(1)]);
     await runAssetImport("job-1", { fetchImpl: mediaFetch() });
     expect(vi.mocked(runImportActor).mock.calls[0][2]).toMatchObject({ resumeRunId: "run-old" });
+  });
+
+  it("keeps which Apify run's cost was recorded, so a retry does not record it again (D560)", async () => {
+    vi.mocked(getJob).mockResolvedValue({
+      ...job("instagram"),
+      status: "running",
+      result: { checkpoint: { windowRunId: "run-old", windowRecordedRunId: "run-old" } },
+    } as never);
+    vi.mocked(runImportActor).mockImplementation(async (_s, _t, opts) => {
+      await opts.onRecorded?.("run-old");
+      return [post(1)];
+    });
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(vi.mocked(runImportActor).mock.calls[0][2]).toMatchObject({ recordedRunId: "run-old" });
+    expect(saveJobCheckpoint).toHaveBeenCalledWith("job-1", expect.objectContaining({ windowRecordedRunId: "run-old" }));
+  });
+
+  it("keeps the fallback run's recorded id under its own key", async () => {
+    vi.mocked(getJob).mockResolvedValue({
+      ...job("instagram"),
+      status: "running",
+      result: { checkpoint: { latestRunId: "run-l", latestRecordedRunId: "run-l" } },
+    } as never);
+    vi.mocked(runImportActor)
+      .mockResolvedValueOnce([])
+      .mockImplementationOnce(async (_s, _t, opts) => {
+        await opts.onRecorded?.("run-l2");
+        return [post(1)];
+      });
+    await runAssetImport("job-1", { fetchImpl: mediaFetch() });
+    expect(vi.mocked(runImportActor).mock.calls[1][2]).toMatchObject({ recordedRunId: "run-l" });
+    expect(saveJobCheckpoint).toHaveBeenCalledWith("job-1", expect.objectContaining({ latestRecordedRunId: "run-l2" }));
   });
 
   it("does nothing when retried after its job has already ended", async () => {

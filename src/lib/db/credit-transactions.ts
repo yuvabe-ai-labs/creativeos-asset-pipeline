@@ -7,7 +7,7 @@ import { isCreditRefusal, type CreditRefusal } from "@/lib/billing/grants";
 export class CreditLimitError extends Error {}
 
 
-// Row-locked check-and-hold via reserve_credits_v2 (migration 0067). A managed agency is checked
+// Row-locked check-and-hold via reserve_credits_v2 (migration 0091). A managed agency is checked
 // against its monthly limit as before; a paying agency's hold is taken from its grants, the one
 // ending first, first. Refusals come back with the reason (never thrown); an answer the code
 // doesn't know throws, so a mismatch between code and database never lets a run through.
@@ -29,7 +29,7 @@ export async function reserveCredits(
 }
 
 // Success terminal state (design spec §4): refund the hold and record the real cost, and move the
-// cost onto the grants the run held — one transaction in settle_credits (migration 0067). A
+// cost onto the grants the run held — one transaction in settle_credits (migration 0091). A
 // repeat call changes nothing, so a route's catch-block cleanup after settling is safe. Call this
 // and succeedGeneration's creditsCharged with the SAME actualAmount value.
 export async function settleGeneration(input: {
@@ -68,7 +68,7 @@ export async function getReservationAmounts(
 }
 
 // Failure/cancel terminal state: refund the hold and give its credits back to their grants
-// (refund_credits, migration 0067). A repeat call changes nothing.
+// (refund_credits, migration 0091). A repeat call changes nothing.
 export async function refundReservation(input: {
   orgId: string;
   generationId: string;

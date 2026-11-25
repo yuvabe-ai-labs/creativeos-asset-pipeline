@@ -2791,7 +2791,7 @@ editor on the unmerged `feat/video-editor` branch; numbering this work D149 woul
 the moment either branch merged. The gap is deliberate, not lost history — see
 `2026-08-21-internal-approval-workflow-design.md` §2.1.
 
-### D164 — Seats are provisioned by the super-admin on the existing org-detail surface *(**SUPERSEDED by D502**; recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
+### D164 — Seats are provisioned by the super-admin on the existing org-detail surface *(**SUPERSEDED by D540**; recorded 2026-08-21; originated → `2026-08-21-internal-approval-workflow-design.md`)*
 
 **Decision.** `addOrgMember` / `updateMemberRole` extend the `/admin/orgs/[id]` Members
 card with an add-member dialog and a per-row role `Select`. Org owners cannot provision
@@ -8760,12 +8760,12 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-12-client-review-versions.md`.
 
-### D500 — Five permissions on the person, copied onto each client they are on; one owner with everything *(recorded 2026-11-13; refines D43, D166, D188; originated → `2026-11-12-agency-permissions-design.md`)*
+### D538 — Five permissions on the person, copied onto each client they are on; one owner with everything *(recorded 2026-11-13; refines D43, D166, D188; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
-- **Permissions.** Generate, Approve, Share, Delete and Invite, stored as `text[]` with a check constraint. Generate covers changing work by hand as well as every AI run that spends credits. Delete is for a whole library item; removing a part of one (node, shot, panel, comment) comes under Generate. Invite lets a person invite to the clients they are on (D506).
-- **Being on a client** lets a person see it, read comments and download its files. There is no View or Edit permission (D507).
-- **Where set.** The owner sets them on the person at agency level (`org_memberships.permissions`), on the Team page only (D509). Each client assignment (`membership_clients.permissions`) stores the effective copy. A trigger applies each agency-level change (what was added, what was removed) to every one of the person's client rows. A per-client difference is a database edit for now.
+- **Permissions.** Generate, Approve, Share, Delete and Invite, stored as `text[]` with a check constraint. Generate covers changing work by hand as well as every AI run that spends credits. Delete is for a whole library item; removing a part of one (node, shot, panel, comment) comes under Generate. Invite lets a person invite to the clients they are on (D544).
+- **Being on a client** lets a person see it, read comments and download its files. There is no View or Edit permission (D545).
+- **Where set.** The owner sets them on the person at agency level (`org_memberships.permissions`), on the Team page only (D547). Each client assignment (`membership_clients.permissions`) stores the effective copy. A trigger applies each agency-level change (what was added, what was removed) to every one of the person's client rows. A per-client difference is a database edit for now.
 - **Owner.** Exactly one per agency (`is_owner`, unique partial index). Everything on every client, including future ones, with no rows to manage. Only the owner manages the team, gives access, changes permissions, removes people, creates and archives clients and sees credits. Cannot be removed or demoted; the super admin transfers ownership, and the previous owner keeps all five permissions on every client. Several owners may be needed later, so ownership is a flag on each membership, checks and lists never assume one owner, and the protection rule is "at least one owner remains"; the one-owner limit is only a unique index, dropped when more are allowed.
 - **Day one.** The earliest owner of each agency stays owner. Everyone else gets Generate, Approve, Share and Delete on every existing client. Nobody gets Invite, since only Yuvabe adds people today.
 - **No credit limit per person.** The agency pool is the only limit.
@@ -8781,12 +8781,12 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.**
 - Presets with a catalogue of 21 areas and 59 `area.level` ticks (the 11 Nov design, built in plans 1 and 2, kept at the local tag `perm-granular-v1`): 20 ticks per person per client, and roles nobody has validated yet.
-- View and Edit as permissions (D507).
+- View and Edit as permissions (D545).
 - Computing per-client permissions from the agency set without storing them (the meeting asked for them stored).
 - Five boolean columns (finer keys later would need a migration each).
 - Hiding canvas cost from members, or making client rename owner-only (Arun, 16 Nov).
 
-### D501 — A client's Members list decides who is on it; a client out of reach is a 404 *(recorded 2026-11-13; extends D44; originated → `2026-11-12-agency-permissions-design.md`)*
+### D539 — A client's Members list decides who is on it; a client out of reach is a 404 *(recorded 2026-11-13; extends D44; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
 - Each client has a Members page (`/clients/[id]/members`). Adding people inserts `membership_clients` rows in one step, each copying the person's agency-level permissions. Being on the list is the only way a member sees a client; there is no "all clients" flag. The composite foreign key `(client_id, org_id)` stops a person being put on another agency's client.
@@ -8802,11 +8802,11 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.** Picking clients per person on the person. An "all clients" flag for members. 403 for a client the person is not on. Checks only in the UI. Checks per route without a coverage test. `security_invoker` alone on the views, keeping them readable from the browser (nothing in the browser reads them, and RLS on the tables under them is agency-wide, not client-scoped).
 
-### D502 — An invite is an email with a link stored as issued, single use, valid for 7 days *(recorded 2026-11-13; refines D181; originated → `2026-11-12-agency-permissions-design.md`)*
+### D540 — An invite is an email with a link stored as issued, single use, valid for 7 days *(recorded 2026-11-13; refines D181; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
-- An invitation (`org_invitations`) carries the email, the client (D506) and whether it is an owner invite (D505). Its token is 32 random bytes, stored as issued, so Copy link shows the same link any time. The link `/invite/[token]` is emailed through Resend (over `fetch`). It works once and expires after 7 days; Resend issues a new token and the old link stops working; Cancel revokes it.
-- One open invite per email across all agencies (one agency per person, D508): within an agency a unique index holds it; an open invite in another agency is refused in the app with "This email already belongs to another agency.", never naming that agency. At most 50 invites per agency per day, counting everyone who invites and every Resend. Resend is refused within a minute of the last send of that invite.
+- An invitation (`org_invitations`) carries the email, the client (D544) and whether it is an owner invite (D543). Its token is 32 random bytes, stored as issued, so Copy link shows the same link any time. The link `/invite/[token]` is emailed through Resend (over `fetch`). It works once and expires after 7 days; Resend issues a new token and the old link stops working; Cancel revokes it.
+- One open invite per email across all agencies (one agency per person, D546): within an agency a unique index holds it; an open invite in another agency is refused in the app with "This email already belongs to another agency.", never naming that agency. At most 50 invites per agency per day, counting everyone who invites and every Resend. Resend is refused within a minute of the last send of that invite.
 - Without `RESEND_API_KEY` and `EMAIL_FROM` the invite is still created and the link shown to copy. Without `APP_URL` the link is the path alone (`/invite/…`), shown to copy and never emailed.
 - The temporary-password path (`addOrgMember`) is removed. Removing a person from the agency deletes their login (a login without a membership could never sign in again); their work stays, attributed to "an unknown maker".
 
@@ -8817,13 +8817,13 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.** Temporary passwords shared by hand. Copy link only. Supabase's built-in mailer (a few emails per hour). Supabase invite links (they can't carry the client or be shown for copying). Storing a sha256 of the token (Copy link would then need a new link each time).
 
-### D503 — The person signs up and waits; the owner gives access, with permissions or without *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
+### D541 — The person signs up and waits; the owner gives access, with permissions or without *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
 - Opening the link: sign-up with the email fixed (name and password). The membership starts Signed up (`access_given_at` null), and the person sees "You're being onboarded. Hang in there." until the owner gives access. A member on no client sees the same screen.
 - Statuses: Invited, Signed up ("Needs permissions"), Member, Owner.
 - The owner and the inviter are emailed when the person signs up, and the header's Team link counts people waiting.
-- The owner gives access on the Team page (D509). Give access works with no permissions picked: the person becomes a Member who can look at their clients, read comments and download, with a read-only canvas. They are emailed that their access is ready; no live update.
+- The owner gives access on the Team page (D547). Give access works with no permissions picked: the person becomes a Member who can look at their clients, read comments and download, with a read-only canvas. They are emailed that their access is ready; no live update.
 - A waiting person can be removed.
 
 **Why.**
@@ -8832,7 +8832,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.** Setting permissions and clients before sending the invite (the owner sets up someone who may never join). Requiring at least one permission to give access (no way to add someone who only looks). A live update to the waiting screen (an email is enough, and avoids a channel per person).
 
-### D504 — One checker decides, on server and browser; no permission library *(recorded 2026-11-13; refines D300; originated → `2026-11-12-agency-permissions-design.md`)*
+### D542 — One checker decides, on server and browser; no permission library *(recorded 2026-11-13; refines D300; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
 - `check(access, action, { orgId, clientId })` is the only function that decides, in a fixed order: super admin, membership, owner, the client row (missing is not found, so an owner-only refusal never confirms a client exists), owner-only actions, then the permission the action needs.
@@ -8854,7 +8854,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 - Area keys (`scripts.approve`) on routes, reduced to the permissions in the checker. It would have made area-level access later a data change, but Arun chose plain actions on 12 Nov for simpler names; going granular later means revisiting each route.
 - Renaming every `edit` route to `generate` (the route would no longer say what it does).
 
-### D505 — Yuvabe manages any agency's people from Admin; only Yuvabe invites an owner *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
+### D543 — Yuvabe manages any agency's people from Admin; only Yuvabe invites an owner *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
 - **Add an agency.** One popup takes the agency's name, the owner's email and the monthly credit limit, creates the agency and sends the owner invite (`create_agency_with_owner_invite`). The limit is the agency page's Unlimited / Set limit choice, Unlimited by default; a set limit is saved right after the agency is created, with the same helper and parsing as the agency page's editor, and the create's one `admin_action` entry records it. The agencies list marks agencies with no owner: with Resend while an owner invite is open, otherwise with Invite an owner.
@@ -8867,9 +8867,9 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 - Elevated view-as already audit-logs its changes; logging Admin changes to the same place keeps that accountability.
 - Without an owner invite a new agency could never get its first owner through the invite flow.
 
-**Rejected.** Managing people only through elevated view-as (fewer screens, less convenient when setting agencies up). Owners inviting other owners (one owner per agency, D500). Temporary passwords for a new agency's owner (D502). Setting the limit only afterwards on the agency page. Adding the limit to `create_agency_with_owner_invite` (its signature stays as 0062 has it).
+**Rejected.** Managing people only through elevated view-as (fewer screens, less convenient when setting agencies up). Owners inviting other owners (one owner per agency, D538). Temporary passwords for a new agency's owner (D540). Setting the limit only afterwards on the agency page. Adding the limit to `create_agency_with_owner_invite` (its signature stays as 0062 has it).
 
-### D506 — Invites are sent from inside a client, by the owner or anyone with Invite on it; joining puts the person on that client *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
+### D544 — Invites are sent from inside a client, by the owner or anyone with Invite on it; joining puts the person on that client *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
 - **Where.** A member is invited from a client's Members page, reached from a Members button beside Brand Workspace, never from the Team page. The invitation carries the client. The only invite without a client is the super admin's owner invite.
@@ -8877,7 +8877,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 - **Invite popup.** Step 1 lists people in the agency not on this client (Members and Signed up), with a search and checkboxes ("Add n people"), in one insert. "Invite someone new" opens step 2 with the email.
 - **What an Invite holder can't do.** Set or change permissions (the person they invite waits as Signed up until the owner gives access), remove people, or resend and cancel invites. Those stay with the owner.
 - **Joining.** Accepting creates the membership (Signed up) and the client row with no permissions. Giving access on the Team page sets the permissions and the cascade fills that row, so the person can start at once.
-- **One open invite per person.** A second invite from another client is refused; once the person has joined, they're added to other clients from the list. An open invite in another agency refuses it too (D502).
+- **One open invite per person.** A second invite from another client is refused; once the person has joined, they're added to other clients from the list. An open invite in another agency refuses it too (D540).
 - **Refusals** in plain words: invalid email, already in the agency, already invited, an email with a login in another agency.
 
 **Why.**
@@ -8891,15 +8891,15 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 - Invite holders removing people too (taking someone off a client is the owner's call).
 - Several open invites for one person.
 
-### D507 — Seeing a client comes from being on it; changing work by hand comes under Generate *(recorded 2026-11-13; refines D166; originated → `2026-11-12-agency-permissions-design.md`)*
+### D545 — Seeing a client comes from being on it; changing work by hand comes under Generate *(recorded 2026-11-13; refines D166; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.** There is no View or Edit permission. A person on a client sees it, reads comments and downloads files. Creating and changing work by hand needs Generate, the same as AI runs. A person with no permissions on a client looks only: the canvas is read-only (the view-only canvas built in plan 2), and controls for changing work are hidden.
 
-**Why.** Cyril's page (13 Nov) removes View and Edit, following Anupama's summary of the 12 Nov meeting, and asks whether someone can be on a client only to look; Arun, 13 Nov: yes, as a Member (D503).
+**Why.** Cyril's page (13 Nov) removes View and Edit, following Anupama's summary of the 12 Nov meeting, and asks whether someone can be on a client only to look; Arun, 13 Nov: yes, as a Member (D541).
 
 **Rejected.** View and Edit as permissions (six in all), which would let an owner allow editing without spending credits: Cyril's later revision of the same page removes them, and being on the Members list already decides who sees a client.
 
-### D508 — One agency per person in this version; every grant is keyed by person and agency *(recorded 2026-11-13; refines D80, D181)*
+### D546 — One agency per person in this version; every grant is keyed by person and agency *(recorded 2026-11-13; refines D80, D181)*
 
 **Decision.**
 - A login belongs to one agency. `org_memberships_one_org_per_user` stays. An email with a login in another agency can't be invited ("This email already belongs to another agency.").
@@ -8910,7 +8910,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.** Building agency switching now (a `cos_org` cookie, a switcher and a "This is in {Agency}" page), designed on 12 Nov and dropped on 13 Nov.
 
-### D509 — Permissions are set only on the Team page; a client's Members list invites, adds and removes *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
+### D547 — Permissions are set only on the Team page; a client's Members list invites, adds and removes *(recorded 2026-11-13; originated → `2026-11-12-agency-permissions-design.md`)*
 
 **Decision.**
 - **Team page** (owner only) is the only place permissions are set. One list of people and open invites (Signed up first, then Invited, then Members with the owner first), with search, a client filter and All / Waiting / Invited / Members tabs. Each row shows the person's status, permissions ("Can look" when none, "Everything" for the owner) and client logos, with at most one button (Set permissions for someone Signed up) and the rest in a ⋯ menu (Edit permissions, Remove from agency; Copy invite link, Resend, Cancel invite).
@@ -8922,7 +8922,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.** Editing permissions by opening a person on a client's Members list (Cyril's page): permissions are per person, so one place avoids the impression they differ per client.
 
-### D510 — How the permission checker is built *(recorded 2026-11-14; refines D500, D504, D507; originated → `2026-11-13-permissions-core.md`)*
+### D548 — How the permission checker is built *(recorded 2026-11-14; refines D538, D542, D545; originated → `2026-11-13-permissions-core.md`)*
 
 **Decision.**
 - `check(access, action, { orgId, clientId })` takes `clientId: null` for "on at least one client the person is on": routes and nav items not rooted at one client use it. Each agency's access carries `anyClient`, built once per request, so it is one Set lookup.
@@ -8939,7 +8939,7 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Rejected.** Scanning the client rows for "anywhere" on each check (performance rule 2). Redirecting a foreign client's page home (it differed from every other denial).
 
-### D511 — People, invites and Admin share one API and one set of screens *(recorded 2026-11-14; refines D502, D505, D506, D509; originated → `2026-11-13-permissions-people-and-invites.md`)*
+### D549 — People, invites and Admin share one API and one set of screens *(recorded 2026-11-14; refines D540, D543, D544, D547; originated → `2026-11-13-permissions-people-and-invites.md`)*
 
 **Decision.**
 - Every people change goes through `/api/orgs/[orgId]/…` behind `withTeam`, under the impersonation write gate: inviting to a client and adding people already in the agency to it need `invite` on that client; everything else needs `manage_team` (owner only). A super admin working from Admin passes for any agency, skips that gate (D85) and is logged as `admin_action`. While viewing as the same agency, the agency path applies. Make owner answers only a super admin working from Admin.
@@ -8950,23 +8950,23 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 - Invite links are built in one place (`inviteLink`). Without `APP_URL` the link is the path alone: it is shown to copy and not emailed, and the invite still succeeds. Other emails' buttons need `APP_URL`; without it the email is skipped and the action still succeeds.
 - Email goes through Resend's HTTP API with `fetch`; without `RESEND_API_KEY` and `EMAIL_FROM` nothing is sent and the link is shown to copy.
 
-**Why.** D509 (one place for permissions), AGENTS.md "share the wiring too", and D85's line between administering the platform and acting as an agency. The trimmed read keeps an Invite holder from learning other clients' names, members or invitees. Without the cooldown and the count, Resend could mail one address on a loop. Without the cross-agency check, two agencies could both invite one new email and the second sign-up would fail.
+**Why.** D547 (one place for permissions), AGENTS.md "share the wiring too", and D85's line between administering the platform and acting as an agency. The trimmed read keeps an Invite holder from learning other clients' names, members or invitees. Without the cooldown and the count, Resend could mail one address on a loop. Without the cross-agency check, two agencies could both invite one new email and the second sign-up would fail.
 
 **Rejected.** Separate admin routes mirroring the owner's (two copies of every rule). Giving Invite holders the owner's full read with only links withheld. A database index for the cross-agency check (the per-agency unique index stays; the table is small). Counting invitation rows by their sent time (an invite resent every minute counted once). A table logging every send (a counter answers "how many sends today" with one row and one atomic update; a log is only worth it for per-send history, which the audit log already keeps for Admin). Counting, then inserting (two sends at 49 could both pass). A rolling 24 hours (needs every send's time; a fixed window is enough to stop abuse).
 
-### D512 — The browser's direct reads follow the client list *(recorded 2026-11-18; refines D501, D510; originated → migration 0065)*
+### D550 — The browser's direct reads follow the client list *(recorded 2026-11-18; refines D539, D548; originated → migration 0065)*
 
 **Decision.**
 - Every `org isolation` read policy also needs the row's client to be one the reader may see: `auth_client_ids()` returns every client of an agency they own, and the clients they are on once the owner has given access (`access_given_at` set). It covers `canvases`, `client_kb_jobs`, `generations`, `node_versions`, `node_version_decisions`, `node_version_annotations` and `moodboard_items`. Rows without a client id reach it through definer lookups (`node_client_id`, `version_client_id`, `decision_client_id`, `moodboard_client_id`, `generation_client_id`), each a primary-key read.
 - `credit_transactions` is readable by the agency's owner only, matching `view_credits`.
 - The agency check stays first in each policy, so another agency's rows are turned away by the indexed `org_id` before any lookup.
-- An owner-only Team action on a named client (`withTeam` with `manage_team`) now passes that client to `check`, so someone not on it gets 404 before the owner-only 403 (D510 step 4).
+- An owner-only Team action on a named client (`withTeam` with `manage_team`) now passes that client to `check`, so someone not on it gets 404 before the owner-only 403 (D548 step 4).
 
-**Why.** The permission tests of 17 November read QA Beta's canvases and brand kit jobs as members on QA Alpha only, and as someone still waiting for access, using their own sign-in on the public API. Routes and pages already limited them (D501); the database didn't. The browser still needs these tables for Realtime, so the policies are scoped rather than removed.
+**Why.** The permission tests of 17 November read QA Beta's canvases and brand kit jobs as members on QA Alpha only, and as someone still waiting for access, using their own sign-in on the public API. Routes and pages already limited them (D539); the database didn't. The browser still needs these tables for Realtime, so the policies are scoped rather than removed.
 
-**Rejected.** Dropping the policies and serving Realtime through the server (a rewrite of every live screen). A `client_id` column on every table (a migration and backfill per table for what a lookup answers). Checking the person's permissions in the policies (reading is never permission-gated: being on a client is enough, D507).
+**Rejected.** Dropping the policies and serving Realtime through the server (a rewrite of every live screen). A `client_id` column on every table (a migration and backfill per table for what a lookup answers). Checking the person's permissions in the policies (reading is never permission-gated: being on a client is enough, D545).
 
-### D513 — The Client feedback chip lists versions; a row opens that version *(recorded 2026-11-13; refines D310, D495)*
+### D500 — The Client feedback chip lists versions; a row opens that version *(recorded 2026-11-13; refines D310, D495)*
 
 **Decision.** The header's Client feedback chip always opens a list. It shows each version newest first, with its name and its own comment count. Older canvases with several review nodes (D499) group the versions under each node's name. A row opens the review's focus view on that version. The chip's one canvas query returns the per-version counts: comments are embedded under each version.
 
@@ -8976,106 +8976,667 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-12-client-review-versions.md`.
 
-### D514 — Razorpay is proven with a hidden test top-up before the billing build *(recorded 2026-11-19; originated → `2026-11-19-razorpay-test-top-up-design.md`)*
+### D501 — Uploading a version skips the dialog; the node's right-click menu uploads and copies the link *(recorded 2026-11-16; refines D497, D498)*
+
+**Decision.** "Upload new version" opens the file picker straight away and the chosen cut uploads at once. A new version allows download; the focus view's header turns it off with a labelled **Allow download** switch. The header no longer has "Open as client"; it keeps Copy link. Right-clicking a Client review node offers **Upload new version** and **Copy vN link** (the newest version). While a cut uploads, the Upload button and the node card read "Uploading…"; once it is saved, the node's focus view opens on the new version (from the menu too, so the canvas stays put during the upload). One upload hook per node (`useClientReviewUpload`) feeds both the menu and the focus view's button.
+
+**Why.** User, 16 Nov 2026: no popover between clicking Upload and the file picker; a toggle for Allow download; drop Open as client; upload and copy-link from the canvas.
+
+**Rejected.** Keeping the upload dialog for its per-upload download switch (the switch on the version does the same job after the upload). The icon-only download toggle with a slash. Separate upload state for the menu and the focus view.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D502 — A new version starts with download off; uploading stays on the canvas with a skeleton *(recorded 2026-11-16; refines D497, D501)*
+
+**Decision.** A newly uploaded version has **Allow download off**; the focus view's switch turns it on (the finalize route also defaults to off when the body omits it). Uploading from the node card or its right-click menu no longer opens the focus view: the card's media area shows a skeleton (at the current cut's shape, or 16:9 for the first) and the footer reads "Uploading…" until the version is saved. A focus view that is already open, or the next one opened, shows the new version.
+
+**Why.** User, 16 Nov 2026: don't open the focus view after an upload; download off by default; show a loading skeleton in the node while uploading.
+
+**Rejected.** Keeping download on by default (D497): a cut should not be downloadable until someone chooses that.
+
+**Originated →** `2026-11-12-client-review-versions.md`.
+
+### D503 — Scripts and Avatars wait for the Brand KB, like canvases *(recorded 2026-11-18)*
+
+**Decision.** A client's Scripts and Avatars open only once its Brand KB is ready (`kb_status = 'ready'`), the same rule the client's canvas page already had. One helper, `src/lib/clients/kb-gate.ts`, decides it for every entry point: the Scripts and Avatars pages (library, script, new avatar, avatar) redirect to `/clients/<slug>/kb?kb=required`, and the KB page then shows an info toast, "Set up the Brand KB first.", and drops the flag from the URL; `POST /api/clients/:id/scripts` and `POST /api/clients/:id/avatars` refuse with 409. The home tile keeps its Scripts and Avatars buttons unchanged. The client's own page still redirects to the KB with no toast, since opening a new client's KB is the expected first step. Brand KB, Brand assets and Market stay open, since they are part of setting a client up.
+
+**Why.** User, 18 Nov 2026: a new client's tile sent its main link to KB setup, but its Scripts and Avatars buttons skipped it and let scripts and avatars be made with no brand behind them. The gate lived only on the canvases page, so each newer surface had to remember it and these two did not.
+
+**Rejected.** Swapping the tile's Scripts and Avatars buttons for one **Set up Brand KB** button (tried, and turned down by the user on 18 Nov 2026: the tile should look the same for every client). Hiding the buttons alone (a typed or bookmarked URL, and the create routes, would still get through). Letting the script copilot run without a KB (it can, with `hasKb: false`, but a script written with no brand context is what the KB step exists to prevent).
+
+**Originated →** this log.
+
+### D504 — The timeline loses its ⋯ clip button, All clips and Quiet stretches; Fit toggles back *(recorded 2026-11-20; refines D405, D410, the task-menu design)*
+
+**Decision.** A clip's menu opens on right-click only: the ⋯ button the selected clip showed on the Video lane is gone. The timeline header no longer has an **All clips** menu; work on every clip starts from the Inspector's task list with no clip selected. The Inspector no longer lists a selected clip's **Quiet stretches** (they stay shaded on the Audio lane, with their right-click menu). **Fit** is a toggle: the first press fits the reel to the screen, a second press (while the view is still the one Fit made) goes back to the zoom and scroll from before; any other zoom ends the fitted state. The header button shows the pressed state, and the ruler and View menus read "Back to the previous zoom" while fitted.
+
+**Why.** User, 20 Nov 2026: the ⋯ button and right-click did the same job; All clips repeated the Inspector; the quiet stretches section wasn't wanted; pressing Fit again did nothing.
+
+**Rejected.** Keeping the ⋯ button as a discoverability aid (right-click is the editor's pattern for every lane). A separate "Restore zoom" button.
+
+**Originated →** this log.
+
+### D505 — Each caption keeps its own style and position *(recorded 2026-11-20; refines D396, D398)*
+
+**Decision.** A caption styled or moved on its own carries `look`: its whole style (font, size, colour, word by word, active colour, upcoming, outline, box, box colour, caps) **and** its position (x, y). From then on the reel's `captionStyle` never reaches it; the reel's style is only the default for captions that have no `look` (new ones, and ones never touched). What a caption shows with is `captionLook(doc, caption)`. `applyCaptionLook` copies the caption's current style, applies the patch and stores all of it; `resetCaptionLook` puts the caption back on the default. Selecting a caption anywhere (its line in a clip's Captions task, the preview, the Captions lane, the default Text tab) opens its clip's Captions task in the Inspector with that line picked, and the same style controls as the default's (`EditorCaptionsStyle` / `EditorCaptionPresets` with a `captionId`) open right under the line, with **Use default style** to reset. On the preview, dragging the selected caption moves it alone and a corner drag resizes it alone. The default Style panel shows only for the Captions task with nothing selected. The stage, the Captions lane, the Premiere titles and the MP4's ASS (one style per distinct look, each line positioned on its own) render each caption's own style; the export lists and font-checks every font used. Redoing a clip's auto captions replaces its unedited lines, their own style included.
+
+**Why.** User, 20 Nov 2026: editing or moving one caption changed every caption; each must be kept separately. Two earlier cuts the same day fell short: a caption that kept only the keys changed on it still followed the default for the rest, moving stayed reel-wide, and selecting a caption on the preview opened the reel-wide panel.
+
+**Rejected.** Storing only the keys that differ from the default (the caption kept changing with it). Keeping position reel-wide (D396's drag moved every caption, which the user did not want).
+
+**Originated →** this log.
+
+### D506 — One frame around every client screen: stage tabs and a foldable copilot guide *(recorded 2026-11-12)*
+
+**Decision.** A server layout at `src/app/clients/[id]/layout.tsx` wraps every client screen. It reads the client once and draws five tabs across the top (Brand KB, Market research, Scripts, Avatars, Brand assets); the three stage tabs show approved, in progress or locked. On the Brand KB, Market research and Scripts pages a copilot panel sits on the left and folds to a rail (remembered per client in the browser). In this first piece the panel is a fixed guide worked out from the client's status: what is done, what is waiting for the person, the next approval. It has no chat. The canvas editor and a script's own page (which keeps its script copilot) get no panel; the canvas editor gets no tabs either. The pages themselves are unchanged.
+
+**Why.** User, 11 to 12 Nov 2026: the pipeline's pieces all exist but nothing connects them; a panel on the left should take a person through it as a layer over the existing screens, foldable so it never blocks stepping in by hand. One layout is the single place that knows where a client is, so no page repeats it.
+
+**Rejected.** A tab bar repeated in each page (five copies to keep in step). A panel owned by each page (no shared state, no shared fold). Chat in the panel now: there is no stage agent to answer yet, and an input that does nothing misleads.
+
+**Originated →** `2026-11-12-copilot-journey-design.md`.
+
+### D507 — Stages are gated by a person's approval: brand KB, then market research, then scripts *(recorded 2026-11-12; refines Market Signals V1)*
+
+**Decision.** `clients.market_status` (`pending` or `approved`, migration 0063). Market research opens when the brand KB is ready. A person approves market research with a button on its page; that opens new scripts. Until then a script's copilot refuses to write a new script, and still takes a pasted script. A script already written is never blocked. Every client that existed before the migration is approved, and only an explicit `pending` gates anything, so a database the migration has not reached locks nothing. The copilot never approves.
+
+**Why.** User, 12 Nov 2026: stages gated by approval; a person always approves for now; existing clients are assumed approved; pasting a script skips the gates.
+
+**Rejected.** Marking existing brand KBs ready to satisfy the gate (it would claim a review nobody did). Blocking the New script button outright (pasting happens inside the script copilot, so the paste would be blocked too). Market Signals V1's "no AI anywhere" is untouched by this piece; the research agent is a later piece and will need its own decision.
+
+**Originated →** `2026-11-12-copilot-journey-design.md`.
+
+### D508 — One saved onboarding thread per client, in its own table; a script's thread stays where it is *(recorded 2026-11-16; follows D506)*
+
+**Decision.** `client_copilot_messages` (migration 0064) holds a client's onboarding thread: the conversation that covers the brand KB, market research and the lead-in to the first script. A script's own conversation stays in `client_script_messages`. Both stores return messages in one shape (`src/lib/journey/thread/schema.ts`: words, an optional card, reply choices, attachments), so the panel, the cards and the composer do not care which store a message came from. The thread has one read for every stage page (`GET /api/clients/:id/copilot/thread`, one query key); a turn is sent to the stage's own agent. The opening line is shown without being stored and is kept on the first message a person sends; a partial unique index lets only one opening in when two turns race.
+
+**Why.** User, 13 and 15 Nov 2026: anything missing is asked for in the chat and the thread is saved; the onboarding thread carries only the lead-in to the first script, and every script, the first included, is drafted in its own thread. A script's messages cannot exist before a script does, and the onboarding thread starts before any script.
+
+**Rejected.** Reusing `client_script_messages` (it requires a script). Moving every script's conversation into the new table (it would move live data for no change a person can see). A read and a cache key per stage (the same messages cached twice).
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §3, `2026-11-15-copilot-journey-map.md` §5.
+
+### D509 — Stage agents share one small tool-calling loop; each stage decides where it runs and how a turn ends *(recorded 2026-11-16; refines D336)*
+
+**Decision.** `src/lib/journey/agent.ts` is the loop: ask the model, run the tools it asks for, report back, repeat until it answers, at most four rounds, after which the tools are taken away. The model is passed in and the loop imports no SDK; the OpenAI adapter sits beside it and a second provider is a second adapter. The model only says what it wants: the loop acts, and each tool's own code decides whether the action is allowed, so the rules that must hold (no second build, no build without a source) live in the tools and not in the prompt. The brand KB agent runs inside the request, because its tools are quick writes and the long work (the build) stays in Trigger.dev and writes into the thread from its webhook. A stage whose agent does long or paid work, market research, runs the same loop in a background task. A turn ends in plain words, or in a strict structure when the caller asks for one, which is how a script step will use the loop while the code keeps deciding the order of steps.
+
+**Why.** User, 13 Nov 2026: one agent per stage with tool calling. User, 15 Nov 2026: in scripting the path is decided by code, with an optional tool call when research or anything else needs to be brought in. Rule 12: long or paid work never runs inside the browser's request.
+
+**Rejected.** Trigger.dev `chat.agent` for the brand KB (no long-running model work to host). One fixed place for every agent to run. A free tool-calling agent for scripts (it would mean re-tuning script quality from scratch). Rules stated only in the prompt.
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.1 and §6, `2026-11-15-copilot-journey-map.md` §5 and §6.
+
+### D510 — The brand KB review keeps its draft and "Save changes"; a save writes only the fields that changed, and says so in the copilot thread *(recorded 2026-11-16; refines D318)*
+
+**Decision.** The review screen still buffers approvals, edits and rejections in a draft until "Save changes", and gains "Discard changes" beside it while the draft has unsaved changes. A save no longer writes the whole KB: it sends one patch per changed field (`changedFields`), and `patch_kb_fields` (migration 0065) merges each patch into its own stored field in one statement. The copilot writes its answers the same way. So a save can never write an older draft over a field the copilot or a teammate filled in the meantime. When the stored KB changes under an open screen, the screen takes the stored copy into both its copies and keeps the person's unsaved fields (`adoptServerKb`). After a save the route writes one line into the copilot thread ("Manual edits saved: 3 fields.") and the panel re-reads at once, which is how the copilot learns of it. `saveKBOutputAction` is removed.
+
+**Why.** User, 16 Nov 2026: keep the button, add a discard, and when a save is made tell the agent so it refreshes its understanding. The copilot reads the stored KB, so with a whole-KB save its answers would have been overwritten by any later save from a screen opened before them.
+
+**Rejected.** Saving each review the moment it is made, with no button (proposed; the user chose to keep the button). Keeping the whole-KB save. A cached copy of the KB in the browser's query cache (the KB still reaches the page from the server component).
+
+**Accepted with it.** The copilot and the panel only know a review once it is saved: the panel may wait on a field already approved in the draft, and the gate card appears after the save that settles the last field. If the copilot fills a field the person has also changed in the draft, the person's value wins at the next save.
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.3; plan `2026-11-16-copilot-journey-kb-chat-part-2.md` Task 9.
+
+### D511 — In a review walk, code chooses and words each question and decides when the walk stops; the model only reads the answer *(recorded 2026-11-16; refines D509)*
+
+**Decision.** After a build the copilot asks about the fields it could not settle: still unreviewed, and inferred or empty. Which field comes next (`QUESTION_PRIORITY`, then screen order), the question's words (a template that only repeats what the KB holds), its reply choices ("Yes, that's right", "There is none", "Skip this one") and when to stop (after five, then only on "Keep asking") are all decided in `src/lib/journey/kb-copilot/walk.ts`. The walk keeps no state of its own: what has been asked and what is still waiting are read back from the question cards in the thread, and a new build starts it again. The model's part is to read the person's answer and call `answer_field`, `confirm_field`, `skip_question`, `keep_asking` or `stop_asking`. A tool never writes a field that is already reviewed; that refusal is in the tool's code. An answer is saved as edited, stated and high confidence; an agreement is saved as approved. The build's webhook writes the first question itself, with no model call.
+
+**Why.** User, 15 Nov 2026: the path is decided by code, with tool calls where they are needed. Spec §6: the copilot never proposes a value without a source, so it offers none of its own as a reply choice. A templated question can be tested word for word.
+
+**Rejected.** Letting the model choose and phrase the questions (it drifts, and it invents likely answers). A separate table or column for walk state. Asking about every unreviewed field (the stated ones are a straight review on the page).
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.3 and §6.
+
+### D512 — "Waiting for you" and the gate card are worked out on every thread read, never stored; approving is one function that records who approved *(recorded 2026-11-16; follows D508)*
+
+**Decision.** `ThreadState` carries `waiting`: a reply the copilot is waiting for, a task on the page with links (how many fields are left, per tab), or a gate (the next approval, what it opens, why the copilot cannot do it). It is computed on each read from the thread and from the list of unreviewed field paths (`kb_unreviewed_fields`, migration 0065: paths only, the KB is never downloaded by the polled read). If that read fails the whole thread read fails, because an unknown count must never look like nothing left, which is the gate. The gate names its approval (`approve-kb`) and only the stage's own component can carry it out; the thread components stay stage-neutral. Approving is `approveKB`, reached by the page header's button and by the gate card alike; it checks the same list, approves once, and writes "<name> approved the brand KB." into the thread with the approver's id. The name is kept as it was that day.
+
+**Why.** A stored marker goes stale the moment a field is reviewed by hand. Rule 8 (ask for what you need) and rule 13 (a failure is never "empty"). Spec §2.3: any teammate may approve, and who approved is recorded.
+
+**Rejected.** Storing the gate card as a message. Downloading the KB on the polled read to count. Resolving the approver's name on every read (two more queries on a polled read; an approval is an event, so its name does not need to follow a later rename).
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.3 and §3; `2026-11-15-copilot-journey-map.md` §2.
+
+### D513 — After a plain save the copilot's reply is worded by code, and the form takes the saved value from the turn's answer *(recorded 2026-11-17; refines D509 and D511)*
+
+**Decision.** A tool of the shared agent loop can be marked `ends`. When every call in a round is such a tool and each ran without error, the loop returns there and the model is not asked a second time. In the brand KB chat the two source saves (`save_website`, `save_socials`) are marked so. The reply is then the tool's own sentence followed by what comes next while sources are being collected (`nextStep`, the same lines the opening ends with), with the usual code-chosen reply choices. A failed call, a round that also holds any other tool, and a turn that owes a structured answer still go back to the model. Separately, the turn's answer carries `saved` (the website or handles as stored, in the form's own shape) and the form beside the chat shows them at once; the page is still re-read after.
+
+**Why.** Measured on 2026-11-17: one "save the website" turn made two model calls of about 2 s each, and the second only said "saved". The model used no reasoning and wrote about 25 tokens per call, so a faster model would not have helped. The form waited for the whole turn and then a page re-read before it showed a value that was already stored. Decided by Cyril on 2026-11-17 ("do 1, 2").
+
+**Rejected.** A faster model (nothing for it to save). Ending the turn on review answers and on a started build as well: the same switch would work, but it was not asked for and is left for a decision. Skipping the page re-read after a plain save: a later re-read would then bring the value in late and could replace text typed into that field meanwhile.
+
+**Costs.** If a person gives a source and asks a question in the same message, the question is not answered in that turn. If the model saves the source and starts the build in two separate rounds instead of one, the build does not start and the reply asks "Shall I start the build?" with the button; the prompt now asks for both calls in the same response.
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.1; measurements in this session.
+
+### D514 — Every copilot surface shows its work as it happens *(recorded 2026-11-17; decided by Cyril)*
+
+**Decision.** Anything a copilot does that a person waits on is shown as it happens, not when it is finished: its words appear as they are written, each thing it does shows on the page at the moment it is done, and a line always says what it is doing now. This holds for every copilot surface (brand KB, market research, scripts, and the stages still to come). A new copilot surface is built this way from the start; the brand KB chat is converted first; an existing surface that does not yet do it moves when it is next substantially changed. Background work that runs for minutes keeps reporting through the live status lines and is not part of this.
+
+**Why.** Measured on 2026-11-17: a website given in the brand KB chat was stored about halfway through a ten-second wait, and the person saw nothing until the end. The copilot was working and looked idle. Every later stage has the same shape, so the same wait would be built into each. The script copilot's first draft already appears as it is written (D337), and that is the experience people compare the rest against. Cyril: "I want streaming to be a first class principle as the user experience gets affected by it", for every surface.
+
+**Rejected.** A faster model: the measured calls used no reasoning and wrote about 25 tokens each. Converting only the brand KB chat: the later stages are not built yet, so building them this way costs nothing extra, and converting them afterwards would. Showing one person's turn live to their teammates: a different feature.
+
+**Refines.** D337 (which rejected streaming for turns and later let the first script draft stream; "everything else stays request and response" no longer holds for a copilot surface once it is converted), D509 (the shared agent loop), D513 (the form takes a saved value from the turn's answer: the same path, delivered at the moment of the save).
+
+**Originated →** `2026-11-17-copilot-streaming-design.md`.
+
+### D515 — A copilot turn sends its work to the browser as event lines over the one request *(recorded 2026-11-18; refines D337, D509, D514)*
+
+**Decision.** A brand KB turn answers as newline-delimited JSON, the format the script copilot's first draft already uses (D337): `step` (the line naming what it is doing), `text` (the next piece of the reply), `reset` (the words so far were not the reply), `saved` (a website or handles as stored), `page` (something else on the page changed), and a last line that is `state` (exactly what the turn used to answer in one piece) or `error`. Bad input is still refused as plain JSON before anything streams. The shared agent loop reports through optional callbacks and stays pure; a tool may carry a `label` (its step line) and may be `quiet` (reply buttons: words written beside it are the reply, so they are not cleared and rewritten). The OpenAI adapter streams only when words are wanted, sends a streamed answer back to the model through the SDK's `toResponseInputItems`, and limits a streamed call over its whole length. The turn runs on its own and is handed to `after()`, so a closed tab never loses a reply. The browser reads lines with one shared reader (`src/services/read-ndjson.ts`, also used by the script copilot).
+
+**Why.** D514 (Cyril, 2026-11-17): every copilot shows its work as it happens. One request with many lines back keeps the turn's existing order of writes and its single answer, so nothing stored changes. Found in review: the SDK's streamed response carries fields the API refuses as input, and its own timeout stops at the first byte.
+
+**Rejected.** A second request or a realtime channel for progress (two things to keep in step, and a channel per turn). Server-sent events as a second format beside D337's. Recording that a turn is running, so a reload mid-turn could show it (Cyril, 2026-11-17: leave reloads as they are). A stop button (Cyril, 2026-11-17).
+
+**Originated →** `2026-11-17-copilot-streaming-design.md`; plan `2026-11-17-copilot-streaming.md`.
+
+### D516 — An image attached in the copilot chat is studied when its message is sent, not when it is attached *(recorded 2026-11-18; decided by Cyril; refines D312 for the chat only)*
+
+**Decision.** An image attached in the brand KB chat is uploaded and becomes a source at once, as before, but its image study starts when the message carrying it is sent: the chat's finalize call passes `studyLater`, and the turn starts the study after storing the message. Removing an attachment before sending starts no study. Images uploaded or removed on the form keep starting a study at once (D312).
+
+**Why.** Cyril, 2026-11-18: "the image study should only happen when the send button is pressed." Attaching and then removing an image started two studies before anything was sent, and the panel showed "Studying the images…" for a message that did not exist yet.
+
+**Rejected.** Uploading only on send (the chip would show nothing until then, and the turn route would carry file bytes, against performance rule 8). Changing the form's own uploads (not asked for).
+
+**Costs.** An image attached and never sent is a source that is not studied until the next study starts (the next upload, or the build when it lands).
+
+### D517 — Changes to a reviewed brand KB field go through a change card that lives in the thread *(recorded 2026-11-19; refines D318, D508, D510)*
+
+**Decision.** Once a person has reviewed a field (approved, edited or rejected), the copilot changes it only through a change card: a `change` card on a message in the onboarding thread, made against one KB version, listing each field before and after with its source, kept or dropped per field, settled once by a person. A field still `needs_review` may still be filled directly in the first review (D511). A card is settled by a conditional update on its stored status (`card->>status = pending`), so two people deciding at once settle it once; approving writes the kept fields through `patchKBFields` as `approved` / `explicit` / `high`, never one whose stored value differs from the card's "before" (changed by hand since), and never touches `kb_status`. A card made against a version that is no longer active becomes `stale` and writes nothing. A change stated in the chat becomes a card inside the turn (`propose_change`, which throws its refusals back to the model). Documents become a card in the background: a `kb-propose` Trigger.dev task and `background_jobs` kind reads newly added documents, or every remaining document after a removal, against the current values of the 43 review fields, with its own 8-minute limit and no retries, and only proposes values that come from a document that is there. Refusals are read back from settled cards (every field of a discarded card, each dropped field of an approved one, keyed by document and field), so a document never proposes a refused change again. "Save & re-analyze" now asks for a proposal instead of rebuilding; "Refine with AI" is removed. Until Image Analysis gets its own card (piece 2b), a re-study says in the thread which fields it changed.
+
+**Why.** Brand KB spec §2.4 and §2.5 (Cyril, 2026-11-13): adding to an approved KB must not wreck it; no review is lost, nothing locks, and the copilot never overwrites a reviewed field without a card. Keeping the card in the thread means pending cards survive a reload and need no new table.
+
+**Rejected.** A table for cards or refusals (a migration for what the thread already holds). Rebuilding the whole KB and diffing it against the current one (it re-words most fields, so a card would list dozens of changes nobody asked for). Locking the KB while a card is pending.
+
+**Originated →** `2026-11-12-copilot-journey-brand-kb-design.md` §2.4, §2.5; plan `2026-11-18-copilot-journey-kb-change-cards.md`.
+
+### D518 — A failed background job is said once in the thread, when it fails, and never repeated at the bottom of the panel *(recorded 2026-11-19; refines D509, D515, D517)*
+
+**Decision.** When a collection of images and video (`asset-import`), a study of the images (`image-analysis`) or a reading of documents (`kb-propose`) fails, one stored message is written into the client's onboarding thread at that moment: a status card with a single `failed` line and no words, with the same sentence and red cross the panel used to draw live ("Could not collect images and video from Instagram. You can try again from Brand assets."). `sayJobFailed` in `src/lib/journey/kb-copilot/job-failed.ts` owns the sentence and the write, and it never throws. It is called wherever such a job is marked failed: each failure path of the runs, the "could not start" path of each start, and the 5-minute dead-job sweep, which now hands each job it failed to a callback. The opening is stored first if the thread has none. The live lines at the bottom of the panel now show only what is running, and the model reads a wordless status line as its text. A reading of documents that failed now shows the red line instead of a green-tick note.
+
+**Why.** Cyril, 2026-11-19, on a client whose two collections had failed the day before: the live lines were worked out from the latest job of each source on every read, so the failure was drawn under every new message, split a question from its reply buttons, and read as news until someone re-ran the collection or approved the KB. A failure is an event, so it belongs in the history where it happened. Chosen over dropping the live lines after a while (no trace in the history) and over moving them above the newest question (yesterday's failure still looks current).
+
+**Rejected.** Writing the line from `failJob` itself (the job layer would learn about the copilot, and `failJob` does not know the client or the job's kind). Saying stale jobs failed when a new run starts (`failStaleJobs`): a fresh attempt starts in the same moment, and the sweep already reports dead runs within minutes. Writing back lines for failures that happened before this change.
+
+**Originated →** this conversation (2026-11-19); QA plan `docs/qa/2026-11-18-copilot-journey-manual-qa.md` §5.
+
+### D519 — The review walk's own buttons are carried out by code, not read by the model *(recorded 2026-11-19; refines D511, D513)*
+
+**Decision.** When the person's message is exactly one of the buttons the review walk offers ("Yes, that's right", "There is none", "Skip this one", "Keep asking", "Ask me the open questions", "I'll review the rest") and carries no file, the brand KB turn runs the matching tool itself (`confirm_field` on the waiting field, `skip_question`, `keep_asking`, `stop_asking`) and the model is not called. The tool's own code runs, so its refusals still apply; the reply is the tool's sentence, or a fixed line for the tools that say nothing. A confirm or a skip needs a waiting question. Anything else, including the same words with more typed after them, still goes to the model. Separately, the model's reply keeps each message it wrote as its own paragraph, instead of the SDK's `output_text`, which glues them together.
+
+**Why.** Cyril, 2026-11-19, on Propalyst: pressing "Yes, that's right" got the reply "Confirmed that field." and the same question again. The model had written the words and called no tool, so nothing was saved and the walk asked again. A rebuild of the exact context showed the model had everything it needed; the button is code's own fixed choice for a field code already knows, so asking the model what it means adds a step that can fail. Same principle as D513 (plain saves end with a reply worded by code).
+
+**Rejected.** Forcing a tool call (`tool_choice: "required"`) whenever a question is waiting: still a model reading a fixed button, and it would force a tool on a question about something else. Prompt changes alone: they lower the odds, they do not remove them.
+
+**Originated →** this conversation (2026-11-19); context rebuild artifact https://claude.ai/artifact/HAt3HzDgp7L1V7YQpARpzN.
+
+### D521 — Every copilot turn leaves a trace of exactly what the model was sent *(recorded 2026-11-19; refines D509, D519)*
+
+**Decision.** Each brand KB copilot turn (typed, or a reply button) keeps a trace: what came in (the message, attachments, the waiting question, the client's state); what the model was given, exactly (the instructions, the conversation, each tool's name, description and JSON schema, as the adapter sends them); each round of the shared loop as it happened (the words, the tool calls with their arguments, what each returned, how long); a choice carried out by code with no model (D519); the refusals tools said in a sentence; what code did after (fields written, the messages it added, a change card); and how it ended (the stored reply, total time, the error). The shared loop (`runAgent`) reports to an optional trace sink as it runs, so a turn that fails half-way keeps what it did. The route stores one row in `copilot_turn_traces` (migration 0066) once the answer has gone, in its own try/catch, so tracing never adds to the wait and never fails a turn. Each row carries its list columns (sent text, tools, marks, duration) so the Turns list never reads a whole trace. Four marks, about what the turn achieved: Question left unanswered, Asked again, Refused, Failed. A "Turns" switch in the copilot panel (per browser, off by default, not a permission) shows a Chat/Turns view and a Trace button under each reply. Kept 30 days: a daily Trigger.dev task (`copilot-trace-sweep`) deletes older rows, and the list hides them anyway. Everyone who can see the client's thread can see its traces.
+
+**Why.** Two copilot faults on 2026-11-19 ("Confirmed that field." with no tool called; "edit the mission statement" refused instead of saved) were explained only by rebuilding the model's input by hand and guessing. Both turned on a detail of the exact input or a tool's exact sentence, which a summary written in advance would likely have dropped. More agents (market research, scripts, canvas) run on the same loop, so the loop is where tracing belongs.
+
+**Rejected.** A summary of the model's input (B): it is written before anyone knows which detail matters. LangSmith or LangGraph: client data leaves the product, and a graph of steps does not show what happened inside the model step. Marks by tool name ("called no tool"): many right turns call none, and the reply-buttons tool saves nothing, so it would hide the first fault. Polling the Turns list: it is refreshed once, shortly after each turn.
+
+**Originated →** `docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md`; plan `docs/superpowers/plans/2026-11-19-copilot-turn-traces.md`.
+
+### D520 — The page shows the copilot's work *(recorded 2026-11-19, after D521; refines D514, D517)*
+
+**Decision.** Whatever the copilot changes on a page, the page shows it happening: it goes there, marks what the copilot is asking about ("Copilot is asking"), sweeps what is being changed, and highlights the change when it lands. The copilot names what it works on as *targets* (`kb:<review path>`, `kb-form:website|instagram|facebook`, `kb-source:<id>`); the turn stream carries a `target` event per change (writing, then written or unwritten). The panel folds those, plus "the asked target changed" and "a file I attached was saved", into a small activity record in the query cache (never fetched). One shared hook (`useFollowCopilot`) and one shared component (`CopilotTarget`) do the following and the marks for every page; a page only says how to reveal a target (switch tab). The page always follows, even mid-edit (Cyril). The copilot's change wins over an unsaved edit of the same field: the review page takes the stored value for fields the copilot wrote, so a later Save never writes the older draft back (Cyril). Only the browser that sent the turn moves; the "asking" mark comes from the shared thread, so everyone sees it. A person's own approval of a change card highlights the changed fields without moving. A target the page cannot show is skipped; the Source files drawer is never opened for the copilot. First applied to the brand KB: review fields, the pre-build form's website and handles, and the source lists.
+
+**Why.** Cyril, 2026-11-19: "the idea is that you communicate to the user that I am editing this", then "this is a general principle: whenever something happens on the left it needs to be shown on the right." Until now the panel and the page acted like two tools: a question named a field the person had to go and find, and an answer changed a value somewhere they might not be looking.
+
+**Rejected.** Follow code per page: the first stage after this would have reworked what had just shipped. Staying put while the person has unsaved edits, with a chip instead. Asking which value to keep when a chat answer meets an unsaved edit. A new request or poll for the page: it reads what the panel already loaded.
+
+**Originated →** `docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md`; plan `docs/superpowers/plans/2026-11-19-copilot-page-follows.md`.
+
+### D522 — A study of the images proposes changes to reviewed Image Analysis fields on a change card *(recorded 2026-11-20; refines D318, D517)*
+
+**Decision.** When the client's images are studied again, the study no longer replaces an Image Analysis field a person has approved or rejected. It keeps that field as it is and proposes its new reading on the brand KB's ordinary change card in the copilot thread, sourced to "Image study"; nothing changes until a person approves, and approving goes through the existing change-card route. Fields nobody has reviewed are still written directly. The counted fields (format mix, purpose mix, colours) are still written directly and keep their review: they are the same measure with new numbers. A field rewritten by hand is left alone and is not proposed (Cyril, 2026-11-20). A study that wrote marks any earlier image-study card still waiting as out of date, even when it has nothing new to propose, so an older reading of the images is never approved. A value a person discarded for a field, or dropped from a card they approved, is not proposed for that field again; a different reading is. The thread line "Studied the images again. Changed: …" names only the fields changed directly. A study never fails because the thread could not be written. No migration.
+
+**Why.** Cyril decided on 2026-11-13 that Image Analysis must go through a change card like the rest of the brand KB (D517). Until now a study replaced an approved field whenever it read the images differently and sent it back to "needs review": the one place a reviewed field could still change without a person's say.
+
+**Rejected.** A separate "pending" copy with its own review on the Image Analysis tab: a second approval mechanism to keep in step, and the copilot thread would not show it. Cards for the counted fields: every image upload would produce one. Proposing over a field written by hand: those words were a deliberate choice; the cost is that such a field can go stale without notice.
+
+**Originated →** `docs/superpowers/specs/2026-11-20-copilot-image-analysis-card-design.md`; plan `docs/superpowers/plans/2026-11-20-copilot-image-analysis-card.md`.
+
+**D522, added 2026-11-20 (Cyril, after the review).** The study's summary model is shown the written fields the team approved and told to return them word for word unless the images now show something different (summary prompt 1.2.0). Why: those fields are prose written afresh on every study, so wording drift alone would have raised a card after nearly every upload, and a discard only remembers exact words. Rejected: a separate yes/no model call per reviewed field (an extra call per study); remembering a discard until the image set changes a lot (real changes could be suppressed).
+
+### D523 — A script's copilot panel is on its page at every stage, read-only after Generate *(recorded 2026-11-20; refines D506, D512)*
+
+**Decision.** The script's copilot panel is shown on the script's page at Generate, Visualise, In review and Approved (the review board, the approved version, and the plain read-only view). It is the same shell as the client's panel (one header, fold, rail), with a link back to the client's Scripts tab and a "Waiting for…" line worked out from the script as stored. After Generate it shows the saved thread with no message box, its cards without buttons, and starts folded; folding is remembered per script in two memories, Generate's (the key it always had, starting open) and one shared by the later stages (starting folded). The Scripts tab's guide offers "Start a script" ("Paste a script" while locked), the same action as the page's "New script".
+
+**Why.** The journey is one copilot panel the whole way; for scripts it vanished the moment a script was marked final, so the conversation that made it was gone from view and piece 5 had nowhere to speak. A message box arrives at the later stages only with piece 5's abilities: a box nothing answers misleads.
+
+**Rejected.** A message box at every stage now (nothing answers it until piece 5). One fold memory per script (unfolding to read the thread at Visualise would also leave Generate unfolded or folded against the person's choice there). Loading the thread in the browser at the later stages (a second request for data the server page already reads; it is read-only, so it goes down as props).
+
+**Originated →** `docs/superpowers/specs/2026-11-20-copilot-scripting-panel-design.md`; plan `docs/superpowers/plans/2026-11-20-copilot-scripting-panel.md`.
+
+### D524 — The script's copilot acts at Visualise, as an extension of the writing copilot *(recorded 2026-11-20; refines D523, D509)*
+
+**Decision.** At Visualise the script's panel gets its message box back, starts open, and its messages go to the same copilot that wrote the script: the same thread, the same message route, the same typed edits and before-and-after cards. The route accepts a script at Visualise (In review and Approved stay read-only, as D523) and saves through a compare-and-set on `updated_at`, the guard every Visualise write uses, only while the script is still at Visualise. At Visualise only, the edit prompt carries the storyboard as the board shows it (each shot's panel, its versions and pick, who has no avatar, what has no picture) and a short set of rules, and the output adds panel picks ("version 2 of S3") and one offered button (draw, send, reopen). One screen-level provider owns the board query, the panel model, the draw queue and the product and location actions; the board and the panel both read it, so every button in the chat is the board's own action.
+
+**Why.** Cyril, 2026-11-20: the copilot does everything the person can do on the page beside it, and leads them through it. Reusing the writing copilot keeps the instructions tuned over many rounds and one place that changes a script; the Visualise part of the prompt is sent only at Visualise, and a test pins Generate's prompt word for word.
+
+**Rejected.** A separate Visualise agent on the shared tool loop (approach B): it would re-implement and re-check edits the writing copilot already makes, give two code paths that change one script, and two copilots answering in one thread. The walk without typed requests (Cyril decided typed requests act). Following a teammate's board changes live (one channel per screen): its own piece of work; the panel is as fresh as the board in this browser.
+
+**Originated →** `docs/superpowers/specs/2026-11-20-copilot-visualise-design.md`; plan `docs/superpowers/plans/2026-11-20-copilot-visualise.md`.
+
+### D525 — At Visualise a request applies at once, comes as a card, or is refused; the copilot's shot cards relax D489 (second) *(recorded 2026-11-20; refines D489 (second), D332)*
+
+**Decision.** At Visualise, casting an avatar, changing the lead, products and locations, and a change to one shot or one field of the script apply at once, as typing on the board does; the page shows them land. A change across several shots, adding, removing, splitting or moving shots, and adding, removing, renaming or redescribing a character come as a before-and-after card accepted right at Visualise, without a reopen; a character's card shows every shot they are in. The reel's notes and open items, and a pasted whole script, are refused with a Reopen button. One request has one outcome: if any part needs a card the whole request is a card, and if any part is refused nothing is applied. Picking a panel version applies at once; drawing, sending and reopening are only ever offered as buttons the person presses.
+
+**Why.** Cyril, 2026-11-20: casting and assets change at once; changes to the words work as while writing (one shot or field at once, several on a card); adding or reordering shots is a card at Visualise. A character's name and description are drawn, so their change touches panels and is shown first. A pasted script has new shots, so accepting it would lose every panel.
+
+**Rejected.** Every change to the words as a card at Visualise (it needs a new kind of card for a change easy to see and undo on the page). Sending every shot change through a reopen (it takes the script back to writing for one extra shot). The page's own controls are unchanged: adding or removing a shot by hand still needs a reopen.
+
+**Originated →** as D524.
+
+### D526 — The copilot leads at Visualise with a walk worked out from the board *(recorded 2026-11-20; refines D512)*
+
+**Decision.** The bottom of the thread at Visualise always shows the current step, written by code from the board each time it is shown and never stored: who plays each character on screen (lead first, with the client's avatars as buttons), an avatar not ready to draw (pointing to its slot), panels being drawn, the locations and products the shots still to draw use that have no picture (each with attach, draw it, or pick on the board, and always "Draw N panels without them"), then "Draw N panels", then the send card. Every draw button in the chat is the board's Generate all, with its credit confirmation. The send card is always offered when asked for, names what is missing (shots with no panel, panels being drawn, characters with no avatar, a waiting change card) and never blocks; its button is the page's Move to In review. The rail's "Waiting for you" line follows the walk.
+
+**Why.** Cyril, 2026-11-20: the copilot leads; the send is always available and says what is missing; pictures come before drawing, because a location's or product's picture is part of what a panel is drawn from and adding one afterwards means paying to redraw. A stored step would go stale the moment a step is done by hand.
+
+**Rejected.** Speaking only when asked. Holding the send back until everything is drawn (a team may send a half-drawn board on purpose). The draw button first with pictures listed under it (it makes paying twice easy). A one-click draw in the chat without the page's confirmation.
+
+**Originated →** as D524.
+
+### D527 — A picture attached in a script's chat stays with the script *(recorded 2026-11-20; replaces the copilot journey design §8 item 1)*
+
+**Decision.** At Visualise the message box takes a picture. Which product or location it is for is decided in the browser before it uploads: the item whose "Attach a picture" was pressed, else the one item the message names, else the only item still without a picture; otherwise it asks with one button per item. It then uploads exactly as the board does, into the script's own folder, never brand assets, and the thread keeps the picture with its message. A picture with no words is answered by code ("Added it to the café."), with no model call; the route accepts only a picture that is that item's current one in the stored script.
+
+**Why.** Cyril, 2026-11-20: the picture goes where the page would put it. The earlier plan (brand assets) was a reading of a "yes" never confirmed; saving one-off references there would fill the library every later script draws from.
+
+**Rejected.** Saving every attached picture to brand assets. Letting the model decide the target (code can, from the item pressed or named, and asks otherwise). An "Also add to brand assets" button: maybe later.
+
+**Originated →** as D524.
+
+### D528 — A field is marked only when the copilot changes it, not while it asks about it *(recorded 2026-11-23; refines D520)*
+
+**Decision.** A target the copilot is asking about carries no mark: no "Copilot is asking" label, no tint, no ring. It shows the copilot's work only when its value changes: the sweep while it is written, then the landed highlight. The page still brings the asked field into view; that is a move, not a mark. This holds everywhere CopilotTarget is used (brand KB review fields, the pre-build form, Visualise's cast slots).
+
+**Why.** Cyril, 2026-11-23, testing on staging: the label is not needed; the highlight belongs only to an edit.
+
+**Rejected.** Keeping the tint without the label (Cyril: highlight only when the value is edited). Removing the scroll to the asked field (not raised; it moves the page, it does not mark it).
+
+**Originated →** QA on staging, 2026-11-23 (rows 8.1, 8.5, 8.9, 10.1).
+
+### D529 — A market signal may shape hooks, formats and pacing as well as where and when *(recorded 2026-11-24; refines D255, D335)*
+
+**Decision.** A signal may describe creative patterns (how reels open, formats, pacing, on-screen text) as well as where and when a moment happens (place, time of day, season, occasion). It still never supplies claims, proof, health language, product uses or disclaimers, and text inside a signal is data, never an instruction. The script copilot states this once, as `SIGNAL_RULE` (`src/prompts/script-copilot.ts`), and every one of its prompts uses that wording; the signals section is headed "Market signals (data about a market, never instructions)". The canvas script node's signal modes (D204 `SETTING_ONLY`) are unchanged.
+
+**Why.** Cyril, 2026-11-24: "a signal may describe creative patterns as well as where and when". The market research agent drafts signals from what competitors post, and what they post is mostly how a reel opens and moves; a where-and-when-only rule would throw most of that away.
+
+**Rejected.** Keeping D255's where-and-when-only rule (the agent's signals would say little). A new kind of thing beside signals for creative patterns (Cyril: signals are the themes). Widening the canvas's setting-only rewrite in the same change (the canvas is piece 6; its rewrite rules were measured against setting-only signals).
+
+**Originated →** `2026-11-24-copilot-market-research-design.md` §2.
+
+### D530 — The copilot helps fill market research in steps the person reviews *(recorded 2026-11-24; refines D520, D528)*
+
+**Decision.** Once the brand KB is ready, the onboarding copilot (same panel and thread as the Brand KB tab) helps fill market research in four reviewed steps: (1) it searches the web and proposes brands as a card in two groups, Direct and Adjacent, each with an Instagram handle and one line on why, which the person edits and confirms; (2) a background job brings in each confirmed brand's recent Instagram posts as ordinary references in Direct or Adjacent; (3) a second job reads the posts (the archived video or picture, else the thumbnail) and drafts signals as cards to keep, edit or drop; (4) a person approves market research with the existing button. Nothing is fetched before the brands card is confirmed, a drafted signal is saved only when a person keeps it, and the copilot never approves. Instagram only. A run is capped at 5 brands per group and 10 posts per brand. The brand's own posts (from the asset import) are context only: a signal cites only Direct and Adjacent references. The agent's reading of a post is kept on the reference (`moodboard_items.reading`, migration 0067), so a post is read once. Confirmed competitors do not become tracked handles.
+
+**Why.** Cyril, 2026-11-24: "the agent helps populate; research and theme creation happen in steps the user reviews and tweaks", and "signals are the themes". Market research was the one journey stage the copilot did not help with, and the slowest manual one in front of every script. Fetching and reading are paid and slow, so they run in the background, after a confirm, and never retry after the provider returned (performance rule 12).
+
+**Rejected.** Web search only (references would be whatever search turns up, not what competitors post). Grouping only what is already saved (does not populate the screen). A specialised research source (a general web search first, decided 2026-11-15). Adding confirmed competitors to the Performance tab (each adds a recurring scraping cost; Cyril, not in this piece). Filing the brand's own posts under Direct or Adjacent (it would mislabel them).
+
+**Originated →** `2026-11-24-copilot-market-research-design.md` §4, §6, §7.
+
+### D531 — A script says which signals it is built from, and the person can change them *(recorded 2026-11-24; refines D335)*
+
+**Decision.** A script's brief keeps `signalIds`, the signals it is built from, shown as a "Built from" line at the top of the script. Before any angles it reads "Set when you pick an angle"; picking an angle sets it to the signals that angle used (a blended or typed angle takes the signals the copilot used for it, which may be none). The person can add or remove a signal on the line or in the chat. Signals set before the angles limit the angles to those; otherwise the angles read every signal, as before. The draft uses the set. After the draft, a change to "Built from" makes the copilot offer a rewrite as a change to approve; it never rewrites on its own. Each angle names its signal ("from Monsoon rituals") instead of a separate research card. The line is editable at Generate and Visualise and read-only In review and Approved. A signal deleted later drops out of the line and the prompts. "Built from" is not carried into the canvas.
+
+**Why.** Cyril, 2026-11-24 (option A): "Built from" follows the picked angle, and signals set before the angles limit the angles. Until now a script said which signals each angle drew on only once, in a chat card that scrolled away, and nothing let the person steer them.
+
+**Rejected.** A record of the angle only, not editable (the person could not steer). Carrying it into the canvas (it could apply the signals a second time to a script already written from them; the canvas is piece 6). Rewriting the script at once when the set changes after the draft (every copilot change is offered first).
+
+**Originated →** `2026-11-24-copilot-market-research-design.md` §5.
+
+### D532 — Research asked for inside a script goes to the market research agent *(recorded 2026-11-24; refines D530)*
+
+**Decision.** When the person asks the script copilot to research or search for something, it hands the question to the market research agent: the onboarding thread gets a line "From {script}: {question}" and a brands card focused on it, and the script copilot says where to review it. What is found lands in market research as usual (references, then signals to keep or drop), and a kept signal can be added to the script's "Built from". A script keeps no research of its own, and the script copilot gains no other way to search. It searches only when the person asks.
+
+**Why.** Cyril, 2026-11-24: the script copilot uses the market research agent for research, and findings go to market research, so what was researched for one script is there for the next.
+
+**Rejected.** Research kept with the script that asked (it would be lost to every other script). Giving the script copilot its own web search (two ways to research, two places for findings).
+
+**Originated →** `2026-11-24-copilot-market-research-design.md` §5, §9 question 1.
+
+D551–D572 were D528–D549 on the model-catalog branch; migrations 0076–0089 and older comments use the old numbers.
+
+### D551 — A video or image is charged from what the provider says it billed *(recorded 2026-11-21; refines D484, D366, D299)*
+
+**Decision.** Gemini Omni and Seedance return their own usage, and completion bills from it. Omni's interaction `usage` becomes `{ inputTokens, videoOutputTokens, textOutputTokens, thoughtTokens }`, priced at Google's rates (input $1.50/M; video out $12/M on 1.2, $17.50/M on 1.1 until its reroute; text and thinking $9/M). Seedance's `usage.completion_tokens` is priced at $10.70/M up to 720p and $11.70/M at 1080p. The task sends the usage in the webhook, `completeGeneration` reads it through `readVideoUsage` and stores it in `generations.tokens_used`. With no usable usage the per-second price (`computeVideoCost`) still applies, and a voice change stays priced by its voice. Estimates add Omni's extras (`estimateVideoCostUsd`): about 1,100 input tokens per image sent, the take's own length as input on an edit, and 1,500 tokens of thinking. Gemini image models now also bill their text output and thinking at each model's text rate (Nano Banana 2.1 $7.50/M, 3.1 Flash Image $3/M, 3 Pro Image $12/M), and their estimate adds 1,000 such tokens. All of it lives in `src/lib/video-gen/provider-usage.ts` and `src/lib/image-gen/cost.ts`.
+
+**Why.** A credit audit on 19 Nov 2026 found every charge came from our own price tables, never from the provider. Four real probes showed Google billing more than we deducted: Omni bills its input (an edit's source video as many tokens as the output; a reference image ~1,100) and its thinking (330–1,530 tokens a call), and Nano Banana 2.1 bills ~1,000 tokens of text and thinking an image. We charged 7–18% below Google's bill. BytePlus already reports the exact tokens it bills; our per-second Seedance price was exact only at 16:9.
+
+**Rejected.** Raising the per-second rates to cover the gap (thinking is near fixed per call, so a flat uplift overcharges long clips and undercharges short ones). Trusting the webhook's usage as typed (it is validated, and a malformed one falls back to the per-second price).
+
+**Originated →** this log.
+
+### D552 — AI models live in the database: `ai_models` and `ai_model_prices` *(recorded 2026-11-21; refines D467, D484, D551)*
+
+**Decision.** Every model the app runs is a row in `ai_models` (today's string id, provider, kind, labels, status `draft`/`live`/`hidden`/`retired`, `replaced_by`, sort order, `adapter_key`, the provider's model id, and `params`, `rules` and `capabilities` as JSON in today's TypeScript shapes). Prices are rows in `ai_model_prices`. The TypeScript registries and price tables become the seed and are deleted once every caller reads the catalog. Provider adapters stay in code, registered by `adapter_key`; a model whose adapter is not in the running build cannot be set live.
+
+**Why.** A provider's price change or a new model needed a release, and until it shipped we charged the old price (credits plan, 18 Nov; user, 21 Nov).
+
+**Rejected.** A separate providers table, a model-versions table and a rate-card-items table (two tables cover phase 1; generations already store the parameters they ran with). Only prices in the database, with parameters left in code (every new model would still need a deploy). JSON Schema for parameters (`ParamSpec` already drives the UI, the rules and validation).
+
+**Originated →** [2026-11-21-model-catalog-design.md](2026-11-21-model-catalog-design.md).
+
+### D553 — A price is a dated row that is never edited *(recorded 2026-11-21)*
+
+**Decision.** `ai_model_prices` has one row per model per `effective_from`, with price lines (`meter`, `unit_usd`, optional `when` on request parameters) and estimate allowances. A run uses the row with the latest `effective_from` at or before its start. Updates are refused; a row can be deleted only before it starts. The super admin enters a provider's new price from the provider's date, today or later.
+
+**Why.** The provider decides when its price changes (e.g. Omni 1.1 billed at 1.2 rates from 3 Dec). Every past run must still show what it was charged and why.
+
+**Rejected.** Editable price rows (they rewrite history). A minimum notice period before a new price (the provider sets the date, not us).
+
+**Originated →** [2026-11-21-model-catalog-design.md](2026-11-21-model-catalog-design.md).
+
+### D554 — Every adapter returns a provider bill; one module prices the estimate and the charge *(recorded 2026-11-21; generalises D551)*
+
+**Decision.** After a run each adapter returns `{ source, meters, raw }`: `provider_charge` when the provider says what it deducted (Kling units, ElevenLabs credits, Apify dollars), `provider_usage` when it says what was used (Gemini, OpenAI, BytePlus tokens or images), `request` when it says nothing (fal, Sarvam). One pricing module turns meters into USD with the run's price row, for the estimate (predicted meters plus allowances) and the charge (the bill). Credits are USD × 1000 × (1 + markup), rounded up to 5; the markup is 0 until a markup table exists. A bill meter with no price line is priced at 0 and flagged.
+
+**Why.** Probes on 19 and 21 Nov showed every provider reports a charge, a usage, or nothing, and each case is a quantity per meter times a price.
+
+**Rejected.** Charging from our own per-second tables (they missed input and thinking tokens). Correcting charges afterwards from provider usage APIs (most give daily totals only, and the Google key is shared by every environment).
+
+**Originated →** [2026-11-21-model-catalog-design.md](2026-11-21-model-catalog-design.md).
+
+### D555 — Features that charge no credits record their cost on `generations` *(recorded 2026-11-21)*
+
+**Decision.** The script writer, KB extraction and website research, image analysis, avatar brief, Copilot, compose, parse, split scene, file extract and Apify imports insert a `generations` row with `record_only = true`, the provider bill and `cost_usd`, and no reservation or ledger rows. A failed run that the provider still billed keeps its bill on the failed row, and the user is refunded.
+
+**Why.** These calls cost money that appeared on provider invoices and nowhere in the app (credit audit, 19 Nov). User, 21 Nov: record the cost, don't deduct credits; refund failed runs and record the loss.
+
+**Rejected.** A separate provider-charges table (generations already carry cost and usage). Deducting credits for these features.
+
+**Originated →** [2026-11-21-model-catalog-design.md](2026-11-21-model-catalog-design.md).
+
+### D556 — Margin stays on the credit price; access, limits and run markups come later as their own tables *(recorded 2026-11-21; follows the 20 Nov credits decisions)*
+
+**Decision.** 1,000 credits = $1 of what the provider charged, fixed. The selling margin stays on the price of credits (`billing_settings`). Every agency gets every live model. Later, `model_access` (plan or agency → provider or model, allow or deny), `spend_limits` and `model_markups` (global, provider or model, from a date) are added as separate tables that reference `ai_models`, with no change to it.
+
+**Why.** User, 21 Nov: one global margin for now, access deferred with the schema ready for it, per-provider or per-model control in future.
+
+**Rejected.** Empty access, limit and markup tables created now. A per-run margin replacing the credit-price margin.
+
+**Originated →** [2026-11-21-model-catalog-design.md](2026-11-21-model-catalog-design.md).
+
+### D557 — Video and image runs are priced from the dated price row they start on *(recorded 2026-11-22; implements D553, D554)*
+
+**Decision.** `ai_model_prices` holds one row per video and image model (migration 0078), seeded from the code tables through their own functions at every value a model can take. A row's lines price both the estimate (`video_second` per resolution, and audio for Kling; `output_image` per quality and size; Seedream's `input_image` after the first) and the charge (Omni's input, video, text and thinking tokens; Seedance's video tokens, with a 1080p line; image text, image and output tokens). Its `estimate` holds the allowances the request cannot show: Omni's 1,100 input tokens per image, 1,500 thinking tokens and the edit's source tokens per second; image input tokens as a base plus per reference; Gemini's 1,000 text output tokens.
+
+Omni 1.1's move to 1.2 rates is its second row from 3 Dec 2026 08:00 UTC. One engine (`priceMeters`) prices quantities against the matching line.
+
+A new run reads the row valid now from the cached catalog and records it as `generations.model_price_id`; its completion is charged with that same row. A model with no row is refused before anything is recorded: "This model has no price set, so it can't run right now." Seedream reports the images it billed instead of a dollar figure.
+
+**Why.** User, 22 Nov 2026: prices come from the database, and the charge is what the provider billed. An equivalence test over every model and parameter shows the rows reproduce today's prices, so moving to them changes no charge.
+
+**Rejected.** Hand-entering the seed rows (a typo would change a price silently). Pricing a completion at the row valid when it finishes (a run straddling a price change would be reserved at one price and charged at another). Charging 0 for a model with no price.
+
+**Originated →** [2026-11-22-model-catalog-2a-prices.md](../plans/2026-11-22-model-catalog-2a-prices.md).
+
+### D558 — Dub, lip sync, voice change, auto captions and Kling are charged from price rows and what the provider billed *(recorded 2026-11-22; follows D554, D557)*
+
+**Decision.** Five service models (`sarvam:dub`, `fal:lipsync-2-pro`, `elevenlabs:eleven_multilingual_sts_v2`, `elevenlabs:scribe_v2`, `openai:gpt-5.4-mini`) are in `ai_models` (migration 0079) with dated prices in `ai_model_prices` (0080). Each run reserves with its row, records `model_price_id`, and settles with the same row. A run with no price row is refused before anything is recorded. A voice change records the video's model but is priced by the ElevenLabs row. When the provider reports its charge, that is what is charged: Kling's task `billing` units at $0.1508 a unit, and ElevenLabs' `character-cost` credits at $0.000182 a credit for voice change and auto captions. Speech to text's `fiat-cost-before-overages` dollars are kept in the bill but not charged. fal and Sarvam report nothing and are priced by seconds. What the provider reported is stored in `generations.provider_bill`. Its `source` says whether the provider reported a charge, reported usage, or nothing. A reported meter the row cannot price is listed in `unpriced`, and the run falls back to its seconds price. The code constants are gone. 0080 is pinned by a snapshot test.
+
+**Why.** The credit audit (19 to 21 Nov) found these prices hard-coded in several files, with no record of what the provider charged for each run.
+
+**Rejected.** Keeping per-service constants beside the rows, because that gives two sources of truth. Charging captions by the fiat header, because ElevenLabs bills the plan in credits.
+
+**Originated →** [2026-11-22-model-catalog-2b-remaining-prices.md](../plans/2026-11-22-model-catalog-2b-remaining-prices.md).
+
+### D559 — Prompt runs keep their flat charge; what OpenAI billed is recorded *(recorded 2026-11-22)*
+
+**Decision.** A prompt run reserves and settles a flat amount from the `openai:gpt-5.4-mini` row: $0.005 a request plus $0.0025 an attached image, converted at 1,000 credits a dollar with no rounding (5 credits plus 2.5 an image). The token cost OpenAI reports is priced with the same row's token lines and stored in `cost_usd` and `provider_bill`. It is not charged.
+
+**Why.** The user chose to keep the flat charge for prompts, which are cheap and frequent, so that the price shown before a run is the price paid. Recording the token cost lets the flat amount be checked against what OpenAI billed.
+
+**Rejected.** Settling at the token cost, because the charge would differ from the price shown before the run.
+
+**Originated →** [2026-11-22-model-catalog-2b-remaining-prices.md](../plans/2026-11-22-model-catalog-2b-remaining-prices.md).
+
+### D560 — Free features record what each provider call cost us *(recorded 2026-11-23; follows D555)*
+
+**Decision.** The script writer and script Copilot, canvas Copilot, KB extraction, re-extract, re-analyze and website research, image analysis, avatar brief, compose, parse, split scene, file extract, and every Apify run (asset import, market profile snapshots, archive media downloads) write one `generations` row per paid provider call. The row has `record_only = true`, the model, its price row, `cost_usd` and `provider_bill`, `credits_charged` 0 and no ledger rows. The rows need no node, avatar or script (migration 0081). The text models and Apify are in `ai_models` (0082) with published prices in `ai_model_prices` (0083), including Gemini 3.8 Flash's price after its introductory rate, from 1 January 2027. `provider_bill.raw` holds only the provider's usage block (Apify: run id, actor and its USD cost), never a reply, prompt or file. Inside a request the row is written through `after()` with a promise, so nobody waits for it and it survives a client that has left. A Trigger task awaits it. A failure to record is logged and never shown. A model with no price row is still recorded with `cost_usd` null. Apify runs moved from the synchronous endpoint to async runs, because only a run reports its cost. A run aborted at its deadline is recorded too, with the cost its abort reply reports. A resumed asset import does not record a run twice. A streamed Copilot reply whose client leaves before the provider sends its usage records what usage arrived, or nothing when none did. Gemini website research counts its search grounding tokens as input. Record-only rows are kept out of the canvas generation tray, node status and cost, and out of the admin generations list; the impersonation audit still shows them.
+
+**Why.** The credit audit (19 to 21 Nov) found these calls billed to us with no record at all.
+
+**Rejected.** Charging credits for them (user, 21 Nov: record the cost, don't deduct). Storing the reply text with the bill (user, 23 Nov: usage only, to keep rows small).
+
+**Originated →** [2026-11-22-model-catalog-2b-record-only.md](../plans/2026-11-22-model-catalog-2b-record-only.md).
+
+### D561 — The server takes a model's data from the catalog and only its code from an adapter *(recorded 2026-11-23; refines D552)*
+
+**Decision.** On the server, an image or video model's label, params and the schema built from them, rules, image inputs, limits, `supportsMask` and `maxReferenceImages` come from its `ai_models` row through `to-spec.ts`. Only `generate` comes from code: two adapter maps, `imageAdapters` and `videoAdapters`, keyed by the row's `adapter_key`, each key registered once. `adapter_key` names one model's adapter, `<kind>:<our id after the provider prefix>` (`image:gpt-image-2`, `video:gemini-omni-1.2-flash`); one function may sit under several keys. The adapter is handed the catalog spec and the row's `provider_model_id`, so the vendor's model name (Seedance's and Seedream's dated names, Omni's API model, Kling's endpoint model) comes from the row and a vendor bump needs no deploy. Retired models (Veo, `gpt-image-1`) have no adapter. Migration 0084 sets both columns and re-syncs label, params, rules and capabilities from the registries, never status, replacement or order; it is generated by a builder with a drift test, and 0077 is pinned as frozen history. A test proves every live model's catalog spec equals what the server registries ran with (Kling's rules were already the client map's). 0084 is applied before this code deploys. Seedance's reference cap now comes from the catalog row's `imageInputs`, which is 30 today; an admin edit above the provider's limit would reach the request unchecked.
+
+**Why.** The server registries were hand copies of the client specs plus `generate`; the catalog cannot drive the server while a second copy decides what runs.
+
+**Rejected.** A family key (`video:kling`) dispatching on the model id inside the adapter: the spec says an unregistered key cannot be set live, which needs one key per model. Rewriting the adapters to be generic over vendors: not needed to read the vendor name from the row.
+
+**Originated →** [2026-11-23-model-catalog-1b-server.md](../plans/2026-11-23-model-catalog-1b-server.md).
+
+### D562 — Image and video capabilities are typed *(recorded 2026-11-23; refines D552)*
+
+**Decision.** `capabilities` is checked by kind when the catalog loads: an image row against the image limits (`maxReferenceImages`, `maxReferenceSizeBytes`, the optional edge, ratio, multiple, total-size and mask fields), a video row against `maxDurationSeconds` and `imageInputs`. A row that fails is logged and left out of the catalog. A key the build doesn't know is dropped, not refused. Other kinds keep an untyped object (they hold none today). Every seeded row passes, and tests assert it.
+
+**Why.** The route reads limits off the row now; an untyped value would reach the request unchecked.
+
+**Rejected.** Strict objects that refuse an unknown key: a row written by a newer build would vanish from an older one mid-deploy.
+
+**Originated →** [2026-11-23-model-catalog-1b-server.md](../plans/2026-11-23-model-catalog-1b-server.md).
+
+### D563 — One check decides whether a model runs *(recorded 2026-11-23; refines D552, replaces D461/D467's deprecated refusals on the server)*
+
+**Decision.** `runnableModel` (`src/lib/ai-models/runnable.ts`) is used by the image, composite, video and video-edit routes, both avatar image routes and the billed image run: `live` runs; `hidden` runs only when the node already uses that model (its stored `data.modelId`), so an avatar or a script panel, which have no node, cannot start one; `retired` is refused with "This model was retired. Pick another." and its `replaced_by`; `draft`, an unknown id, a wrong kind, and a row whose adapter or provider model name this build lacks are refused with "This model isn't available. Pick another.", never naming the id. A model refused on a route is refused before anything is recorded or reserved. Pages with no node (avatars, panels) refuse a hidden model. The routes keep answering 400. Each route reads the catalog once (`getAiCatalog`, cached), beside its other independent reads. The Upstream preview falls back to the default model for a stored model that may no longer run there. "The node already uses it" means the node's stored model (`data.modelId`); for a video edit it is the model the base take was last edited with, and `data.modelId` only when the take was never edited. Until the browser reads the catalog (plan 1b-ii), a hidden or draft image or video row is still offered in pickers, so do not hide or draft one by hand before then.
+
+**Why.** Status was a column nothing read; "deprecated" lived in two client maps and five routes.
+
+**Rejected.** Sending `replacedBy` in the route's error body: the browser reads the replacement from its own catalog copy (1b-ii).
+
+**Originated →** [2026-11-23-model-catalog-1b-server.md](../plans/2026-11-23-model-catalog-1b-server.md).
+
+### D564 — Trigger tasks read the model from the catalog at run time *(recorded 2026-11-23; follows D561)*
+
+**Decision.** The image, video and voice-preview tasks look the model's row up by id in the catalog when they run and dispatch through the adapter map with its `adapter_key`. They don't check the status again: the route did when it reserved the run. A task uses the catalog row as it is at run time: if an admin changes the row's params, rules or `provider_model_id` between the route's check and the run (up to 60 s of cache), the run uses the newer row, and the reserved credits stay as reserved. A missing row or adapter throws `ModelUnavailableError`; the image task aborts without a retry and its `onFailure` reports the failure, the video and voice-preview tasks report it from their catch, and each report refunds.
+
+**Why.** Every payload already names the model; carrying the spec or key in the payload would add a contract between two separately deployed builds, and the voice preview payload names no model.
+
+**Rejected.** The spec in the task payload (above). Re-checking the status in the task: a run already reserved keeps what it reserved with.
+
+**Originated →** [2026-11-23-model-catalog-1b-server.md](../plans/2026-11-23-model-catalog-1b-server.md).
+
+### D565 — The browser reads image and video models from the catalog *(recorded 2026-11-23; follows D552, D561)*
+
+**Decision.** Every screen that lists, labels, configures or defaults an image or video model reads it from the session's one catalog query, through two lists built from it (`imageModelsFrom`, `videoModelsFrom` in `src/lib/ai-models/model-lists.ts`): every non-draft model in sort order, lookup by id, status and replacement, the offered models grouped by provider for a picker, and the default. A picker offers live models, plus a hidden model on the node that already uses it; a retired model is never offered. The lists are cached per catalog object, so a card's lookup is a map read. `src/app/clients/[id]/layout.tsx` reads the catalog on the server and seeds the browser cache through `ModelCatalogGate`, so no client page waits on its own request; below the gate, `useImageModels()` and `useVideoModels()` always have data. The gate covers every client page, so a failed catalog read, or a catalog with no live image or video model, shows "Could not load the models." on all of them, including pages that show no models; scoping it to the pages that need models is left for the admin screens (Plan 4). The helpers the server and the browser share (avatar params and estimates, panel caps, composite picker, edit limits, presenter rules, param merges) take the list as their first argument; the server builds it from `getAiCatalog()` once per request. Model-specific behaviour keyed by id (`MULTISHOT_MODELS`, `VOICE_PREVIEW_ENGINE`, `VIDEO_EDIT_MODEL_IDS`, the prompt templates) stays in code.
+
+**Why.** A status or label the super admin sets has to show on every screen, and the server already refuses by the catalog (D563): a picker that offered from code could offer what the server refuses.
+
+**Rejected.** A loading state in each picker and focus view: dozens of call sites, each able to get it wrong. A context that loads the list: TanStack Query already owns the catalog. Moving the multishot capabilities into `capabilities`: they describe how our prompts are written for a model, not the model.
+
+**Originated →** [2026-11-23-model-catalog-1b-browser.md](../plans/2026-11-23-model-catalog-1b-browser.md).
+
+### D566 — Defaults are code preferences used while live *(recorded 2026-11-23; refines D565)*
+
+**Decision.** The models new work starts on (`DEFAULT_IMAGE_MODEL_ID`, `DEFAULT_VIDEO_MODEL_ID` in `src/lib/ai-models/default-models.ts`, and the composite, panel and Visualise avatar defaults) stay in code. Each is used only while the catalog has it live; otherwise the first live model in sort order is used. The routes' fallback for a request with no model uses the same rule. Avatars and panels store no model, so no model is ever their own: their pickers offer live models only, never a hidden one, and their defaults start on the live one.
+
+**Why.** Hiding or retiring a default must not leave new nodes on a model the server refuses, and a default column would be one more thing to keep in step for a choice that rarely changes.
+
+**Rejected.** A `default` flag on `ai_models` (a table change for one bit per kind; the sort order already lets the super admin choose the fallback).
+
+**Originated →** [2026-11-23-model-catalog-1b-browser.md](../plans/2026-11-23-model-catalog-1b-browser.md).
+
+### D567 — A node on a retired model opens on its replacement, with a notice *(recorded 2026-11-23; replaces D461/D467's browser fallback)*
+
+**Decision.** When the canvas opens, an Image Gen, Composite or Video Gen node saved on a retired model is moved to the model's `replaced_by` when that is live, else to the default (for a Composite, the composite default while it is live), with that model's default settings, and its old model id is kept in `retiredModelId`. Its focus view shows "This model was retired. Pick another." until a model is picked or the notice is dismissed. The move is saved with the canvas's next change, not on load. A hidden model is left as it is: it still runs on that node (D563). The store is built with the catalog of the moment the canvas mounts; a later catalog refresh does not move nodes already open. The server reads a retired node the same way (`usableModelId` and `withoutRetiredModel` share `replacementFor`), so its prompt preview is in the replacement's format.
+
+**Why.** The spec's edge case: the node keeps its history and is offered the replacement the catalog names, instead of a fixed fallback in code.
+
+**Rejected.** Leaving the node on the retired model until the user acts: its card, prompt node and focus view would each have to treat the retired model specially, and Generate would be refused.
+
+**Originated →** [2026-11-23-model-catalog-1b-browser.md](../plans/2026-11-23-model-catalog-1b-browser.md).
+
+### D568 — The catalog is the only home of image and video model data *(recorded 2026-11-23; completes D552, D561, D565)*
+
+**Decision.** The code model lists are deleted: both `client-models.ts` files, both registries, the provider spec objects and the `params/*` files, and the builders that generated migrations 0077 and 0084. A model's label, params, rules, limits, status and provider model name live only in its `ai_models` row (the Seedream, Seedance and Omni request builders keep a default name for tests; the adapters always pass the row's). Code keeps the adapters (`imageAdapters`, `videoAdapters` and the `generate` functions they call, with the constants those read) and the ids of models whose behaviour is written in code (`src/lib/ai-models/model-ids.ts`: the multishot ladders, prompt templates, voice preview engines and edit models). 0077 and 0084 are frozen by hash; a model change is a new migration or, later, an admin edit. Tests read the rows the migrations leave behind (`seededModelCatalog()`). A task whose model has no row or adapter ends without a retry. Kling takes references when its row's `maxReferenceImages` is above 0.
+
+**Why.** Two sources of a model's data drift; the spec deletes the registries once every caller reads the catalog, and plans 1b-i and 1b-ii moved every caller.
+
+**Rejected.** Keeping the registries as test fixtures: they would drift from the rows the app really runs on.
+
+**Originated →** [2026-11-23-model-catalog-1b-cleanup.md](../plans/2026-11-23-model-catalog-1b-cleanup.md).
+
+### D569 — One guarded path for every model and price edit *(recorded 2026-11-23; follows D552, D563)*
+
+**Decision.** The super admin changes models and prices only through three server actions (`src/lib/actions/ai-models.ts`), and each runs the same pure checks (`src/lib/ai-models/model-edit.ts`) before it writes. Phase 1 edits a model's labels, description, order, status and replacement, and adds or cancels a dated price row. An edited row must pass the catalog's own row check; a model's param names and their types never change through the admin; every price line's condition must name a setting the model has and a value it can take (or a price dimension the estimators add); an image or video model may be live only when this build has an adapter for its key; a replacement must be a live model of the same kind (checked against a fresh read of the models, not the cached catalog) and is kept only while the model is retired; a retired model whose replacement has since left live keeps it until the admin changes its status or replacement; the last live image or video model can't leave live; a model's name and provider name can't be blank. A price row is never edited, starts now or later, can be cancelled only before it starts, and takes only an http or https source address. After a write the action clears the catalog cache on its server; other servers pick the change up within 60 s. A browser tab that is already open keeps its catalog for up to 5 minutes (the query's stale time) and picks the change up on its next refetch or a reload; a run it starts on a model that is now hidden is still refused on the server. A later params editor adds a form on the same path, not new checks. *Amended 2026-11-24 (plan 5b):* an image or video model also can't go live until a price passing its check has started (read fresh for that model, not from the cached catalog), and can't be retired without a live replacement of the same kind.
+
+**Why.** A row that fails its check is left out of the catalog, so one bad edit would make a model vanish everywhere; and code reads params by name, so a renamed param breaks runs silently.
+
+**Rejected.** Editing params, rules and capabilities in phase 1 (the checks are built for it; the form comes later). A free JSON editor (it bypasses the param-type and price-condition checks).
+
+**Originated →** [2026-11-23-model-catalog-4-admin.md](../plans/2026-11-23-model-catalog-4-admin.md).
+
+### D570 — The admin sees rows the catalog leaves out *(recorded 2026-11-23; refines D552)*
+
+**Decision.** The admin pages read `ai_models` directly and run the row check themselves, so a row that fails it is listed with "Fails its check" and its problems, and can be fixed through D569's path when the problem is in a field that path edits (labels, description, order, status, replacement); the edit starts from the stored row, not the catalog's copy. A problem anywhere else (settings, rules, limits, adapter) is fixed by a migration, and a save on such a row says so. The models list's month figures come from one SQL function, `ai_model_month_stats` (migration 0085): runs, provider cost, credits charged and unpriced runs per model, where unpriced means no price row or a bill with meters the row did not price.
+
+**Why.** The catalog drops a broken row with only a log line; without this the admin would see a model disappear and have no way to find out why.
+
+**Rejected.** One query per model for its numbers (performance rule 1).
+
+**Originated →** [2026-11-23-model-catalog-4-admin.md](../plans/2026-11-23-model-catalog-4-admin.md).
+
+### D571 — Margin and rounding are dated settings rows *(recorded 2026-11-24; follows D552, D569)*
+
+**Decision.** How a run's USD cost becomes credits is read from `credit_settings` (migration 0086): dated rows with a margin (0–200%) and a rounding step (1, 5 or 10), never edited, cancellable only before they start, changed by the super admin through checked actions. The credit rate (1 credit = $0.001) and rounding up stay in code: the rate changes what every credit an agency holds is worth, so it changes only with plan prices, and rounding up keeps a run from charging below its cost. The rows load with the model catalog and reach the browser in the same payload. One function, `creditsFromUsd(usd, settings)`, does the sum; an estimate or reservation uses the row live now, completion uses the row live at the run's `created_at`, so a run is charged with the settings live when it started. The seeded first row is today's behaviour (margin 0, step 5). A change starts at least 2 minutes after it is saved and can't be cancelled in its last 2 minutes, so every server has the row before any run uses it. Prices use the same 2-minute lead (migration 0088, D572): a future price can't be cancelled or replaced in its last 2 minutes, and one set to start sooner is moved out to 2 minutes (a price live at once stays allowed, since a run records the price row it used).
+
+**Why.** Margin and rounding are business decisions like prices and should not need a deploy; small runs pay a lot for a step of 5 (a $0.0059 image is 10 credits), so the step must be tunable.
+
+**Rejected.** A `credit_settings_id` on every generation (the time of the run already identifies the row, since rows are never edited and only future rows can be cancelled). An editable credit rate.
+
+**Originated →** [2026-11-24-credit-settings-5a.md](../plans/2026-11-24-credit-settings-5a.md).
+
+### D572 — The model admin follows prototype v3, with server-checked changes *(recorded 2026-11-24; refines D569, D570, D571)*
+
+**Decision.** The super-admin Models list, model page, change-prices flow and Credits page follow the approved prototype v3 ([2026-11-24-model-admin-v3-design.md](2026-11-24-model-admin-v3-design.md); the prototype is in OneDrive, `Documents\CreativeOS\ModelPricing`). The server owns every rule the screens show:
+- Replacing a scheduled price (migration 0088) and replacing a scheduled credit-settings change (0089) each run as one transaction: the old row is cancelled and the new one added, or neither happens.
+- Reordering models, listing the agencies a change affects, and Undo of a change that has already started are server operations with their own checks.
+- Every change to the catalog needs a 2-minute lead before it starts: cancelling a scheduled row, replacing one, and adding new credit settings. The server enforces it; the screen only mirrors it.
+- Times are typed in IST and shown with the UTC time beside them. Prices are shown at the precision they are stored, with no rounding.
+
+**Why.** The owner approved the prototype's layout and wording, so the screens are built from it and not re-designed per page. A change that fails halfway, or that starts while it is being saved, would charge runs at the wrong price; so the checks live where the data is written, and the lead keeps a change from starting during its own save.
+
+**Rejected.**
+- The phase-1 price sheet with one form per price line (the owner rejected it on 24 Nov); its components are removed.
+- Guards that exist only in the client. The server checks again, because a stale screen or a direct call skips the client.
+- Replacing a row as a cancel followed by an add, sent from the client. The two calls can leave the model with neither row, or with both.
+
+**Originated →** [2026-11-24-model-admin-v3-design.md](2026-11-24-model-admin-v3-design.md).
+
+### D573 — Razorpay is proven with a hidden test top-up before the billing build *(recorded 2026-11-19; originated → `2026-11-19-razorpay-test-top-up-design.md`)*
 
 **Decision:** A `/billing-test` page (only where `RAZORPAY_TEST_PAGE=1`: a developer's machine and the dev deployment) sells one ₹100 pack of 1,000 credits through Razorpay Orders and Checkout. Only the signed `order.paid` webhook adds credits, through `record_razorpay_payment`, which marks the order paid and writes a negative `adjustment` row once. No SDK; settings `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` carry no test or live in their names.
 **Why:** It proves checkout, signatures, webhook delivery and idempotent crediting end to end without designing plans, subscriptions or the billing page; a negative adjustment needs no change to `reserve_credits` and ends with the month like the planned top-ups.
 **Known effect:** The negative row is also summed by `org_credit_usage` (popover, `/api/me`, Admin "credits used this month") and the daily/monthly/yearly credit history (usage trend chart, which shows a negative day), while the by-type and by-model breakdowns leave it out; the billing build's `grant` type separates it.
 **Rejected:** A button in the credits popover (real UI to design; fake-money credits for every owner on staging); a new `grant` ledger type now (belongs to the billing build, rewrites `reserve_credits`); a payment link (skips Checkout).
 
-### D515 — A paying agency's credits are grants that end, used first-ending first *(recorded 2026-11-20; refines D514; originated → `2026-11-20-credit-grants-design.md`)*
+### D574 — A paying agency's credits are grants that end, used first-ending first *(recorded 2026-11-20; refines D573; originated → `2026-11-20-credit-grants-design.md`)*
 
-**Decision:** Agencies are `managed` (every agency today: the monthly limit, never charged) or `plans` (`organizations.billing_mode`, migration 0067); `plan_type` is always `standard` until custom plans arrive. Every credit a paying agency receives is a row in `credit_grants` with an end date (free, plan, top-up, admin). A run's hold is taken from the grant that ends first (`reserve_credits_v2`, which also says why a run was refused), and settling moves the real cost onto the same grants (`settle_credits`, `refund_credits`). Each function locks the agency row. `reserve_credits` stays until 0068 so the code before the release keeps working while the migration goes first.
+**Decision:** Agencies are `managed` (every agency today: the monthly limit, never charged) or `plans` (`organizations.billing_mode`, migration 0091); `plan_type` is always `standard` until custom plans arrive. Every credit a paying agency receives is a row in `credit_grants` with an end date (free, plan, top-up, admin). A run's hold is taken from the grant that ends first (`reserve_credits_v2`, which also says why a run was refused), and settling moves the real cost onto the same grants (`settle_credits`, `refund_credits`). Each function locks the agency row. `reserve_credits` stays until 0092 so the code before the release keeps working while the migration goes first.
 **Why:** Free credits (agreed on the 20 November call) end on their own date, so the first phase-1 draft's single balance per period no longer says what is lost when credits end. A running `used` total per grant keeps each hold one short loop over a few rows.
 **Rejected:** One balance per period (wrong once free credits end on another date); working out each grant's share from the ledger on every hold (slow, and hard to check without a database to test against); a nightly job that expires credits (an ended grant simply stops counting).
 
-### D516 — Billing answers of 20 November: fixed rupee rate, stop at the first failure, Razorpay invoices *(recorded 2026-11-20; refines D515; originated → `2026-11-19-billing-phase-1-design.md`)*
+### D575 — Billing answers of 20 November: fixed rupee rate, stop at the first failure, Razorpay invoices *(recorded 2026-11-20; refines D574; originated → `2026-11-19-billing-phase-1-design.md`)*
 
 **Decision:** Plans are priced at a fixed $1 = ₹100 (1,000 credits = ₹100 before margin), stored in `billing_settings` and changed only by Yuvabe, applying from each agency's next payment. A failed charge stops AI runs at the first attempt; paying starts them again. A plan above ₹15,000 a month renews as payment needed until the owner approves Razorpay's request. Razorpay's invoices, with the agency's GSTIN, are the GST invoices. Free credits have no default amount or date. Yearly and 6-monthly plans are deferred.
 **Why:** A fixed round rate keeps prices stable and easy to read, and leaves room if the rupee weakens; one rule for every unpaid month (failed or waiting for approval) keeps the blocked state single.
 **Rejected:** A live exchange rate (prices change every month without anyone deciding); a grace period after a failed payment (later, as "extra days to pay"); our own invoice numbering.
 
-### D517 — Admin sets and changes an agency's billing any time, every change logged *(recorded 2026-11-20; refines D515, D516; originated → `2026-11-20-admin-agency-billing-design.md`)*
+### D576 — Admin sets and changes an agency's billing any time, every change logged *(recorded 2026-11-20; refines D574, D575; originated → `2026-11-20-admin-agency-billing-design.md`)*
 
 **Decision:** Add an agency chooses Billing: managed by Yuvabe (default, with the monthly limit) or pays for a plan, which may start with free credits (an amount and a last day, no defaults). The agency page gains a Billing tab (the credit limit moves there): change billing with a reason, add credits, give free credits, take back unused credits, move an end date or end now, and the billing log. Each change is one SQL function that locks the agency and writes its `billing_log` row in the same transaction. End dates are days in India time (the next day 00:00 +05:30).
 **Why:** The 20 November call: free credits belong with paying agencies, and Yuvabe must be able to change any of it at any time with a record of who and why.
 **Rejected:** Free credits on managed agencies (they are never charged, so there is nothing to lead into); writing the change and the log in two requests (a failure between them loses the record); a separate billing page outside the agency page (one place per agency).
 
-### D518 — The billing catalog is built for every plan shape before it is used *(recorded 2026-11-21; refines D515, D516; originated → `2026-11-21-billing-catalog-schema-design.md`)*
+### D577 — The billing catalog is built for every plan shape before it is used *(recorded 2026-11-21; refines D574, D575; originated → `2026-11-21-billing-catalog-schema-design.md`)*
 
-**Decision:** Migration 0068 adds `billing_products` (plans and top-up packs; `org_id` makes a custom plan), `billing_prices` (one row per interval and currency, explicit amounts before tax, credits per drop, `interval_months` 1 to 36, `credits_every_months` for monthly drops inside longer plans, `valid_days` for top-ups with their own validity), `billing_settings` (planning rate and margins over time), `billing_discounts`, `billing_accounts`, `billing_subscriptions` (one live per agency, `next_price_id` for changes from the next payment) and `razorpay_events`. Prices are fixed once written (a trigger); a change is a new row. Payments record the price, discount, tax, total and rate they were charged with. Credits stay tied to dollars; the rupee rate only suggests prices and checks margins.
+**Decision:** Migration 0092 adds `billing_products` (plans and top-up packs; `org_id` makes a custom plan), `billing_prices` (one row per interval and currency, explicit amounts before tax, credits per drop, `interval_months` 1 to 36, `credits_every_months` for monthly drops inside longer plans, `valid_days` for top-ups with their own validity), `billing_settings` (planning rate and margins over time), `billing_discounts`, `billing_accounts`, `billing_subscriptions` (one live per agency, `next_price_id` for changes from the next payment) and `razorpay_events`. Prices are fixed once written (a trigger); a change is a new row. Payments record the price, discount, tax, total and rate they were charged with. Credits stay tied to dollars; the rupee rate only suggests prices and checks margins.
 **Why:** Quarterly, half-yearly and yearly plans, discounts, custom plans and longer-lasting top-ups are expected; shaping the tables now means later work adds rows and code, not migrations that move live billing data.
 **Rejected:** Prices computed from the rate and margin at checkout (prices would move without anyone deciding, and Razorpay plans are fixed amounts); editing a price in place (subscribers would be charged a price they never saw); a separate table per interval; changing credits per run with the exchange rate (owners would see runs cost more without a price change).
 
-### D519 — Admin sets plans and prices, checked against a ₹100 rate and a 15% minimum margin *(recorded 2026-11-21; refines D516, D518; originated → `2026-11-21-plans-and-prices-design.md`)*
+### D578 — Admin sets plans and prices, checked against a ₹100 rate and a 15% minimum margin *(recorded 2026-11-21; refines D575, D577; originated → `2026-11-21-plans-and-prices-design.md`)*
 
-**Decision:** ₹100 to the dollar is both the planning rate and the cost rate margins are checked with; a price below a 15% margin shows a warning. Admin › Plans and prices (`/admin/plans`) shows the settings (a change is a new row), plans and top-up packs with their prices, each price's real margin (amount ÷ credits' cost − 1) and the agencies on it. Prices are typed in rupees before GST, with a suggestion at the default margin. A new price hides the old one and moves its agencies to it from their next payment (`admin_add_price`, migration 0069). Only monthly plan prices are offered until piece 5 supports longer intervals.
+**Decision:** ₹100 to the dollar is both the planning rate and the cost rate margins are checked with; a price below a 15% margin shows a warning. Admin › Plans and prices (`/admin/plans`) shows the settings (a change is a new row), plans and top-up packs with their prices, each price's real margin (amount ÷ credits' cost − 1) and the agencies on it. Prices are typed in rupees before GST, with a suggestion at the default margin. A new price hides the old one and moves its agencies to it from their next payment (`admin_add_price`, migration 0093). Only monthly plan prices are offered until piece 5 supports longer intervals.
 **Why:** Our real cost is about ₹95 to ₹97 a dollar (market rate plus the card fee), so a round ₹100 sits just above it and the 15% floor absorbs rupee swings and other costs; a visible margin makes a price that loses money obvious before anyone buys it.
-**Rejected:** A live exchange rate driving prices (prices would move without a decision); a 1% plan margin (one bad month for the rupee would erase it); editing a price in place (D518).
+**Rejected:** A live exchange rate driving prices (prices would move without a decision); a 1% plan margin (one bad month for the rupee would erase it); editing a price in place (D577).
 
-### D520 — A plan and its price are added and edited in one step *(recorded 2026-11-21; refines D519; originated → `2026-11-21-plans-and-prices-design.md`)*
+### D579 — A plan and its price are added and edited in one step *(recorded 2026-11-21; refines D578; originated → `2026-11-21-plans-and-prices-design.md`)*
 
-**Decision:** Admin › Plans and prices shows plans and top-up packs as cards that look as owners will see them (price per month, GST, credits, description), with Admin-only facts below a line (margin, agencies on it, Edit, Hide). Adding asks for name, description, credits and price in one dialog; editing changes any of them in the same dialog, and asks for a reason only when the price changes, saying how many agencies move to it. One function does it in one transaction (`admin_save_offer`, migration 0070). The pricing settings are one line above the plans. The agency Billing tab is one card (billing, then the limit or the credits) with the log below; plan type shows only when custom. The agencies list shows Billing instead of the credit limit.
+**Decision:** Admin › Plans and prices shows plans and top-up packs as cards that look as owners will see them (price per month, GST, credits, description), with Admin-only facts below a line (margin, agencies on it, Edit, Hide). Adding asks for name, description, credits and price in one dialog; editing changes any of them in the same dialog, and asks for a reason only when the price changes, saying how many agencies move to it. One function does it in one transaction (`admin_save_offer`, migration 0094). The pricing settings are one line above the plans. The agency Billing tab is one card (billing, then the limit or the credits) with the log below; plan type shows only when custom. The agencies list shows Billing instead of the credit limit.
 **Why:** Creating a plan and then adding its price was two steps for one thing, and a plan without a price can't be sold; showing the owner's view while editing removes guesswork.
-**Rejected:** Separate "add plan" and "add price" steps (D519's first screen); a price history list on the page (the billing log keeps it).
+**Rejected:** Separate "add plan" and "add price" steps (D578's first screen); a price history list on the page (the billing log keeps it).
 
-### D521 — Monthly plans run on Razorpay Subscriptions; the webhook is the only source of credits *(recorded 2026-11-21; refines D515, D516, D518; originated → `2026-11-21-monthly-plans-design.md`)*
+### D580 — Monthly plans run on Razorpay Subscriptions; the webhook is the only source of credits *(recorded 2026-11-21; refines D574, D575, D577; originated → `2026-11-21-monthly-plans-design.md`)*
 
-**Decision:** Monthly plans are built before top-ups (top-ups need a plan). Each price row gets one Razorpay plan, made on first use, charging the amount with 18% GST. The owner subscribes (`/api/billing/subscribe`), pays in Checkout, and only the signed `subscription.charged` webhook records the payment and writes the month's `plan` grant, ending with the paid period (`record_subscription_charge`, migration 0071). Every webhook is stored once in `razorpay_events`; a processed one is skipped and a failed one is answered 500 so Razorpay retries. `subscription.pending`/`halted` set the plan `payment_due`, and `reserve_credits_v2` refuses runs with `payment_due` (stop at the first failure, D516). Cancel stops at the cycle end; change moves to the new Razorpay plan at the cycle end and lands with the first charge on it. Until piece 6, the hidden `/billing-test` page drives it; Admin's Billing tab shows the plan line.
+**Decision:** Monthly plans are built before top-ups (top-ups need a plan). Each price row gets one Razorpay plan, made on first use, charging the amount with 18% GST. The owner subscribes (`/api/billing/subscribe`), pays in Checkout, and only the signed `subscription.charged` webhook records the payment and writes the month's `plan` grant, ending with the paid period (`record_subscription_charge`, migration 0095). Every webhook is stored once in `razorpay_events`; a processed one is skipped and a failed one is answered 500 so Razorpay retries. `subscription.pending`/`halted` set the plan `payment_due`, and `reserve_credits_v2` refuses runs with `payment_due` (stop at the first failure, D575). Cancel stops at the cycle end; change moves to the new Razorpay plan at the cycle end and lands with the first charge on it. Until piece 6, the hidden `/billing-test` page drives it; Admin's Billing tab shows the plan line.
 **Why:** Razorpay's Plans and Subscriptions APIs work in test mode now, so the recurring path can be proven with test cards while UPI waits on Razorpay; deciding credits only from signed webhooks keeps a closed tab or a forged call from changing a balance.
 **Rejected:** Top-ups first (no one could buy one); our own scheduler charging saved cards (Razorpay already retries and handles mandates and the ₹15,000 approval); granting credits from the browser's Checkout success.
 
-### D522 — A top-up is one Razorpay order whose credits end with the plan month *(recorded 2026-11-21; refines D515, D521; originated → `2026-11-21-top-ups-design.md`)*
+### D581 — A top-up is one Razorpay order whose credits end with the plan month *(recorded 2026-11-21; refines D574, D580; originated → `2026-11-21-top-ups-design.md`)*
 
-**Decision:** An owner on a running plan (`active`, or `cancelling` with a paid month left; not while a payment is due) buys a top-up pack as one Razorpay order charged with GST (`/api/billing/topup`). Only the signed `order.paid` webhook adds credits: `record_razorpay_payment` (replaced in migration 0072) writes a `topup` grant ending at the plan's `current_period_end`, or after the price's `valid_days` when set, or in 30 days if the plan's month has already ended so a paid top-up is never lost. The test top-up keeps its adjustment until it is removed.
+**Decision:** An owner on a running plan (`active`, or `cancelling` with a paid month left; not while a payment is due) buys a top-up pack as one Razorpay order charged with GST (`/api/billing/topup`). Only the signed `order.paid` webhook adds credits: `record_razorpay_payment` (replaced in migration 0096) writes a `topup` grant ending at the plan's `current_period_end`, or after the price's `valid_days` when set, or in 30 days if the plan's month has already ended so a paid top-up is never lost. The test top-up keeps its adjustment until it is removed.
 **Why:** Top-ups ending with the plan month was agreed with Anupama; reusing the order path proven by the test top-up keeps one tested route for one-time payments.
 **Rejected:** Top-ups without a plan (they would need their own validity, which is later); losing a top-up paid in the moment a plan ended.
 
-### D523 — Owners manage billing in the product; members only hear that runs are paused *(recorded 2026-11-21; refines D515, D521, D522; originated → `2026-11-21-owner-billing-design.md`)*
+### D582 — Owners manage billing in the product; members only hear that runs are paused *(recorded 2026-11-21; refines D574, D580, D581; originated → `2026-11-21-owner-billing-design.md`)*
 
 **Decision:** Owners of paying agencies get a Billing link, a one-line workspace bar (free credits and their end, pick a plan, payment due, used up, 80% used), `/billing` (plan with change and cancel, credits by kind with ends, top-ups, payments) and `/billing/plans` (the same card face as Admin), and credits left in the profile popover. Members get one line only while runs are paused, telling them to ask the owner. Refused runs carry their reason: the server's 402 message is the members' wording for it (`creditLimitError`), and the browser swaps in the owners' wording for owners (`creditRefusalMessage`). `/api/me` carries a billing summary (numbers for owners, paused-or-not for members). Shared pieces keep one look: `PlanCardFace`, `CreditGrantList`, `useBillingCheckout`.
 **Why:** The owner must always know what they have and what to do next, from any screen, without opening Billing; members must not see money, only that a run is paused and who can fix it.
 **Rejected:** Adding a `reason` field to every 402 body (20 routes and their shared error helper; the message carries it instead, and old screens still read well); a separate billing request from the header and bar (the summary rides on `/api/me`); showing members credits.
 
-### D524 — Owners see who used what, from what was charged *(recorded 2026-11-21; refines D523; originated → `2026-11-21-usage-by-design.md`)*
+### D583 — Owners see who used what, from what was charged *(recorded 2026-11-21; refines D582; originated → `2026-11-21-usage-by-design.md`)*
 
-**Decision:** Billing shows credits used this or last month (calendar months, India time) by member, client or canvas, each row opening to its runs, 20 a page. The sums come from `generations.credits_charged` (the settled cost) through `org_credit_usage_by` (migration 0073, with an `(org_id, created_at)` index); runs off a canvas are one row. Read through TanStack Query (`usageKeys`): two calls per view, two per opened row.
+**Decision:** Billing shows credits used this or last month (calendar months, India time) by member, client or canvas, each row opening to its runs, 20 a page. The sums come from `generations.credits_charged` (the settled cost) through `org_credit_usage_by` (migration 0097, with an `(org_id, created_at)` index); runs off a canvas are one row. Read through TanStack Query (`usageKeys`): two calls per view, two per opened row.
 **Why:** Agreed on the 20 November call (owners see usage down to each generation); charged credits match the balance, and grouping in the database keeps the page at a fixed number of calls however many runs there are.
 **Rejected:** Summing ledger rows (they need the same join and include holds still running); estimates; a separate usage page (it belongs beside the credits it explains).
 
-### D525 — Admin › Payments shows money across agencies; the agency's Billing tab is where it is changed *(recorded 2026-11-21; refines D517, D521; originated → `2026-11-21-admin-payments-design.md`)*
+### D584 — Admin › Payments shows money across agencies; the agency's Billing tab is where it is changed *(recorded 2026-11-21; refines D576, D580; originated → `2026-11-21-admin-payments-design.md`)*
 
 **Decision:** A Payments page in the Admin section nav: paid this month (GST included, test payments left out), payments due, plans renewing in 7 days, recent failures; "Needs a look" lists due payments first, then plans renewing or ending soonest; then the last 50 payments. Every agency links to its Billing tab. Three bounded reads in parallel.
 **Why:** Yuvabe needs one place to see which agencies are paused for payment and what came in, without opening each agency.
 **Rejected:** A payment-link button now (Razorpay already retries and asks the owner; a link of our own needs its own reconciliation, later); per-agency usage here (each agency's Generations tab and the owner's Who used what already show it).
 
-### D526 — Failed payments: pay from Billing, states only move forward, Razorpay checked hourly and nightly *(recorded 2026-11-21; refines D516, D521, D523; originated → `2026-11-21-failed-payments-design.md`)*
+### D585 — Failed payments: pay from Billing, states only move forward, Razorpay checked hourly and nightly *(recorded 2026-11-21; refines D575, D580, D582; originated → `2026-11-21-failed-payments-design.md`)*
 
-**Decision:** A due payment shows **Pay now** on Billing, which opens Razorpay's hosted page for the subscription (retry the card, a new card, UPI or a bank mandate); paying sends `subscription.charged` and the plan and its credits come back. Billing shows the date the plan ends if unpaid: plans unpaid for 30 days are ended by the nightly check. Cancelling while due ends the plan now; changing plan while due is refused. Plan states only move forward (`set_subscription_status`, `record_subscription_charge` replaced in migration 0074, with `payment_due_since`). Two Trigger.dev schedules reconcile with Razorpay: hourly for top-ups unpaid after 15 minutes, nightly for every live plan (missed charges oldest first, status, the 30-day end).
+**Decision:** A due payment shows **Pay now** on Billing, which opens Razorpay's hosted page for the subscription (retry the card, a new card, UPI or a bank mandate); paying sends `subscription.charged` and the plan and its credits come back. Billing shows the date the plan ends if unpaid: plans unpaid for 30 days are ended by the nightly check. Cancelling while due ends the plan now; changing plan while due is refused. Plan states only move forward (`set_subscription_status`, `record_subscription_charge` replaced in migration 0098, with `payment_due_since`). Two Trigger.dev schedules reconcile with Razorpay: hourly for top-ups unpaid after 15 minutes, nightly for every live plan (missed charges oldest first, status, the 30-day end).
 **Why:** Researched practice (Stripe, Paddle, Chargebee, Razorpay docs): let the customer pay in the product, give a final date, end after the recovery window, treat webhooks as at-least-once and unordered, and reconcile. Razorpay disables a webhook after 24 hours of failures, so a missed event must be found by us.
-**Rejected:** A 7 to 14 day grace period with access kept (common, but D516 stops runs at the first failure; left for Cyril to revisit); a "resume" call (Razorpay resumes only paused subscriptions); trusting webhooks alone.
+**Rejected:** A 7 to 14 day grace period with access kept (common, but D575 stops runs at the first failure; left for Cyril to revisit); a "resume" call (Razorpay resumes only paused subscriptions); trusting webhooks alone.
 
-### D527 — New credits and plan changes reach the owner live *(recorded 2026-11-21; refines D523, D526; originated → migration 0075)*
+### D586 — New credits and plan changes reach the owner live *(recorded 2026-11-21; refines D582, D585; originated → migration 0099)*
 
-**Decision:** The profile popover's one channel (`profile-credits:{org}`) also listens for INSERTs on `credit_grants` and any change on `billing_subscriptions` for the agency (published in migration 0075, received by owners through their read policies), and re-reads `/api/me` once per burst (800 ms). The popover's live count restarts from fresh figures, so a refetch never counts a run twice.
+**Decision:** The profile popover's one channel (`profile-credits:{org}`) also listens for INSERTs on `credit_grants` and any change on `billing_subscriptions` for the agency (published in migration 0099, received by owners through their read policies), and re-reads `/api/me` once per burst (800 ms). The popover's live count restarts from fresh figures, so a refetch never counts a run twice.
 **Why:** After paying, the owner should see the credits and the bar change without reloading; before this only spending moved the numbers.
 **Rejected:** Listening to grant UPDATEs (every run updates its grant's used total, which would refetch per run, against performance rule 1); a second channel (rule 3); polling.
 **Added 2026-11-23 (owner-login browser check):** the Billing page is rendered on the server, so it re-renders once (`router.refresh`) whenever the header's billing figures change; before, it kept old credits while the header showed new ones. Free credits are dated by the soonest end among free grants that still have credits, not an emptied one. A grant whose credits were all taken back (0 of 0) is left out of the credit list on both screens; the billing log keeps it. A super admin viewing as an agency receives none of these live events (the read policies check real membership); testing live updates needs the owner's own login.
 
-### D528 — One Add credits action, free or extra chosen inside it *(recorded 2026-11-23; refines D515, D523; originated → `2026-11-20-admin-agency-billing-design.md` §3)*
+### D587 — One Add credits action, free or extra chosen inside it *(recorded 2026-11-23; refines D574, D582; originated → `2026-11-20-admin-agency-billing-design.md` §3)*
 
 **Decision:** The admin Billing tab has one **Add credits** button. Its dialog starts with a switch, **Free credits / Extra credits**, with a line saying what the owner will see, then the amount, last day and reason. The switch starts on Free credits when the agency has no paid plan and on Extra credits when it has one. The grant kinds (`free`, `admin`) and the database are unchanged; `admin` grants are labelled "Extra credits" everywhere.
 **Why:** Both kinds have the same fields, cost the agency nothing and are spent by end date; they differ only in what the owner is shown (free credits drive the "pick a plan" nudge and the "free credits ended" refusal). Two side-by-side buttons for one action made the admin guess which to press; the agency's state predicts the right one almost every time.
 **Rejected:** Keeping two buttons (same action twice); dropping the choice and inferring the kind from the plan alone (hides a decision the admin sometimes needs to make, such as extra credits during a trial); one kind only (loses the trial nudge, or nudges agencies that already pay).
 
-### D529 — Billing lists that grow are paged, never cut off *(recorded 2026-11-23; refines D523, D524, D525; originated → migration 0076)*
+### D588 — Billing lists that grow are paged, never cut off *(recorded 2026-11-23; refines D582, D583, D584; originated → migration 0100)*
 
-**Decision:** Every billing list that grows with time shows one page and lets you step through the rest: an agency's billing log (10 a page, with "N changes"), the owner's payments (10), Admin › Payments (25, "All payments") and the admin agencies list (25, after search and sort). Page 1 is rendered with the page; older pages come from one route each (`/api/admin/orgs/:id/billing-log`, `/api/billing/payments`, `/api/admin/payments`) through TanStack Query, one counted, ranged read per page. Billing's history lists share one pager (`HistoryPager`, "Page X of Y · Newer / Older", the one Who used what already had); the agencies table keeps the app's table `Pagination`. Admin › Payments' "Needs a look" lists only plans that need a person (payment due, or ending within 7 days); renewals are an exact count. Migration 0076 indexes each read for its filter and newest-first sort.
+**Decision:** Every billing list that grows with time shows one page and lets you step through the rest: an agency's billing log (10 a page, with "N changes"), the owner's payments (10), Admin › Payments (25, "All payments") and the admin agencies list (25, after search and sort). Page 1 is rendered with the page; older pages come from one route each (`/api/admin/orgs/:id/billing-log`, `/api/billing/payments`, `/api/admin/payments`) through TanStack Query, one counted, ranged read per page. Billing's history lists share one pager (`HistoryPager`, "Page X of Y · Newer / Older", the one Who used what already had); the agencies table keeps the app's table `Pagination`. Admin › Payments' "Needs a look" lists only plans that need a person (payment due, or ending within 7 days); renewals are an exact count. Migration 0100 indexes each read for its filter and newest-first sort.
 **Why:** The billing log and payment lists either grew without end (a long page) or silently dropped older rows (the last 50 log entries, the last 24 payments), so an owner could lose sight of an old invoice and Yuvabe of an old change. "Needs a look" listed every renewal, which at hundreds of agencies buries the few rows that need action, and its count stopped at 100.
 **Rejected:** Infinite scroll (no sense of how much there is, and the page below can't be reached); a "show more" that keeps appending (the page grows again); a bigger limit (the same cliff, later); paging Page 1 in the browser too (a request on every load for data the server page already has).
 
-### D530 — One Razorpay webhook per environment; live keys only where RAZORPAY_LIVE=1 *(recorded 2026-11-23; refines D514, D521, D526; originated → `docs/auth-production-migration.md`, "Razorpay setup for each environment")*
+### D589 — One Razorpay webhook per environment; live keys only where RAZORPAY_LIVE=1 *(recorded 2026-11-23; refines D573, D580, D585; originated → `docs/auth-production-migration.md`, "Razorpay setup for each environment")*
 
 **Decision:** Every environment calls the same route, `/api/webhooks/razorpay`, through its own webhook in the Razorpay Dashboard: dev and staging in test mode, production in live mode (the only live webhook). Each has its own secret, an alert email and the same 8 events. A local machine gets a webhook through a tunnel only while testing. `RAZORPAY_LIVE=1` is set in production alone, in the app and in Trigger.dev: live keys are refused without it and test keys with it, so a wrong key stops payments with a logged reason. After the production database is copied into staging, the live-mode Razorpay ids (plan, customer, subscription, unpaid orders) are cleared on staging by the SQL in the migration doc.
-**Why:** Razorpay keeps test and live keys, webhooks and secrets apart, so each environment needs its own webhook. Test mode is shared, so dev and staging each receive the other's events; the handler already ignores orders and plans it doesn't have, so this is harmless. The settings have the same names everywhere (D514), so a key pasted into the wrong environment would otherwise charge real cards on staging or run production on test money without any sign. Copied live-mode ids make subscribing fail on staging and fill the nightly check with errors.
-**Rejected:** A second Razorpay account for staging (more KYC and dashboards for no gain over test mode); one test-mode webhook shared by dev and staging (one address can't serve both); telling the mode from the key alone (nothing would catch the wrong key in the wrong place); separate setting names per mode (D514 keeps one set of names); a queue in front of the webhook (the handler answers well inside Razorpay's 5 seconds).
+**Why:** Razorpay keeps test and live keys, webhooks and secrets apart, so each environment needs its own webhook. Test mode is shared, so dev and staging each receive the other's events; the handler already ignores orders and plans it doesn't have, so this is harmless. The settings have the same names everywhere (D573), so a key pasted into the wrong environment would otherwise charge real cards on staging or run production on test money without any sign. Copied live-mode ids make subscribing fail on staging and fill the nightly check with errors.
+**Rejected:** A second Razorpay account for staging (more KYC and dashboards for no gain over test mode); one test-mode webhook shared by dev and staging (one address can't serve both); telling the mode from the key alone (nothing would catch the wrong key in the wrong place); separate setting names per mode (D573 keeps one set of names); a queue in front of the webhook (the handler answers well inside Razorpay's 5 seconds).

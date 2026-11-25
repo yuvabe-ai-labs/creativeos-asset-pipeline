@@ -3,7 +3,8 @@ import { buildKlingFalRequest, splitKlingShots, toFalImageTags, falTier, FAL_SHO
 import { renderPlan, type MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import type { VoLine } from "@/lib/nodes/reel-script";
-import { KLING_OMNI_MODEL_ID } from "../client-models";
+import { KLING_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
+import { runSeededVideoModel } from "./run-seeded-model";
 import { withRequestLines } from "../request-prompt";
 import { NO_ON_SCREEN_TEXT_LINE, SPEECH_TIMING, SHORT_SOUND_LINE_MAX_CHARS, shortSoundLine } from "../compose-omni-prompt";
 
@@ -343,8 +344,7 @@ describe("Kling generate goes through fal by default (D484)", () => {
       json({ status: "COMPLETED" }),
       json({ video: { url: "https://fal.media/out.mp4" } }),
     );
-    const { kling30Omni } = await import("../providers/kling");
-    const done = kling30Omni.generate({
+    const done = runSeededVideoModel("kling:kling-3-0-omni", {
       prompt: "p", startFrameUrl: "https://x.test/s.png", referenceUrls: [], params: { duration: 6, resolution: "1080p" },
     });
     await vi.advanceTimersByTimeAsync(15_000);
@@ -365,8 +365,7 @@ describe("Kling generate goes through fal by default (D484)", () => {
       json({ status: "COMPLETED" }),
       json({ video: { url: "https://fal.media/out.mp4" } }),
     );
-    const { kling30 } = await import("../providers/kling");
-    const done = kling30.generate({ prompt: "p", startFrameUrl: "https://x.test/s.png", referenceUrls: [], params: {} });
+    const done = runSeededVideoModel("kling:kling-3-0", { prompt: "p", startFrameUrl: "https://x.test/s.png", referenceUrls: [], params: {} });
     await vi.advanceTimersByTimeAsync(15_000);
     await expect(done).resolves.toMatchObject({ videoUrl: "https://fal.media/out.mp4" });
     const submits = falCalls().filter((c) => (c[1] as RequestInit | undefined)?.method === "POST");
@@ -379,8 +378,7 @@ describe("Kling generate goes through fal by default (D484)", () => {
       json({ status: "COMPLETED" }),
       json({ detail: "content policy violation" }, 422),
     );
-    const { kling30 } = await import("../providers/kling");
-    const done = kling30.generate({ prompt: "p", startFrameUrl: "https://x.test/s.png", referenceUrls: [], params: {} });
+    const done = runSeededVideoModel("kling:kling-3-0", { prompt: "p", startFrameUrl: "https://x.test/s.png", referenceUrls: [], params: {} });
     const settled = expect(done).rejects.toThrow(/Kling generation failed: .*content policy violation/);
     await vi.advanceTimersByTimeAsync(10_000);
     await settled;

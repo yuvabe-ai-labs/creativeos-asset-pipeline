@@ -8,7 +8,7 @@ import type { OpenGrant } from "@/lib/billing/grants";
 import type { BillingMode } from "@/lib/billing/grants";
 import { OWNER_PAYMENTS_PAGE_SIZE } from "@/lib/billing/usage-page-size";
 
-// What the owner's billing screens need (spec 2026-11-21-owner-billing-design.md, D523), read in
+// What the owner's billing screens need (spec 2026-11-21-owner-billing-design.md, D582), read in
 // one parallel batch: five queries whatever the number of grants or payments.
 
 export type OwnerPayment = {
@@ -50,7 +50,7 @@ type PaymentRow = {
 
 export type OwnerPaymentsPage = { payments: OwnerPayment[]; total: number };
 
-/** One page of the agency's paid and failed payments, newest first, with the total (D529).
+/** One page of the agency's paid and failed payments, newest first, with the total (D588).
  *  Started-but-unpaid ones are left out. */
 export async function listOwnerPayments(orgId: string, page = 1): Promise<OwnerPaymentsPage> {
   const from = (page - 1) * OWNER_PAYMENTS_PAGE_SIZE;
@@ -87,7 +87,7 @@ export function offersFor(catalog: Awaited<ReturnType<typeof getCatalog>>, orgId
         const price = p.prices.find((pr) => pr.active && pr.interval_months === interval);
         return price ? [{ priceId: price.id, productId: p.id, name: p.name, description: p.description, amountMinor: price.amount_minor, credits: price.credits }] : [];
       });
-  void orgId; // Custom plans (org_id) are left out of getCatalog until they have a screen (D518).
+  void orgId; // Custom plans (org_id) are left out of getCatalog until they have a screen (D577).
   return { plans: pick("plan", 1), packs: pick("topup", null) };
 }
 

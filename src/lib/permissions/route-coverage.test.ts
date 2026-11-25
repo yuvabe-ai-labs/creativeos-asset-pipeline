@@ -3,13 +3,14 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { isAction } from "./model";
 
-// D501/D504: every API handler names its action through a chokepoint or withAccess, or is on this
+// D539/D542: every API handler names its action through a chokepoint or withAccess, or is on this
 // list with a reason. Extend the list only with a one-line reason.
 const ALLOWLIST: Record<string, string> = {
   "admin/orgs/[id]/billing-log": "super admin (requireSuperAdmin)",
   "admin/orgs/[id]/generations": "super admin (requireSuperAdmin)",
   "admin/payments": "super admin (requireSuperAdmin)",
   "admin/orgs/[id]/impersonation-sessions": "super admin (requireSuperAdmin)",
+  "ai-models": "signed in; the platform-wide model catalog (D552), no agency data",
   "image-proxy": "signed in; proxies a public image URL, no agency data",
   me: "signed in; the caller's own identity and access",
   "r/[token]": "share token, no account (withShareToken)",
@@ -27,7 +28,7 @@ const ALLOWLIST: Record<string, string> = {
 
 const API_ROOT = join(process.cwd(), "src/app/api");
 const HANDLER_RE = /export\s+(?:async\s+)?(?:function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b/g;
-const GUARDED_RE = /\b(withClient|withCanvas|withNode|withMoodboard|withAccess|withTeam)\s*\([^]*?need:\s*"([a-z_.]+)"/;
+const GUARDED_RE = /\b(withClient|withCanvas|withBodyCanvas|withNode|withMoodboard|withAccess|withTeam)\s*\([^]*?need:\s*"([a-z_.]+)"/;
 
 function routeFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -41,7 +42,7 @@ function routeKey(file: string): string {
   return relative(API_ROOT, file).split(sep).join("/").replace(/\/route\.ts$/, "").replace(/^route\.ts$/, "");
 }
 
-describe("every API handler declares an action (D501, D504)", () => {
+describe("every API handler declares an action (D539, D542)", () => {
   const files = routeFiles(API_ROOT);
 
   it("finds the route files", () => {

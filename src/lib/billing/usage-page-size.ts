@@ -1,4 +1,4 @@
-/** Rows per page in billing's history lists (D524, D529); shared by each server read and its
+/** Rows per page in billing's history lists (D583, D588); shared by each server read and its
  *  browser pager, so both count pages the same way. */
 export const USAGE_RUNS_PAGE_SIZE = 20;
 export const BILLING_LOG_PAGE_SIZE = 10;

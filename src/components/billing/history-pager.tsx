@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-// The one pager for billing's history lists (D529): who used what, the billing log, payments.
+// The one pager for billing's history lists (D588): who used what, the billing log, payments.
 // Newest first, so the steps read Newer / Older. Nothing shows when everything fits on one page.
 export function HistoryPager({
   page,

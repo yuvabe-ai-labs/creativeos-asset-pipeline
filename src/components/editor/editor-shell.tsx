@@ -87,17 +87,19 @@ function EditorShellBody({ canvasId, clientId, canvasPath, breadcrumb, title, in
     () => navigate(canvasPath, flush).catch((err: Error) => toast.error(`${err.message} Your latest changes aren't saved yet, so you're still here.`)),
     [navigate, canvasPath, flush],
   );
-  // Ctrl 1 / Ctrl 2 show Sources / the Inspector; pressed again on the side already showing, they hide the panel.
+  // Ctrl 1 / Ctrl 2 show Sources / the Inspector (opening the panel if hidden); Ctrl H shows or hides the panel.
   const { toggleInspector } = layout;
   const showSide = useCallback(
     (s: EditorSide) => {
-      if (panelOpen && side === s) return toggleInspector();
       setSide(s);
       if (!panelOpen) toggleInspector();
     },
-    [panelOpen, side, toggleInspector],
+    [panelOpen, toggleInspector],
   );
-  const panels = useMemo(() => ({ toggleSources: () => showSide("sources"), toggleInspector: () => showSide("inspector") }), [showSide]);
+  const panels = useMemo(
+    () => ({ toggleSources: () => showSide("sources"), toggleInspector: () => showSide("inspector"), togglePanel: toggleInspector }),
+    [showSide, toggleInspector],
+  );
   useEditorShortcuts(panels);
   const session = useMemo(() => ({ canvasId, editorNodeId: initialState.editorNodeId, sessionId: lock.sessionId, flush }), [canvasId, initialState.editorNodeId, lock.sessionId, flush]);
 

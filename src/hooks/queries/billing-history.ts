@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { fetchAdminPayments, fetchBillingLog, fetchOwnerPayments } from "@/services/billing-history.service";
 
-// Billing's history lists, a page at a time (D529). Page 1 is rendered by the server page and
+// Billing's history lists, a page at a time (D588). Page 1 is rendered by the server page and
 // refreshed with it (router.refresh after every change), so it is never fetched here: the queries
 // run only for older pages. staleTime 0 because a change adds a row at the top and shifts every
 // older page by one.

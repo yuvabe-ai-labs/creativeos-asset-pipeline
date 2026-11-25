@@ -1,4 +1,4 @@
-import { defaultsForVideoModel, videoGenClientModelMap } from "../client-models";
+import { paramDefaults } from "@/lib/ai-models/model-lists";
 import type { VideoGenClientModelSpec } from "../types";
 
 /**
@@ -13,11 +13,10 @@ import type { VideoGenClientModelSpec } from "../types";
 export function smartMergeVideoParams(
   currentParams: Record<string, unknown>,
   newModel: VideoGenClientModelSpec,
-  previousModelId?: string,
+  previousModel?: VideoGenClientModelSpec,
 ): Record<string, unknown> {
-  const newDefaults = defaultsForVideoModel(newModel.id);
-  const sameProvider =
-    previousModelId !== undefined && videoGenClientModelMap[previousModelId]?.provider === newModel.provider;
+  const newDefaults = paramDefaults(newModel.params);
+  const sameProvider = previousModel !== undefined && previousModel.provider === newModel.provider;
   const result: Record<string, unknown> = {};
 
   for (const param of newModel.params) {

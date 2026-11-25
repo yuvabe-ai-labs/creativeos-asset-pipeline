@@ -1,4 +1,5 @@
 import type { ParamSpec } from "@/lib/image-gen/types";
+import type { ImageModels } from "@/lib/ai-models/model-lists";
 import { readVoiceMeta } from "@/lib/voice-change/meta";
 
 /**
@@ -54,6 +55,36 @@ export function paramsForRestore(
       paramsUsed[p.name] !== undefined ? paramsUsed[p.name] : p.defaultValue,
     ]),
   );
+}
+
+/**
+ * D467/D565/D567 — what restoring an image version (Image Gen or a composite) writes onto the
+ * node: its picture, and its model and settings while that model is still offered here
+ * (retired, or hidden and not `currentModelId`, brings back the picture alone). A move to
+ * another model clears the retired notice, as Video's restore does.
+ */
+export function imageVersionRestore(
+  images: ImageModels,
+  version: { output?: string | null; modelUsed?: string | null; paramsUsed?: Record<string, unknown> | null },
+  currentModelId: string | undefined,
+): { modelId: string | null; params: Record<string, unknown> | null; patch: Record<string, unknown> } {
+  // params_used carries its own modelId for image versions (the image-generate route writes it
+  // there); model_used is the same value, and the fallback covers either being absent.
+  const paramsModelId = version.paramsUsed?.modelId;
+  const restoredModelId = (typeof paramsModelId === "string" ? paramsModelId : null) ?? version.modelUsed ?? null;
+  const params = restoredModelId && images.isOffered(restoredModelId, currentModelId)
+    ? paramsForRestore(images.get(restoredModelId)!.params, version.paramsUsed ?? {})
+    : null;
+  const modelId = params ? restoredModelId : null;
+  return {
+    modelId,
+    params,
+    patch: {
+      ...(version.output ? { parsed: version.output } : {}),
+      ...(modelId && params ? { modelId, params } : {}),
+      ...(modelId && modelId !== currentModelId ? { retiredModelId: undefined } : {}),
+    },
+  };
 }
 
 export type VersionParamEntry = {

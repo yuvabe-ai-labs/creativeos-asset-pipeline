@@ -1,9 +1,15 @@
 import { z } from "zod";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
+import { NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { currentPrice } from "@/lib/ai-models/pricing";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { videoRun } from "@/lib/video-gen/video-run";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { getAvatar } from "@/lib/db/avatars";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
+import { CREDIT_LIMIT_TOAST_MESSAGE, creditSettingsAt } from "@/lib/credits/units";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
 import { VOICE_CHECK_FAILED_MESSAGE, VOICE_GONE_MESSAGE, VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
@@ -11,7 +17,7 @@ import { signAvatarVoicePreviewUrl, signAvatarVoiceSampleUrl } from "@/lib/stora
 import { AVATAR_VOICE_PREVIEW_LINE_MAX, AVATAR_VOICE_PREVIEW_SLOT } from "@/lib/avatars/constants";
 import {
   buildVoicePreviewPrompt, estimateVoicePreviewCredits, generationToVoicePreview,
-  voicePreviewBlocker, voicePreviewEngine, voicePreviewMode, voicePreviewParams, VOICE_PREVIEW_ENGINE,
+  voicePreviewBlocker, voicePreviewEngine, voicePreviewMode, voicePreviewParams, VOICE_PREVIEW_ENGINE, VOICE_PREVIEW_UNAVAILABLE_MESSAGE,
 } from "@/lib/avatars/voice-preview";
 import { loadVoicePreviewState, readLatestPreview } from "@/lib/avatars/studio-server";
 import type { AvatarVoicePreviewTaskPayload } from "@/lib/avatars/voice-preview-run";
@@ -80,6 +86,19 @@ export async function POST(req: Request, { params }: Ctx) {
       const line = parsed.data.line;
       const prompt = buildVoicePreviewPrompt(line, mode);
       const paramsSnapshot = voicePreviewParams(engine);
+      // One catalog read; the prices and the credit settings come from it.
+      const catalog = await getAiCatalog();
+      const now = new Date();
+      const price = currentPrice(catalog, VOICE_PREVIEW_ENGINE[engine].modelId, now);
+      const voiceChangePrice = mode === "named" ? currentPrice(catalog, VOICE_CHANGE_PRICE_MODEL_ID, now) : null;
+      // D565 — a preview belongs to no node, so an engine model that is hidden, retired or
+      // missing refuses it; nothing is recorded or reserved.
+      const run = videoRun(catalog, VOICE_PREVIEW_ENGINE[engine].modelId);
+      if (!run.ok) {
+        console.error("[voice-preview] engine model can't run", VOICE_PREVIEW_ENGINE[engine].modelId, run.reason);
+        return apiError(VOICE_PREVIEW_UNAVAILABLE_MESSAGE, 400);
+      }
+      if (!price || (mode === "named" && !voiceChangePrice)) return apiError(NO_PRICE_MESSAGE, 409);
       const generation = await insertGeneration({
         avatarId,
         orgId: client.org_id,
@@ -88,6 +107,7 @@ export async function POST(req: Request, { params }: Ctx) {
         userEmail: caller.email,
         type: "video",
         modelUsed: VOICE_PREVIEW_ENGINE[engine].modelId,
+        modelPriceId: price.id,
         paramsSnapshot,
         inputsSnapshot: {
           slot: AVATAR_VOICE_PREVIEW_SLOT,
@@ -103,7 +123,7 @@ export async function POST(req: Request, { params }: Ctx) {
       });
 
       try {
-        const credits = estimateVoicePreviewCredits(mode, engine, voice?.priceMultiplier ?? 1);
+        const credits = estimateVoicePreviewCredits(price, voiceChangePrice, mode, engine, voice?.priceMultiplier ?? 1, creditSettingsAt(catalog, new Date(generation.created_at)));
         if (credits === null) throw new Error("No cost estimate available for the voice preview.");
         const reservation = await reserveCredits(client.org_id, generation.id, credits);
         if (!reservation.ok) throw creditLimitError(reservation.reason);

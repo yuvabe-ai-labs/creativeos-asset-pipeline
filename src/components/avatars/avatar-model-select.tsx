@@ -4,7 +4,7 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { imageGenClientModelGroups, imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { useImageModels } from "@/hooks/queries/ai-models";
 import { isSeedanceFaceModel } from "@/lib/avatars/generation";
 
 // The image models, grouped by provider as in Image Gen. The one model whose faces Seedance
@@ -18,13 +18,16 @@ export function AvatarModelSelect({
   /** Only these models (Visualise's panels); every image model when absent. */
   modelIds?: readonly string[];
 }) {
-  const groups = imageGenClientModelGroups
+  const images = useImageModels();
+  // Live models only: an avatar or a panel stores no model, so a hidden one is never its own
+  // (the server refuses it). The trigger still names whatever is selected.
+  const groups = images.groups(null)
     .map((g) => ({ ...g, models: modelIds ? g.models.filter((m) => modelIds.includes(m.id)) : g.models }))
     .filter((g) => g.models.length > 0);
   return (
     <Select value={value} onValueChange={(v) => { if (typeof v === "string") onChange(v); }}>
       <SelectTrigger id={id} size="sm" className="min-w-44">
-        <SelectValue>{imageGenClientModelMap[value]?.label ?? "Choose a model"}</SelectValue>
+        <SelectValue>{images.get(value)?.label ?? "Choose a model"}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {groups.map((group) => (

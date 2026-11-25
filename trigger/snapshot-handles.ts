@@ -22,7 +22,9 @@ export const snapshotHandlesTask = schedules.task({
 
     for (const row of tracked) {
       try {
-        const result = await snapshotHandle(row.clientId, row.handle);
+        // D560 — each run's cost is recorded for the handle's client, awaited (a task has no request).
+        const recordFor = row.orgId ? { orgId: row.orgId, clientId: row.clientId } : undefined;
+        const result = await snapshotHandle(row.clientId, row.handle, { recordFor });
         logger.info("Snapshot done", { clientId: row.clientId, handle: row.handle, ...result });
       } catch (e) {
         // One bad handle must not starve the rest — log and continue (spec §3). This

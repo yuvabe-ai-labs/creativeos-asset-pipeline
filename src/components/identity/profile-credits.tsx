@@ -21,7 +21,7 @@ export function ProfileCredits({
 }: {
   used: number;
   monthlyCreditLimit: number | null;
-  /** An agency that pays for a plan (D523): credits left of what it has, and a way to Billing. */
+  /** An agency that pays for a plan (D582): credits left of what it has, and a way to Billing. */
   paying?: { left: number; total: number };
 }) {
   if (paying) {

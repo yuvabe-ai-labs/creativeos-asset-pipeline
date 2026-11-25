@@ -1,4 +1,4 @@
-// Pricing math for Admin's Plans and prices (spec 2026-11-21-plans-and-prices-design.md, D518).
+// Pricing math for Admin's Plans and prices (spec 2026-11-21-plans-and-prices-design.md, D577).
 // Credits are tied to dollars: 1,000 credits = $1 of AI cost. The rupee rate only suggests prices
 // and checks margins; it never changes what a run costs in credits.
 

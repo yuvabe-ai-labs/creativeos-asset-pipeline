@@ -1,6 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CopilotTarget } from "@/components/journey/copilot-target";
+import { useFollowCopilot } from "@/hooks/use-follow-copilot";
+import { useFreshItems } from "@/hooks/use-fresh-items";
+import { marketSignalId, marketTarget } from "@/lib/journey/kb-copilot/targets";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +21,7 @@ import type { MoodboardItem } from "@/lib/db/moodboards";
 import { MARKET_MASONRY, type MarketBucket } from "@/lib/market/constants";
 import { MarketGridSkeleton } from "@/components/skeletons/market-grid-skeleton";
 import { AddReferenceTile } from "./add-reference-tile";
+import { ApproveMarketButton } from "./approve-market-button";
 import { AddReferenceDialog } from "./add-reference-dialog";
 import { ReferenceTile } from "./reference-tile";
 import { ReferenceLightbox } from "./reference-lightbox";
@@ -37,10 +42,13 @@ type PendingDelete =
 export function MarketView({
   clientId,
   clientName,
+  approval,
 }: {
   clientId: string;
   clientName: string;
   clientSlug: string;
+  /** Copilot journey: whether the research is approved, and whether it can be approved now. */
+  approval: { approved: boolean; canApprove: boolean };
 }) {
   const market = useMarket(clientId);
   const [tab, setTab] = useState<MarketTab>("direct");
@@ -60,6 +68,27 @@ export function MarketView({
     [allItems, selectedIds],
   );
   const openSignal = market.data?.signals.find((s) => s.id === openSignalId) ?? null;
+
+  // The page follows the copilot (D520, D530): a signal kept from the chat brings the Signals tab
+  // into view and lands highlighted; references its fetch brings in land highlighted too. No new
+  // request: the ids are the ones this page already loaded.
+  const reveal = useCallback((target: string) => {
+    if (!marketSignalId(target)) return false;
+    setOpenSignalId(null);
+    setTab("signals");
+    return true;
+  }, []);
+  const { stateOf, written } = useFollowCopilot(clientId, reveal);
+  // A kept signal is saved by the chat, not this page: read the boards again once, so it is here.
+  const { refresh } = market;
+  const lastSignalWrite = useRef(written.findLast((w) => marketSignalId(w.target))?.n ?? 0);
+  useEffect(() => {
+    const latest = written.findLast((w) => marketSignalId(w.target));
+    if (!latest || latest.n <= lastSignalWrite.current) return;
+    lastSignalWrite.current = latest.n;
+    void refresh();
+  }, [written, refresh]);
+  const fresh = useFreshItems(market.data ? allItems.map((it) => it.id) : null);
 
   function toggle(id: string) {
     setSelectedIds((prev) => {
@@ -93,12 +122,17 @@ export function MarketView({
     <div className="flex flex-col gap-4">
       {/* The breadcrumb already establishes client and section, so the header names
           the page and says what it is for — matching the Brand KB page. */}
-      <header className="animate-rise mb-2 mt-4">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Market</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          What is happening around {clientName} — evidence the team collects, and the
-          patterns designers distil from it.
-        </p>
+      <header className="animate-rise mb-2 mt-4 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">Market research</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            What is happening around {clientName} — evidence the team collects, and the
+            patterns designers distil from it.
+          </p>
+        </div>
+        {(approval.approved || approval.canApprove) && (
+          <ApproveMarketButton clientId={clientId} approved={approval.approved} />
+        )}
       </header>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as MarketTab)}>
@@ -142,6 +176,7 @@ export function MarketView({
                     onToggle={() => toggle(it.id)}
                     onOpen={() => setPreviewItem(it)}
                     onRemove={() => setPendingDelete({ kind: "reference", item: it })}
+                    landed={fresh.has(it.id)}
                   />
                 ))}
               </div>
@@ -166,12 +201,13 @@ export function MarketView({
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {market.data!.signals.map((s) => (
-                <SignalCard
-                  key={s.id}
-                  signal={s}
-                  onOpen={() => setOpenSignalId(s.id)}
-                  onDelete={() => setPendingDelete({ kind: "signal", id: s.id, name: s.name })}
-                />
+                <CopilotTarget key={s.id} id={marketTarget.signal(s.id)} state={stateOf(marketTarget.signal(s.id))}>
+                  <SignalCard
+                    signal={s}
+                    onOpen={() => setOpenSignalId(s.id)}
+                    onDelete={() => setPendingDelete({ kind: "signal", id: s.id, name: s.name })}
+                  />
+                </CopilotTarget>
               ))}
             </div>
           )}

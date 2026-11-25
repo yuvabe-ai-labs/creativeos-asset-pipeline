@@ -1,11 +1,12 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { scriptGenerateService, type TurnMessage } from "@/services/script-generate.service";
 import type { GenerateState } from "@/lib/scripts/copilot/schema";
 import type { PartialDraft } from "@/lib/scripts/copilot/partial-draft";
 import { withField } from "@/lib/scripts/copilot/fields";
 import { scriptKeys } from "./scripts";
+import { visualiseKeys } from "./visualise";
 
 // Script copilot spec 2 — the Generate workspace through TanStack Query. Every write returns the
 // whole state, so each mutation replaces the cached state with the server's answer.
@@ -19,11 +20,18 @@ export function useGenerateState(clientId: string, scriptId: string, initialData
   });
 }
 
+/** A turn's or a card's answer lands in the thread's cache. Past Generate the copilot may also have
+ *  changed the storyboard, so the board is re-read (piece 5.1). */
+export function landGenerateState(queryClient: QueryClient, clientId: string, scriptId: string, state: GenerateState): void {
+  queryClient.setQueryData(scriptKeys.generate(clientId, scriptId), state);
+  if (state.script.stage !== "generate") void queryClient.invalidateQueries({ queryKey: visualiseKeys.board(clientId, scriptId) });
+}
+
 function useStateWrite<V>(clientId: string, scriptId: string, write: (v: V) => Promise<GenerateState>) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: write,
-    onSuccess: (state) => queryClient.setQueryData(scriptKeys.generate(clientId, scriptId), state),
+    onSuccess: (state) => landGenerateState(queryClient, clientId, scriptId, state),
   });
 }
 
@@ -34,13 +42,16 @@ export function useSendTurn(clientId: string, scriptId: string, onDraft?: (draft
   const key = scriptKeys.generate(clientId, scriptId);
   return useMutation({
     mutationFn: (message: TurnMessage) => scriptGenerateService.turn(clientId, scriptId, message, onDraft),
-    onMutate: async ({ text }) => {
+    onMutate: async ({ text, picture }) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<GenerateState>(key);
       if (previous) {
         queryClient.setQueryData<GenerateState>(key, {
           ...previous,
-          messages: [...previous.messages, { id: `pending-${Date.now()}`, role: "user", content: text, card: null, suggestions: [], createdAt: new Date().toISOString() }],
+          messages: [...previous.messages, {
+            id: `pending-${Date.now()}`, role: "user", content: text, card: picture ? { kind: "picture", ...picture } : null,
+            suggestions: [], createdAt: new Date().toISOString(),
+          }],
         });
       }
       return { previous };
@@ -48,12 +59,18 @@ export function useSendTurn(clientId: string, scriptId: string, onDraft?: (draft
     onError: (_error, _text, context) => {
       if (context?.previous) queryClient.setQueryData(key, context.previous);
     },
-    onSuccess: (state) => queryClient.setQueryData(key, state),
+    onSuccess: (state) => landGenerateState(queryClient, clientId, scriptId, state),
   });
 }
 
 /** Typing and Undo. The field changes in the cache at once (spec 2 §9); the server's state lands
  *  only when no later write is still in flight, so a slow reply never puts back an older value. */
+/** The person changes a script's "Built from" on its line (D531). After the draft the copilot's
+ *  rewrite offer comes back in the thread with the new state. */
+export function useSetBuiltFrom(clientId: string, scriptId: string) {
+  return useStateWrite(clientId, scriptId, (signalIds: string[]) => scriptGenerateService.setBuiltFrom(clientId, scriptId, signalIds));
+}
+
 export function useSetScriptField(clientId: string, scriptId: string) {
   const queryClient = useQueryClient();
   const key = scriptKeys.generate(clientId, scriptId);

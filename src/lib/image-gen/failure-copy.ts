@@ -12,7 +12,7 @@ export const IMAGE_PROMPT_DECLINED_MESSAGE = "The model declined this prompt. Tr
 export const START_FAILED_MESSAGE = "Couldn't start the generation. Please try again.";
 export const CREDIT_LIMIT_MESSAGE = "Monthly credit limit reached";
 
-// A refused run stores the members' refusal wording (D523), so those count as start failures too.
+// A refused run stores the members' refusal wording (D582), so those count as start failures too.
 const START_FAILURE_MESSAGES: ReadonlySet<string> = new Set([
   START_FAILED_MESSAGE,
   CREDIT_LIMIT_MESSAGE,

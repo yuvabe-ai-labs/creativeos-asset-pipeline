@@ -26,3 +26,10 @@ export const NARRATOR = "Narrator";
 /** How an import's reply begins. The avatar link chips (suggestions.ts) show only while it is the
  *  newest message, so they must read the same text import.ts writes. */
 export const IMPORT_REPLY_PREFIX = "Imported ";
+
+/** After the draft, a change to "Built from" offers a rewrite; it never rewrites on its own (D531). */
+export const REWRITE_OFFER = "Built from changed. Want me to rewrite the script with these signals?";
+export const REWRITE_CHOICE = "Rewrite with these signals";
+
+/** What the script copilot says when it hands a research question to market research (D532). */
+export const RESEARCH_HANDED = "I've asked market research to look into that. Review it on the Market research tab; a signal you keep can be added to Built from.";

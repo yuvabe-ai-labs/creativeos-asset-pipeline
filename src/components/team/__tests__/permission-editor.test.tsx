@@ -13,7 +13,7 @@ const pressed = (html: string) =>
     .filter((m) => m[0].includes("aria-pressed=\"true\""))
     .map((m) => m[1]);
 
-describe("PermissionEditor (D509)", () => {
+describe("PermissionEditor (D547)", () => {
   it("shows all five permissions as toggles, in order, each with its hint", () => {
     const html = renderToStaticMarkup(<PermissionEditor value={[]} onChange={vi.fn()} personName="Ravi" />);
     expect(text(html)).toMatch(/Generate .*Approve .*Share .*Delete .*Invite/);

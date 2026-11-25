@@ -52,13 +52,16 @@ export const briefSchema = z.object({
   card: confirmationCardSchema.nullable(),
   /** The draft came from a pasted script (paste-a-script spec), so the copilot asks who plays whom. */
   imported: z.boolean().default(false),
+  /** "Built from" (D531): the market signals this script uses. Null until set (by the picked angle,
+   *  or the person): the angles then read every signal. A brief saved before it reads as null. */
+  signalIds: z.array(z.string()).nullable().default(null),
 });
 export type Brief = z.infer<typeof briefSchema>;
 
 const unset = (): Piece => ({ value: "", status: null });
 export const EMPTY_BRIEF: Brief = {
   phase: "pieces", reelNumber: null, format: unset(), occasion: unset(), postDate: "",
-  lead: unset(), leadAvatarId: null, narrative: unset(), angles: [], card: null, imported: false,
+  lead: unset(), leadAvatarId: null, narrative: unset(), angles: [], card: null, imported: false, signalIds: null,
 };
 
 /** The reel's own notes (spec 2 §4.2): the confirmed brief as editable text, and the items the
@@ -104,7 +107,9 @@ export const importCardSchema = z.object({
 export type ImportCard = z.infer<typeof importCardSchema>;
 
 export const messageCardSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("angles"), angles: z.array(angleSchema) }),
+  /** `signals` names the signals the angles drew on, so each angle can say "from <name>" (D531);
+   *  absent on cards stored before. */
+  z.object({ kind: z.literal("angles"), angles: z.array(angleSchema), signals: z.array(z.object({ id: z.string(), name: z.string() })).optional() }),
   z.object({
     kind: z.literal("research"),
     signals: z.array(z.object({ id: z.string(), name: z.string() })),
@@ -113,8 +118,15 @@ export const messageCardSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("confirmation"), card: confirmationCardSchema }),
   proposalCardSchema,
   importCardSchema,
+  /** Piece 5.1 — a button the copilot offers at Visualise; the person presses it. What it shows (how
+   *  many panels, what is missing) is worked out when it is shown, never stored. */
+  z.object({ kind: z.literal("offer"), action: z.enum(["draw", "send", "reopen"]) }),
+  /** Piece 5.1 — a picture the person attached, and the product or location it went to. */
+  z.object({ kind: z.literal("picture"), url: z.string(), name: z.string(), target: z.string() }),
 ]);
 export type MessageCard = z.infer<typeof messageCardSchema>;
+export type OfferCard = Extract<MessageCard, { kind: "offer" }>;
+export type PictureCard = Extract<MessageCard, { kind: "picture" }>;
 
 export type ScriptMessage = {
   id: string;

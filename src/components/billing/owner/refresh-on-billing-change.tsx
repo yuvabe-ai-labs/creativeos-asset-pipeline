@@ -6,7 +6,7 @@ import { useIdentity } from "@/hooks/use-identity";
 
 /** The Billing page is rendered on the server. When the header's billing figures change (new
  *  credits or a plan change heard live, or a re-read on returning to the tab), re-render the page
- *  once so its credits and plan never disagree with the header (D527). */
+ *  once so its credits and plan never disagree with the header (D586). */
 export function RefreshOnBillingChange() {
   const { billing } = useIdentity();
   const router = useRouter();

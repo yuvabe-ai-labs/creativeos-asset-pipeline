@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 
 vi.mock("server-only", () => ({}));
@@ -52,9 +52,25 @@ const { nodeOrgIdHolder, nodeQueryGate, selects } = vi.hoisted(() => ({
   // observe what withNode does WHILE that query is still in flight.
   nodeQueryGate: { wait: null as Promise<void> | null },
 }));
+// The canvas a copilot request body names (withBodyCanvas): null = no such canvas. Used for the
+// canvases table only while `use` is set (the withBodyCanvas tests); otherwise canvas-1 below.
+const { canvasRowHolder } = vi.hoisted(() => ({
+  canvasRowHolder: {
+    use: false,
+    row: null as null | { client_id: string; source_script_id: string | null; clients: { org_id: string } },
+    error: null as null | { message: string },
+  },
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase: vi.fn(() => ({
     from: (table: string) => {
+      if (table === "canvases" && canvasRowHolder.use) {
+        return {
+          select: () => ({
+            eq: () => ({ maybeSingle: async () => ({ data: canvasRowHolder.row, error: canvasRowHolder.error }) }),
+          }),
+        };
+      }
       // withCanvas and withMoodboard: canvas-1 / board-1 sit under client-1 in nodeOrgIdHolder's org.
       if (table === "canvases" || table === "moodboards") {
         const row = table === "canvases"
@@ -102,7 +118,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { resolveCallerContext } from "@/lib/dal";
 import { testAccess, testOwnerAccess } from "@/lib/permissions/test-fixtures";
-import { withCanvas, withClient, withMoodboard, withNode, withAccess } from "./route-helpers";
+import { withBodyCanvas, withCanvas, withClient, withMoodboard, withNode, withAccess } from "./route-helpers";
 
 const params = Promise.resolve({ id: "client-1" });
 function req(method: string) {
@@ -269,7 +285,7 @@ describe("withNode passes the resolved effectiveOrgId to its handler", () => {
   });
 });
 
-describe("withClient guard (D504)", () => {
+describe("withClient guard (D542)", () => {
   beforeEach(() => {
     callerHolder.access = null;
     resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
@@ -444,5 +460,99 @@ describe("withAccess", () => {
     callerHolder.access = testAccess({ permissions: [], clientIds: [] });
     const res = await withAccess(req("GET"), { need: "view" }, async () => NextResponse.json({}));
     expect(res.status).toBe(404);
+  });
+});
+
+// A copilot request names its canvas in the body, so nothing upstream checked it belongs to
+// the caller's org. withBodyCanvas is that check: one canvas read, one caller resolution, and
+// the same client scope, permission and write gate as withCanvas.
+describe("withBodyCanvas", () => {
+  const ok = () => vi.fn(async () => NextResponse.json(null, { status: 200 }));
+  const post = () => new NextRequest("http://localhost/api/copilot", { method: "POST" });
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    callerHolder.access = null;
+    canvasRowHolder.use = true;
+    canvasRowHolder.row = { client_id: "client-1", source_script_id: "script-1", clients: { org_id: "org-1" } };
+    canvasRowHolder.error = null;
+    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+  });
+  afterEach(() => {
+    canvasRowHolder.use = false;
+  });
+
+  it("is a plain 500 when the canvas read returns an error, and the handler never runs", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    canvasRowHolder.row = null;
+    canvasRowHolder.error = { message: "canceling statement due to statement timeout" };
+    const handler = ok();
+    const res = await withBodyCanvas(post(), "canvas-1", { need: "generate" }, handler);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "We couldn't open this canvas. Please try again." });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("withCanvas answers the same plain 500 when its canvas read returns an error", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    canvasRowHolder.row = null;
+    canvasRowHolder.error = { message: "canceling statement due to statement timeout" };
+    const handler = ok();
+    const res = await withCanvas(req("GET"), Promise.resolve({ id: "canvas-1" }), { need: "view" }, handler);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "We couldn't open this canvas. Please try again." });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("hands the handler the verified canvas and the caller, resolving the caller once", async () => {
+    const handler = ok();
+    expect((await withBodyCanvas(post(), "canvas-1", { need: "generate" }, handler)).status).toBe(200);
+    expect(handler).toHaveBeenCalledWith(
+      { id: "canvas-1", orgId: "org-1", clientId: "client-1", scriptId: "script-1" },
+      expect.objectContaining({ userId: "user-1", email: "user-1@yuvabe.com" }),
+    );
+    expect(resolveCallerContext).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a 404 for a canvas in another org, and the handler never runs", async () => {
+    canvasRowHolder.row = { client_id: "client-9", source_script_id: null, clients: { org_id: "org-2" } };
+    const handler = ok();
+    const res = await withBodyCanvas(post(), "canvas-9", { need: "generate" }, handler);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Canvas not found." });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("is a 404 for a canvas that does not exist", async () => {
+    canvasRowHolder.row = null;
+    const handler = ok();
+    expect((await withBodyCanvas(post(), "missing", { need: "generate" }, handler)).status).toBe(404);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("is a 404 for a canvas on a client the caller is not on", async () => {
+    callerHolder.access = testAccess({ permissions: ["generate"], clientIds: ["other-client"] });
+    const handler = ok();
+    expect((await withBodyCanvas(post(), "canvas-1", { need: "generate" }, handler)).status).toBe(404);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("answers 403 with the agreed copy when the permission is missing", async () => {
+    callerHolder.access = testAccess({ permissions: [], clientIds: ["client-1"] });
+    const handler = ok();
+    const res = await withBodyCanvas(post(), "canvas-1", { need: "generate" }, handler);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "You don't have access to this. Ask your agency owner." });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("while impersonating (elevated), the target org's canvas is the one allowed", async () => {
+    canvasRowHolder.row = { client_id: "client-2", source_script_id: null, clients: { org_id: "org-2" } };
+    resolveImpersonationStateMock.mockResolvedValue({
+      isImpersonating: true, operatorId: "op-1", targetOrgId: "org-2", elevated: true,
+    });
+    const handler = ok();
+    expect((await withBodyCanvas(post(), "canvas-2", { need: "generate" }, handler)).status).toBe(200);
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ orgId: "org-2", clientId: "client-2" }), expect.anything());
   });
 });

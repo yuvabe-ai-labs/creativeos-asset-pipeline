@@ -1,7 +1,7 @@
 # Billing piece 2: Admin adds an agency with billing, and changes it any time
 
 **Date:** 2026-11-20 · **Branch:** `feat/razorpay-test` · **Map:** `2026-11-19-billing-phase-1-design.md`
-(piece 2) · **Builds on:** piece 1 (`2026-11-20-credit-grants-design.md`, migration 0067)
+(piece 2) · **Builds on:** piece 1 (`2026-11-20-credit-grants-design.md`, migration 0091)
 
 ## Goal
 
@@ -45,7 +45,7 @@ billing).
 2. **Monthly credit limit** (managed only): today's editor.
 3. **Credits** (paying only): the open grants, first-ending first. Each row: kind (Free credits,
    Plan, Top-up, Extra credits), left of total, ends on. Actions:
-   - **Add credits** (one action, D528): a switch, Free credits / Extra credits, then amount, end
+   - **Add credits** (one action, D587): a switch, Free credits / Extra credits, then amount, end
      date, reason. Free credits write a `free` grant (the owner sees them with a nudge to pick a
      plan); extra credits write an `admin` grant (no nudge, e.g. to make up for a problem). The
      switch starts on Free credits when the agency has no paid plan, else on Extra credits.
@@ -56,7 +56,7 @@ billing).
 
 Ended grants are not listed (they stop counting); the log keeps their history.
 
-## Database (added to migration 0067, which is not applied yet)
+## Database (added to migration 0091, which is not applied yet)
 
 Each function locks the agency row (like the piece 1 functions) and writes its `billing_log` row
 in the same transaction. `security definer`, `set search_path = public`, `service_role` only.
@@ -104,5 +104,5 @@ call, one log query, one names query. Nothing per grant or per row.
   reported beside the link.
 - Email: the free credits line appears only when given.
 - Migration text test: the four functions lock the agency, log, and are service-role only.
-- By hand on staging after 0067: add a paying agency with free credits; take back some; move the
+- By hand on staging after 0091: add a paying agency with free credits; take back some; move the
   end date; end now; switch to managed and back; the log shows each.

@@ -5,34 +5,65 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const SECTIONS = [
-  { href: "/admin", label: "Agencies", active: (p: string) => p === "/admin" || p.startsWith("/admin/orgs") },
-  { href: "/admin/plans", label: "Plans and prices", active: (p: string) => p.startsWith("/admin/plans") },
-  { href: "/admin/payments", label: "Payments", active: (p: string) => p.startsWith("/admin/payments") },
+const TABS = [
+  {
+    label: "Agencies",
+    href: "/admin",
+    active: (p: string) => p === "/admin" || p.startsWith("/admin/orgs"),
+  },
+  {
+    label: "Models",
+    href: "/admin/models",
+    active: (p: string) => p.startsWith("/admin/models"),
+  },
+  {
+    label: "Credits",
+    href: "/admin/credits",
+    active: (p: string) => p.startsWith("/admin/credits"),
+  },
+  {
+    label: "Plans and prices",
+    href: "/admin/plans",
+    active: (p: string) => p.startsWith("/admin/plans"),
+  },
+  {
+    label: "Payments",
+    href: "/admin/payments",
+    active: (p: string) => p.startsWith("/admin/payments"),
+  },
 ];
 
-// Admin's sections, at the top of each Admin page. Underlined like the header's Admin link.
+// Each admin page sets its own content width; the tabs take the same width so they line up
+// with the content below them.
+function contentWidth(pathname: string): string {
+  if (pathname.startsWith("/admin/models") || pathname.startsWith("/admin/credits")) return "max-w-5xl";
+  if (pathname.startsWith("/admin/orgs")) return "max-w-4xl";
+  return "max-w-3xl";
+}
+
 export function AdminSectionNav() {
   const pathname = usePathname() ?? "";
   return (
-    <nav aria-label="Admin" className="mb-8 flex gap-1">
-      {SECTIONS.map((s) => {
-        const active = s.active(pathname);
-        return (
-          <Button
-            key={s.href}
-            variant="ghost"
-            size="sm"
-            nativeButton={false}
-            render={<Link href={s.href}>{s.label}</Link>}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "underline decoration-2 underline-offset-4",
-              active ? "text-foreground decoration-primary" : "text-muted-foreground decoration-transparent",
-            )}
-          />
-        );
-      })}
+    <nav
+      aria-label="Admin sections"
+      className={cn("mx-auto flex w-full items-center gap-1 px-6 pt-8", contentWidth(pathname))}
+    >
+      {TABS.map((tab) => (
+        <Button
+          key={tab.href}
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          render={<Link href={tab.href}>{tab.label}</Link>}
+          aria-current={tab.active(pathname) ? "page" : undefined}
+          className={cn(
+            "underline decoration-2 underline-offset-4",
+            tab.active(pathname)
+              ? "text-foreground decoration-primary"
+              : "text-muted-foreground decoration-transparent",
+          )}
+        />
+      ))}
     </nav>
   );
 }

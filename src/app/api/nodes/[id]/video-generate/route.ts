@@ -3,18 +3,16 @@ import { editorLockResponse } from "@/lib/editor/lock-guard";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { getUpstreamOutputs } from "@/lib/db/nodes";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
-import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { currentPrice } from "@/lib/ai-models/pricing";
+import { videoEstimateUsd } from "@/lib/ai-models/video-price";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
-import { videoGenRegistry, DEFAULT_VIDEO_MODEL_ID } from "@/lib/video-gen/registry";
-// Constraint rules live in client-models.ts, which is the single source of truth for them —
-// the server registry carries only what generation needs. Importing it here is safe: that
-// module has no `server-only` dependency, it is plain param specs and rule data.
-import {
-  videoGenClientModelMap,
-  isVideoModelDeprecated,
-  VIDEO_MODEL_DEPRECATED_MESSAGE,
-} from "@/lib/video-gen/client-models";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { nodeModelId, NO_ESTIMATE_MESSAGE } from "@/lib/ai-models/runnable";
+import { videoRun } from "@/lib/video-gen/video-run";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import { areFramesAndRefsExclusive, validateAgainstRules } from "@/lib/video-gen/constraints";
 import {
   assignImageRoles,
@@ -61,7 +59,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, { need: "generate" }, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, node, caller, clientId, effectiveOrgId) => {
     const raw = await req.json().catch(() => null);
     const parsed = GenerateBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -69,15 +67,16 @@ export async function POST(
     }
     const body = parsed.data;
 
-    // D390 — a clip in the Editor's reel can't regenerate.
-    const locked = await editorLockResponse(nodeId);
+    // D390 — a clip in the Editor's reel can't regenerate. The catalog read doesn't depend on it.
+    const [locked, catalog] = await Promise.all([editorLockResponse(nodeId), getAiCatalog()]);
     if (locked) return locked;
 
-    const modelId = body.modelId ?? DEFAULT_VIDEO_MODEL_ID;
-    const config = videoGenRegistry[modelId];
-    if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
-    // D461 — a tab open from before the fallback can still send a deprecated model.
-    if (isVideoModelDeprecated(modelId)) return apiError(VIDEO_MODEL_DEPRECATED_MESSAGE, 400);
+    const modelId = body.modelId ?? videoModelsFrom(catalog).defaultId;
+    // D563 — live runs; hidden only on the node that already uses it; anything else is refused.
+    // The spec (params, rules, image inputs, label, provider) is the catalog row's.
+    const run = videoRun(catalog, modelId, { existingNodeModelId: nodeModelId(node.data) });
+    if (!run.ok) return apiError(run.message, 400);
+    const config = run.spec;
 
     // Build params using model's param specs (defaults where not provided)
     const bodyParams = body.params ?? {};
@@ -106,7 +105,7 @@ export async function POST(
     const resolved = await resolveVideoGenPrompt(
       upstream,
       getPromptUpstream,
-      singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider),
+      singleTakeTargetForProvider(config.provider),
     );
     if (!resolved.ok) return apiError(resolved.reason, 400);
     // BUG-010 — a citation whose image is gone would ship as plain text where a token belongs.
@@ -189,7 +188,7 @@ export async function POST(
       // the request is actually built.
       resolvedParams.duration = totalOf(resolved.cuts);
 
-      // multi_shot is a Kling-only param — params/gemini-omni.ts declares no such field, so setting
+      // multi_shot is a Kling-only param — the Omni catalog rows declare no such field, so setting
       // it unconditionally would put a field on a request whose model has no such param. Guarded on
       // the model actually declaring it (config.params), not hardcoded to a provider check, so the
       // guard tracks the param table rather than a duplicate list of which models it applies to.
@@ -261,8 +260,8 @@ export async function POST(
     // D308 — exactly which references go, chosen in the open: the operator's references first,
     // then the avatar's front, cited images, the avatar's sheet and the rest, within the model's
     // cap. Never a silent cut: references selected beyond the cap are refused (D97).
-    const modelLabel = videoGenClientModelMap[modelId]?.label ?? modelId;
-    const singleTake = singleTakeTargetForProvider(videoGenClientModelMap[modelId]?.provider);
+    const modelLabel = config.label;
+    const singleTake = singleTakeTargetForProvider(config.provider);
     const avatarFrontId = promptUpstream.find((u) => u.data.presenter === true)?.nodeId ?? null;
     const avatarSheet = promptUpstream.find((u) => u.data.presenter === "sheet")?.nodeId ?? null;
     const assetIds = scriptAssetIds(allUpstream);
@@ -283,7 +282,7 @@ export async function POST(
       assetMainIds: new Set(assetIds.main),
       assetAngleIds: new Set(assetIds.angles),
       storyboardIds: new Set(assetIds.storyboard),
-      framesExcludeReferences: areFramesAndRefsExclusive(videoGenClientModelMap[modelId]?.rules),
+      framesExcludeReferences: areFramesAndRefsExclusive(config.rules),
       unusable: config.provider === "seedance"
         ? sheetsUnusable(orderedImages.map((img) => img.nodeId), "Seedance can't use the profile sheet")
         : undefined,
@@ -325,7 +324,7 @@ export async function POST(
     // counting references that actually resolved to URLs and survived the model's limit, not
     // roles that were merely assigned. Placed before insertGeneration and reserveCredits so a
     // rejected request neither records a generation nor touches the org's credit balance.
-    const violation = validateAgainstRules(videoGenClientModelMap[modelId]?.rules, {
+    const violation = validateAgainstRules(config.rules, {
       params: resolvedParams,
       hasStartFrame: Boolean(startFrameUrl),
       hasEndFrame: Boolean(endFrameUrl),
@@ -341,6 +340,10 @@ export async function POST(
     const requestPrompt = presenterVoice?.text ? `${prompt}\n\n${presenterVoice.text}` : prompt;
     const referenceAudioUrl = presenterVoice?.referenceAudioUrl ?? undefined;
 
+    // D557 — the price row this run is reserved and charged with; no row, no run.
+    const price = currentPrice(catalog, modelId, new Date());
+    if (!price) return apiError(NO_PRICE_MESSAGE, 409);
+
     // Insert generation record (status: 'running')
     const generation = await insertGeneration({
       nodeId,
@@ -350,6 +353,7 @@ export async function POST(
       userEmail: caller.email,
       type: "video",
       modelUsed: modelId,
+      modelPriceId: price.id,
       paramsSnapshot: resolvedParams,
       inputsSnapshot: {
         promptNodeId: promptNode.nodeId,
@@ -370,11 +374,15 @@ export async function POST(
       const durationSeconds = Number(resolvedParams.seconds ?? resolvedParams.duration ?? 0);
       const audioEnabled = isVideoAudioEnabled(resolvedParams.audio);
       const resolution = asResolutionString(resolvedParams.resolution);
-      const estimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
-      if (estimate === null) {
-        throw new Error(`No cost estimate available for ${modelId} at these params.`);
+      // D551 — Omni also bills every image it is sent, and its thinking.
+      const images = (startFrameUrl ? 1 : 0) + (endFrameUrl ? 1 : 0) + referenceUrls.length;
+      const estimateUsd = videoEstimateUsd(price, { durationSeconds, audioEnabled, resolution, images });
+      if (estimateUsd === null) {
+        console.error(`[video-generate] no cost estimate for ${modelId}`, { durationSeconds, audioEnabled, resolution, images });
+        throw new Error(NO_ESTIMATE_MESSAGE);
       }
-      const estimatedCredits = usdToFinalCredits(estimate.usd);
+      // D571 — reserved with the credit settings live now, from the catalog read above.
+      const estimatedCredits = creditsFromUsd(estimateUsd, creditSettingsAt(catalog, new Date(generation.created_at)));
       const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {
         throw creditLimitError(reservation.reason);

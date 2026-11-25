@@ -1,7 +1,7 @@
 import { formatDay, lastDayOf } from "./dates";
 import type { BillingMode, GrantKind } from "./grants";
 
-// The agency page's billing log, one line per change (billing_log, migration 0067).
+// The agency page's billing log, one line per change (billing_log, migration 0091).
 
 const MODE: Record<BillingMode, string> = { managed: "Managed by Yuvabe", plans: "Pays for a plan" };
 const KIND_WORDS: Record<GrantKind, string> = { free: "free credits", plan: "plan credits", topup: "top-up credits", admin: "added credits" };

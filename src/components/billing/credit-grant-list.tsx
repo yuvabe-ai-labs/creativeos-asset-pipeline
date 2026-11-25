@@ -12,7 +12,7 @@ export const GRANT_KIND_LABEL: Record<GrantKind, string> = {
 const n = (v: number) => v.toLocaleString("en-IN");
 
 // An agency's open credits, the one ending first at the top: the same list on the owner's billing
-// page and in Admin, where `actions` adds Take back and Change end date to each row (D523).
+// page and in Admin, where `actions` adds Take back and Change end date to each row (D582).
 // A grant whose credits were all taken back (0 of 0) is left out: nothing to show or act on, and the
 // billing log keeps the record.
 export function CreditGrantList({ grants, actions, empty }: { grants: OpenGrant[]; actions?: (g: OpenGrant) => ReactNode; empty: string }) {

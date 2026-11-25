@@ -8,7 +8,7 @@ import { TestTopUp } from "@/components/billing/test-top-up";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Buy credits (test) — CreativeOS" };
 
-// D514: only where RAZORPAY_TEST_PAGE=1, and only for the agency's owner (view_credits);
+// D573: only where RAZORPAY_TEST_PAGE=1, and only for the agency's owner (view_credits);
 // anyone else gets the 404 page.
 export default async function BillingTestPage() {
   if (!isBillingTestEnabled()) notFound();

@@ -1,7 +1,7 @@
 import { CREDIT_REFUSALS, type CreditRefusal } from "./grants";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 
-// What a person sees when an AI run is refused (spec 2026-11-21-owner-billing-design.md, D523).
+// What a person sees when an AI run is refused (spec 2026-11-21-owner-billing-design.md, D582).
 // Owners get the step that fixes it, with a link to billing; members never see credits or billing
 // and are told to ask the owner.
 

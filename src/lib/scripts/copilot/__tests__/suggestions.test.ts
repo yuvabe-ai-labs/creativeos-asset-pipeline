@@ -94,8 +94,11 @@ describe("suggestionsFor", () => {
     expect(clientTermsIn(states.flatMap(labels).join("\n"))).toEqual([]);
   });
 
-  it("offers nothing once the script has left Generate", () => {
+  // Piece 5.1: at Visualise the message box is back, with the copilot's own chips from its last reply.
+  it("offers only the copilot's own chips at Visualise", () => {
     expect(suggestionsFor(state({ doc: reel06, stage: "visualise" }))).toEqual([]);
+    const messages = [msg("user", "how many left?"), msg("assistant", "Three.", ["Draw them"])];
+    expect(suggestionsFor(state({ doc: reel06, stage: "visualise", messages }))).toEqual([{ label: "Draw them", text: "Draw them", send: true }]);
   });
 });
 

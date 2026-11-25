@@ -55,7 +55,7 @@ const job = (over: Partial<GenerationRow>): GenerationRow =>
   ({
     id: "j", node_id: "g", avatar_id: null, org_id: "org-1", client_id: null, type: "image", status: "running",
     provider_job_id: null, model_used: null, params_snapshot: null,
-    inputs_snapshot: null, output_snapshot: null, tokens_used: null, cost_usd: null, credits_charged: null,
+    inputs_snapshot: null, output_snapshot: null, tokens_used: null, cost_usd: null, credits_charged: null, record_only: false,
     version_id: null, user_id: null, error: null, meta: null,
     created_at: "2026-07-05T00:00:00.000Z", updated_at: "2026-07-05T00:00:00.000Z",
     ...over,

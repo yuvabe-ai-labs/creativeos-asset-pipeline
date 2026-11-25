@@ -4,7 +4,7 @@
 the open questions answered on 20 Nov except final prices · **Prototype:**
 `OneDrive/Documents/CreativeOS/Credits/shared/2026-11-20-billing-journey-prototype-v4.html`, the
 plan page `Credits/shared/2026-11-20-credits-plan-v2.html`, the notes
-`Credits/2026-11-19-phase-1-notes.md` · **Builds on:** the test top-up (D514,
+`Credits/2026-11-19-phase-1-notes.md` · **Builds on:** the test top-up (D573,
 `2026-11-19-razorpay-test-top-up-design.md`).
 
 This is the map for phase 1. Each piece below gets its own spec, plan and build, in the order given.
@@ -136,7 +136,7 @@ The test top-up page (`/billing-test`) is removed when piece 6 ships.
 - `billing_settings` (one row: `inr_per_usd` default 100, `plan_margin_pct`, `topup_margin_pct`), `billing_plans` (name, credits, active, sort), `topup_packs`.
 - `billing_subscriptions`: agency, plan, Razorpay subscription id, status (`created`, `active`,
   `payment_due`, `cancelling`, `ended`), current period start and end, next plan.
-- `billing_payments` (from 0066): gains kind (plan, renewal, top-up), plan or pack, invoice.
+- `billing_payments` (from 0090): gains kind (plan, renewal, top-up), plan or pack, invoice.
 - `razorpay_events`: event id (unique), type, payload, processed at.
 
 ## Testing approach

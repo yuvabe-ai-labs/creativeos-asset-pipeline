@@ -4,7 +4,7 @@ import { isBillingTestEnabled } from "@/lib/billing/test-mode";
 
 type ConfirmBody = { orderId?: string; paymentId?: string; signature?: string };
 
-// D514: checks Checkout's signature so the page can say "payment received". It never adds
+// D573: checks Checkout's signature so the page can say "payment received". It never adds
 // credits: a closed tab or a forged call can't change a balance; the webhook does that.
 export async function POST(req: Request) {
   if (!isBillingTestEnabled()) return apiError("Not found.", 404);

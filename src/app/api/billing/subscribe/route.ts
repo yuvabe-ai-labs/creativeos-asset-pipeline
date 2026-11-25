@@ -1,7 +1,7 @@
 import { apiError, apiOk, withAccess, withQuietErrors } from "@/lib/api/route-helpers";
 import { startSubscription } from "@/lib/billing/subscriptions";
 
-// The owner subscribes to a monthly plan (D521). Answers the Razorpay subscription for Checkout;
+// The owner subscribes to a monthly plan (D580). Answers the Razorpay subscription for Checkout;
 // credits arrive only with the signed subscription.charged webhook.
 export async function POST(req: Request) {
   return withAccess(req, { need: "view_credits" }, (_caller, orgId) =>

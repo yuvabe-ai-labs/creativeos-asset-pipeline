@@ -46,7 +46,7 @@ const QUEUE_COLUMNS =
   "operator_user_id, operator, approved_by_user_id, approved_seen_at, created_at";
 
 // R5.1/R5.2/R5.3: one read, never one query per row (PRD §8: the client list renders for every
-// org member on every visit). Pending counts are of the work the person can approve (D507): the
+// org member on every visit). Pending counts are of the work the person can approve (D545): the
 // clients whose row has Approve, or every client for the owner (null). An empty list reads nothing.
 export async function getOrgReviewCounts(orgId: string, clientIds: readonly string[] | null): Promise<ReviewCounts> {
   if (clientIds !== null && clientIds.length === 0) return summarizeCounts([]);

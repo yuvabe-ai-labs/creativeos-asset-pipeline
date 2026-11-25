@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : null);
 
-// The owner's plans page (D523): the same cards Admin sees, each with one clear step. No plan:
+// The owner's plans page (D582): the same cards Admin sees, each with one clear step. No plan:
 // Pick this plan (pays now). On a plan: Current, or Change to this from the next payment.
 export function PlansGrid({ plans, subscription }: { plans: OfferPrice[]; subscription: LiveSubscription | null }) {
   const router = useRouter();

@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 
 const m = vi.hoisted(() => ({
   hasRunningGeneration: vi.fn(async () => false),
-  insertGeneration: vi.fn(async () => ({ id: "g1" })),
+  insertGeneration: vi.fn(async () => ({ id: "g1", created_at: new Date().toISOString() })),
   failGeneration: vi.fn(async () => undefined),
   insertVersion: vi.fn(async () => ({ id: "v-failed" })),
   reserveCredits: vi.fn(async () => ({ ok: true })),
@@ -32,7 +32,7 @@ vi.mock("@/lib/db/credit-transactions", () => ({
   CreditLimitError: class CreditLimitError extends Error {},
 }));
 vi.mock("@/lib/storage", () => ({ prepareImageGenUploads: m.prepareImageGenUploads }));
-vi.mock("@/lib/image-gen/estimate", () => ({ estimateImageGenerationCostUsd: () => 0.04 }));
+vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock());
 vi.mock("@trigger.dev/sdk/v3", () => ({ tasks: { trigger: m.trigger } }));
 
 import { startImageGeneration, type StartImageGenerationInput } from "../start-generation";
@@ -51,6 +51,14 @@ const input: StartImageGenerationInput = {
 };
 
 beforeEach(() => vi.clearAllMocks());
+
+it("refuses a model with no price before anything is recorded (D557)", async () => {
+  const { priceForNewRun } = await import("@/lib/ai-models/run-price");
+  vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+  const res = await startImageGeneration(input);
+  expect(res.status).toBe(409);
+  expect(m.insertGeneration).not.toHaveBeenCalled();
+});
 
 describe("startImageGeneration (D366)", () => {
   it("refuses a second run on the same node, before inserting or reserving", async () => {
@@ -100,7 +108,7 @@ describe("startImageGeneration (D366)", () => {
     m.reserveCredits.mockResolvedValueOnce({ ok: false, reason: "used_up" } as never);
     const res = await startImageGeneration(input);
     expect(res.status).toBe(402);
-    // The refusal's plain message (D523), stored on the row too so the feed knows not to toast.
+    // The refusal's plain message (D582), stored on the row too so the feed knows not to toast.
     expect((await res.json()).error).toBe("AI runs are paused. Your agency has used its credits. Ask your agency owner.");
     expect(m.trigger).not.toHaveBeenCalled();
     expect(m.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: "AI runs are paused. Your agency has used its credits. Ask your agency owner." });

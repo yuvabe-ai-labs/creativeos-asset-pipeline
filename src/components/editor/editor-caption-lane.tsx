@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { addCaption, captionTimes, retimeCaption } from "@/lib/editor/captions";
-import { displayText } from "@/lib/editor/caption-style";
+import { displayText, captionLook } from "@/lib/editor/caption-style";
 import { pieceLimit } from "@/lib/editor/reconcile";
 import { totalSeconds } from "@/lib/editor/timeline";
 import { useAutoCaptionsContext } from "./auto-captions-context";
@@ -59,7 +59,7 @@ export function EditorCaptionLane({ scale }: { scale: number }) {
         return (
           <EditorCaptionBlock
             key={c.id}
-            text={displayText(c.text, doc.captionStyle)}
+            text={displayText(c.text, captionLook(doc, c))}
             start={t.start}
             end={t.end}
             scale={scale}

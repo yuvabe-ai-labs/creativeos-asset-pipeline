@@ -6,7 +6,7 @@ import { useConfirmSubscription, useConfirmTopUp, useStartTopUp, useSubscribe } 
 import { CHECKOUT_LOAD_FAILED, loadCheckout, openCheckout, type CheckoutSuccess, type SubscriptionCheckoutSuccess } from "@/lib/billing/load-checkout";
 import { ApiError } from "@/services/read-json";
 
-// The two payment flows in Razorpay Checkout (D521, D522), shared by every screen that buys: start
+// The two payment flows in Razorpay Checkout (D580, D581), shared by every screen that buys: start
 // on the server, open Checkout, confirm the signature, refresh the page. Credits only ever arrive
 // with the signed webhook, so success says "received", never "added".
 

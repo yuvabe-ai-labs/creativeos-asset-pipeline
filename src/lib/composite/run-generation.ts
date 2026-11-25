@@ -1,7 +1,7 @@
 import "server-only";
 import type { NextResponse } from "next/server";
 import { validateReferenceImages, type RefImageMeta } from "@/lib/image-gen/validate";
-import type { MediaGenModelSpec } from "@/lib/image-gen/types";
+import type { ClientModelSpec } from "@/lib/image-gen/types";
 import type { CallerContext } from "@/lib/dal-logic";
 import { startImageGeneration } from "@/lib/image-gen/start-generation";
 
@@ -11,7 +11,7 @@ import { startImageGeneration } from "@/lib/image-gen/start-generation";
  *  instruction resolved to would point at the wrong one. */
 export function referenceProblem(
   images: RefImageMeta[],
-  config: MediaGenModelSpec,
+  config: ClientModelSpec,
 ): { message: string; status: number } | null {
   if (images.length > config.maxReferenceImages) {
     return {
@@ -37,7 +37,7 @@ export type CompositeRun = {
   orgId: string;
   caller: CallerContext;
   modelId: string;
-  config: MediaGenModelSpec;
+  config: ClientModelSpec;
   params: Record<string, unknown>;
   prompt: string;
   referenceUrls: string[];

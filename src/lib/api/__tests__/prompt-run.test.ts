@@ -32,9 +32,25 @@ vi.mock("@/lib/db/credit-transactions", async () => {
   };
 });
 
+vi.mock("@/lib/ai-models/run-price", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  class NoPriceError extends Error {}
+  return {
+    NoPriceError,
+    NO_PRICE_MESSAGE: "This model has no price set, so it can't run right now.",
+    priceForNewRun: vi.fn(async (modelId: string) => {
+      try { return seededPrice(modelId); } catch { return null; }
+    }),
+  };
+});
+
 // Imported AFTER the mocks above so the module under test picks them up.
 const { runPromptGeneration } = await import("../prompt-run");
 const { CreditLimitError } = await import("@/lib/db/credit-transactions");
+const { priceForNewRun, NoPriceError } = await import("@/lib/ai-models/run-price");
+const { PROMPT_MODEL_ID } = await import("@/lib/ai-models/service-models");
+const { seededPrice } = await import("@/lib/ai-models/test-prices");
+const { promptFlatCredits, promptCharge } = await import("@/lib/ai-models/service-price");
 
 function baseArgs(call: () => Promise<{ output: string; usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null }>) {
   return {
@@ -45,8 +61,8 @@ function baseArgs(call: () => Promise<{ output: string; usage: { prompt_tokens: 
     userEmail: "maker@example.com",
     operatorUserId: "user-1",
     type: "prompt" as const,
-    model: "openai:gpt-4o-mini",
-    estimatedCredits: 5,
+    model: PROMPT_MODEL_ID,
+    attachmentCount: 0,
     generationParamsSnapshot: { model: "gpt-4o-mini" },
     generationInputsSnapshot: { instruction: "do a thing" },
     inputsUsed: { upstream: [] },
@@ -93,6 +109,65 @@ describe("runPromptGeneration", () => {
     expect(failGeneration).not.toHaveBeenCalled();
   });
 
+  // D559 — prompt runs keep a flat price from the row; the real token cost is only recorded.
+  describe("flat price from the row", () => {
+    const row = seededPrice(PROMPT_MODEL_ID);
+    const usage = { prompt_tokens: 8606, completion_tokens: 160, total_tokens: 8766, prompt_tokens_details: { cached_tokens: 3968 } };
+
+    function ok() {
+      insertGeneration.mockResolvedValue({ id: "gen-p" });
+      reserveCredits.mockResolvedValue({ ok: true });
+      insertVersion.mockResolvedValue({ id: "version-p" });
+      setActiveVersion.mockResolvedValue(undefined);
+      settleGeneration.mockResolvedValue(undefined);
+      succeedGeneration.mockResolvedValue(undefined);
+    }
+
+    it("reserves the row's flat price and records the row", async () => {
+      ok();
+      const call = vi.fn().mockResolvedValue({ output: "x", usage: null });
+      await runPromptGeneration({ ...baseArgs(call), attachmentCount: 2 });
+      expect(promptFlatCredits(row, 2)).toBe(10);
+      expect(reserveCredits).toHaveBeenCalledWith("org-1", "gen-p", 10);
+      expect(insertGeneration.mock.calls[0][0]).toMatchObject({ modelPriceId: row.id });
+    });
+
+    it("settles the flat price, records the token cost and the bill", async () => {
+      ok();
+      const call = vi.fn().mockResolvedValue({ output: "x", usage });
+      await runPromptGeneration({ ...baseArgs(call), attachmentCount: 2 });
+      const charge = promptCharge(row, usage, 2)!;
+      expect(settleGeneration).toHaveBeenCalledWith({ orgId: "org-1", generationId: "gen-p", actualAmount: 10 });
+      const done = succeedGeneration.mock.calls[0][0];
+      expect(done.creditsCharged).toBe(10);
+      expect(done.costUsd).toBe(charge.recordedUsd);
+      expect(done.costUsd).toBeGreaterThan(0);
+      expect(done.providerBill).toEqual({ ...charge.bill, raw: usage });
+      expect(done.providerBill.source).toBe("provider_usage");
+      expect(done.providerBill.raw).toEqual(usage);
+    });
+
+    it("with no usage settles the flat price and records a request bill, no cost", async () => {
+      ok();
+      const call = vi.fn().mockResolvedValue({ output: "x", usage: null });
+      await runPromptGeneration({ ...baseArgs(call), attachmentCount: 1 });
+      expect(settleGeneration).toHaveBeenCalledWith({ orgId: "org-1", generationId: "gen-p", actualAmount: 7.5 });
+      const done = succeedGeneration.mock.calls[0][0];
+      expect(done.creditsCharged).toBe(7.5);
+      expect(done.costUsd).toBeUndefined();
+      expect(done.providerBill).toEqual({ source: "request", meters: { request: 1, input_image: 1 } });
+    });
+
+    it("refuses with NoPriceError before anything is recorded when the model has no price", async () => {
+      vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+      const call = vi.fn();
+      await expect(runPromptGeneration(baseArgs(call))).rejects.toBeInstanceOf(NoPriceError);
+      expect(insertGeneration).not.toHaveBeenCalled();
+      expect(reserveCredits).not.toHaveBeenCalled();
+      expect(call).not.toHaveBeenCalled();
+    });
+  });
+
   it("refunds the reservation and fails the generation when the call throws", async () => {
     insertGeneration.mockResolvedValue({ id: "gen-2" });
     reserveCredits.mockResolvedValue({ ok: true });
@@ -124,7 +199,7 @@ describe("runPromptGeneration", () => {
     expect(insertGeneration).toHaveBeenCalledTimes(1);
     expect(call).not.toHaveBeenCalled();
     expect(insertVersion).not.toHaveBeenCalled();
-    // The refusal's plain message (D523) is what the failed row carries.
+    // The refusal's plain message (D582) is what the failed row carries.
     expect(failGeneration).toHaveBeenCalledWith({ generationId: "gen-3", error: "AI runs are paused. Your agency has used its credits. Ask your agency owner." });
     expect(refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "gen-3" });
   });

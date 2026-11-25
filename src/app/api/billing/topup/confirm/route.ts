@@ -3,7 +3,7 @@ import { verifyCheckoutSignature } from "@/lib/billing/razorpay";
 
 type ConfirmBody = { orderId?: unknown; paymentId?: unknown; signature?: unknown };
 
-// Checks Checkout's signature so the page can say "payment received" (D522). It never adds
+// Checks Checkout's signature so the page can say "payment received" (D581). It never adds
 // credits: the order.paid webhook does that.
 export async function POST(req: Request) {
   return withAccess(req, { need: "view_credits" }, async () => {

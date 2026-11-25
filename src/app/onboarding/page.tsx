@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Welcome — CreativeOS" };
 
 // Spec §6.4. Only for someone waiting (spec §2.4); anyone else goes home. No live update: the
-// person is emailed when their access is ready and opens the app again (D503).
+// person is emailed when their access is ready and opens the app again (D541).
 export default async function OnboardingPage() {
   const { caller, effectiveOrgId } = await resolveActingCaller();
   const access = accessOf(caller);

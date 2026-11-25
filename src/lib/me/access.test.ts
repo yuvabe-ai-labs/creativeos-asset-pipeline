@@ -4,7 +4,7 @@ import { check } from "@/lib/permissions/check";
 import { accessFromMe } from "./access";
 import { testMePayload } from "./test-fixtures";
 
-// D504: the browser builds the same Access the server checked, from what /api/me sent.
+// D542: the browser builds the same Access the server checked, from what /api/me sent.
 describe("accessFromMe", () => {
   it("answers each client the way its row says", () => {
     const access = accessFromMe(testMePayload({

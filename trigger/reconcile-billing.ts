@@ -1,5 +1,5 @@
 // trigger/reconcile-billing.ts
-// The check against Razorpay (D526). Webhooks can be late, missing or out of order, and Razorpay
+// The check against Razorpay (D585). Webhooks can be late, missing or out of order, and Razorpay
 // disables a webhook after 24 hours of failures, so two schedules bring our records in line:
 //   - hourly: top-ups whose payment went through but whose order.paid never arrived;
 //   - nightly (02:00 India time): every live plan's status, any charge we missed, and plans unpaid

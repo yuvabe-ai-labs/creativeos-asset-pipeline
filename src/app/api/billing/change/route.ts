@@ -1,7 +1,7 @@
 import { apiError, apiOk, withAccess, withQuietErrors } from "@/lib/api/route-helpers";
 import { changePlan } from "@/lib/billing/subscriptions";
 
-// The owner moves to another plan from the next payment (D521).
+// The owner moves to another plan from the next payment (D580).
 export async function POST(req: Request) {
   return withAccess(req, { need: "view_credits" }, (_caller, orgId) =>
     withQuietErrors("Could not change the plan.", async () => {

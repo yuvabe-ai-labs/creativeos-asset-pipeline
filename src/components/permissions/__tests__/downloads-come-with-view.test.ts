@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 
-// D507: being on a client covers downloads. A person who can see a file is on its client, so no download
+// D545: being on a client covers downloads. A person who can see a file is on its client, so no download
 // button has a permission of its own.
 const SURFACES = [
   "src/components/nodes/image-gen-focus-view.tsx",

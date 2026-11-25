@@ -65,7 +65,7 @@ export async function cancelPlan(orgId: string): Promise<StepResult<{ endsAt: st
   const live = await getLiveSubscription(orgId);
   if (!live || !live.razorpaySubscriptionId || live.status === "created") return refuse(404, "You don't have a plan to cancel.");
   if (live.status === "cancelling") return { ok: true, value: { endsAt: live.currentPeriodEnd } };
-  // A payment is due: there is no paid month left to use, so the plan ends now (D526).
+  // A payment is due: there is no paid month left to use, so the plan ends now (D585).
   if (live.status === "payment_due") {
     await cancelSubscription(live.razorpaySubscriptionId, false);
     await updateSubscription(live.id, { status: "ended", cancelAtPeriodEnd: false });
@@ -91,7 +91,7 @@ export async function changePlan(orgId: string, priceId: string): Promise<StepRe
   return { ok: true, value: { from: live.currentPeriodEnd } };
 }
 
-/** Where the owner pays a due charge (D526): Razorpay's hosted page for the subscription, which
+/** Where the owner pays a due charge (D585): Razorpay's hosted page for the subscription, which
  *  retries the card, takes a new one, or switches to UPI or a bank mandate. Paying there brings
  *  the plan back; the webhook adds the month's credits. */
 export async function payNowLink(orgId: string): Promise<StepResult<{ url: string }>> {

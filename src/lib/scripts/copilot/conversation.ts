@@ -19,6 +19,10 @@ function cardLine(card: MessageCard): string {
       return `[proposed a change to ${card.before.length} shots: ${card.status}]`;
     case "import":
       return `[offered to replace the draft with a pasted script (${card.summary}): ${card.status}]`;
+    case "offer":
+      return `[offered the button: ${card.action === "draw" ? "draw panels" : card.action === "send" ? "send for client review" : "reopen the script"}]`;
+    case "picture":
+      return `[attached a picture "${card.name}" to ${card.target}]`;
   }
 }
 

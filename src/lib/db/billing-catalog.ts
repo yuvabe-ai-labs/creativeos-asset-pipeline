@@ -2,8 +2,8 @@ import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { CatalogPrice, CatalogProduct, BillingSettings } from "@/lib/billing/catalog";
 
-// The plans, packs, prices and pricing settings (migrations 0068, 0069). Reads are three calls
-// whatever the number of agencies; writes go through the 0069 functions, which log each change.
+// The plans, packs, prices and pricing settings (migrations 0092, 0093). Reads are three calls
+// whatever the number of agencies; writes go through the 0093 functions, which log each change.
 
 const PRICE_COLUMNS = "id, amount_minor, list_amount_minor, interval_months, credits, credits_every_months, valid_days, active, created_at";
 
@@ -119,7 +119,7 @@ export async function saveProduct(
 
 /** Adds a plan or pack with its price (`productId` null), or edits it: name, description and
  *  visibility in place; a changed amount or credits becomes a new price that replaces the old one
- *  for its agencies from their next payment (admin_save_offer, migration 0070). */
+ *  for its agencies from their next payment (admin_save_offer, migration 0094). */
 export async function saveOffer(
   o: {
     productId: string | null;

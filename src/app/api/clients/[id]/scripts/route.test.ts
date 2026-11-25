@@ -28,7 +28,7 @@ describe("GET /api/clients/[id]/scripts", () => {
     vi.mocked(resolveOrgId).mockResolvedValue("org-1");
     vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "user-1", orgId: "org-1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
-    vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Jackfruit365", org_id: "org-1" } as never);
+    vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Jackfruit365", org_id: "org-1", kb_status: "ready" } as never);
     vi.mocked(listScripts).mockResolvedValue([]);
   });
 
@@ -69,7 +69,7 @@ describe("POST /api/clients/[id]/scripts (New script)", () => {
   });
 
   it("creates an empty script at Generate with the copilot's opening, and returns its id", async () => {
-    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [], all: [] } });
     vi.mocked(createGenerateScript).mockResolvedValue(generateScript());
     const { POST } = await import("./route");
     const res = await POST(jsonRequest("http://localhost/api/clients/c1/scripts", "POST") as never, { params: Promise.resolve({ id: "c1" }) });
@@ -78,5 +78,13 @@ describe("POST /api/clients/[id]/scripts (New script)", () => {
     const input = vi.mocked(createGenerateScript).mock.calls[0][0];
     expect(input).toMatchObject({ clientId: "c1", userId: "user-1", brief: EMPTY_BRIEF, notes: EMPTY_NOTES });
     expect(input.opening).toMatch(/What format is this reel?/);
+  });
+
+  it("refuses a client whose Brand KB isn't ready (D503)", async () => {
+    vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Jackfruit365", org_id: "org-1", kb_status: "pending" } as never);
+    const { POST } = await import("./route");
+    const res = await POST(jsonRequest("http://localhost/api/clients/c1/scripts", "POST") as never, { params: Promise.resolve({ id: "c1" }) });
+    expect(res.status).toBe(409);
+    expect(createGenerateScript).not.toHaveBeenCalled();
   });
 });

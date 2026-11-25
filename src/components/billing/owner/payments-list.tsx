@@ -11,7 +11,7 @@ import { HistoryPager } from "../history-pager";
 const WHAT: Record<OwnerPayment["kind"], string> = { plan: "Plan", renewal: "Monthly renewal", topup: "Top-up", test: "Test payment" };
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
-// The agency's payments on Billing, newest first (D523), ten at a time (D529): what, when, the total
+// The agency's payments on Billing, newest first (D582), ten at a time (D588): what, when, the total
 // with GST. Page 1 comes with the page; older pages load on demand, so no payment is ever cut off.
 export function PaymentsList({ initial }: { initial: OwnerPaymentsPage }) {
   const [page, setPage] = useState(1);

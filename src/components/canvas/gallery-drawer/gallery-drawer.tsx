@@ -40,6 +40,8 @@ import { GalleryStoryboard } from "./gallery-storyboard";
 import { filterStoryboardGroups, storyboardGroups } from "./storyboard-images";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { cn } from "@/lib/utils";
+import { useAiCatalog } from "@/hooks/queries/ai-models";
+import { catalogModelLabel } from "@/lib/ai-models/model-lists";
 import type { GalleryImage, GalleryTab, ViewMode } from "./types";
 import type { DriveBrowseItem } from "@/hooks/use-drive-browser";
 
@@ -201,6 +203,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
       }));
   }, [browser.items]);
 
+  const catalog = useAiCatalog().data;
   const assets: GalleryImage[] = useMemo(
     () =>
       generations.items.map((item) => ({
@@ -208,11 +211,11 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
         imageUrl: item.imageUrl,
         previewUrl: item.imageUrl,
         filename: item.nodeName ?? "Image Gen",
-        subtitle: `${item.modelUsed ?? "unknown"} · ${new Date(item.createdAt).toLocaleDateString()}`,
+        subtitle: [catalogModelLabel(catalog, item.modelUsed), new Date(item.createdAt).toLocaleDateString()].filter(Boolean).join(" · "),
         source: "generated" as const,
         generationId: item.id,
       })),
-    [generations.items],
+    [generations.items, catalog],
   );
 
   const activeLoading = tab === "references" ? browser.loading : generations.loading;

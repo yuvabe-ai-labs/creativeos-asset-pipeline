@@ -2,7 +2,7 @@
 
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import { describeVersionParams } from "@/lib/generations/version-params";
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { useImageModels } from "@/hooks/queries/ai-models";
 import type { VersionDecisionSummary } from "@/lib/approval";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import { VersionList } from "./version-list";
@@ -50,17 +50,19 @@ type Props = {
 // D180/D383: the row shell lives in VersionList. This file supplies only what is specific to an
 // image version: the thumbnail, the summary line and the generation metadata.
 export function ImageGenVersionHistory({ versions, activeVersionId, viewedVersionId, onView }: Props) {
+  const images = useImageModels();
   // versionId → "vN" label, so an edit can name the version it was derived from.
   const labelById = versionLabelsById(versions);
 
   const rows = versions.map((v) => {
     const versionModelId = v.paramsUsed?.modelId ?? v.modelUsed ?? "";
-    const modelLabel = versionModelId.split(":")[1] ?? "";
+    // The catalog's label; a model it doesn't hold shows none (never the id).
+    const modelLabel = images.get(versionModelId)?.label ?? "";
     // YUV-295: what this version was actually generated with. Without it two rows for the
     // same prompt are indistinguishable — and since restoring one now also restores its
     // model and params, the row has to show what restoring would apply.
     const paramSummary = describeVersionParams(
-      imageGenClientModelMap[versionModelId]?.params,
+      images.get(versionModelId)?.params,
       v.paramsUsed ?? {},
     )
       .map((p) => `${p.label}: ${p.value}`)

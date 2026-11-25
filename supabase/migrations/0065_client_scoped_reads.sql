@@ -1,4 +1,4 @@
--- 0065: the browser's direct reads follow the client list, not just the agency (D512).
+-- 0065: the browser's direct reads follow the client list, not just the agency (D550).
 --
 -- Eight tables let anyone in an agency read every row of that agency through the public API
 -- ("org isolation": org_id in auth_org_ids()). The app's routes and pages already limit a member

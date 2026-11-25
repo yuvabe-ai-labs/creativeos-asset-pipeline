@@ -10,8 +10,9 @@ import { useTimelineActions } from "./use-timeline-actions";
 /** The editor's keys (spec A8), never while typing in a field:
  *  Space play/pause · ←/→ a frame, Shift a second · Home/End · S split · Del delete ·
  *  Ctrl/⌘+Z undo, +Shift or Ctrl+Y redo (D400) · Ctrl/⌘ +/− zoom · Shift+Z fit ·
- *  Ctrl/⌘+1/2 panels (D403) · Esc deselect. */
-export function useEditorShortcuts(panels: { toggleSources(): void; toggleInspector(): void }) {
+ *  Ctrl/⌘+1/2 show Sources / the Inspector (D403) · Ctrl+H show or hide the side panel (Ctrl only:
+ *  ⌘H hides the browser on a Mac) · Esc deselect. */
+export function useEditorShortcuts(panels: { toggleSources(): void; toggleInspector(): void; togglePanel(): void }) {
   const store = useEditorStoreApi();
   const { playing, play, pause, step, fps, seek, total } = usePlayback();
   const { split, deleteSelection } = useTimelineActions();
@@ -20,6 +21,12 @@ export function useEditorShortcuts(panels: { toggleSources(): void; toggleInspec
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isEditableTarget(e.target as HTMLElement | null)) return;
+      if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "h") {
+        // Browsers open History on Ctrl+H; in the editor it shows or hides the side panel.
+        e.preventDefault();
+        panels.togglePanel();
+        return;
+      }
       const mod = (e.ctrlKey || e.metaKey) && !e.altKey;
       if (mod) {
         const k = e.key.toLowerCase();

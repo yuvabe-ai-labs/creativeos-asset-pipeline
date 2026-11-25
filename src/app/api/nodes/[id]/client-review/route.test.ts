@@ -121,7 +121,7 @@ describe("/api/nodes/[id]/client-review", () => {
     expect(input.shareToken).toBe("n1");
     // The version is named after its file.
     expect(vi.mocked(createVersion)).toHaveBeenCalledWith({
-      reviewId: "r1", videoPath: CUT, title: "dosa brand film", allowDownload: true, createdBy: "user-1",
+      reviewId: "r1", videoPath: CUT, title: "dosa brand film", allowDownload: false, createdBy: "user-1",
     });
     expect((await res.json()).review.shareToken).toBe("n1");
   });

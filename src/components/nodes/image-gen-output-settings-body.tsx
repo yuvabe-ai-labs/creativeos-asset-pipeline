@@ -3,7 +3,7 @@
 import { AlertTriangle } from "lucide-react";
 
 import { ImageGenOutputSettings } from "./image-gen-output-settings";
-import type { ClientModelSpec } from "@/lib/image-gen/client-models";
+import type { ClientModelSpec } from "@/lib/image-gen/types";
 
 type ParamFormValues = Record<string, unknown>;
 

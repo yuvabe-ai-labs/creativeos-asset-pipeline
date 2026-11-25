@@ -3,7 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { endsAtFromDay } from "@/lib/billing/dates";
 import { BILLING_LOG_PAGE_SIZE } from "@/lib/billing/usage-page-size";
 
-// Yuvabe's billing changes (migration 0067). Each RPC locks the agency, makes the change and logs
+// Yuvabe's billing changes (migration 0091). Each RPC locks the agency, makes the change and logs
 // it in one transaction. Spec 2026-11-20-admin-agency-billing-design.md.
 
 export type { BillingMode } from "@/lib/billing/grants";
@@ -74,7 +74,7 @@ type LogRow = { id: string; action: string; before: BillingLogEntry["before"]; a
 
 export type BillingLogPage = { entries: BillingLogEntry[]; total: number };
 
-// One page, newest first, with the total from the same request (D529). Names come from profiles
+// One page, newest first, with the total from the same request (D588). Names come from profiles
 // in a second query (billing_log points at auth.users, so the two can't be joined in one request).
 export async function listBillingLog(orgId: string, page = 1): Promise<BillingLogPage> {
   const supabase = createServerSupabase();

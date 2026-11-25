@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { ACTIONS, isAction } from "@/lib/permissions/model";
 
-// D501/D504: the second argument is a guard — { need, on } or { custom: "<reason>" }.
+// D539/D542: the second argument is a guard — { need, on } or { custom: "<reason>" }.
 const GUARD_RE = /withAction\(\s*"[^"]+"\s*,\s*\{\s*(need:\s*"([a-z_.]+)"|custom:\s*")/;
 const LOCK_ACTIONS = ["getCanvasLockAction", "acquireCanvasLockAction", "heartbeatCanvasLockAction", "releaseCanvasLockAction"];
 
@@ -73,6 +73,26 @@ const ALLOWLIST: Record<string, string> = {
   setGrantEndAction:
     "billing-admin.ts: the agency page's Billing tab, the same D85 platform-administration category as " +
     "admin.ts (requireSuperAdmin()-gated); orgId is an explicit caller-supplied parameter.",
+  updateAiModelAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  addAiModelPriceAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  cancelAiModelPriceAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  replaceAiModelPriceAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  reorderAiModelsAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  undoAiModelPriceAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  addCreditSettingsAction:
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
+  cancelCreditSettingsAction:
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
+  undoCreditSettingsAction:
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
+  replaceCreditSettingsAction:
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
 };
 
 function findActionFiles(dir: string): string[] {

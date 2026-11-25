@@ -14,7 +14,7 @@ export function EditorViewMenu({ layout, panelOpen, side, onShowSide }: {
   side: EditorSide;
   onShowSide(s: EditorSide): void;
 }) {
-  const { fit } = useEditorView();
+  const { fit, fitted } = useEditorView();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -35,13 +35,18 @@ export function EditorViewMenu({ layout, panelOpen, side, onShowSide }: {
           Show inspector
           <span className="ml-auto pl-4 text-xs text-muted-foreground">Ctrl 2</span>
         </DropdownMenuItem>
-        {panelOpen && <DropdownMenuItem onClick={layout.toggleInspector}>Hide side panel</DropdownMenuItem>}
+        {panelOpen && (
+          <DropdownMenuItem onClick={layout.toggleInspector}>
+            Hide side panel
+            <span className="ml-auto pl-4 text-xs text-muted-foreground">Ctrl H</span>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => layout.setTimelineHeight(window.innerHeight * 0.55)}>Bigger timeline</DropdownMenuItem>
         <DropdownMenuItem onClick={() => layout.setTimelineHeight(0)}>Bigger preview</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={fit}>
-          Fit the reel
+          {fitted ? "Back to the previous zoom" : "Fit the reel"}
           <span className="ml-auto pl-4 text-xs text-muted-foreground">Shift Z</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

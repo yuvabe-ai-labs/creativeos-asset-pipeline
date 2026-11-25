@@ -14,7 +14,7 @@ import { ConfirmStepDialog } from "./confirm-step-dialog";
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
-// The owner's plan at the top of Billing (D523): which plan, when it renews or ends, a due payment
+// The owner's plan at the top of Billing (D582): which plan, when it renews or ends, a due payment
 // as the one warning, and Change plan / Cancel plan. No plan: one way to pick one.
 export function PlanSummary({ subscription }: { subscription: LiveSubscription | null }) {
   const router = useRouter();

@@ -137,7 +137,7 @@ export async function resendOwnerInviteAction(orgId: string): Promise<OwnerInvit
 }
 
 // The agencies list's Invite an owner, for an agency with no owner and no open owner invite
-// (spec §6.6, D505): a new owner invite, emailed and shown.
+// (spec §6.6, D543): a new owner invite, emailed and shown.
 export async function inviteOwnerAction(orgId: string, rawEmail: string): Promise<OwnerInviteResult> {
   const admin = await requireSuperAdmin();
   if (!AgencyIdSchema.safeParse(orgId).success) return { error: "Agency not found." };

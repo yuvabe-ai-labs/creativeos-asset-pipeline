@@ -1,8 +1,15 @@
 import "server-only";
 import sharp from "sharp";
-import { imageGenRegistry } from "@/lib/image-gen/registry";
-import { computeImageCost } from "@/lib/image-gen/cost";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
+import {
+  MODEL_UNAVAILABLE_MESSAGE, INVALID_PARAMS_MESSAGE, NO_ESTIMATE_MESSAGE, ModelRefusedError,
+} from "@/lib/ai-models/runnable";
+import { imageRun } from "@/lib/image-gen/image-run";
+import { NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { currentPrice } from "@/lib/ai-models/pricing";
+import { imageChargeUsd } from "@/lib/ai-models/image-price";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { insertGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
 import {
   reserveCredits, settleGeneration, refundReservation, CreditLimitError,
@@ -36,12 +43,23 @@ export type BilledImageArgs = {
 export async function runBilledImageGeneration(
   args: BilledImageArgs,
 ): Promise<{ generation: GenerationRow; creditsCharged: number }> {
-  const config = imageGenRegistry[args.modelId];
-  const params = avatarImageParams(args.modelId, args.aspect);
-  if (!config || !params) throw new Error(`Unknown model: ${args.modelId}`);
-  const parsed = config.schema.safeParse(params);
-  if (!parsed.success) throw new Error(`Invalid params for ${args.modelId}.`);
+  // D563 — the same check every route makes; an avatar or panel has no node, so hidden is refused.
+  const catalog = await getAiCatalog();
+  const images = imageModelsFrom(catalog);
+  const run = imageRun(catalog, args.modelId);
+  if (!run.ok) throw new ModelRefusedError(run.message);
+  const params = avatarImageParams(images, args.modelId, args.aspect);
+  if (!params) throw new ModelRefusedError(MODEL_UNAVAILABLE_MESSAGE);
+  const parsed = run.spec.schema.safeParse(params);
+  if (!parsed.success) {
+    console.error(`[billedImageRun] invalid params for ${args.modelId}`, parsed.error.issues);
+    throw new Error(INVALID_PARAMS_MESSAGE);
+  }
   const validatedParams = parsed.data as Record<string, unknown>;
+
+  // D557 — the price row this image is reserved and charged with; no row, no image.
+  const price = currentPrice(catalog, args.modelId, new Date());
+  if (!price) throw new Error(NO_PRICE_MESSAGE);
 
   const generation = await insertGeneration({
     ...args.owner,
@@ -51,19 +69,24 @@ export async function runBilledImageGeneration(
     userEmail: args.userEmail,
     type: "image",
     modelUsed: args.modelId,
+    modelPriceId: price.id,
     paramsSnapshot: validatedParams,
     inputsSnapshot: args.inputsSnapshot,
   });
 
   try {
-    const estimateUsd = estimateAvatarImageCostUsd({
+    const estimateUsd = estimateAvatarImageCostUsd(images, price, {
       modelId: args.modelId, aspect: args.aspect, referenceCount: args.referenceUrls.length,
     });
-    if (estimateUsd === null) throw new Error(`No cost estimate available for ${args.modelId}.`);
-    const reservation = await reserveCredits(args.orgId, generation.id, usdToFinalCredits(estimateUsd));
+    if (estimateUsd === null) {
+      console.error(`[billedImageRun] no cost estimate for ${args.modelId} at aspect ${args.aspect}`);
+      throw new Error(NO_ESTIMATE_MESSAGE);
+    }
+    const reservedCredits = creditsFromUsd(estimateUsd, creditSettingsAt(catalog, new Date(generation.created_at)));
+    const reservation = await reserveCredits(args.orgId, generation.id, reservedCredits);
     if (!reservation.ok) throw creditLimitError(reservation.reason);
 
-    const result = await config.generate({
+    const result = await run.generate({
       prompt: args.prompt, referenceUrls: args.referenceUrls, params: validatedParams,
     });
 
@@ -81,13 +104,18 @@ export async function runBilledImageGeneration(
       // best-effort — dimensions are display-only
     }
 
-    const cost =
-      result.costUsd !== undefined
-        ? { usd: result.costUsd }
-        : result.tokensUsed
-          ? computeImageCost(args.modelId, result.tokensUsed)
-          : null;
-    const creditsCharged = cost ? usdToFinalCredits(cost.usd) : 0;
+    const charge = imageChargeUsd(price, { tokens: result.tokensUsed ?? null, billedImages: result.billedImages ?? null });
+    if (charge && charge.unpriced.length > 0) {
+      console.error(
+        `[billedImageRun] image ${generation.id} (${args.modelId}) has meters with no price: ${charge.unpriced.join(", ")}`,
+      );
+    }
+    // Partial pricing: the provider billed something but nothing priced, so charge the reservation, never 0.
+    const nothingPriced =
+      !!charge && charge.unpriced.length > 0 && charge.usd === 0 && Object.values(charge.meters).some((q) => (q ?? 0) > 0);
+    const cost = charge && !nothingPriced ? { usd: charge.usd } : null;
+    // D571 - settled with the credit settings live when the run started.
+    const creditsCharged = cost ? creditsFromUsd(cost.usd, creditSettingsAt(catalog, new Date(generation.created_at))) : nothingPriced ? reservedCredits : 0;
     const meta = { ...(args.userEmail ? { email: args.userEmail } : {}), width, height, sizeBytes: bytes.length };
 
     await settleGeneration({ orgId: args.orgId, generationId: generation.id, actualAmount: creditsCharged });

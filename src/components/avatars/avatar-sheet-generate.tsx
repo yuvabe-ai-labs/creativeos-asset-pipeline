@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { useCreditSettings, useImageModels, useModelPrice } from "@/hooks/queries/ai-models";
 import { estimateSheetCredits } from "@/lib/avatars/generation";
 import { AvatarCreditCost } from "./avatar-credit-cost";
 import { AvatarAdvancedSettings } from "./avatar-advanced-settings";
@@ -21,7 +22,10 @@ export function AvatarSheetGenerate({
   onModelChange: (modelId: string) => void;
   onGenerate: (modelId: string) => void;
 }) {
-  const credits = estimateSheetCredits(modelId);
+  const { price } = useModelPrice(modelId);
+  const images = useImageModels();
+  const settings = useCreditSettings();
+  const credits = estimateSheetCredits(images, price, modelId, settings);
   return (
     <div className="flex flex-col items-start gap-1">
       <Button disabled={disabled || generating || credits === null} onClick={() => onGenerate(modelId)}>

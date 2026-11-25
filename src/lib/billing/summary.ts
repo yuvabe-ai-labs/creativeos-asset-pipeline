@@ -1,6 +1,6 @@
 import type { BillingMode, OpenGrant } from "./grants";
 
-// The agency's billing at a glance, for the workspace bar and the credits popover (D523). Owners
+// The agency's billing at a glance, for the workspace bar and the credits popover (D582). Owners
 // get the numbers; members get only whether AI runs are paused (they never see credits).
 
 export type BillingState =

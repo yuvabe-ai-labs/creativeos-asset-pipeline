@@ -27,7 +27,6 @@ export function TeamReviewBoard({ clientId, initial, initialReview }: {
     <ReviewSurfaceProvider value={surface}>
       <VisualiseView
         clientId={clientId}
-        initial={initial}
         review={{
           actions: <ReviewActions clientId={clientId} script={script} review={review} commentCount={threadCount(placed)} />,
           contextMarker: <PartMarker part={{ kind: "context" }} className="self-end" />,

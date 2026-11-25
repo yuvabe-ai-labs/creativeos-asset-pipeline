@@ -385,7 +385,7 @@ describe("createAgency (spec §6.6)", () => {
   });
 });
 
-describe("inviteOwner (spec §6.6, D505: only while the agency has no owner and no open owner invite)", () => {
+describe("inviteOwner (spec §6.6, D543: only while the agency has no owner and no open owner invite)", () => {
   const ownerInvite = { ...invite, id: "oi2", email: "o@x.com", clientId: null, clientName: null, asOwner: true, link: "https://app.example/invite/own" };
   beforeEach(() => {
     db.ownerIds.mockResolvedValue([]);

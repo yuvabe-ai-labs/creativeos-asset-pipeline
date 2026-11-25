@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ImageIcon } from "lucide-react";
 import { formatDate } from "@/lib/kb/utils";
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import { useImageModels } from "@/hooks/queries/ai-models";
 import { groupCandidatesByBatch, type PendingCandidate } from "@/lib/avatars/generation";
 import type { AvatarCandidate } from "@/lib/avatars/schema";
 import { FullScreenImageZoom } from "@/components/shared/full-screen-image-zoom";
@@ -29,6 +29,7 @@ type Props = {
 // avatar, newest first — earlier attempts stay so models can be compared. A placeholder is the
 // same box as the image that replaces it, so nothing moves when it arrives.
 export function AvatarCandidateGrid({ candidates, pending, frontUrl, picking, locked, emptyCount, onPick }: Props) {
+  const images = useImageModels();
   const [zoomed, setZoomed] = useState<string | null>(null);
   const batches = groupCandidatesByBatch(candidates, pending);
 
@@ -58,7 +59,7 @@ export function AvatarCandidateGrid({ candidates, pending, frontUrl, picking, lo
         batches.map((batch) => (
           <div key={batch.batchId} className="flex flex-col gap-2">
             <p className="text-xs text-muted-foreground">
-              {imageGenClientModelMap[batch.modelId]?.label ?? batch.modelId}
+              {images.get(batch.modelId)?.label ?? "Image model"}
               {batch.createdAt ? ` · ${formatDate(batch.createdAt)}` : " · generating"}
             </p>
             <div className="grid grid-cols-2 gap-2">

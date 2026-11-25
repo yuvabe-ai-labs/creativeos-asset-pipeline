@@ -19,13 +19,16 @@ import { MarkFinalBar } from "./mark-final-bar";
 import { ScriptNotesPanel } from "./script-notes-panel";
 import { ScriptAssetsProvider } from "../script-assets-context";
 import { useCan } from "@/components/permissions/use-can";
+import { ScriptBuiltFrom } from "../script-built-from";
 
 type Undo = { path: string; before: string };
 
 /** The right pane (spec 2 §3): Mark final above, the editable script, the reel's notes beneath. */
-export function GenerateScriptPane({ clientId, state, chatBusy, draft, reviewed }: {
+export function GenerateScriptPane({ clientId, state, signals, chatBusy, draft, reviewed }: {
   clientId: string;
   state: GenerateState;
+  /** The client's signals by name, for the "Built from" line (D531). */
+  signals: { id: string; name: string }[];
   chatBusy: boolean;
   draft: PartialDraft | null;
   /** D489 — the client commented on this script: below `xl` the Comments button opens its column. */
@@ -113,6 +116,7 @@ export function GenerateScriptPane({ clientId, state, chatBusy, draft, reviewed 
         pending={markFinal.isPending}
         disabled={chatBusy || script.doc === null}
       />
+      <ScriptBuiltFrom clientId={clientId} initialState={state} signals={signals} busy={chatBusy} />
       {script.doc ? (
         <ScriptEditProvider value={edit}>
           <ScriptAssetsProvider clientId={clientId} scriptId={script.id}>

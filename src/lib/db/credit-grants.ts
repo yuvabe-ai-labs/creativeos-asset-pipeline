@@ -11,7 +11,7 @@ type BalanceRow = {
   ends_at: string;
 };
 
-// The agency's open grants, first-ending first (credit_balance, migration 0067). Postgres numeric
+// The agency's open grants, first-ending first (credit_balance, migration 0091). Postgres numeric
 // can arrive as a string, so each amount is turned into a number here.
 export async function listOpenGrants(orgId: string): Promise<OpenGrant[]> {
   const supabase = createServerSupabase();

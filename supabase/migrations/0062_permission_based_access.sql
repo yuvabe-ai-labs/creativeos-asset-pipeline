@@ -1,4 +1,4 @@
--- D500–D509: five permissions on the person (generate, approve, share, delete, invite), copied
+-- D538–D547: five permissions on the person (generate, approve, share, delete, invite), copied
 -- onto each client they are on; having a client's row is what lets a person see it, and an empty
 -- set there means look only (view and edit are actions in the code, not stored). One owner per
 -- agency; invitations sent from inside a client. This file was never applied anywhere before
@@ -25,11 +25,11 @@ begin
 end
 $$;
 
--- One owner per agency (D500). Several owners later = drop this index; no check assumes one.
+-- One owner per agency (D538). Several owners later = drop this index; no check assumes one.
 create unique index if not exists org_memberships_one_owner
   on org_memberships (org_id) where is_owner;
 create index if not exists org_memberships_invited_by_idx on org_memberships (invited_by);
--- org_memberships_one_org_per_user (0012) stays: one agency per person in this version (D508).
+-- org_memberships_one_org_per_user (0012) stays: one agency per person in this version (D546).
 
 -- ── 2. A person's clients, each with the effective permissions there ──────────
 do $$
@@ -377,7 +377,7 @@ begin
 end
 $$;
 
--- ── 8. RLS ready for more than one agency per person (D508) ───────────────────
+-- ── 8. RLS ready for more than one agency per person (D546) ───────────────────
 create or replace function auth_org_ids()
 returns setof uuid language sql stable security definer set search_path = public as $$
   select org_id from org_memberships where user_id = auth.uid()

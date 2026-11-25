@@ -1,7 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-// An agency's plan (billing_subscriptions, 0068) and the Razorpay events that move it (0071).
+// An agency's plan (billing_subscriptions, 0092) and the Razorpay events that move it (0095).
 // Spec 2026-11-21-monthly-plans-design.md.
 
 export type SubscriptionStatus = "created" | "active" | "payment_due" | "cancelling" | "ended";
@@ -16,7 +16,7 @@ export type LiveSubscription = {
   credits: number | null;
   currentPeriodEnd: string | null;
   razorpaySubscriptionId: string | null;
-  /** When the payment first became due (0074); null otherwise. */
+  /** When the payment first became due (0098); null otherwise. */
   paymentDueSince: string | null;
 };
 
@@ -199,7 +199,7 @@ export async function markRazorpayEvent(eventId: string, outcome: { error: strin
   if (error) throw error;
 }
 
-// ── The check against Razorpay (D526) ─────────────────────────────────────────────────────────
+// ── The check against Razorpay (D585) ─────────────────────────────────────────────────────────
 
 export type CheckableSubscription = { id: string; orgId: string; status: SubscriptionStatus; razorpaySubscriptionId: string; currentPeriodEnd: string | null; paymentDueSince: string | null };
 

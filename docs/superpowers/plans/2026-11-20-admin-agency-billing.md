@@ -4,7 +4,7 @@
 
 **Goal:** Yuvabe sets an agency's billing (and free credits) when adding it, and changes billing, credits and end dates any time from a Billing tab, every change logged.
 
-**Architecture:** Four admin SQL functions (added to the unapplied migration 0067) make each change and its `billing_log` row in one transaction. Server actions (super admin only) parse with zod and call them; the agency page loads grants and the log in its existing `Promise.all` and refreshes through `revalidatePath`, as the credit limit editor does today.
+**Architecture:** Four admin SQL functions (added to the unapplied migration 0091) make each change and its `billing_log` row in one transaction. Server actions (super admin only) parse with zod and call them; the agency page loads grants and the log in its existing `Promise.all` and refreshes through `revalidatePath`, as the credit limit editor does today.
 
 **Tech Stack:** Supabase Postgres, Next.js server actions, zod, shadcn (Base UI), Vitest + Testing Library.
 
@@ -19,9 +19,9 @@ Spec: `docs/superpowers/specs/2026-11-20-admin-agency-billing-design.md`.
 
 ---
 
-### Task 1: SQL admin functions (migration 0067)
+### Task 1: SQL admin functions (migration 0091)
 
-**Files:** Modify `supabase/migrations/0067_credit_grants.sql`; Test `src/lib/billing/migration-0067.test.ts`.
+**Files:** Modify `supabase/migrations/0091_credit_grants.sql`; Test `src/lib/billing/migration-0067.test.ts`.
 
 **Produces:** `admin_set_billing_mode(uuid, text, uuid, text) → boolean`, `admin_grant_credits(uuid, text, numeric, timestamptz, uuid, text) → uuid`, `admin_take_back_credits(uuid, numeric, uuid, text) → text ('ok'|'not_found'|'too_many')`, `admin_set_grant_end(uuid, timestamptz, uuid, text) → text ('ok'|'not_found')`.
 
@@ -57,10 +57,10 @@ Spec: `docs/superpowers/specs/2026-11-20-admin-agency-billing-design.md`.
 
 - [ ] Tests: `ORG_TABS` includes `billing` after overview; the tab shows the mode, the limit editor only for managed, grants only for paying with the empty state; log rows render in plain words. Run: fail.
 - [ ] Implement; page loads `listOpenGrants` and `listBillingLog` in the existing `Promise.all`. Run: pass; tsc.
-- [ ] Check in the browser with the dev server is not possible before 0067 is applied; rely on component tests.
+- [ ] Check in the browser with the dev server is not possible before 0091 is applied; rely on component tests.
 - [ ] Commit `feat(billing): Billing tab on the admin agency page`.
 
 ### Task 5: Docs
 
-- [ ] `docs/database-schema.md` function table; `docs/auth-production-migration.md` 0067 entry (functions list, rollback drops, staging checks for piece 2); ADR D517 in the roadmap §7.
-- [ ] Commit `docs(billing): admin billing functions, D517`.
+- [ ] `docs/database-schema.md` function table; `docs/auth-production-migration.md` 0091 entry (functions list, rollback drops, staging checks for piece 2); ADR D576 in the roadmap §7.
+- [ ] Commit `docs(billing): admin billing functions, D576`.

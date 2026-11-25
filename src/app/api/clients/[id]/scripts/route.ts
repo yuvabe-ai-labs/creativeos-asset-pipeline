@@ -1,11 +1,13 @@
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { listScripts } from "@/lib/db/scripts";
 import { isScriptStage } from "@/lib/scripts/constants";
+import { isKbReady, KB_NOT_READY_MESSAGE } from "@/lib/clients/kb-gate";
 import { createGenerateScript } from "@/lib/db/script-generate";
 import { loadCopilotContext } from "@/lib/scripts/copilot/context";
 import { SCRIPT_FORMATS } from "@/lib/scripts/copilot/formats";
 import { openingMessage } from "@/lib/scripts/copilot/brief";
 import { EMPTY_BRIEF, EMPTY_NOTES } from "@/lib/scripts/copilot/schema";
+import { scriptsLocked } from "@/lib/journey/stages";
 
 // GET /api/clients/:id/scripts[?stage=approved] — the client's live scripts. The canvas
 // gallery's Scripts tab asks for approved ones only (spec 1 §5.1).
@@ -24,9 +26,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withClient(req, params, { need: "edit" }, async (clientId, client, caller) =>
     withTryCatch("Could not start a new script.", async () => {
+      if (!isKbReady(client)) return apiError(KB_NOT_READY_MESSAGE, 409); // D503
       const { userId } = caller;
       const ctx = await loadCopilotContext(client);
-      const opening = openingMessage({ clientName: client.name, formats: SCRIPT_FORMATS.map((f) => f.name), hasKb: ctx.hasKb });
+      const opening = openingMessage({ clientName: client.name, formats: SCRIPT_FORMATS.map((f) => f.name), hasKb: ctx.hasKb, locked: scriptsLocked(client) });
       const script = await createGenerateScript({ clientId, userId, brief: EMPTY_BRIEF, notes: EMPTY_NOTES, opening });
       return apiOk({ scriptId: script.id }, 201);
     }),

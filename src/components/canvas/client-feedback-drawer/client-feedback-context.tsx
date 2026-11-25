@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 // has opened.
 //
 // `fly` asks the node (inside React Flow) to bring itself into view first: the header chip and
-// the add menu's "Open Client review" set it. `versionNo` (D513) opens the focus view on that
+// the add menu's "Open Client review" set it. `versionNo` (D500) opens the focus view on that
 // version; without it the view shows the one it showed last (newest at first).
 export type FeedbackRequest = { nodeId: string; fly: boolean; versionNo: number | null };
 

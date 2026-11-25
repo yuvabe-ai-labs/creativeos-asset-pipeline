@@ -19,7 +19,7 @@
 - Resend HTTP API (`POST https://api.resend.com/emails`)
 - Vitest in the `node` environment; components render with `renderToStaticMarkup`
 
-**Spec:** [docs/superpowers/specs/2026-11-12-agency-permissions-design.md](../specs/2026-11-12-agency-permissions-design.md) §2.1, §6, §9 (D503, D505, D506, D508, D509). **Depends on plan 3:** [2026-11-13-permissions-core.md](2026-11-13-permissions-core.md) (the five permissions and the checker, `useCan`, the payload, migration 0062 with `accept_invitation`, `list_agency_people`, `find_user_by_email`, `transfer_agency_owner`, `create_agency_with_owner_invite`, and `admin_action`).
+**Spec:** [docs/superpowers/specs/2026-11-12-agency-permissions-design.md](../specs/2026-11-12-agency-permissions-design.md) §2.1, §6, §9 (D541, D543, D544, D546, D547). **Depends on plan 3:** [2026-11-13-permissions-core.md](2026-11-13-permissions-core.md) (the five permissions and the checker, `useCan`, the payload, migration 0062 with `accept_invitation`, `list_agency_people`, `find_user_by_email`, `transfer_agency_owner`, `create_agency_with_owner_invite`, and `admin_action`).
 
 ## Global Constraints
 
@@ -27,7 +27,7 @@
 - **Commits:** one per task, exact message given, no Claude/AI attribution of any kind (no `Co-Authored-By` line, no "Generated with" line). Check with `git log -1 --format=%B`; amend with the exact message if a trailer slipped in.
 - **Never** run SQL against any database, apply a migration, push, or install a package (`node_modules` is a junction into the other checkout). Resend is called with `fetch`.
 - **The five permissions, in this order:** `generate, approve, share, delete, invite` (plan 3's `PERMISSIONS`), labelled `Generate`, `Approve`, `Share`, `Delete`, `Invite`. There is no View or Edit permission: being on a client lets a person see it, and a member with no permissions can look only.
-- **Who does what (spec §2.2, §4.3, §6.2):** inviting someone new to a client and adding people already in the agency to it need `invite` on that client (the owner has it on every client). The client's Members page and its Members button are shown to the owner and to anyone with Invite on that client; anyone else gets the 404 page and no button. The Team page, give access, edit permissions, remove from the agency, remove from a client, resend and cancel are `manage_team`, owner only. Permissions are edited only on the Team page (D509). Someone invited by an Invite holder waits as Signed up until the owner gives access on the Team page.
+- **Who does what (spec §2.2, §4.3, §6.2):** inviting someone new to a client and adding people already in the agency to it need `invite` on that client (the owner has it on every client). The client's Members page and its Members button are shown to the owner and to anyone with Invite on that client; anyone else gets the 404 page and no button. The Team page, give access, edit permissions, remove from the agency, remove from a client, resend and cancel are `manage_team`, owner only. Permissions are edited only on the Team page (D547). Someone invited by an Invite holder waits as Signed up until the owner gives access on the Team page.
 - **Give access works with no permissions picked** (a member who only looks); the server accepts any set of the five, empty included.
 - **Statuses, exactly:** `Invited`, `Signed up · Needs permissions`, `Member`, `Owner`. A member with no permissions shows `Can look` where their permission chips would be.
 - **Copy, exactly (spec §6):** editor note `These apply on every client {name} is on, and on any client they're added to later. With none, {name} can look but not change anything.`; members heading `{n} people on this client`; invite step 2 note, to the owner `They get an email to sign up. Once they have, you set their permissions on the Team page.` and to an Invite holder `They get an email to sign up. Once they have, the owner sets their permissions on the Team page.`; refusals `Already in {Agency}. Add them from the list.`, `Already invited to {client}. Once they've signed up, add them from the list.`, `This email already belongs to another agency.`; wrong-email sign-in `This invite is for {email}. Sign in with that email to accept it.`; Add an agency note `The owner gets an email to sign up, and can do everything in this agency.`
@@ -443,7 +443,7 @@ Expected: FAIL (modules missing).
 // src/lib/invites/token.ts
 import { randomBytes } from "node:crypto";
 
-// D502/D506: the link carries a random token, stored as issued so Copy link always shows the same
+// D540/D544: the link carries a random token, stored as issued so Copy link always shows the same
 // link (Arun, 13 Nov). The table is server-only; a link is single use and expires after 7 days.
 export function newInviteToken(): string {
   return randomBytes(32).toString("base64url");
@@ -1284,7 +1284,7 @@ export async function inviteToClient(agency: Agency, client: { id: string; name:
   ]);
   if (login?.orgId === agency.orgId) return refuse(409, REFUSALS.alreadyInAgency(agency.orgName));
   if (open) return refuse(409, REFUSALS.alreadyInvited(open.clientName ?? agency.orgName));
-  // One agency per person (D508): any other login can't join from the link.
+  // One agency per person (D546): any other login can't join from the link.
   if (login) return refuse(409, REFUSALS.otherAgency);
   if (sentToday >= INVITES_PER_AGENCY_PER_DAY) return refuse(429, REFUSALS.dailyLimit);
 
@@ -2140,7 +2140,7 @@ import { PERMISSION_LABELS } from "@/lib/people/constants";
 
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-describe("PermissionEditor (D509)", () => {
+describe("PermissionEditor (D547)", () => {
   it("shows a chip with a remove button for each permission, in order", () => {
     const html = renderToStaticMarkup(<PermissionEditor value={["invite", "generate"]} onChange={vi.fn()} personName="Ravi" />);
     expect(text(html)).toMatch(/Generate .*Invite/);
@@ -2192,7 +2192,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PERMISSIONS, orderedPermissions, type Permission } from "@/lib/permissions/model";
 import { PERMISSION_LABELS } from "@/lib/people/constants";
 
-// D509: the only place permissions are set. Chips with ×, then "Choose a permission" and Add;
+// D547: the only place permissions are set. Chips with ×, then "Choose a permission" and Add;
 // none to start, and none is a valid answer (a member who only looks). The options are the five
 // permissions in PERMISSIONS order. The parent saves (Give access, or Save on a member).
 export function PermissionEditor({
@@ -2280,7 +2280,7 @@ Run: `npx tsc --noEmit` and `npx eslint src/components/team`.
 
 ```bash
 git add src/components/team
-git commit -m "feat(team): the permission editor, chips with a picker (D509)"
+git commit -m "feat(team): the permission editor, chips with a picker (D547)"
 git log -1 --format=%B
 ```
 
@@ -3172,7 +3172,7 @@ import { ClientMemberRow } from "./client-member-row";
 import { TeamInvitedRow } from "./team-invited-row";
 
 // Spec §6.2: who works on this client. Invite, add and remove; permissions are not edited here
-// (D509). Rendered on /clients/[id]/members for the owner and Invite holders on this client, and
+// (D547). Rendered on /clients/[id]/members for the owner and Invite holders on this client, and
 // in Admin's Clients tab. Remove, Resend, Cancel and Set permissions are the owner's.
 export function ClientMembers({
   orgId,
@@ -4222,7 +4222,7 @@ git log -1 --format=%B
 **Files:**
 - Create: `src/app/admin/orgs/[id]/admin-clients-tab.tsx`, `src/app/admin/orgs/[id]/__tests__/org-detail-tabs.test.tsx`
 - Modify: `src/app/admin/orgs/[id]/page.tsx`, `src/app/admin/orgs/[id]/org-detail-tabs.tsx`, `src/app/admin/orgs/[id]/reset-password-dialog.tsx` (unchanged API; rendered through the People tab's slot), `src/lib/actions/admin.ts`, `src/lib/db/organizations.ts`, `src/lib/orgs/org-schema.ts`, `src/lib/dal-logic.ts`, `src/lib/actions/with-action-coverage.test.ts`
-- Delete: `src/app/admin/orgs/[id]/add-member-dialog.tsx`, `src/app/admin/orgs/[id]/member-role-select.tsx` (the temporary-password and role paths, D505)
+- Delete: `src/app/admin/orgs/[id]/add-member-dialog.tsx`, `src/app/admin/orgs/[id]/member-role-select.tsx` (the temporary-password and role paths, D543)
 
 **Interfaces:**
 - Consumes: Task 7's `TeamPeople`; Task 9's `ClientMembers`; Task 10's `InviteDialog`; `listAgencyPeople`, `listOpenInvites`, `listClients`; `ResetPasswordDialog`.
@@ -4436,10 +4436,10 @@ select count(*) from org_invitations where accepted_at is null and revoked_at is
 
 - [ ] **Step 2: Record the decisions**
 
-Append after the last ADR in the roadmap (plan 3 records D510). Check the roadmap for the next free number rather than assuming D511, change the heading and commit message to match if it is taken, and confirm the number against `staging` before merging:
+Append after the last ADR in the roadmap (plan 3 records D548). Check the roadmap for the next free number rather than assuming D549, change the heading and commit message to match if it is taken, and confirm the number against `staging` before merging:
 
 ```markdown
-### D511 — People, invites and Admin share one API and one set of screens *(recorded 2026-11-13; refines D505, D506, D509; originated → `2026-11-13-permissions-people-and-invites.md`)*
+### D549 — People, invites and Admin share one API and one set of screens *(recorded 2026-11-13; refines D543, D544, D547; originated → `2026-11-13-permissions-people-and-invites.md`)*
 
 **Decision.**
 - Every people change goes through `/api/orgs/[orgId]/…` behind `withTeam`, under the impersonation write gate: inviting to a client and adding people already in the agency to it need `invite` on that client; everything else needs `manage_team` (owner only). A super admin working from Admin passes for any agency, skips that gate (D85) and is logged as `admin_action`. While viewing as the same agency, the agency path applies.
@@ -4449,7 +4449,7 @@ Append after the last ADR in the roadmap (plan 3 records D510). Check the roadma
 - Remove deletes the person's login (one agency per person), as the old admin removal did.
 - Email goes through Resend's HTTP API with `fetch`; without `RESEND_API_KEY` and `EMAIL_FROM` the link is shown to copy.
 
-**Why.** D509 (one place for permissions), AGENTS.md "share the wiring too", and D85's line between administering the platform and acting as an agency.
+**Why.** D547 (one place for permissions), AGENTS.md "share the wiring too", and D85's line between administering the platform and acting as an agency.
 
 **Rejected.** Separate admin routes mirroring the owner's (two copies of every rule).
 ```
@@ -4478,7 +4478,7 @@ Expected: one `/api/orgs/<id>/people` per screen visit (none on the first paint,
 
 ```bash
 git add docs/auth-production-migration.md docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
-git commit -m "docs(permissions): people and invite rollout notes; record D511"
+git commit -m "docs(permissions): people and invite rollout notes; record D549"
 git log -1 --format=%B
 ```
 
@@ -4503,4 +4503,4 @@ git log -1 --format=%B
 10. **The inviter's signed-up email.** The spec gives the shared sentence and the owner's extra line. This plan gives the inviter "{Name} signed up to {Agency}." with an "Open CreativeOS" button to the home page, since an Invite holder can't open the Team page.
 11. **Step 2 note for an Invite holder.** The spec writes "Once they have, {the owner / you} set their permissions"; this plan reads the owner's version as "you set" and the Invite holder's as "the owner sets", so the sentence agrees with its subject.
 12. **The inviter's name when their profile has none** falls back to `Someone at {Agency}` in the invite email (it was `Your agency owner`, which is wrong for an Invite holder).
-13. **ADR number D511** must be checked against `staging` before merging.
+13. **ADR number D549** must be checked against `staging` before merging.

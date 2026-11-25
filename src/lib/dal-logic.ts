@@ -8,7 +8,7 @@ export type CallerContext = {
   platformRole: PlatformRole;
   orgId: string;
   mustChangePassword: boolean;
-  /** D500: what this person may do. Read it through accessOf(), never directly. */
+  /** D538: what this person may do. Read it through accessOf(), never directly. */
   access: Access;
 };
 

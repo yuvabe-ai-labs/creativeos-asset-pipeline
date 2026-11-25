@@ -11,7 +11,7 @@ import type { OrgWithCount } from "@/lib/db/organizations";
 import { ResendOwnerInviteButton } from "./resend-owner-invite-button";
 import { InviteOwnerDialog } from "./invite-owner-dialog";
 
-// 25 agencies a page (D529): search and sort run over every agency, then the page is cut, so a
+// 25 agencies a page (D588): search and sort run over every agency, then the page is cut, so a
 // search always finds an agency whatever page it would sit on. A new search or sort starts at page 1.
 const PAGE_SIZE = 25;
 

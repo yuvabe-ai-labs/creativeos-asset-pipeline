@@ -4,7 +4,7 @@
 
 **Goal:** Paying agencies get a balance made of credit grants that end, used in end-date order; managed agencies behave exactly as today.
 
-**Architecture:** Migration 0067 adds `billing_mode`/`plan_type` on `organizations`, the `credit_grants`, `credit_grant_uses` and `billing_log` tables, and four service-role functions (`reserve_credits_v2`, `settle_credits`, `refund_credits`, `credit_balance`). Each function locks the agency row, so one agency's holds and settlements run one at a time. The TypeScript ledger helpers keep their signatures and call the new functions, so none of the 19 call sites change.
+**Architecture:** Migration 0091 adds `billing_mode`/`plan_type` on `organizations`, the `credit_grants`, `credit_grant_uses` and `billing_log` tables, and four service-role functions (`reserve_credits_v2`, `settle_credits`, `refund_credits`, `credit_balance`). Each function locks the agency row, so one agency's holds and settlements run one at a time. The TypeScript ledger helpers keep their signatures and call the new functions, so none of the 19 call sites change.
 
 **Tech Stack:** Supabase Postgres (plpgsql), Next.js server code, Vitest.
 
@@ -13,7 +13,7 @@ Spec: `docs/superpowers/specs/2026-11-20-credit-grants-design.md`.
 ## Global Constraints
 
 - Never apply the migration or run SQL; the user applies it (staging first, then production).
-- The old `reserve_credits` stays; 0068 drops it after this release is live.
+- The old `reserve_credits` stays; 0092 drops it after this release is live.
 - New functions: `security definer`, `set search_path = public`, execute for `service_role` only.
 - RLS on every new table; owners read `credit_grants` only; no write policies.
 - Grants order everywhere: `order by g.ends_at, g.created_at`.
@@ -21,10 +21,10 @@ Spec: `docs/superpowers/specs/2026-11-20-credit-grants-design.md`.
 
 ---
 
-### Task 1: Migration 0067 and its text test
+### Task 1: Migration 0091 and its text test
 
 **Files:**
-- Create: `supabase/migrations/0067_credit_grants.sql`
+- Create: `supabase/migrations/0091_credit_grants.sql`
 - Test: `src/lib/billing/migration-0067.test.ts`
 
 **Interfaces:**
@@ -43,7 +43,7 @@ import { join } from "node:path";
 
 // SQL is checked by hand on staging (spec "Checking the SQL"); this pins the rules that keep the
 // ledger safe: one agency at a time, end-date order, repeat calls change nothing, server only.
-const SQL = readFileSync(join(process.cwd(), "supabase/migrations/0067_credit_grants.sql"), "utf8");
+const SQL = readFileSync(join(process.cwd(), "supabase/migrations/0091_credit_grants.sql"), "utf8");
 const fn = (name: string) => {
   const start = SQL.indexOf(`create or replace function ${name}(`);
   expect(start, name).toBeGreaterThan(-1);
@@ -51,7 +51,7 @@ const fn = (name: string) => {
 };
 const FUNCTIONS = ["reserve_credits_v2", "settle_credits", "refund_credits", "credit_balance"];
 
-describe("migration 0067", () => {
+describe("migration 0091", () => {
   it("keeps every existing agency managed and standard", () => {
     expect(SQL).toContain("billing_mode text not null default 'managed'");
     expect(SQL).toContain("plan_type text not null default 'standard'");
@@ -122,12 +122,12 @@ describe("migration 0067", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/billing/migration-0067.test.ts`
-Expected: FAIL, ENOENT for `0067_credit_grants.sql`.
+Expected: FAIL, ENOENT for `0091_credit_grants.sql`.
 
-- [ ] **Step 3: Write the migration** (`supabase/migrations/0067_credit_grants.sql`)
+- [ ] **Step 3: Write the migration** (`supabase/migrations/0091_credit_grants.sql`)
 
 ```sql
--- Billing piece 1: credit grants (spec 2026-11-20-credit-grants-design.md, D515).
+-- Billing piece 1: credit grants (spec 2026-11-20-credit-grants-design.md, D574).
 -- A paying agency's credits are grants that end (free credits, plan months, top-ups, Yuvabe's
 -- added credits). A run's hold is taken from the grant that ends first, and settling moves the
 -- real cost onto the same grants. Managed agencies (every agency today) have no grants and keep
@@ -190,7 +190,7 @@ create policy "owners read" on credit_grants for select
      where m.user_id = auth.uid() and m.org_id = credit_grants.org_id and m.is_owner
   ));
 
--- Replaces reserve_credits (which stays until 0068 so the code from before this release keeps
+-- Replaces reserve_credits (which stays until 0092 so the code from before this release keeps
 -- working while the migration goes first). 'ok', or why the run was refused.
 create or replace function reserve_credits_v2(
   p_org_id uuid,
@@ -442,8 +442,8 @@ Expected: PASS (10 tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/0067_credit_grants.sql src/lib/billing/migration-0067.test.ts
-git commit -m "feat(billing): credit grants that end, used first-ending first (migration 0067)"
+git add supabase/migrations/0091_credit_grants.sql src/lib/billing/migration-0067.test.ts
+git commit -m "feat(billing): credit grants that end, used first-ending first (migration 0091)"
 ```
 
 ### Task 2: Ledger helpers call the new functions
@@ -566,7 +566,7 @@ Expected: FAIL (old `reserve_credits` call; `../credit-grants` not found).
 `src/lib/billing/grants.ts`:
 
 ```ts
-/** What a paying agency's credits come from (credit_grants.kind, migration 0067). */
+/** What a paying agency's credits come from (credit_grants.kind, migration 0091). */
 export type GrantKind = "free" | "plan" | "topup" | "admin";
 
 /** Why reserve_credits_v2 refused a run. `limit` is a managed agency's monthly limit. */
@@ -604,7 +604,7 @@ type BalanceRow = {
   ends_at: string;
 };
 
-// The agency's open grants, first-ending first (credit_balance, migration 0067). Postgres numeric
+// The agency's open grants, first-ending first (credit_balance, migration 0091). Postgres numeric
 // can arrive as a string, so each amount is turned into a number here.
 export async function listOpenGrants(orgId: string): Promise<OpenGrant[]> {
   const supabase = createServerSupabase();
@@ -626,7 +626,7 @@ In `src/lib/db/credit-transactions.ts`, replace `reserveCredits`, delete `getRes
 ```ts
 import { isCreditRefusal, type CreditRefusal } from "@/lib/billing/grants";
 
-// Row-locked check-and-hold via reserve_credits_v2 (migration 0067). A managed agency is checked
+// Row-locked check-and-hold via reserve_credits_v2 (migration 0091). A managed agency is checked
 // against its monthly limit as before; a paying agency's hold is taken from its grants, the one
 // ending first, first. Refusals come back with the reason (never thrown); an answer the code
 // doesn't know throws, so a mismatch between code and database never lets a run through.
@@ -648,7 +648,7 @@ export async function reserveCredits(
 }
 
 // Success terminal state (design spec §4): refund the hold and record the real cost, and move the
-// cost onto the grants the run held — one transaction in settle_credits (migration 0067). A
+// cost onto the grants the run held — one transaction in settle_credits (migration 0091). A
 // repeat call changes nothing, so a route's catch-block cleanup after settling is safe. Call this
 // and succeedGeneration's creditsCharged with the SAME actualAmount value.
 export async function settleGeneration(input: {
@@ -666,7 +666,7 @@ export async function settleGeneration(input: {
 }
 
 // Failure/cancel terminal state: refund the hold and give its credits back to their grants
-// (refund_credits, migration 0067). A repeat call changes nothing.
+// (refund_credits, migration 0091). A repeat call changes nothing.
 export async function refundReservation(input: {
   orgId: string;
   generationId: string;
@@ -697,25 +697,25 @@ git commit -m "feat(billing): holds and settlements go through the grant-aware l
 ### Task 3: Docs
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7: append D515)
-- Modify: `docs/database-schema.md` (0067 tables, columns, functions)
-- Modify: `docs/auth-production-migration.md` (0067: apply before the release; the staging checks)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7: append D574)
+- Modify: `docs/database-schema.md` (0091 tables, columns, functions)
+- Modify: `docs/auth-production-migration.md` (0091: apply before the release; the staging checks)
 
-- [ ] **Step 1: Append D515** after D514, in the log's format:
+- [ ] **Step 1: Append D574** after D573, in the log's format:
 
 ```markdown
-### D515 — A paying agency's credits are grants that end, used first-ending first *(recorded 2026-11-20; refines D514; originated → `2026-11-20-credit-grants-design.md`)*
+### D574 — A paying agency's credits are grants that end, used first-ending first *(recorded 2026-11-20; refines D573; originated → `2026-11-20-credit-grants-design.md`)*
 
-**Decision.** Every credit a paying agency receives is a grant with an end date (free, plan, top-up, admin). A run's hold is taken from the grant ending first and settling moves the real cost onto the same grants (`reserve_credits_v2`, `settle_credits`, `refund_credits`, migration 0067). Managed agencies have no grants and keep the monthly limit.
+**Decision.** Every credit a paying agency receives is a grant with an end date (free, plan, top-up, admin). A run's hold is taken from the grant ending first and settling moves the real cost onto the same grants (`reserve_credits_v2`, `settle_credits`, `refund_credits`, migration 0091). Managed agencies have no grants and keep the monthly limit.
 **Why.** Free credits end on their own date, so one balance per period (the first phase-1 draft) no longer says what is lost when credits end.
 **Rejected.** One balance per period (wrong once free credits end on another date); working out each grant's share from the ledger on every hold (slow and hard to check); a nightly job that expires credits (an ended grant simply stops counting).
 ```
 
-- [ ] **Step 2: Add 0067 to `docs/database-schema.md` and `docs/auth-production-migration.md`**, following each file's existing entries for 0066 (same headings and level of detail): the two `organizations` columns, the three tables, the four functions, and in the migration doc: apply on staging, run the spec's seven checks with a test agency, then production before the release.
+- [ ] **Step 2: Add 0091 to `docs/database-schema.md` and `docs/auth-production-migration.md`**, following each file's existing entries for 0090 (same headings and level of detail): the two `organizations` columns, the three tables, the four functions, and in the migration doc: apply on staging, run the spec's seven checks with a test agency, then production before the release.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add docs
-git commit -m "docs(billing): D515 credit grants; 0067 in the schema and migration docs"
+git commit -m "docs(billing): D574 credit grants; 0091 in the schema and migration docs"
 ```

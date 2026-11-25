@@ -15,7 +15,7 @@ export default async function EvalReviewPage({
   const { canvasId } = await params;
 
   // Another agency's canvas, or one outside the person's clients, renders as not found and
-  // never confirms it exists (D501, D510). Checked in the agency being acted in, so an operator
+  // never confirms it exists (D539, D548). Checked in the agency being acted in, so an operator
   // using "view as" sees that agency's eval traces. Missing canvas view shows the 404 page.
   const page = await loadCanvasPage(canvasId, "view");
   if (!page) {

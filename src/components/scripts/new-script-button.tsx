@@ -7,7 +7,12 @@ import { Button } from "@/components/ui/button";
 import { useCreateScript } from "@/hooks/queries/script-generate";
 
 /** Spec 2 §3 — the only way a script is made: an empty script at Generate, opened in the workspace. */
-export function NewScriptButton({ clientId, clientSlug }: { clientId: string; clientSlug: string }) {
+export function NewScriptButton({ clientId, clientSlug, label = "New script" }: {
+  clientId: string;
+  clientSlug: string;
+  /** "Paste a script" while new scripts wait for market research approval (copilot journey spec §5.3). */
+  label?: string;
+}) {
   const router = useRouter();
   const create = useCreateScript(clientId);
   return (
@@ -19,7 +24,7 @@ export function NewScriptButton({ clientId, clientSlug }: { clientId: string; cl
       })}
     >
       {create.isPending ? <Loader2 className="animate-spin" strokeWidth={1.5} /> : <Plus strokeWidth={1.5} />}
-      New script
+      {label}
     </Button>
   );
 }

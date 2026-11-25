@@ -951,7 +951,7 @@ select count(*) from generations
 where type = 'transcribe' and status = 'running' and created_at < now() - interval '20 minutes';
 ```
 
-## Migration 0062 — five permissions, one owner, client members (D500–D509, 2026-11-13)
+## Migration 0062 — five permissions, one owner, client members (D538–D547, 2026-11-13)
 
 `supabase/migrations/0062_permission_based_access.sql`. Never applied before 13 Nov 2026, so it
 was rewritten in place; the 11 Nov presets version is not applied anywhere and never will be.
@@ -1065,7 +1065,7 @@ the capability, and someone invited has no account yet. The proxy also sets an `
 **Known limitation: Google Drive is one account for the whole platform.** The Drive picker returns
 that account's read-only access token, and the Drive file, folder and import routes use the same
 login. They need only Generate on any client, so anyone with Generate on one client, in any agency,
-can open every file that account can see, including folders other agencies use (D501).
+can open every file that account can see, including folders other agencies use (D539).
 
 **Old admin screens are gone with this code:** no temporary passwords, no role select. A new agency
 is "Add an agency" (name, owner email and monthly credit limit, Unlimited unless one is set); the
@@ -1145,7 +1145,7 @@ delete from org_memberships where org_id = '<agency>' and is_owner;
 rollback;
 ```
 
-## Migration 0063 — views off the public API, every invite send counted, foreign keys indexed (D501, D511, 2026-11-16)
+## Migration 0063 — views off the public API, every invite send counted, foreign keys indexed (D539, D549, 2026-11-16)
 
 `supabase/migrations/0063_close_views_and_count_resends.sql`. Apply after 0062, in the same window
 (staging before the staging deploy of this branch, production before the merge to `main`). Safe to
@@ -1288,7 +1288,7 @@ Staging's `0062_client_review_versions.sql` (client review versions, D495–D499
 different tables, so either can run first, and both are already applied on the development
 database. Neither is renamed, because both have been applied. On production, run both before 0063.
 
-## Migration 0065 — the browser's direct reads follow the client list (D512, 2026-11-18)
+## Migration 0065 — the browser's direct reads follow the client list (D550, 2026-11-18)
 
 Apply after 0064, in any order with the code: the app reads these tables through the service role,
 which policies don't affect, and the browser only uses them for Realtime.
@@ -1346,9 +1346,252 @@ drop function if exists auth_client_ids();
 notify pgrst, 'reload schema';
 ```
 
-## Migration 0066 — billing_payments (D514, 2026-11-19)
+## Migration 0067 — the market agent's reading of a reference (D530, 2026-11-24)
 
-Apply after 0065, in any order with the code: nothing reads the table until the test page is on.
+`0067_market_item_readings.sql` adds one nullable column, `moodboard_items.reading jsonb`: the market
+research agent's reading of a post (hook, format, pacing, on-screen text, setting, occasion), so a
+post is read once. Safe to re-run (`add column if not exists`) and safe in any order with the code:
+the code treats a missing reading as unread. No data to backfill, no policy change (the column is
+covered by the existing `moodboard_items` read policy from 0065).
+
+**Check:** `select column_name from information_schema.columns where table_name = 'moodboard_items' and column_name = 'reading';` returns one row.
+
+**Rollback:** `alter table public.moodboard_items drop column if exists reading;`
+
+## Owed: the copilot journey's migrations 0063–0066 (2026-11-24)
+
+These are on the staging database and have no entry here yet. Each needs its own section before
+production: `0063_client_market_status` (clients.market_status; existing clients start approved),
+`0064_client_copilot_messages` (the onboarding thread table), `0065_kb_review_writes` (two KB review
+functions, no table change), `0066_copilot_turn_traces` (turn traces, kept 30 days by a daily task).
+
+## Migrations 0076 + 0077 — AI model catalog (D552–D556, 2026-11-21)
+
+`supabase/migrations/0076_ai_model_catalog.sql` (the `ai_models` and `ai_model_prices` tables, the
+price guard, three `generations` columns) and `supabase/migrations/0077_ai_models_seed.sql` (today's
+image and video models as rows). Paste each into the Supabase SQL editor → Run, in order.
+
+Nothing reads the catalog yet (Plan 1b switches the readers), so no deploy order applies.
+
+**Safe to re-run:** 0076 uses `if not exists` / `create or replace` / `drop trigger if exists`;
+0077 inserts with `on conflict (id) do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect both true
+select relname, relrowsecurity from pg_class where relname in ('ai_models', 'ai_model_prices');
+-- expect the three new columns
+select column_name from information_schema.columns
+where table_name = 'generations' and column_name in ('model_price_id', 'provider_bill', 'record_only');
+-- expect two rows: live 16, retired 4 (20 models; retired are gpt-image-1 and the three Veo models)
+select status, count(*) from ai_models group by status;
+```
+
+## Migration 0078 — model prices (D557, 2026-11-22)
+
+`supabase/migrations/0078_ai_model_prices_seed.sql`: one price row per image and video model from
+1 Jan 2026, and a second row for Omni 1.1 at 1.2 rates from 3 Dec 2026 08:00 UTC. Paste into the
+Supabase SQL editor → Run.
+
+**Ordering:** 0076, 0077 and 0078 must all be on an environment **before** the Plan 2a code is
+deployed there. That code refuses to start a video or image run whose model has no price row, so
+deploying it first stops every video and image generation.
+
+**Safe to re-run:** `on conflict (model_id, effective_from) do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect 21
+select count(*) from ai_model_prices;
+-- expect two rows for Omni 1.1: 2026-01-01 and 2026-12-03 08:00
+select effective_from from ai_model_prices where model_id = 'gemini:gemini-omni-1.1-flash' order by 1;
+-- expect an error: "ai_model_prices rows are never edited"
+update ai_model_prices set note = note where model_id = 'gemini:gemini-omni-1.2-flash';
+```
+
+## Migrations 0079 + 0080 — service prices and provider bills (D558–D559, 2026-11-22)
+
+`supabase/migrations/0079_ai_service_models.sql` (five service models in `ai_models`) and
+`supabase/migrations/0080_ai_service_prices.sql` (their prices, plus a dated row per Kling model
+that adds the price per Kling unit). Paste each into the Supabase SQL editor → Run, in order,
+after 0076–0078.
+
+**Ordering:** apply both **before** the 2b code deploys to an environment. Without them every dub,
+lip sync, voice change, auto-captions run and prompt run is refused with "This model has no price
+set, so it can't run right now."
+
+**Safe to re-run:** both insert with `on conflict … do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect 5
+select count(*) from ai_models where kind in ('dub','lipsync','voice','transcribe','text');
+-- expect 8 (5 service rows + 3 Kling unit rows), counted by the note 0080 writes
+select count(*) from ai_model_prices where note in ('Seeded from the code prices (D558).', 'Adds the price per Kling unit (D558).');
+```
+
+## Migration 0081 — record-only generations need no owner (D560, 2026-11-23)
+
+`supabase/migrations/0081_generations_record_only_owner.sql`. Paste into the Supabase SQL editor → Run, after 0080.
+Apply **before** the 2b-ii code deploys; without it every record-only insert fails (logged, not shown, and the cost is lost).
+**Safe to re-run:** drops and re-adds the constraint.
+
+```sql
+-- expect: CHECK (((node_id IS NOT NULL) OR (avatar_id IS NOT NULL) OR (script_id IS NOT NULL) OR record_only))
+select pg_get_constraintdef(oid) from pg_constraint where conname = 'generations_owner_check';
+```
+
+## Migrations 0082 + 0083 — text and scrape models and prices (D560, 2026-11-23)
+
+`supabase/migrations/0082_ai_text_models.sql` (five text models and the Apify scrape model in `ai_models`) and
+`supabase/migrations/0083_ai_text_prices.sql` (their published prices). Paste each into the Supabase SQL editor → Run, in order, after 0081.
+Apply **before** the 2b-ii code deploys; without them the free features' provider calls are recorded with no cost.
+
+**Safe to re-run:** both insert with `on conflict … do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect 7 (6 here + the prompt model from 0079)
+select count(*) from ai_models where kind in ('text','scrape');
+-- expect 7
+select count(*) from ai_model_prices where note in ('Published rate (D560).', 'Published rate after the introductory price (D560).', 'Apify reports each run''s cost in USD (D560).');
+```
+
+## Migration 0084 — each image and video model names its own adapter (D561, 2026-11-23)
+
+`supabase/migrations/0084_ai_models_adapters.sql`. Paste into the Supabase SQL editor → Run, after 0083.
+Apply **before** the 1b-i code deploys to Vercel and Trigger.dev. Without it every image and video row still has a
+family key (`image:openai`, `video:kling`, …) and no provider model name, so no adapter resolves and every image
+and video run is refused with "This model isn't available. Pick another."
+**Deploy:** until 0084 is applied, every image and video run is refused, and a voice preview reserves credits and then fails and refunds.
+It sets `adapter_key` and `provider_model_id` and re-writes label, params, rules and capabilities from the code.
+It never touches `status`, `replaced_by` or `sort_order`.
+**Safe to re-run:** an `update … where id = …`; running it again writes the same values.
+
+```sql
+-- expect the two numbers to be equal: every image and video row has its own adapter key
+select count(*), count(distinct adapter_key) from ai_models where kind in ('image','video');
+-- expect 0: no family key and no missing provider model name left
+select count(*) from ai_models
+where kind in ('image','video')
+  and (adapter_key in ('image:openai','image:gemini','image:seedream','video:kling','video:seedance','video:gemini','video:veo')
+       or provider_model_id is null);
+-- expect video:gemini-omni-1.2-flash / gemini-omni-1.2-flash, video:seedance-2-5 / dreamina-seedance-2-5-260628
+select id, adapter_key, provider_model_id from ai_models
+where id in ('gemini:gemini-omni-1.2-flash', 'seedance:seedance-2-5');
+```
+
+## Migration 0085 — per-model month stats for the admin (D570, 2026-11-23)
+
+`supabase/migrations/0085_ai_model_month_stats.sql`. Paste into the Supabase SQL editor → Run, after 0084.
+Apply **before** Plan 4 deploys to Vercel. Both admin model pages (the models list and a model's page) error without the function; nothing else uses it.
+It adds one index (`generations_created_at_idx`) and one read-only function (`ai_model_month_stats`) that returns, per model, the runs, provider cost, credits and unpriced runs in a date range.
+It changes no data.
+The index is built without `concurrently`, so it locks writes to `generations` while it builds. On a large `generations` table apply it at a quiet time, or first run `create index concurrently if not exists generations_created_at_idx on generations (created_at);` by hand (the migration's `if not exists` then skips it).
+**Safe to re-run:** `create index if not exists` and `create or replace function`.
+
+```sql
+-- expect 1 row
+select count(*) from pg_proc where proname = 'ai_model_month_stats';
+-- expect rows for models used this month (or none on a fresh database), never an error
+select * from ai_model_month_stats(date_trunc('month', now()), now() + interval '1 day') limit 5;
+```
+
+## Migration 0086 — credit settings in the database (D571, 2026-11-24)
+
+`supabase/migrations/0086_credit_settings.sql`. Paste into the Supabase SQL editor → Run, after 0085.
+Apply **before** Plan 5a deploys to Vercel. Without the `credit_settings` table the model catalog read fails, and every paid run is refused.
+It adds the `credit_settings` table (the margin and the rounding step that turn a run's cost into credits, as dated rows), a guard so a row is never edited and one that has started is never deleted, and one starting row: no margin, round up to the next 5 credits, from 2026-01-01. That is exactly how credits work today, so nothing changes until an admin adds a row.
+**Safe to re-run:** `create table if not exists`, `create or replace function`, `drop trigger if exists`, and the starting row is skipped if it is there.
+
+**Ordering:** apply before deploying the app code **and** the Trigger.dev tasks. Without it every client page shows "Could not load the models.", paid runs are refused, and runs that finish can't be settled.
+
+```sql
+-- expect 1 row: margin 0, step 5, from 2026-01-01
+select effective_from, margin_percent, round_step from credit_settings order by effective_from;
+-- expect an error: rows are never edited
+update credit_settings set round_step = 1;
+```
+
+## Migration 0087 — credit settings can't be cancelled at the last minute (D571, 2026-11-24)
+
+`supabase/migrations/0087_credit_settings_lead.sql`. Paste into the Supabase SQL editor → Run, after 0086.
+Apply with Plan 5a, before the super admin adds or cancels a credit setting. It replaces the guard function so a row can't be deleted in the 2 minutes before it starts (other servers keep the old catalog for up to a minute). The app also refuses it, and says so; this is the database's own check.
+**Safe to re-run:** `create or replace function`; the trigger from 0086 is unchanged.
+**Ordering:** apply before deploying the app code. If it lands later, only the database's check is missing; the app's check still works.
+
+```sql
+-- expect 1 row: true
+select prosrc like '%interval ''2 minutes''%' as has_lead from pg_proc where proname = 'credit_settings_guard';
+```
+
+## Migration 0088 — replace, reorder and agencies affected for the model admin; a 2-minute lead for prices (D572, 2026-11-24)
+
+`supabase/migrations/0088_admin_price_ops.sql`. Paste into the Supabase SQL editor → Run, after 0087.
+Apply before the plan 5b code deploys. It does five things:
+- `ai_model_prices_guard` (the 0076 trigger function) now refuses to delete a price in the 2 minutes before it starts, as 0087 does for credit settings. Other servers keep the old catalog for up to a minute, so a run may already be using that row. The app refuses the same window, and a new price set to start within 2 minutes is moved out to 2 minutes; a price that starts now is still allowed.
+- `replace_ai_model_price` deletes a price that starts more than 2 minutes from now and adds its replacement in one transaction. A price that has started, starts within 2 minutes, or belongs to another model is refused and nothing changes; so is a replacement that starts in the past.
+- `reorder_ai_models` writes the order of one kind's models in one statement and records who changed each row (`updated_by`, `updated_at`). The list must name every model of that kind once.
+- `ai_model_month_runs_by_org` returns this month's runs, cost and credits per agency per model, in one grouped query.
+- Execute on the three new functions and on 0085's `ai_model_month_stats` is taken away from public, anon and authenticated and granted to the service role only.
+
+**Safe to re-run:** `create or replace function` throughout, `drop function if exists` for a two-argument `reorder_ai_models` that never shipped, and the revokes and grants repeat harmlessly. No table changes.
+**Ordering:** apply before deploying the 5b code. If it lands later, replacing a price and reordering models fail with "Could not save. Try again." until it is applied. The models list, a model's page and the Credits page still open, but their agencies-affected lists show no agencies (the failed read is logged as `modelRunsByAgency failed`). The price lead is then enforced by the app only.
+
+```sql
+-- expect 4 rows, each with service_role_can = true and anon_can = false and authenticated_can = false
+select p.proname,
+       has_function_privilege('service_role', p.oid, 'execute') as service_role_can,
+       has_function_privilege('anon', p.oid, 'execute') as anon_can,
+       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_can
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in ('replace_ai_model_price', 'reorder_ai_models', 'ai_model_month_runs_by_org', 'ai_model_month_stats')
+order by p.proname;
+-- expect 1 row: true (the price guard has the 2-minute lead)
+select prosrc like '%interval ''2 minutes''%' as has_lead from pg_proc where proname = 'ai_model_prices_guard';
+-- expect 1 row: p_kind text, p_ids text[], p_updated_by uuid
+select pg_get_function_identity_arguments(oid) from pg_proc where proname = 'reorder_ai_models';
+-- expect 1 row: a number, no error (the grouped query runs)
+select count(*) from ai_model_month_runs_by_org(date_trunc('month', now()), now());
+```
+
+## Migration 0089 — replace a scheduled credit settings change (D572, 2026-11-24)
+
+`supabase/migrations/0089_replace_credit_settings.sql`. Paste into the Supabase SQL editor → Run, after 0088.
+Apply before the plan 5b code deploys. It does two things:
+- `replace_credit_settings` deletes a credit settings change that starts more than 2 minutes from now and adds the new settings in one transaction. The Credits page uses it when new settings start on the same IST day as a scheduled change. A change that has started, or starts within 2 minutes, is refused and nothing changes; so are new settings that start in the past. The table's own checks (margin 0 to 200, step 1, 5 or 10, one change per start) still apply.
+- Execute on it is taken away from public, anon and authenticated and granted to the service role only.
+
+**Safe to re-run:** `create or replace function`; the revoke and grant repeat harmlessly. No table changes.
+**Ordering:** apply before deploying the 5b code. If it lands later, saving new credit settings over a scheduled change fails with "Could not save. Try again." until it is applied, and so does the toast's Undo after such a replace (it puts the earlier change back with a second replace). Adding, cancelling and undoing other credit settings changes work.
+
+```sql
+-- expect 1 row: service_role_can = true, anon_can = false, authenticated_can = false
+select p.proname,
+       has_function_privilege('service_role', p.oid, 'execute') as service_role_can,
+       has_function_privilege('anon', p.oid, 'execute') as anon_can,
+       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_can
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname = 'replace_credit_settings';
+-- expect 1 row: p_cancel_id uuid, p_effective_from timestamp with time zone, p_margin_percent numeric, p_round_step integer, p_note text, p_created_by uuid
+select pg_get_function_identity_arguments(oid) from pg_proc where proname = 'replace_credit_settings';
+-- expect 1 row: true (a row inside the 2-minute lead is refused)
+select prosrc like '%interval ''2 minutes''%' as has_lead from pg_proc where proname = 'replace_credit_settings';
+```
+
+## Migration 0090 — billing_payments (D573, 2026-11-19)
+
+Apply after 0089, in any order with the code: nothing reads the table until the test page is on.
+
+**Renumbered 2026-11-25.** The billing migrations were 0066–0076 on the Razorpay branch and became
+0090–0100 when it took in staging, whose copilot and model catalog migrations already use 0066, 0067
+and 0076. Each file's SQL is unchanged. A database that ran them under the old numbers (dev) needs
+nothing more; an environment that has not run them applies 0090–0100 in order, after 0089.
 
 - Adds the `billing_payments` table (one row per Razorpay order; owners of the agency can read their
   own rows, only the server writes) and the `record_razorpay_payment` function, which the Razorpay
@@ -1382,10 +1625,10 @@ delete from credit_transactions
 where type = 'adjustment' and generation_id is null and org_id = '<org id>';
 ```
 
-## Migration 0067 — credit_grants (D515, 2026-11-20)
+## Migration 0091 — credit_grants (D574, 2026-11-20)
 
-Apply after 0066 and **before** the release that calls the new functions. The code before that
-release still calls `reserve_credits`, which 0067 leaves in place (0068 drops it).
+Apply after 0090 and **before** the release that calls the new functions. The code before that
+release still calls `reserve_credits`, which 0091 leaves in place (0092 drops it).
 
 - Adds `billing_mode` (default `managed`) and `plan_type` (default `standard`) to `organizations`.
   Every existing agency becomes managed and behaves as before.
@@ -1395,7 +1638,7 @@ release still calls `reserve_credits`, which 0067 leaves in place (0068 drops it
   only). From the release, every run's hold and settlement goes through them.
 - Adds Admin's billing changes (`admin_set_billing_mode`, `admin_grant_credits`,
   `admin_take_back_credits`, `admin_set_grant_end`), each writing its `billing_log` row in the same
-  transaction. The agency page's Billing tab reads grants and the log, so the page needs 0067.
+  transaction. The agency page's Billing tab reads grants and the log, so the page needs 0091.
 - Safe to apply: new columns with defaults, new tables, new functions. No existing row changes.
 
 **Verify after running:**
@@ -1442,9 +1685,9 @@ alter table organizations drop column if exists plan_type, drop column if exists
 notify pgrst, 'reload schema';
 ```
 
-## Migration 0068 — billing catalog (D518, 2026-11-21)
+## Migration 0092 — billing catalog (D577, 2026-11-21)
 
-Apply after 0067, in any order with the code: nothing reads these tables until piece 3.
+Apply after 0091, in any order with the code: nothing reads these tables until piece 3.
 
 - Adds the catalog and billing tables: `billing_products` (plans and top-up packs; a custom plan
   has an agency), `billing_prices` (fixed once written, one per interval and currency),
@@ -1501,9 +1744,9 @@ drop table if exists billing_products;
 notify pgrst, 'reload schema';
 ```
 
-## Migration 0069 — Admin writes the catalog (D519, 2026-11-21)
+## Migration 0093 — Admin writes the catalog (D578, 2026-11-21)
 
-Apply after 0068 and **before** the release with Admin's Plans and prices page (the page calls
+Apply after 0092 and **before** the release with Admin's Plans and prices page (the page calls
 `billing_price_subscriber_counts`).
 
 - `billing_log.org_id` becomes nullable: catalog and settings changes are logged with no agency.
@@ -1544,9 +1787,9 @@ alter table billing_log alter column org_id set not null;
 notify pgrst, 'reload schema';
 ```
 
-## Migration 0070 — one-step plan save (D520, 2026-11-21)
+## Migration 0094 — one-step plan save (D579, 2026-11-21)
 
-Apply after 0069 and **before** the release with the redesigned Plans and prices page (adding or
+Apply after 0093 and **before** the release with the redesigned Plans and prices page (adding or
 editing a plan calls `admin_save_offer`).
 
 - Adds `admin_save_offer`: adds a plan or top-up pack with its price, or edits it. A changed
@@ -1568,9 +1811,9 @@ drop function if exists admin_save_offer(uuid, text, text, text, boolean, bigint
 notify pgrst, 'reload schema';
 ```
 
-## Migration 0071 — monthly plans (D521, 2026-11-21)
+## Migration 0095 — monthly plans (D580, 2026-11-21)
 
-Apply after 0070, then release. It replaces `reserve_credits_v2` (same arguments) with one more
+Apply after 0094, then release. It replaces `reserve_credits_v2` (same arguments) with one more
 refusal, `payment_due`. Code from before the release would treat that answer as unknown and fail
 the run, but no agency has a subscription before the release, so it can't occur.
 
@@ -1597,7 +1840,7 @@ select proname, prosecdef from pg_proc
 subscribe to a plan with a test card; after the webhook, Admin's Billing tab shows the plan as
 Active with its renewal date and a Plan grant. Cancel shows Cancelled and the end date.
 
-**Rollback:** re-run the `reserve_credits_v2` definition from 0067, then:
+**Rollback:** re-run the `reserve_credits_v2` definition from 0091, then:
 
 ```sql
 drop function if exists set_subscription_status(text, text, timestamptz, timestamptz);
@@ -1605,9 +1848,9 @@ drop function if exists record_subscription_charge(text, text, text, text, bigin
 notify pgrst, 'reload schema';
 ```
 
-## Migration 0072 — top-ups (D522, 2026-11-21)
+## Migration 0096 — top-ups (D581, 2026-11-21)
 
-Apply after 0071, in any order with the code: it replaces `record_razorpay_payment` (same
+Apply after 0095, in any order with the code: it replaces `record_razorpay_payment` (same
 arguments). A test payment behaves exactly as before; a top-up payment (only made by the new code)
 writes a top-up grant.
 
@@ -1625,11 +1868,11 @@ select position('topup' in prosrc) > 0 from pg_proc where proname = 'record_razo
 **Check after the release (test mode):** with an active plan on `/billing-test`, buy a top-up
 pack; after the webhook, Admin's Billing tab lists a Top-up grant ending with the plan month.
 
-**Rollback:** re-run the `record_razorpay_payment` definition from 0066.
+**Rollback:** re-run the `record_razorpay_payment` definition from 0090.
 
-## Migration 0073 — who used what (D524, 2026-11-21)
+## Migration 0097 — who used what (D583, 2026-11-21)
 
-Apply after 0072 and before the release with "Who used what" on Billing.
+Apply after 0096 and before the release with "Who used what" on Billing.
 
 - Adds the index `generations (org_id, created_at)` and `org_credit_usage_by` (credits charged in a
   period per member, client or canvas; service role only, read-only).
@@ -1652,9 +1895,9 @@ drop index if exists generations_org_id_created_at_idx;
 notify pgrst, 'reload schema';
 ```
 
-## Migration 0074 — failed payment rules (D526, 2026-11-21)
+## Migration 0098 — failed payment rules (D585, 2026-11-21)
 
-Apply after 0073, in any order with the code (the code before it never reads the new column).
+Apply after 0097, in any order with the code (the code before it never reads the new column).
 
 - Adds `billing_subscriptions.payment_due_since` (indexed where set).
 - Replaces `set_subscription_status` and `record_subscription_charge` (same arguments) with
@@ -1673,7 +1916,7 @@ select column_name from information_schema.columns
  where table_name = 'billing_subscriptions' and column_name = 'payment_due_since';
 ```
 
-**Rollback:** re-run the two function definitions from 0071, then:
+**Rollback:** re-run the two function definitions from 0095, then:
 
 ```sql
 drop index if exists billing_subscriptions_payment_due_since_idx;
@@ -1681,9 +1924,9 @@ alter table billing_subscriptions drop column if exists payment_due_since;
 notify pgrst, 'reload schema';
 ```
 
-## Migration 0075 — live credits after a payment (D527, 2026-11-21)
+## Migration 0099 — live credits after a payment (D586, 2026-11-21)
 
-Apply after 0074, in any order with the code.
+Apply after 0098, in any order with the code.
 
 - Adds `credit_grants` and `billing_subscriptions` to the `supabase_realtime` publication, so an
   owner's popover and workspace bar update when credits arrive or the plan changes. Owners receive
@@ -1704,9 +1947,9 @@ select tablename from pg_publication_tables
 alter publication supabase_realtime drop table credit_grants, billing_subscriptions;
 ```
 
-## Migration 0076 — billing history a page at a time (D529, 2026-11-23)
+## Migration 0100 — billing history a page at a time (D588, 2026-11-23)
 
-Apply after 0075, before or with the code (the paged lists work without it, only slower).
+Apply after 0099, before or with the code (the paged lists work without it, only slower).
 
 - Adds indexes for the paged billing lists: an agency's billing log and payments newest first,
   Admin › Payments across agencies, and plans renewing or ending soon.
@@ -1732,7 +1975,7 @@ drop index if exists billing_log_org_id_created_at_idx, billing_payments_org_id_
   billing_payments_listed_created_at_idx, billing_subscriptions_status_period_end_idx;
 ```
 
-## Razorpay setup for each environment (D530, 2026-11-23) — no migration
+## Razorpay setup for each environment (D589, 2026-11-23) — no migration
 
 Razorpay keeps test mode and live mode apart: each has its own keys, webhooks and webhook secrets.
 Production uses live mode; dev and staging share test mode. Every environment calls the same route,

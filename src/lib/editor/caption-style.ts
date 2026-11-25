@@ -1,10 +1,11 @@
 // One caption style for the reel (D396): the look (font, size, colour, word by word and how
 // words not said yet show, plus the outline / box / caps a preset sets) and where captions sit.
-// Presets are looks: they never move or retime captions. The stage and the Premiere writer both
+// Presets are looks: they never move or retime captions. A caption styled or moved on its own keeps
+// its whole style and position (D505); the reel's style is then only for the captions that aren't. The stage and the Premiere writer both
 // read these helpers, so what the user sees is what Premiere shows.
 import * as z from "zod";
 import { CAPTION_FONT_KEYS, type CaptionFontKey } from "./caption-fonts";
-import type { EditDoc } from "./types";
+import type { Caption, EditDoc } from "./types";
 
 export const UPCOMING = ["show", "dim", "hide"] as const;
 export type Upcoming = (typeof UPCOMING)[number];
@@ -70,7 +71,44 @@ export const CaptionStyleSchema = z.object({
   y: z.number().finite().min(0).max(1),
 });
 
+/** A caption's own style (D505): once a caption is styled or moved on its own, it keeps its whole
+ *  look and position here, so later changes to the reel's style never reach it. */
+export type CaptionLookOverride = Partial<CaptionStyle>;
+export const CaptionLookOverrideSchema = CaptionStyleSchema.partial();
+
+const OWN_KEYS = [...LOOK_KEYS, "x", "y"] as const satisfies readonly (keyof CaptionStyle)[];
+
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** The style a caption shows with: its own when it has one, else the reel's (D505). */
+export function captionLook(doc: Pick<EditDoc, "captionStyle">, caption: Pick<Caption, "look">): CaptionStyle {
+  return caption.look ? { ...doc.captionStyle, ...caption.look } : doc.captionStyle;
+}
+
+/** The doc with one caption's own style patched; the caption takes its whole current style as its
+ *  own, so it stays as it is whatever the reel's style does later. The SAME doc when nothing
+ *  changed (rule 4). */
+export function applyCaptionLook(doc: EditDoc, captionId: string, patch: Partial<CaptionStyle>): EditDoc {
+  const c = doc.captions.find((x) => x.id === captionId);
+  if (!c) return doc;
+  const next: CaptionStyle = { ...captionLook(doc, c), ...patch };
+  next.x = clamp(next.x, EDGE, 1 - EDGE);
+  next.y = clamp(next.y, EDGE, 1 - EDGE);
+  next.size = clamp(Math.round(next.size), MIN_SIZE, MAX_SIZE);
+  const before = c.look;
+  if (before && OWN_KEYS.every((k) => before[k] === next[k])) return doc;
+  if (!before && OWN_KEYS.every((k) => doc.captionStyle[k] === next[k])) return doc;
+  const own: CaptionLookOverride = {};
+  for (const k of OWN_KEYS) (own as Record<string, unknown>)[k] = next[k];
+  return { ...doc, captions: doc.captions.map((x) => (x.id === captionId ? { ...x, look: own } : x)) };
+}
+
+/** The caption back on the reel's style; the SAME doc when it already is. */
+export function resetCaptionLook(doc: EditDoc, captionId: string): EditDoc {
+  const c = doc.captions.find((x) => x.id === captionId);
+  if (!c?.look) return doc;
+  return { ...doc, captions: doc.captions.map((x) => (x.id === captionId ? (({ look: _l, ...rest }) => rest)(x) : x)) };
+}
 
 /** The doc with the style patched, or the SAME doc when nothing changed (rule 4). */
 export function applyCaptionStyle(doc: EditDoc, patch: Partial<CaptionStyle>): EditDoc {

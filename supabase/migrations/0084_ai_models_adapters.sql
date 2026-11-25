@@ -1,0 +1,2081 @@
+-- D538: each image and video model's own adapter key and the provider's name for it, and its
+-- label, params, rules and capabilities re-synced from the code registries of the day. Status,
+-- replacement and order belong to the super admin and are left alone.
+-- Frozen (D545): the registries it was generated from are deleted. A model change is a new migration.
+update ai_models m set
+  label = r.label, picker_label = r.picker_label, provider_label = r.provider_label,
+  adapter_key = r.adapter_key, provider_model_id = r.provider_model_id,
+  params = r.params, rules = r.rules, capabilities = r.capabilities, updated_at = now()
+from jsonb_to_recordset($seed$[
+  {
+    "id": "openai:gpt-image-2.5-sunburst",
+    "label": "GPT Image 2.5 Sunburst",
+    "picker_label": null,
+    "provider_label": "OpenAI",
+    "adapter_key": "image:gpt-image-2.5-sunburst",
+    "provider_model_id": "gpt-image-2.5-sunburst",
+    "params": [
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "1:1",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "21:9",
+            "4:1",
+            "1:4"
+          ]
+        }
+      },
+      {
+        "name": "quality",
+        "label": "Quality",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "medium",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "auto"
+          ]
+        }
+      },
+      {
+        "name": "background",
+        "label": "Background",
+        "component": "select",
+        "group": "advanced",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "auto",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "auto",
+            "opaque",
+            "transparent"
+          ]
+        }
+      },
+      {
+        "name": "output_format",
+        "label": "Output format",
+        "component": "select",
+        "group": "advanced",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "png",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "png",
+            "jpeg",
+            "webp"
+          ]
+        }
+      },
+      {
+        "name": "output_compression",
+        "label": "Compression",
+        "component": "slider",
+        "group": "advanced",
+        "order": 2,
+        "visible": false,
+        "defaultValue": 80,
+        "constraints": {
+          "type": "slider",
+          "min": 0,
+          "max": 100,
+          "step": 1
+        }
+      }
+    ],
+    "rules": [],
+    "capabilities": {
+      "maxReferenceImages": 16,
+      "maxReferenceSizeBytes": 52428800,
+      "maxImageEdgePx": 3840,
+      "maxAspectRatio": 3,
+      "minDimensionMultiple": 16,
+      "supportsMask": true
+    }
+  },
+  {
+    "id": "openai:gpt-image-2.5-flare",
+    "label": "GPT Image 2.5 Flare",
+    "picker_label": null,
+    "provider_label": "OpenAI",
+    "adapter_key": "image:gpt-image-2.5-flare",
+    "provider_model_id": "gpt-image-2.5-flare",
+    "params": [
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "1:1",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "21:9",
+            "4:1",
+            "1:4"
+          ]
+        }
+      },
+      {
+        "name": "quality",
+        "label": "Quality",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "medium",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "auto"
+          ]
+        }
+      },
+      {
+        "name": "background",
+        "label": "Background",
+        "component": "select",
+        "group": "advanced",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "auto",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "auto",
+            "opaque",
+            "transparent"
+          ]
+        }
+      },
+      {
+        "name": "output_format",
+        "label": "Output format",
+        "component": "select",
+        "group": "advanced",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "png",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "png",
+            "jpeg",
+            "webp"
+          ]
+        }
+      },
+      {
+        "name": "output_compression",
+        "label": "Compression",
+        "component": "slider",
+        "group": "advanced",
+        "order": 2,
+        "visible": false,
+        "defaultValue": 80,
+        "constraints": {
+          "type": "slider",
+          "min": 0,
+          "max": 100,
+          "step": 1
+        }
+      }
+    ],
+    "rules": [],
+    "capabilities": {
+      "maxReferenceImages": 16,
+      "maxReferenceSizeBytes": 52428800,
+      "maxImageEdgePx": 3840,
+      "maxAspectRatio": 3,
+      "minDimensionMultiple": 16,
+      "supportsMask": true
+    }
+  },
+  {
+    "id": "openai:gpt-image-2",
+    "label": "GPT Image 2",
+    "picker_label": null,
+    "provider_label": "OpenAI",
+    "adapter_key": "image:gpt-image-2",
+    "provider_model_id": "gpt-image-2",
+    "params": [
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "1:1",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "21:9",
+            "4:1",
+            "1:4"
+          ]
+        }
+      },
+      {
+        "name": "quality",
+        "label": "Quality",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "medium",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "low",
+            "medium",
+            "high",
+            "auto"
+          ]
+        }
+      },
+      {
+        "name": "background",
+        "label": "Background",
+        "component": "select",
+        "group": "advanced",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "auto",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "auto",
+            "opaque"
+          ]
+        }
+      },
+      {
+        "name": "output_format",
+        "label": "Output format",
+        "component": "select",
+        "group": "advanced",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "png",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "png",
+            "jpeg",
+            "webp"
+          ]
+        }
+      },
+      {
+        "name": "output_compression",
+        "label": "Compression",
+        "component": "slider",
+        "group": "advanced",
+        "order": 2,
+        "visible": false,
+        "defaultValue": 80,
+        "constraints": {
+          "type": "slider",
+          "min": 0,
+          "max": 100,
+          "step": 1
+        }
+      }
+    ],
+    "rules": [],
+    "capabilities": {
+      "maxReferenceImages": 16,
+      "maxReferenceSizeBytes": 52428800,
+      "maxImageEdgePx": 3840,
+      "maxAspectRatio": 3,
+      "minDimensionMultiple": 16,
+      "supportsMask": true
+    }
+  },
+  {
+    "id": "openai:gpt-image-1-mini",
+    "label": "GPT Image 1 Mini",
+    "picker_label": null,
+    "provider_label": "OpenAI",
+    "adapter_key": "image:gpt-image-1-mini",
+    "provider_model_id": "gpt-image-1-mini",
+    "params": [
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "1:1",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "21:9",
+            "4:1",
+            "1:4"
+          ]
+        }
+      },
+      {
+        "name": "quality",
+        "label": "Quality",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "medium",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      },
+      {
+        "name": "output_format",
+        "label": "Output format",
+        "component": "select",
+        "group": "advanced",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "png",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "png",
+            "jpeg",
+            "webp"
+          ]
+        }
+      }
+    ],
+    "rules": [],
+    "capabilities": {
+      "maxReferenceImages": 16,
+      "maxReferenceSizeBytes": 52428800,
+      "maxImageEdgePx": 3840,
+      "maxAspectRatio": 3,
+      "minDimensionMultiple": 16,
+      "supportsMask": true
+    }
+  },
+  {
+    "id": "gemini:gemini-2.5-flash-image",
+    "label": "Nano Banana",
+    "picker_label": null,
+    "provider_label": "Gemini",
+    "adapter_key": "image:gemini-2.5-flash-image",
+    "provider_model_id": "gemini-2.5-flash-image",
+    "params": [
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "1:1",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "21:9"
+          ]
+        }
+      },
+      {
+        "name": "image_size",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": false,
+        "defaultValue": "1K",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1K"
+          ]
+        }
+      }
+    ],
+    "rules": [],
+    "capabilities": {
+      "maxReferenceImages": 14,
+      "maxReferenceSizeBytes": 0,
+      "maxTotalReferenceSizeBytes": 104857600
+    }
+  },
+  {
+    "id": "gemini:gemini-3.1-flash-image",
+    "label": "Nano Banana 2",
+    "picker_label": null,
+    "provider_label": "Gemini",
+    "adapter_key": "image:gemini-3.1-flash-image",
+    "provider_model_id": "gemini-3.1-flash-image",
+    "params": [
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "1:1",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "21:9",
+            "4:1",
+            "1:4"
+          ]
+        }
+      },
+      {
+        "name": "image_size",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "1K",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "512",
+            "1K",
+            "2K",
+            "4K"
+          ]
+        }
+      }
+    ],
+    "rules": [],
+    "capabilities": {
+      "maxReferenceImages": 14,
+      "maxReferenceSizeBytes": 0,
+      "maxTotalReferenceSizeBytes": 104857600
+    }
+  },
+  {
+    "id": "gemini:gemini-nano-banana-2.1",
+    "label": "Nano Banana 2.1",
+    "picker_label": null,
+    "provider_label": "Gemini",
+    "adapter_key": "image:gemini-nano-banana-2.1",
+    "provider_model_id": "gemini-nano-banana-2.1",
+    "params": [
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "1:1",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "21:9"
+          ]
+        }
+      },
+      {
+        "name": "image_size",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "1K",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1K",
+            "2K",
+            "4K"
+          ]
+        }
+      }
+    ],
+    "rules": [],
+    "capabilities": {
+      "maxReferenceImages": 14,
+      "maxReferenceSizeBytes": 0,
+      "maxTotalReferenceSizeBytes": 104857600
+    }
+  },
+  {
+    "id": "gemini:gemini-3-pro-image",
+    "label": "Nano Banana Pro",
+    "picker_label": null,
+    "provider_label": "Gemini",
+    "adapter_key": "image:gemini-3-pro-image",
+    "provider_model_id": "gemini-3-pro-image",
+    "params": [
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "9:16",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4"
+          ]
+        }
+      },
+      {
+        "name": "image_size",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "1K",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1K",
+            "2K",
+            "4K"
+          ]
+        }
+      }
+    ],
+    "rules": [],
+    "capabilities": {
+      "maxReferenceImages": 14,
+      "maxReferenceSizeBytes": 0,
+      "maxTotalReferenceSizeBytes": 104857600
+    }
+  },
+  {
+    "id": "seedream:seedream-5-0-lite",
+    "label": "Seedream 5.0 Lite",
+    "picker_label": null,
+    "provider_label": "Seedream",
+    "adapter_key": "image:seedream-5-0-lite",
+    "provider_model_id": "seedream-5-0-lite-260128",
+    "params": [
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "9:16",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1:1",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16",
+            "3:2",
+            "2:3",
+            "21:9"
+          ]
+        }
+      },
+      {
+        "name": "image_size",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "2K",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "2K",
+            "3K",
+            "4K"
+          ]
+        }
+      }
+    ],
+    "rules": [],
+    "capabilities": {
+      "maxReferenceImages": 14,
+      "maxReferenceSizeBytes": 31457280,
+      "maxAspectRatio": 16,
+      "supportsMask": false
+    }
+  },
+  {
+    "id": "seedream:seedream-5-0-pro",
+    "label": "Seedream 5.0 Pro",
+    "picker_label": null,
+    "provider_label": "Seedream",
+    "adapter_key": "image:seedream-5-0-pro",
+    "provider_model_id": "dola-seedream-5-0-pro-260628",
+    "params": [
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "9:16",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1:1",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16",
+            "3:2",
+            "2:3",
+            "21:9"
+          ]
+        }
+      },
+      {
+        "name": "image_size",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "2K",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1K",
+            "1.5K",
+            "2K"
+          ]
+        },
+        "description": "1.5K costs the same as 1K; 2K costs twice as much."
+      }
+    ],
+    "rules": [],
+    "capabilities": {
+      "maxReferenceImages": 10,
+      "maxReferenceSizeBytes": 31457280,
+      "maxAspectRatio": 16,
+      "supportsMask": false
+    }
+  },
+  {
+    "id": "kling:kling-3-0",
+    "label": "Kling 3.0",
+    "picker_label": null,
+    "provider_label": "Kling",
+    "adapter_key": "video:kling-3-0",
+    "provider_model_id": "kling-3.0",
+    "params": [
+      {
+        "name": "resolution",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "720p",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "720p",
+            "1080p",
+            "4k"
+          ]
+        }
+      },
+      {
+        "name": "duration",
+        "label": "Duration",
+        "component": "slider",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": 5,
+        "constraints": {
+          "type": "slider",
+          "min": 3,
+          "max": 15,
+          "step": 1
+        }
+      },
+      {
+        "name": "audio",
+        "label": "Audio",
+        "component": "select",
+        "group": "primary",
+        "order": 2,
+        "visible": true,
+        "defaultValue": "native",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "native",
+            "off"
+          ]
+        },
+        "description": "Native sound matched to the visuals, spoken lines included. Off saves about 33% per second."
+      },
+      {
+        "name": "multi_shot",
+        "label": "Multi-Shot",
+        "component": "toggle",
+        "group": "advanced",
+        "order": 1,
+        "visible": false,
+        "defaultValue": false,
+        "constraints": {
+          "type": "toggle"
+        }
+      },
+      {
+        "name": "negative_prompt",
+        "label": "Negative Prompt",
+        "component": "textarea",
+        "group": "primary",
+        "order": 4,
+        "visible": true,
+        "defaultValue": "blurry, low quality, distorted, deformed, morphing, warped label, label deformation, text distortion, changing text, flickering, jitter, floating objects, extra objects, duplicated product, watermark",
+        "constraints": {
+          "type": "textarea",
+          "maxLength": 2500
+        }
+      }
+    ],
+    "rules": [
+      {
+        "id": "kling-requires-start-frame",
+        "when": {
+          "field": "hasStartFrame",
+          "op": "eq",
+          "value": false
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "Kling needs a start frame before you can generate"
+      },
+      {
+        "id": "end-frame-disables-multi-shot",
+        "when": {
+          "field": "hasEndFrame",
+          "op": "eq",
+          "value": true
+        },
+        "effect": {
+          "lockParams": [
+            {
+              "name": "multi_shot",
+              "value": false
+            }
+          ]
+        },
+        "reason": "End frame selected → multi-shot off (cuts break a single continuous shot)"
+      }
+    ],
+    "capabilities": {
+      "maxDurationSeconds": 15,
+      "imageInputs": {
+        "startFrame": true,
+        "endFrame": true,
+        "maxReferenceImages": 0
+      }
+    }
+  },
+  {
+    "id": "kling:kling-o1",
+    "label": "Kling O1",
+    "picker_label": null,
+    "provider_label": "Kling",
+    "adapter_key": "video:kling-o1",
+    "provider_model_id": "kling-o1",
+    "params": [
+      {
+        "name": "duration",
+        "label": "Duration",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "5",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "5",
+            "10"
+          ]
+        }
+      },
+      {
+        "name": "multi_shot",
+        "label": "Multi-Shot",
+        "component": "toggle",
+        "group": "advanced",
+        "order": 1,
+        "visible": false,
+        "defaultValue": false,
+        "constraints": {
+          "type": "toggle"
+        }
+      },
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 3,
+        "visible": true,
+        "defaultValue": "9:16",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "16:9",
+            "9:16",
+            "1:1"
+          ]
+        },
+        "description": "Used whenever reference images are attached."
+      },
+      {
+        "name": "negative_prompt",
+        "label": "Negative Prompt",
+        "component": "textarea",
+        "group": "primary",
+        "order": 4,
+        "visible": true,
+        "defaultValue": "blurry, low quality, distorted, deformed, morphing, warped label, label deformation, text distortion, changing text, flickering, jitter, floating objects, extra objects, duplicated product, watermark",
+        "constraints": {
+          "type": "textarea",
+          "maxLength": 2500
+        }
+      }
+    ],
+    "rules": [
+      {
+        "id": "kling-o1-needs-start-frame-or-reference",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": false
+            },
+            {
+              "field": "referenceCount",
+              "op": "eq",
+              "value": 0
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "Kling needs a start frame or at least one reference image"
+      },
+      {
+        "id": "kling-o1-end-frame-requires-start-frame",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": false
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "End frame needs a start frame before you can generate"
+      },
+      {
+        "id": "kling-o1-end-frame-excludes-references",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "referenceCount",
+              "op": "gt",
+              "value": 0
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "Kling O1 can't use an end frame together with reference images. Remove one of them."
+      }
+    ],
+    "capabilities": {
+      "maxDurationSeconds": 10,
+      "imageInputs": {
+        "startFrame": true,
+        "endFrame": true,
+        "maxReferenceImages": 5
+      }
+    }
+  },
+  {
+    "id": "kling:kling-3-0-omni",
+    "label": "Kling 3.0 Omni",
+    "picker_label": "3.0 Omni",
+    "provider_label": "Kling",
+    "adapter_key": "video:kling-3-0-omni",
+    "provider_model_id": "kling-3.0-omni",
+    "params": [
+      {
+        "name": "resolution",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "720p",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "720p",
+            "1080p",
+            "4k"
+          ]
+        }
+      },
+      {
+        "name": "duration",
+        "label": "Duration",
+        "component": "slider",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": 5,
+        "constraints": {
+          "type": "slider",
+          "min": 3,
+          "max": 15,
+          "step": 1
+        }
+      },
+      {
+        "name": "audio",
+        "label": "Audio",
+        "component": "select",
+        "group": "primary",
+        "order": 2,
+        "visible": true,
+        "defaultValue": "native",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "native",
+            "off"
+          ]
+        },
+        "description": "Native sound matched to the visuals, spoken lines included. Off saves about 25% per second at 720p, 20% at 1080p."
+      },
+      {
+        "name": "multi_shot",
+        "label": "Multi-Shot",
+        "component": "toggle",
+        "group": "advanced",
+        "order": 1,
+        "visible": false,
+        "defaultValue": false,
+        "constraints": {
+          "type": "toggle"
+        }
+      },
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 3,
+        "visible": true,
+        "defaultValue": "9:16",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "16:9",
+            "9:16",
+            "1:1"
+          ]
+        },
+        "description": "Used only when generating from references with no start frame."
+      },
+      {
+        "name": "negative_prompt",
+        "label": "Negative Prompt",
+        "component": "textarea",
+        "group": "primary",
+        "order": 4,
+        "visible": true,
+        "defaultValue": "blurry, low quality, distorted, deformed, morphing, warped label, label deformation, text distortion, changing text, flickering, jitter, floating objects, extra objects, duplicated product, watermark",
+        "constraints": {
+          "type": "textarea",
+          "maxLength": 2500
+        }
+      }
+    ],
+    "rules": [
+      {
+        "id": "kling-o1-needs-start-frame-or-reference",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": false
+            },
+            {
+              "field": "referenceCount",
+              "op": "eq",
+              "value": 0
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "Kling needs a start frame or at least one reference image"
+      },
+      {
+        "id": "kling-o1-end-frame-requires-start-frame",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": false
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "End frame needs a start frame before you can generate"
+      }
+    ],
+    "capabilities": {
+      "maxDurationSeconds": 15,
+      "imageInputs": {
+        "startFrame": true,
+        "endFrame": true,
+        "maxReferenceImages": 5
+      }
+    }
+  },
+  {
+    "id": "seedance:seedance-2-5",
+    "label": "Seedance 2.5",
+    "picker_label": "2.5",
+    "provider_label": "Seedance",
+    "adapter_key": "video:seedance-2-5",
+    "provider_model_id": "dreamina-seedance-2-5-260628",
+    "params": [
+      {
+        "name": "resolution",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "720p",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "480p",
+            "720p",
+            "1080p"
+          ]
+        }
+      },
+      {
+        "name": "duration",
+        "label": "Duration",
+        "component": "slider",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": 5,
+        "constraints": {
+          "type": "slider",
+          "min": 4,
+          "max": 30,
+          "step": 1
+        }
+      },
+      {
+        "name": "ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 2,
+        "visible": true,
+        "defaultValue": "9:16",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "16:9",
+            "9:16",
+            "1:1",
+            "adaptive"
+          ]
+        }
+      }
+    ],
+    "rules": [
+      {
+        "id": "seedance-refs-disable-frames",
+        "when": {
+          "field": "referenceCount",
+          "op": "gt",
+          "value": 0
+        },
+        "effect": {
+          "disableFrameInputs": true
+        },
+        "reason": "Reference images selected → start/end frames unavailable on Seedance"
+      },
+      {
+        "id": "seedance-frames-disable-refs",
+        "when": {
+          "op": "or",
+          "conditions": [
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            }
+          ]
+        },
+        "effect": {
+          "disableRefs": true
+        },
+        "reason": "Start/end frame selected → reference images unavailable on Seedance"
+      },
+      {
+        "id": "seedance-end-frame-requires-start-frame",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": false
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "End frame needs a start frame before you can generate"
+      }
+    ],
+    "capabilities": {
+      "maxDurationSeconds": 30,
+      "imageInputs": {
+        "startFrame": true,
+        "endFrame": true,
+        "maxReferenceImages": 30
+      }
+    }
+  },
+  {
+    "id": "gemini:gemini-omni-1.2-flash",
+    "label": "Gemini Omni 1.2 Flash",
+    "picker_label": "Omni 1.2",
+    "provider_label": "Google",
+    "adapter_key": "video:gemini-omni-1.2-flash",
+    "provider_model_id": "gemini-omni-1.2-flash",
+    "params": [
+      {
+        "name": "resolution",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "720p",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "360p",
+            "720p",
+            "1080p",
+            "4k"
+          ]
+        },
+        "description": "720p is the only natively rendered tier — 1080p and 4k are upscaled from it, at 1.5x and 3x the price. 360p costs a third of 720p and is the draft tier for iterating."
+      },
+      {
+        "name": "duration",
+        "label": "Duration",
+        "component": "slider",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": 8,
+        "constraints": {
+          "type": "slider",
+          "min": 3,
+          "max": 15,
+          "step": 1
+        }
+      },
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 2,
+        "visible": true,
+        "defaultValue": "9:16",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "16:9",
+            "9:16"
+          ]
+        }
+      },
+      {
+        "name": "negative_prompt",
+        "label": "Negative Prompt",
+        "component": "textarea",
+        "group": "primary",
+        "order": 3,
+        "visible": true,
+        "defaultValue": "blurry, low quality, distorted, deformed, morphing, warped label, label deformation, text distortion, changing text, flickering, jitter, floating objects, extra objects, duplicated product, watermark, sliding feet, moonwalking, gliding, hovering, foot slip, distorted gait, stiff robotic motion, morphing limbs, merged fingers, extra fingers",
+        "constraints": {
+          "type": "textarea",
+          "maxLength": 2500
+        }
+      }
+    ],
+    "rules": [
+      {
+        "id": "omni-last-frame-needs-first-frame",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": false
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "End frame needs a start frame — <LAST_FRAME> requires <FIRST_FRAME>"
+      },
+      {
+        "id": "omni-12-frame-pair-max-duration",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "duration",
+              "op": "gt",
+              "value": 10
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "With a start and end frame, clips can be up to 10s. Shorten the duration or remove the end frame."
+      }
+    ],
+    "capabilities": {
+      "maxDurationSeconds": 15,
+      "imageInputs": {
+        "startFrame": true,
+        "endFrame": true,
+        "maxReferenceImages": 24,
+        "maxImagesWithFrames": 9
+      }
+    }
+  },
+  {
+    "id": "gemini:gemini-omni-1.1-flash",
+    "label": "Gemini Omni 1.1 Flash",
+    "picker_label": "Omni 1.1",
+    "provider_label": "Google",
+    "adapter_key": "video:gemini-omni-1.1-flash",
+    "provider_model_id": "gemini-omni-1.1-flash",
+    "params": [
+      {
+        "name": "resolution",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "720p",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "360p",
+            "720p",
+            "1080p",
+            "4k"
+          ]
+        },
+        "description": "720p is the only natively rendered tier — 1080p and 4k are upscaled from it, at 1.5x and 3x the price. 360p costs a third of 720p and is the draft tier for iterating."
+      },
+      {
+        "name": "duration",
+        "label": "Duration",
+        "component": "slider",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": 8,
+        "constraints": {
+          "type": "slider",
+          "min": 3,
+          "max": 10,
+          "step": 1
+        }
+      },
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 2,
+        "visible": true,
+        "defaultValue": "9:16",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "16:9",
+            "9:16"
+          ]
+        }
+      },
+      {
+        "name": "negative_prompt",
+        "label": "Negative Prompt",
+        "component": "textarea",
+        "group": "primary",
+        "order": 3,
+        "visible": true,
+        "defaultValue": "blurry, low quality, distorted, deformed, morphing, warped label, label deformation, text distortion, changing text, flickering, jitter, floating objects, extra objects, duplicated product, watermark, sliding feet, moonwalking, gliding, hovering, foot slip, distorted gait, stiff robotic motion, morphing limbs, merged fingers, extra fingers",
+        "constraints": {
+          "type": "textarea",
+          "maxLength": 2500
+        }
+      }
+    ],
+    "rules": [
+      {
+        "id": "omni-last-frame-needs-first-frame",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": false
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "End frame needs a start frame — <LAST_FRAME> requires <FIRST_FRAME>"
+      }
+    ],
+    "capabilities": {
+      "maxDurationSeconds": 10,
+      "imageInputs": {
+        "startFrame": true,
+        "endFrame": true,
+        "maxReferenceImages": 12,
+        "maxImagesWithFrames": 7
+      }
+    }
+  },
+  {
+    "id": "openai:gpt-image-1",
+    "label": "GPT Image 1",
+    "picker_label": null,
+    "provider_label": "OpenAI",
+    "adapter_key": "image:gpt-image-1",
+    "provider_model_id": "gpt-image-1",
+    "params": [
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "1:1",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "21:9",
+            "4:1",
+            "1:4"
+          ]
+        }
+      },
+      {
+        "name": "quality",
+        "label": "Quality",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "medium",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "low",
+            "medium",
+            "high",
+            "auto"
+          ]
+        }
+      },
+      {
+        "name": "background",
+        "label": "Background",
+        "component": "select",
+        "group": "advanced",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "auto",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "auto",
+            "opaque",
+            "transparent"
+          ]
+        }
+      },
+      {
+        "name": "output_format",
+        "label": "Output format",
+        "component": "select",
+        "group": "advanced",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "png",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "png",
+            "jpeg",
+            "webp"
+          ]
+        }
+      },
+      {
+        "name": "output_compression",
+        "label": "Compression",
+        "component": "slider",
+        "group": "advanced",
+        "order": 2,
+        "visible": false,
+        "defaultValue": 80,
+        "constraints": {
+          "type": "slider",
+          "min": 0,
+          "max": 100,
+          "step": 1
+        }
+      }
+    ],
+    "rules": [],
+    "capabilities": {
+      "maxReferenceImages": 16,
+      "maxReferenceSizeBytes": 52428800,
+      "maxImageEdgePx": 3840,
+      "maxAspectRatio": 3,
+      "minDimensionMultiple": 16,
+      "supportsMask": true
+    }
+  },
+  {
+    "id": "veo:veo-3.1-lite",
+    "label": "Veo 3.1 Lite",
+    "picker_label": null,
+    "provider_label": "Veo",
+    "adapter_key": "video:veo-3.1-lite",
+    "provider_model_id": "veo-3.1-lite-generate-preview",
+    "params": [
+      {
+        "name": "resolution",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "720p",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "720p",
+            "1080p"
+          ]
+        }
+      },
+      {
+        "name": "duration",
+        "label": "Duration (s)",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "6",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "4",
+            "6",
+            "8"
+          ]
+        }
+      },
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 2,
+        "visible": true,
+        "defaultValue": "9:16",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "16:9",
+            "9:16"
+          ]
+        }
+      },
+      {
+        "name": "negative_prompt",
+        "label": "Negative Prompt",
+        "component": "textarea",
+        "group": "primary",
+        "order": 3,
+        "visible": true,
+        "defaultValue": "blurry, low quality, distorted, deformed, morphing, warped label, label deformation, text distortion, changing text, flickering, jitter, floating objects, extra objects, duplicated product, watermark",
+        "constraints": {
+          "type": "textarea",
+          "maxLength": 2500
+        }
+      }
+    ],
+    "rules": [
+      {
+        "id": "lite-end-frame-duration",
+        "when": {
+          "field": "hasEndFrame",
+          "op": "eq",
+          "value": true
+        },
+        "effect": {
+          "lockParams": [
+            {
+              "name": "duration",
+              "value": "8"
+            }
+          ]
+        },
+        "reason": "End frame selected → duration locked to 8s"
+      },
+      {
+        "id": "end-frame-requires-start-frame",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": false
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "End frame needs a start frame before you can generate"
+      }
+    ],
+    "capabilities": {
+      "maxDurationSeconds": 8,
+      "imageInputs": {
+        "startFrame": true,
+        "endFrame": true,
+        "maxReferenceImages": 0
+      }
+    }
+  },
+  {
+    "id": "veo:veo-3.1-fast",
+    "label": "Veo 3.1 Fast",
+    "picker_label": null,
+    "provider_label": "Veo",
+    "adapter_key": "video:veo-3.1-fast",
+    "provider_model_id": "veo-3.1-fast-generate-preview",
+    "params": [
+      {
+        "name": "resolution",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "720p",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "720p",
+            "1080p"
+          ]
+        }
+      },
+      {
+        "name": "duration",
+        "label": "Duration (s)",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "6",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "4",
+            "6",
+            "8"
+          ]
+        }
+      },
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 2,
+        "visible": true,
+        "defaultValue": "9:16",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "16:9",
+            "9:16"
+          ]
+        }
+      },
+      {
+        "name": "negative_prompt",
+        "label": "Negative Prompt",
+        "component": "textarea",
+        "group": "primary",
+        "order": 3,
+        "visible": true,
+        "defaultValue": "blurry, low quality, distorted, deformed, morphing, warped label, label deformation, text distortion, changing text, flickering, jitter, floating objects, extra objects, duplicated product, watermark",
+        "constraints": {
+          "type": "textarea",
+          "maxLength": 2500
+        }
+      }
+    ],
+    "rules": [
+      {
+        "id": "refs-lock-duration-disable-frames",
+        "when": {
+          "field": "referenceCount",
+          "op": "gt",
+          "value": 0
+        },
+        "effect": {
+          "lockParams": [
+            {
+              "name": "duration",
+              "value": "8"
+            }
+          ],
+          "disableFrameInputs": true
+        },
+        "reason": "Reference images selected → duration locked to 8s, start/end frames unavailable"
+      },
+      {
+        "id": "frames-disable-refs",
+        "when": {
+          "op": "or",
+          "conditions": [
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            }
+          ]
+        },
+        "effect": {
+          "disableRefs": true
+        },
+        "reason": "Start/end frame selected → reference images unavailable"
+      },
+      {
+        "id": "end-frame-lock-duration",
+        "when": {
+          "field": "hasEndFrame",
+          "op": "eq",
+          "value": true
+        },
+        "effect": {
+          "lockParams": [
+            {
+              "name": "duration",
+              "value": "8"
+            }
+          ]
+        },
+        "reason": "End frame selected → duration locked to 8s"
+      },
+      {
+        "id": "end-frame-requires-start-frame",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": false
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "End frame needs a start frame before you can generate"
+      }
+    ],
+    "capabilities": {
+      "maxDurationSeconds": 8,
+      "imageInputs": {
+        "startFrame": true,
+        "endFrame": true,
+        "maxReferenceImages": 3
+      }
+    }
+  },
+  {
+    "id": "veo:veo-3.1",
+    "label": "Veo 3.1 Quality",
+    "picker_label": null,
+    "provider_label": "Veo",
+    "adapter_key": "video:veo-3.1",
+    "provider_model_id": "veo-3.1-generate-preview",
+    "params": [
+      {
+        "name": "resolution",
+        "label": "Resolution",
+        "component": "select",
+        "group": "primary",
+        "order": 0,
+        "visible": true,
+        "defaultValue": "720p",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "720p",
+            "1080p"
+          ]
+        }
+      },
+      {
+        "name": "duration",
+        "label": "Duration (s)",
+        "component": "select",
+        "group": "primary",
+        "order": 1,
+        "visible": true,
+        "defaultValue": "6",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "4",
+            "6",
+            "8"
+          ]
+        }
+      },
+      {
+        "name": "aspect_ratio",
+        "label": "Aspect Ratio",
+        "component": "select",
+        "group": "primary",
+        "order": 2,
+        "visible": true,
+        "defaultValue": "9:16",
+        "constraints": {
+          "type": "select",
+          "options": [
+            "16:9",
+            "9:16"
+          ]
+        }
+      },
+      {
+        "name": "negative_prompt",
+        "label": "Negative Prompt",
+        "component": "textarea",
+        "group": "primary",
+        "order": 3,
+        "visible": true,
+        "defaultValue": "blurry, low quality, distorted, deformed, morphing, warped label, label deformation, text distortion, changing text, flickering, jitter, floating objects, extra objects, duplicated product, watermark",
+        "constraints": {
+          "type": "textarea",
+          "maxLength": 2500
+        }
+      }
+    ],
+    "rules": [
+      {
+        "id": "refs-lock-duration-disable-frames",
+        "when": {
+          "field": "referenceCount",
+          "op": "gt",
+          "value": 0
+        },
+        "effect": {
+          "lockParams": [
+            {
+              "name": "duration",
+              "value": "8"
+            }
+          ],
+          "disableFrameInputs": true
+        },
+        "reason": "Reference images selected → duration locked to 8s, start/end frames unavailable"
+      },
+      {
+        "id": "frames-disable-refs",
+        "when": {
+          "op": "or",
+          "conditions": [
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            }
+          ]
+        },
+        "effect": {
+          "disableRefs": true
+        },
+        "reason": "Start/end frame selected → reference images unavailable"
+      },
+      {
+        "id": "end-frame-lock-duration",
+        "when": {
+          "field": "hasEndFrame",
+          "op": "eq",
+          "value": true
+        },
+        "effect": {
+          "lockParams": [
+            {
+              "name": "duration",
+              "value": "8"
+            }
+          ]
+        },
+        "reason": "End frame selected → duration locked to 8s"
+      },
+      {
+        "id": "end-frame-requires-start-frame",
+        "when": {
+          "op": "and",
+          "conditions": [
+            {
+              "field": "hasEndFrame",
+              "op": "eq",
+              "value": true
+            },
+            {
+              "field": "hasStartFrame",
+              "op": "eq",
+              "value": false
+            }
+          ]
+        },
+        "effect": {
+          "disableGenerate": true
+        },
+        "reason": "End frame needs a start frame before you can generate"
+      }
+    ],
+    "capabilities": {
+      "maxDurationSeconds": 8,
+      "imageInputs": {
+        "startFrame": true,
+        "endFrame": true,
+        "maxReferenceImages": 3
+      }
+    }
+  }
+]$seed$::jsonb) as r(
+  id text, label text, picker_label text, provider_label text, adapter_key text,
+  provider_model_id text, params jsonb, rules jsonb, capabilities jsonb
+)
+where m.id = r.id;

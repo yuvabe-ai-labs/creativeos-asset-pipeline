@@ -30,7 +30,9 @@ export async function GET(
       .from("generations")
       .select("node_id, credits_charged")
       .in("node_id", nodeIds)
-      .eq("status", "succeeded");
+      .eq("status", "succeeded")
+      // D560: record-only rows charge nothing and are not the node's jobs.
+      .eq("record_only", false);
 
     if (error) return apiError(error.message, 500);
 

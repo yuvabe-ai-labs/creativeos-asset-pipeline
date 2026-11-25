@@ -1,7 +1,7 @@
 # Billing piece 4: top-ups
 
 **Date:** 2026-11-21 · **Branch:** `feat/razorpay-test` · **Map:** `2026-11-19-billing-phase-1-design.md`
-(piece 4, after monthly plans, D521) · **Migration:** 0072
+(piece 4, after monthly plans, D580) · **Migration:** 0096
 
 ## Goal
 
@@ -27,7 +27,7 @@ Razorpay confirms the payment and end when the plan's paid month ends.
    with GST, saves a `created` payment row (`kind = 'topup'`), answers the order for Checkout.
 2. Checkout; `POST /api/billing/topup/confirm` checks the order signature and answers "received".
    It never adds credits.
-3. `order.paid` webhook → `record_razorpay_payment` (replaced in 0072): one transaction marks the
+3. `order.paid` webhook → `record_razorpay_payment` (replaced in 0096): one transaction marks the
    payment paid once; a `topup` payment writes a `topup` grant as above; a `test` payment keeps
    the old behaviour (the negative adjustment) until the test top-up is removed.
 

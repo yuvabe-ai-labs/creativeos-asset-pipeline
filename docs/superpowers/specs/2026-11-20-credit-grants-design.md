@@ -1,7 +1,7 @@
 # Billing piece 1: credit grants and the paying-agency balance
 
 **Date:** 2026-11-20 · **Branch:** `feat/razorpay-test` · **Map:** `2026-11-19-billing-phase-1-design.md`
-(piece 1) · **Migration:** 0067
+(piece 1) · **Migration:** 0091
 
 ## Goal
 
@@ -13,7 +13,7 @@ to 6 write grants and show them.
 
 Screens (pieces 2, 6), plans and prices (3), payments (4, 5), the failed-payment stop (5).
 
-## Schema (migration 0067)
+## Schema (migration 0091)
 
 ```
 organizations
@@ -73,7 +73,7 @@ a time (as `reserve_credits` does today).
   `'ok'`.
 
 A new name, not a changed `reserve_credits`: the old function returns boolean and the code that
-calls it keeps working until this release is live. 0068 drops the old one.
+calls it keeps working until this release is live. 0092 drops the old one.
 
 ### `settle_credits(p_org_id, p_generation_id, p_actual) returns boolean`
 
@@ -115,7 +115,7 @@ The open grants, for screens (pieces 2, 6). Executable by `service_role`.
 ## Rollout
 
 The migration must be applied before the code that calls the new functions. The old
-`reserve_credits` stays until 0068, so code from before this release keeps working while the
+`reserve_credits` stays until 0092, so code from before this release keeps working while the
 migration is applied first.
 
 ## Checking the SQL

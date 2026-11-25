@@ -3,7 +3,7 @@ import { verifySubscriptionSignature } from "@/lib/billing/razorpay";
 
 type ConfirmBody = { paymentId?: unknown; subscriptionId?: unknown; signature?: unknown };
 
-// Checks Checkout's signature so the page can say "payment received" (D521). It never adds
+// Checks Checkout's signature so the page can say "payment received" (D580). It never adds
 // credits: a closed tab or a forged call can't change a balance; the webhook does that.
 export async function POST(req: Request) {
   return withAccess(req, { need: "view_credits" }, async () => {

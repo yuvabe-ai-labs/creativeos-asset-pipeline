@@ -5,6 +5,7 @@ import type { VideoGenVersionSummary } from "./video-gen-version-history";
 import { UsagePopoverShell, type UsageRow } from "./usage-popover-shell";
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { useNodeCost } from "@/hooks/use-node-cost";
+import { useVideoModels } from "@/hooks/queries/ai-models";
 import { readVoiceMeta } from "@/lib/voice-change/meta";
 import { readVoiceChange } from "@/lib/voice-change/record";
 
@@ -27,6 +28,7 @@ type GenStat = {
 };
 
 export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Props) {
+  const videos = useVideoModels();
   const { totalCredits, perGen } = useMemo(() => {
     let totalCredits = 0;
     const perGen: GenStat[] = [];
@@ -45,14 +47,15 @@ export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Prop
         createdAt: v.createdAt,
         durationSeconds: duration,
         creditsCharged: v.creditsCharged ?? null,
-        modelLabel: v.modelUsed.split(":")[1] ?? v.modelUsed,
+        // The catalog's label; a model it doesn't hold shows none (never the id).
+        modelLabel: videos.get(v.modelUsed)?.label ?? "",
         voiced: readVoiceMeta(v.paramsUsed?.voice)?.status === "applied",
         voiceChangeName: readVoiceChange(v.inputsUsed?.voiceChange)?.voiceName ?? null,
       });
     });
 
     return { totalCredits, perGen: perGen.reverse() };
-  }, [versions]);
+  }, [versions, videos]);
 
   const hasUpstream = Boolean(upstreamNodeIds && upstreamNodeIds.length > 0);
   const pipelineTotalCredits = useNodeCost(nodeId, upstreamNodeIds);
@@ -62,7 +65,7 @@ export function VideoGenUsagePopover({ versions, nodeId, upstreamNodeIds }: Prop
     time: formatRelativeTime(g.createdAt),
     meta: g.voiceChangeName
       ? `voice change · ${g.voiceChangeName}`
-      : `${g.durationSeconds}s · ${g.modelLabel}${g.voiced ? " · voice" : ""}`,
+      : [`${g.durationSeconds}s`, g.modelLabel, g.voiced ? "voice" : ""].filter(Boolean).join(" · "),
     credits: g.creditsCharged !== null ? g.creditsCharged.toLocaleString() : "—",
   }));
 

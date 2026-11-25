@@ -14,12 +14,7 @@
 // window made that safety cost three generations where one would do. Which ceiling a given Script
 // node was packed at is pinned per parse as `groupingVersion` (D257), so raising it here does not
 // repack canvases that already exist.
-import {
-  GEMINI_OMNI_11_MODEL_ID,
-  GEMINI_OMNI_12_MODEL_ID,
-  KLING_OMNI_MODEL_ID,
-  SEEDANCE_MODEL_ID,
-} from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 export type MultishotCapability = {
   /** A video-gen client model id. Video Gen generates the ladder on exactly this model. */
@@ -139,8 +134,7 @@ export const DEFAULT_MULTISHOT_MODEL = GEMINI_OMNI_12_MODEL_ID;
  *
  * An absent id is every Multishot node that existed before the field did, so the fallback is not
  * defensive padding — it IS the migration, and it is why no data is backfilled. An UNKNOWN id
- * (a model pruned from the roster) falls back the same way rather than throwing, mirroring
- * `resolveVideoModelId`.
+ * (a model pruned from the roster) falls back the same way rather than throwing.
  */
 export function multishotCapabilityFor(
   targetModel: string | undefined | null,

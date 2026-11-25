@@ -220,6 +220,7 @@ export function ImageGenNode({ id, data, selected, positionAbsoluteX, positionAb
       editReferenceNodeIds={d.editReferenceNodeIds}
       baseReferenceNodeId={d.baseReferenceNodeId}
       upstream={upstream}
+      retiredModelId={d.retiredModelId}
       onPatch={(patch) => updateNodeData(id, patch)}
     />
     </>

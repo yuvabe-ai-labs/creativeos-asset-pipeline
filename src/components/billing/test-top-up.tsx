@@ -12,7 +12,7 @@ type Status = { tone: "info" | "ok" | "error"; text: string } | null;
 
 const TONE_CLASS = { info: "text-muted-foreground", ok: "text-foreground", error: "text-destructive-text" } as const;
 
-// D514: one test pack, paid in Razorpay Checkout. Confirm only reports "received"; the webhook
+// D573: one test pack, paid in Razorpay Checkout. Confirm only reports "received"; the webhook
 // adds the credits, and the profile popover shows them as they arrive.
 export function TestTopUp() {
   const createOrder = useCreateTestOrder();

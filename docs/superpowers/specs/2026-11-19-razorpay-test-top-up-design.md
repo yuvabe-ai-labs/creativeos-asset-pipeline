@@ -1,6 +1,6 @@
 # Razorpay test top-up (bare minimum)
 
-**Date:** 2026-11-19 · **Branch:** `feat/razorpay-test` (from `feat/permission-access-browser`) · **ADR:** D514
+**Date:** 2026-11-19 · **Branch:** `feat/razorpay-test` (from `feat/permission-access-browser`) · **ADR:** D573
 
 ## Goal
 
@@ -27,7 +27,7 @@ always exists (Razorpay must reach it) but does nothing without `RAZORPAY_WEBHOO
 | `RAZORPAY_KEY_SECRET` | Test key secret (today's `RAZOR_PAY_TEST_API_SECRET`) |
 | `RAZORPAY_WEBHOOK_SECRET` | The secret typed when the webhook is added in the Razorpay Dashboard (test mode) |
 | `RAZORPAY_TEST_PAGE` | `1` only on a developer's machine and the dev deployment |
-| `RAZORPAY_LIVE` | `1` only in production, which alone has live keys (added by D530: test keys are refused where it is set, live keys where it is not) |
+| `RAZORPAY_LIVE` | `1` only in production, which alone has live keys (added by D589: test keys are refused where it is set, live keys where it is not) |
 
 The names carry no "test": production later gets live values under the same names, so the
 code never asks which mode it is in.
@@ -51,7 +51,7 @@ An agency with no limit (`monthly_credit_limit` null) sees no change: test with 
 
 The pack is one constant in `src/lib/billing/constants.ts`: **₹100 for 1,000 credits**.
 
-## Migration 0066 `billing_payments`
+## Migration 0090 `billing_payments`
 
 ```
 billing_payments
@@ -132,5 +132,5 @@ No Razorpay SDK: `fetch` against the REST API, as email does with Resend.
 
 ## Docs
 
-ADR D514 in the roadmap §7; migration 0066 in `docs/database-schema.md` and
+ADR D573 in the roadmap §7; migration 0090 in `docs/database-schema.md` and
 `docs/auth-production-migration.md`.

@@ -1,5 +1,6 @@
 // D366 — the image-generate task's work, with its I/O injected so it is unit-testable outside
 // Trigger.dev. No `server-only`: trigger/image-generate.ts imports it.
+import type { BilledImages } from "@/lib/ai-models/image-price";
 import type { ImageGenInput, ImageGenResult, ImageTokenUsage } from "@/lib/image-gen/types";
 import type { ImageGenerateTaskPayload, ImageResultMime } from "@/lib/image-gen/task-payload";
 import { PaidResultError } from "@/lib/generations/task-failure";
@@ -25,7 +26,7 @@ export type ImageGenerationSucceeded = {
   height?: number;
   fileSizeBytes: number;
   tokensUsed?: ImageTokenUsage | null;
-  costUsd?: number;
+  billedImages?: BilledImages;
 };
 
 export async function runImageGenerateTask(
@@ -103,7 +104,7 @@ async function deliverResult(
     ...(size.height !== undefined ? { height: size.height } : {}),
     fileSizeBytes: bytes.length,
     tokensUsed: result.tokensUsed,
-    ...(result.costUsd !== undefined ? { costUsd: result.costUsd } : {}),
+    ...(result.billedImages ? { billedImages: result.billedImages } : {}),
   };
 
   let res: Response;

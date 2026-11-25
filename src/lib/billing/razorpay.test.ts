@@ -67,7 +67,7 @@ describe("createOrder", () => {
   });
 });
 
-describe("keys match the environment (D530)", () => {
+describe("keys match the environment (D589)", () => {
   const fetchMock = vi.fn();
   const order = () => createOrder({ amountPaise: 10000, receipt: "r", notes: {} });
   beforeEach(() => {

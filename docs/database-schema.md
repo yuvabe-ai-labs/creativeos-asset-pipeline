@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0076** (`supabase/migrations/0001_init.sql` … `0076_billing_history_indexes.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied.
+Generated from migrations up to **0100** (`supabase/migrations/0001_init.sql` … `0100_billing_history_indexes.sql`; the model catalog's 0076–0089 follow the copilot journey's 0067, and billing's 0090–0100 follow the catalog). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied. 0063, 0064 and 0065 are pairs too: the permission work's `0063_close_views_and_count_resends`, `0064_lock_node_files_bucket`, `0065_client_scoped_reads`, and the copilot journey's `0063_client_market_status`, `0064_client_copilot_messages`, `0065_kb_review_writes` (then `0066_copilot_turn_traces`). A bare number below means the permission work's file; the copilot journey's are named in full.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -19,7 +19,7 @@ Contents: [Agencies & people](#agencies--people) · [Clients & brand KB](#client
 An agency (tenant). *0012*
 - `id` uuid PK · `name` text · `slug` text unique · `monthly_credit_limit` numeric (null = unlimited; ×1000 in 0019)
 - `invite_window_start` timestamptz, `invite_window_count` int default 0: the 50-a-day invite send counter (0063, `take_invite_send`)
-- `billing_mode` text check managed/plans (default managed) · `plan_type` text check standard/custom (default standard) (0067, D515)
+- `billing_mode` text check managed/plans (default managed) · `plan_type` text check standard/custom (default standard) (0091, D574)
 - RLS: service role only.
 
 ### profiles
@@ -30,9 +30,9 @@ Display name per login. *0012*
 ### org_memberships
 A login's membership in one agency, with agency-level permissions. *0012, 0062*
 - PK `(user_id, org_id)` · `user_id` → auth.users cascade · `org_id` → organizations cascade
-- `org_role` text check owner/senior/designer (legacy, kept in step until dropped, D510) · `joined_at`
+- `org_role` text check owner/senior/designer (legacy, kept in step until dropped, D548) · `joined_at`
 - `is_owner` bool · `permissions` text[] check ⊆ generate/approve/share/delete/invite · `access_given_at` (null = waiting) · `invited_by` → auth.users set null
-- Unique: `org_memberships_one_org_per_user (user_id)` (one agency per login, D508) · `org_memberships_one_owner (org_id) where is_owner`
+- Unique: `org_memberships_one_org_per_user (user_id)` (one agency per login, D546) · `org_memberships_one_owner (org_id) where is_owner`
 - Indexes: `org_id`, `invited_by`
 - RLS: select `own membership` (`user_id = auth.uid()`, 0018); used by `auth_org_ids()`.
 - Triggers: `org_memberships_last_owner` (0012, org_role based) · `org_memberships_cascade_permissions` (after update of permissions → every `membership_clients` row of the person) · `org_memberships_keep_owner` (constraint trigger, deferred: an agency can't lose its owner)
@@ -60,6 +60,7 @@ An invite link, sent from inside a client (owner invites have no client). *0062*
 ### clients
 A brand an agency works for. *0001* · org_id
 - `id` uuid PK · `slug` text unique · `name` text · `logo_url` text · `kb_status` text check pending/in_review/ready · `active_kb_version_id` → client_kb_versions set null · `archived_at` · `website_url` · `drive_root_folder_id` text · `org_id` → organizations (not null) · `brand_details` jsonb default `{}` (0027)
+- `market_status` text check pending/approved, default pending (clients that existed before it were set approved) (`0063_client_market_status`): market research approved unlocks Scripts
 - Unique: `slug`; `clients_id_org_unique (id, org_id)` (target of the composite FKs, 0062)
 - Indexes: `archived_at`, `org_id`
 - RLS: service role only.
@@ -73,7 +74,7 @@ Uploaded brand documents (pdf/docx/pptx/md/txt). *0002*
 Each extracted Brand KB (full JSON). *0002*
 - `id` uuid PK · `client_id` → clients cascade · `output` jsonb · `model_used` · `doc_ids_used` uuid[] · `fill_rate` float · `note`
 - Index: `client_id` · RLS: service role only.
-- Written field-by-field through `set_kb_field`, `set_kb_image_analysis`, `save_kb_output_keep_image_analysis`.
+- Written field-by-field through `set_kb_field`, `set_kb_image_analysis`, `save_kb_output_keep_image_analysis`, and in batches through `patch_kb_fields` (`0065_kb_review_writes`).
 
 ### client_kb_jobs
 A background KB build (research + extract). *0008* · org_id · *Realtime*
@@ -97,6 +98,16 @@ One AI analysis card per brand image. *0048, 0049*
 Brand kit files: logos, backgrounds, products. *0027_brand_kit*
 - `id` uuid PK · `client_id` → clients cascade · `category` check logo/background/product · `name` · `storage_url` · `position` int
 - Index: `(client_id, category)` · RLS: service role only.
+
+### client_copilot_messages
+The client-level copilot chat (the Brand KB / market research panel); `thread` is `onboarding`. *`0064_client_copilot_messages`*
+- `id` uuid PK · `seq` bigint identity · `client_id` → clients cascade · `thread` check onboarding · `role` check user/assistant · `content` · `card` jsonb · `attachments` jsonb default `[]` · `suggestions` jsonb default `[]` · `is_opening` bool · `created_by` → auth.users set null
+- Indexes: `(client_id, thread, seq)`; unique `(client_id, thread) where is_opening` (one opening message per thread) · RLS: service role only.
+
+### copilot_turn_traces
+What each copilot turn sent, called and took, for debugging and evals; swept by age. *`0066_copilot_turn_traces`*
+- `id` uuid PK · `client_id` → clients cascade · `thread` check onboarding · `message_id` → client_copilot_messages set null · `created_by` → auth.users set null · `sent_text` · `tools`, `marks` text[] · `duration_ms` int · `trace` jsonb
+- Indexes: `(client_id, created_at desc)`, `created_at`, `message_id` · RLS: service role only.
 
 ---
 
@@ -171,80 +182,101 @@ One AI generation job (image/video/prompt/…), owned by a node, an avatar or a 
 - `type` · `status` (running/succeeded/failed) · `provider_job_id` · `model_used` · `params_snapshot`, `inputs_snapshot`, `tokens_used`, `meta` jsonb · `error`
 - `cost_usd` numeric (renamed from credits_consumed, 0019) · `credits_charged` numeric · `output_snapshot` text (0016)
 - `version_id` → node_versions (no on delete action) · `user_id` uuid (no FK) · `org_id` → organizations (not null) · `client_id` → clients (no on delete action, 0016)
-- Indexes: `node_id`, `status`, `version_id`, `org_id`, `client_id`, `avatar_id`, `script_id`, `(org_id, created_at)` (0073)
+- `model_price_id` → ai_model_prices (the price row the run used) · `provider_bill` jsonb (what the provider says it billed) · `record_only` bool: a free feature's provider call, cost recorded, no credits charged (0076). The owner check also passes for a record-only row with no node, avatar or script (0081).
+- Indexes: `node_id`, `status`, `version_id`, `org_id`, `client_id`, `avatar_id`, `script_id`, `model_price_id`, `(org_id, record_only, created_at)` (0076), `created_at` (0085), `(org_id, created_at)` (0097)
 - RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065).
 
 ### credit_transactions
 The credit ledger: reservation, consumption, refund, adjustment. *0019* · org_id · *Realtime*
 - `id` uuid PK · `org_id` → organizations · `generation_id` → generations set null (nullable, 0028) · `amount` numeric · `type` check
 - Indexes: `org_id`, `generation_id`, `(org_id, created_at)`
-- RLS: select owners of the agency only (0065). Written by `reserve_credits_v2`, `settle_credits`, `refund_credits` (0067) and the server.
+- RLS: select owners of the agency only (0065). Written by `reserve_credits_v2`, `settle_credits`, `refund_credits` (0091) and the server.
 
 ### billing_payments
-One row per Razorpay payment: the test top-up (D514), then plans, renewals and top-ups (0068). *0066, 0068* · org_id
+One row per Razorpay payment: the test top-up (D573), then plans, renewals and top-ups (0092). *0090, 0092* · org_id
 - `id` uuid PK · `org_id` → organizations cascade · `razorpay_order_id` text unique · `razorpay_payment_id` text unique (set when paid) · `amount_paise` integer > 0 (before discount and tax) · `credits` integer > 0 · `status` check created/paid/failed/refunded (default created) · `created_by` → auth.users set null · `created_at` · `paid_at`
-- 0068: `kind` check test/plan/renewal/topup (default test) · `price_id` → billing_prices set null · `subscription_id` → billing_subscriptions set null · `discount_id` → billing_discounts set null · `currency` (default INR) · `discount_minor`, `tax_minor` (default 0) · `total_minor` · `inr_per_usd` (the rate in force) · `razorpay_invoice_id`
-- Indexes: `(org_id, created_at desc)` (0076), `created_at desc` where status <> created and kind <> test (0076), `price_id`, `subscription_id`, `discount_id`
+- 0092: `kind` check test/plan/renewal/topup (default test) · `price_id` → billing_prices set null · `subscription_id` → billing_subscriptions set null · `discount_id` → billing_discounts set null · `currency` (default INR) · `discount_minor`, `tax_minor` (default 0) · `total_minor` · `inr_per_usd` (the rate in force) · `razorpay_invoice_id`
+- Indexes: `(org_id, created_at desc)` (0100), `created_at desc` where status <> created and kind <> test (0100), `price_id`, `subscription_id`, `discount_id`
 - RLS: select `owners read`, owners of the agency only. Written by the server (service role) and `record_razorpay_payment`.
 
 ### credit_grants
-A paying agency’s credits: each grant ends (free credits, a plan month, a top-up, credits Yuvabe added). Used first-ending first (D515). *0067* · org_id · *Realtime* (0075)
-- `id` uuid PK · `org_id` → organizations cascade · `kind` check free/plan/topup/admin · `credits` numeric >= 0 · `used` numeric default 0 (running total of its `credit_grant_uses`) · `starts_at` default now() · `ends_at` (> starts_at) · `payment_id` → billing_payments set null · `price_id` → billing_prices set null, `subscription_id` → billing_subscriptions set null (0068) · `created_by` → auth.users set null · `reason`
+A paying agency’s credits: each grant ends (free credits, a plan month, a top-up, credits Yuvabe added). Used first-ending first (D574). *0091* · org_id · *Realtime* (0099)
+- `id` uuid PK · `org_id` → organizations cascade · `kind` check free/plan/topup/admin · `credits` numeric >= 0 · `used` numeric default 0 (running total of its `credit_grant_uses`) · `starts_at` default now() · `ends_at` (> starts_at) · `payment_id` → billing_payments set null · `price_id` → billing_prices set null, `subscription_id` → billing_subscriptions set null (0092) · `created_by` → auth.users set null · `reason`
 - Indexes: `(org_id, ends_at)`, `payment_id`, `price_id`, `subscription_id`
-- RLS: select `owners read`, owners of the agency only. Written only by the server and the 0067 functions.
+- RLS: select `owners read`, owners of the agency only. Written only by the server and the 0091 functions.
 
 ### credit_grant_uses
-How much of each grant a run holds, then used once settled. *0067*
+How much of each grant a run holds, then used once settled. *0091*
 - `generation_id` → generations cascade · `grant_id` → credit_grants cascade · `credits` numeric >= 0 · PK `(generation_id, grant_id)`
 - Indexes: `grant_id`
 - RLS: service role only.
 
 ### billing_log
-Every billing change Yuvabe makes: to an agency, or to the catalog and settings (no agency, 0069). *0067, 0069* · org_id
-- `id` uuid PK · `org_id` → organizations cascade (nullable since 0069) · `actor_id` → auth.users set null · `action` text · `before`, `after` jsonb · `reason`
-- Indexes: `(org_id, created_at desc)` (0076)
+Every billing change Yuvabe makes: to an agency, or to the catalog and settings (no agency, 0093). *0091, 0093* · org_id
+- `id` uuid PK · `org_id` → organizations cascade (nullable since 0093) · `actor_id` → auth.users set null · `action` text · `before`, `after` jsonb · `reason`
+- Indexes: `(org_id, created_at desc)` (0100)
 - RLS: service role only.
 
 ### billing_products
-What is sold: a plan or a top-up pack. `org_id` set = a custom plan only that agency sees (D518). *0068*
+What is sold: a plan or a top-up pack. `org_id` set = a custom plan only that agency sees (D577). *0092*
 - `id` uuid PK · `kind` check plan/topup · `name` · `description` · `org_id` → organizations cascade (nullable) · `features` jsonb default {} · `sort` · `active`
 - Indexes: `(kind, active)`, `org_id`
 - RLS: service role only.
 
 ### billing_prices
-How a product is paid for. Fixed once written (trigger `billing_prices_fixed`): a change is a new row. *0068*
+How a product is paid for. Fixed once written (trigger `billing_prices_fixed`): a change is a new row. *0092*
 - `id` uuid PK · `product_id` → billing_products cascade · `currency` (default INR) · `amount_minor` bigint > 0 (before tax) · `list_amount_minor` (for "save X%", >= amount) · `interval_months` 1–36 (null: top-up) · `credits` numeric > 0 (per drop, or per pack) · `credits_every_months` (plans; divides the interval) · `valid_days` (top-ups; null: ends with the plan period) · `razorpay_plan_id` unique · `active`
 - Indexes: `(product_id, active)`
 - RLS: service role only.
 
 ### billing_settings
-Pricing inputs over time; the latest row with `effective_from <= now()` is in force. Seeded with ₹100, 1%, 20%, 10% (0068), then ₹100, 20%, 25%, 15% (0069, D519). *0068*
+Pricing inputs over time; the latest row with `effective_from <= now()` is in force. Seeded with ₹100, 1%, 20%, 10% (0092), then ₹100, 20%, 25%, 15% (0093, D578). *0092*
 - `id` uuid PK · `inr_per_usd` > 0 · `plan_margin_pct` · `topup_margin_pct` · `min_margin_pct` · `effective_from` · `created_by` → auth.users set null · `note`
 - Indexes: `effective_from`
 - RLS: service role only.
 
 ### billing_discounts
-Discount codes, and discounts Yuvabe applies to one agency (no code). *0068*
+Discount codes, and discounts Yuvabe applies to one agency (no code). *0092*
 - `id` uuid PK · `code` unique (nullable) · `percent_off` (0–100] or `amount_off_minor` (exactly one) · `currency` · `product_id` → billing_products cascade · `price_id` → billing_prices cascade · `org_id` → organizations cascade · `cycles` · `max_redemptions` · `redeemed_count` · `starts_at` · `ends_at` · `active` · `created_by` → auth.users set null
 - Indexes: `org_id`, `product_id`, `price_id`
 - RLS: service role only.
 
 ### billing_accounts
-An agency’s billing details for Razorpay and GST invoices. *0068*
+An agency’s billing details for Razorpay and GST invoices. *0092*
 - `org_id` uuid PK → organizations cascade · `razorpay_customer_id` unique · `legal_name` · `gstin` (15 characters) · `billing_email` · `address` jsonb
 - RLS: select `owners read`, owners of the agency only.
 
 ### billing_subscriptions
-An agency’s plan. One live subscription per agency. *0068* · org_id · *Realtime* (0075)
-- `id` uuid PK · `org_id` → organizations cascade · `price_id` → billing_prices · `next_price_id` → billing_prices (change from the next payment) · `discount_id` → billing_discounts set null · `discount_cycles_left` · `status` check created/active/payment_due/cancelling/ended · `current_period_start`, `current_period_end` · `next_credit_at` (next credit drop) · `cancel_at_period_end` · `razorpay_subscription_id` unique · `ended_at` · `payment_due_since` (0074; set when a payment first becomes due, cleared when paid)
-- Indexes: unique `org_id` where status <> ended, `org_id`, `status`, `next_credit_at`, `price_id`, `next_price_id`, `discount_id`, `payment_due_since` where set (0074), `(status, current_period_end)` (0076)
+An agency’s plan. One live subscription per agency. *0092* · org_id · *Realtime* (0099)
+- `id` uuid PK · `org_id` → organizations cascade · `price_id` → billing_prices · `next_price_id` → billing_prices (change from the next payment) · `discount_id` → billing_discounts set null · `discount_cycles_left` · `status` check created/active/payment_due/cancelling/ended · `current_period_start`, `current_period_end` · `next_credit_at` (next credit drop) · `cancel_at_period_end` · `razorpay_subscription_id` unique · `ended_at` · `payment_due_since` (0098; set when a payment first becomes due, cleared when paid)
+- Indexes: unique `org_id` where status <> ended, `org_id`, `status`, `next_credit_at`, `price_id`, `next_price_id`, `discount_id`, `payment_due_since` where set (0098), `(status, current_period_end)` (0100)
 - RLS: select `owners read`, owners of the agency only.
 
 ### razorpay_events
-Every Razorpay webhook, stored once by its event id. *0068*
+Every Razorpay webhook, stored once by its event id. *0092*
 - `event_id` text PK · `type` · `payload` jsonb · `received_at` · `processed_at` · `error`
 - Indexes: `received_at` where not processed
 - RLS: service role only.
+
+### ai_models
+Every AI model the app runs, one row per model: kind, label, status, its adapter and parameters. *0076* (seeded 0077, 0079, 0082; adapters 0084) · platform-wide
+- `id` text PK (`provider:model`) · `provider` · `kind` check image/video/edit/voice/dub/lipsync/transcribe/text/scrape · `label` · `picker_label` · `provider_label` · `description`
+- `status` check draft/live/hidden/retired · `replaced_by` → ai_models (not itself) · `sort_order` int · `adapter_key` · `provider_model_id` · `params`, `rules` jsonb arrays · `capabilities` jsonb object · `updated_by` → auth.users set null
+- Indexes: `replaced_by`
+- RLS: service role only.
+
+### ai_model_prices
+A model's price, as dated rows that are never edited; a run uses the row with the latest `effective_from` at or before its start. *0076* (seeded 0078, 0080, 0083) · platform-wide
+- `id` uuid PK · `model_id` → ai_models · `effective_from` timestamptz · `lines` jsonb (non-empty array) · `estimate` jsonb object · `source_url` · `note` · `created_by` → auth.users set null
+- Unique `(model_id, effective_from)` (also serves lookups by model)
+- Trigger `ai_model_prices_guard`: no update; a row may be deleted only before it starts, and not in its last 2 minutes (0088).
+- RLS: service role only.
+
+### credit_settings
+How a run's cost becomes credits (margin and rounding step), as dated rows that are never edited. *0086* · platform-wide
+- `id` uuid PK · `effective_from` timestamptz unique · `margin_percent` numeric(5,2) check 0–200 · `round_step` int check 1/5/10 · `note` · `created_by` → auth.users set null
+- Trigger `credit_settings_guard`: no update; a row may be deleted only before it starts, and not in its last 2 minutes (0087).
+- RLS: service role only. Seeded with one row from 2026-01-01 (no margin, round to 5).
 
 ### background_jobs
 Generic background job rows (kind + input/result), one live job per `lock_key`. *0044* · org_id
@@ -327,9 +359,10 @@ A client's board; `custom` boards plus one `direct` and one `adjacent` system bo
 - Index: `client_id`; unique `(client_id, board_type) where board_type <> 'custom'` · RLS: service role only.
 
 ### moodboard_items
-An image/video/link on a board, with its archived copy. *0026, 0034, 0039, 0040* · org_id · *Realtime*
+An image/video/link on a board, with its archived copy. *0026, 0034, 0039, 0040, 0067* · org_id · *Realtime*
 - `id` uuid PK · `moodboard_id` → moodboards cascade · `image_url` · `source_url` · `position` · `added_at` · `kind` check image/gif/video/youtube/instagram/tiktok/link/pinterest · `note` · `added_by` → auth.users set null · `thumbnail_url`
 - Archive: `media_url` · `media_bytes` · `media_type` · `archive_status` pending/downloading/ready/failed/skipped · `archive_error` · `archive_attempts` · `archive_started_at` · `archived_at`
+- `reading` jsonb, null until read: the market agent's reading of the post (hook, format, pacing, on-screen text, setting, occasion, summary, `from` media/thumbnail), so a post is read once (D530, 0067)
 - `org_id` → organizations (filled by trigger)
 - Indexes: `moodboard_id`, `org_id`, `archive_status` where pending/failed/downloading
 - RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065). Trigger `moodboard_items_set_org_id`.
@@ -414,7 +447,7 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | Function | Args → returns | Rights | Migration |
 |---|---|---|---|
 | `acquire_canvas_lock` | canvas_id, session_id, name, stale_seconds → bool | invoker | 0010 |
-| `reserve_credits` | org_id, generation_id, amount → bool (locks the org row, checks the monthly limit, inserts a reservation); replaced by `reserve_credits_v2`, dropped in 0068 | invoker | 0020 |
+| `reserve_credits` | org_id, generation_id, amount → bool (locks the org row, checks the monthly limit, inserts a reservation); replaced by `reserve_credits_v2`, dropped in 0092 | invoker | 0020 |
 | `org_monthly_credit_history` | org_id, months=6 → (month, credits_used), zero-filled | invoker | 0023, 0024 |
 | `org_daily_credit_history` | org_id, days=30 → (day, credits_used) | invoker | 0025 |
 | `org_yearly_credit_history` | org_id, years=5 → (year, credits_used) | invoker | 0025 |
@@ -424,6 +457,8 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `set_kb_image_analysis` | version_id, value → void | invoker | 0048 |
 | `save_kb_output_keep_image_analysis` | version_id, output → void | invoker | 0050 |
 | `set_kb_field` | version_id, path text[], value → void | invoker | 0050 |
+| `patch_kb_fields` | version_id, patches jsonb `[{path, patch}]`, only_unreviewed=false → int applied (locks the version row; merges each patch into its field) | invoker | `0065_kb_review_writes` |
+| `kb_unreviewed_fields` | version_id → text[] (`section.field` still `needs_review`, in review order) | invoker | `0065_kb_review_writes` |
 | `script_review_move` | script_id, client_id, from, to, kind, actor_name → bool | invoker | 0054 |
 | `script_review_share` | review_id, expected_latest, scope, doc, visuals, changes, shared_by, actor_name → jsonb | invoker | 0054 |
 | `script_review_approve` | review_id, version_number, actor_name → text (any scope since 0058) | invoker | 0054, 0058 |
@@ -436,24 +471,29 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `list_agency_people` | org_id → people rows (name, email, status, permissions, invited client, client_ids) | definer, service role | 0062 |
 | `find_user_by_email` | email → (user_id, org_id) | definer, service role | 0062 |
 | `take_invite_send` | org_id, limit → bool | definer, service role | 0063 |
-| `record_razorpay_payment` | order_id, payment_id → bool (locks the order, marks it paid once; a top-up writes a `topup` grant ending with the plan month, a test payment a negative `adjustment`; false when missing or already paid) | definer, service role | 0066, 0072 |
-| `reserve_credits_v2` | org_id, generation_id, amount → text (`ok`/`limit`/`used_up`/`free_ended`/`no_credits`/`payment_due`; managed: monthly limit; paying: refused while a plan payment is due (0071), else holds from grants, first-ending first) | definer, service role | 0067, 0071 |
-| `record_subscription_charge` | razorpay subscription, plan, payment, order, total, period start, end → bool (records the payment once and writes its month's `plan` grant; only the latest period's charge moves the plan forward and clears a due payment) | definer, service role | 0071, 0074 |
-| `set_subscription_status` | razorpay subscription, status, period start, end → bool (forward only: an ended plan stays ended, a late payment-due for a paid period is ignored; keeps `payment_due_since`) | definer, service role | 0071, 0074 |
-| `settle_credits` | org_id, generation_id, actual → bool (refund + consumption rows; moves the cost onto the held grants; false when already settled) | definer, service role | 0067 |
-| `refund_credits` | org_id, generation_id → bool (refund row; gives held credits back to their grants; false when already settled) | definer, service role | 0067 |
-| `credit_balance` | org_id → (grant_id, kind, credits, used, left_credits, ends_at) for open grants | definer, service role | 0067 |
-| `org_credit_usage_by` | org_id, from, to, by (member/client/canvas) → (key, credits, runs): credits charged in the period per group, runs off a canvas under a null key | definer, service role | 0073 |
-| `admin_set_billing_mode` | org_id, mode, actor, reason → bool (false when missing or unchanged; logs) | definer, service role | 0067 |
-| `admin_grant_credits` | org_id, kind (free/admin), credits, ends_at, actor, reason → grant id (null when the agency is missing; logs) | definer, service role | 0067 |
-| `admin_take_back_credits` | grant_id, credits, actor, reason → text (`ok`/`not_found`/`too_many`; never more than is left; logs) | definer, service role | 0067 |
-| `admin_save_billing_settings` | inr_per_usd, plan/topup/min margin, actor, note → uuid (a new settings row; logs) | definer, service role | 0069 |
-| `admin_save_product` | id (null adds), kind, name, description, sort, active, actor → uuid (logs) | definer, service role | 0069 |
-| `admin_add_price` | product_id, amount, list amount, interval, credits, cadence, valid_days, replaces, actor, reason → (new_price_id, moved_count) (replacing hides the old price and moves live subscriptions to the new one from the next payment; logs) | definer, service role | 0069 |
-| `admin_set_price_active` | price_id, active, actor → bool (logs) | definer, service role | 0069 |
-| `admin_save_offer` | product_id (null adds), kind, name, description, active, amount, credits, interval, actor, reason → (product_id, price_changed, moved_count) (a plan or pack and its price in one step; a changed price is a new row replacing the old for its subscribers; logs) | definer, service role | 0070 |
-| `billing_price_subscriber_counts` | → (price_id, subscribers) live subscriptions per price | definer, service role | 0069 |
-| `admin_set_grant_end` | grant_id, ends_at, actor, reason → text (`ok`/`not_found`; kept after the start; logs) | definer, service role | 0067 |
+| `ai_model_month_stats` | from, to → (model_id, runs, cost_usd, credits, unpriced) | invoker; service role only (0088) | 0085 |
+| `replace_ai_model_price` | cancel_id, model_id, effective_from, lines, estimate, source_url, note, created_by → uuid (deletes a future price row and inserts its replacement, or neither) | invoker; service role only | 0088 |
+| `reorder_ai_models` | kind, ids text[], updated_by → void (writes `sort_order` for every model of the kind) | invoker; service role only | 0088 |
+| `ai_model_month_runs_by_org` | from, to → (model_id, org_id, org_name, runs, cost_usd, credits) | invoker; service role only | 0088 |
+| `replace_credit_settings` | cancel_id, effective_from, margin_percent, round_step, note, created_by → uuid (as `replace_ai_model_price`, for credit settings) | invoker; service role only | 0089 |
+| `record_razorpay_payment` | order_id, payment_id → bool (locks the order, marks it paid once; a top-up writes a `topup` grant ending with the plan month, a test payment a negative `adjustment`; false when missing or already paid) | definer, service role | 0090, 0096 |
+| `reserve_credits_v2` | org_id, generation_id, amount → text (`ok`/`limit`/`used_up`/`free_ended`/`no_credits`/`payment_due`; managed: monthly limit; paying: refused while a plan payment is due (0095), else holds from grants, first-ending first) | definer, service role | 0091, 0095 |
+| `record_subscription_charge` | razorpay subscription, plan, payment, order, total, period start, end → bool (records the payment once and writes its month's `plan` grant; only the latest period's charge moves the plan forward and clears a due payment) | definer, service role | 0095, 0098 |
+| `set_subscription_status` | razorpay subscription, status, period start, end → bool (forward only: an ended plan stays ended, a late payment-due for a paid period is ignored; keeps `payment_due_since`) | definer, service role | 0095, 0098 |
+| `settle_credits` | org_id, generation_id, actual → bool (refund + consumption rows; moves the cost onto the held grants; false when already settled) | definer, service role | 0091 |
+| `refund_credits` | org_id, generation_id → bool (refund row; gives held credits back to their grants; false when already settled) | definer, service role | 0091 |
+| `credit_balance` | org_id → (grant_id, kind, credits, used, left_credits, ends_at) for open grants | definer, service role | 0091 |
+| `org_credit_usage_by` | org_id, from, to, by (member/client/canvas) → (key, credits, runs): credits charged in the period per group, runs off a canvas under a null key | definer, service role | 0097 |
+| `admin_set_billing_mode` | org_id, mode, actor, reason → bool (false when missing or unchanged; logs) | definer, service role | 0091 |
+| `admin_grant_credits` | org_id, kind (free/admin), credits, ends_at, actor, reason → grant id (null when the agency is missing; logs) | definer, service role | 0091 |
+| `admin_take_back_credits` | grant_id, credits, actor, reason → text (`ok`/`not_found`/`too_many`; never more than is left; logs) | definer, service role | 0091 |
+| `admin_save_billing_settings` | inr_per_usd, plan/topup/min margin, actor, note → uuid (a new settings row; logs) | definer, service role | 0093 |
+| `admin_save_product` | id (null adds), kind, name, description, sort, active, actor → uuid (logs) | definer, service role | 0093 |
+| `admin_add_price` | product_id, amount, list amount, interval, credits, cadence, valid_days, replaces, actor, reason → (new_price_id, moved_count) (replacing hides the old price and moves live subscriptions to the new one from the next payment; logs) | definer, service role | 0093 |
+| `admin_set_price_active` | price_id, active, actor → bool (logs) | definer, service role | 0093 |
+| `admin_save_offer` | product_id (null adds), kind, name, description, active, amount, credits, interval, actor, reason → (product_id, price_changed, moved_count) (a plan or pack and its price in one step; a changed price is a new row replacing the old for its subscribers; logs) | definer, service role | 0094 |
+| `billing_price_subscriber_counts` | → (price_id, subscribers) live subscriptions per price | definer, service role | 0093 |
+| `admin_set_grant_end` | grant_id, ends_at, actor, reason → text (`ok`/`not_found`; kept after the start; logs) | definer, service role | 0091 |
 
 ### Used by RLS
 - `auth_org_ids()` → setof uuid: the caller's agencies. Definer; executable by `authenticated` and `service_role` (0062).
@@ -475,6 +515,8 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `prepare_membership_client` (definer) | `membership_clients_prepare` | 0062 |
 | `keep_node_on_its_canvas` | `nodes_keep_canvas` | 0062 |
 | `keep_edge_on_its_canvas` (definer) | `edges_keep_canvas` | 0062 |
+| `ai_model_prices_guard` | `ai_model_prices_guard` | 0076, 0088 |
+| `credit_settings_guard` | `credit_settings_guard` | 0086, 0087 |
 
 Dropped: `org_review_counts_for_types` (created 0062, dropped 0063).
 
@@ -483,14 +525,14 @@ Dropped: `org_review_counts_for_types` (created 0062, dropped 0063).
 ## Types, Realtime, storage
 
 - **Enum** `client_kb_job_status`: queued, researching, extracting, finalizing, succeeded, failed (0008).
-- **Realtime publication** `supabase_realtime`: `client_kb_jobs` (0008), `generations` (0014), `credit_transactions` (0022), `node_versions` (0030), `moodboard_items` (0040), `credit_grants` and `billing_subscriptions` (0075; owners only, through their `owners read` policies). One channel per screen, filtered client-side (performance rule 3).
+- **Realtime publication** `supabase_realtime`: `client_kb_jobs` (0008), `generations` (0014), `credit_transactions` (0022), `node_versions` (0030), `moodboard_items` (0040), `credit_grants` and `billing_subscriptions` (0099; owners only, through their `owners read` policies). One channel per screen, filtered client-side (performance rule 3).
 - **Storage bucket** `node-files` (public, 0004), legacy: nothing in the app uploads to it any more. Its `storage.objects` policies: `Public read node-files` (select, checks only `bucket_id`) stays, because old rows can still hold its public URLs. The insert and delete policies checked only `bucket_id` with no role, so the anon key could upload and delete; 0064 drops both, so writes are service role only (the one left is `removeObject` deleting an old supabase.co URL, `src/lib/storage/index.ts`). Every other file lives in Google Cloud Storage (`src/lib/storage/gcs.ts`), outside the migrations.
 
 ## Known leftovers
 
 Kept on purpose for now; don't build on them.
 
-- Legacy columns: `node_versions.approved_by` (never read), `node_versions.operator` (still the fallback maker name) and `decision` (read by eval), `node_version_annotations.frame_path` (always null since D249), `org_memberships.org_role` with its `org_memberships_last_owner` trigger (until the drop in D510).
+- Legacy columns: `node_versions.approved_by` (never read), `node_versions.operator` (still the fallback maker name) and `decision` (read by eval), `node_version_annotations.frame_path` (always null since D249), `org_memberships.org_role` with its `org_memberships_last_owner` trigger (until the drop in D548).
 - `generations.version_id` → node_versions and `generations.client_id` → clients have no `on delete` action (the default, no action); left as they are. `generations.user_id` and `canvas_reviews.created_by` have no FK.
 - `node_versions.org_id` and `moodboard_items.org_id` are nullable and filled by trigger.
 - `NODE_FILE_BUCKET` (`src/lib/nodes/file-constants.ts`) names the legacy bucket and has no reader.

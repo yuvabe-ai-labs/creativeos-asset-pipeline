@@ -39,6 +39,16 @@ describe("transcribeUrl", () => {
     expect(form.get("language_code")).toBeNull();
   });
 
+  it("reports the credits and the dollars ElevenLabs says it billed, from the response headers", async () => {
+    const withHeaders = vi.fn(async () => new Response(JSON.stringify(SAMPLE), { status: 200, headers: { "character-cost": "17", "fiat-cost-before-overages": "0.0176" } }));
+    const r = await transcribeUrl("u", { fetch: withHeaders as unknown as typeof globalThis.fetch, apiKey: "k" });
+    expect(r.characterCost).toBe(17);
+    expect(r.providerUsd).toBe(0.0176);
+    const bare = await transcribeUrl("u", { fetch: ok(SAMPLE) as unknown as typeof globalThis.fetch, apiKey: "k" });
+    expect(bare.characterCost).toBeNull();
+    expect(bare.providerUsd).toBeNull();
+  });
+
   it("says no-speech for an empty transcript, and marks a vendor error as answered", async () => {
     const empty = ok({ language_code: "eng", words: [] }) as unknown as typeof globalThis.fetch;
     await expect(transcribeUrl("u", { fetch: empty, apiKey: "k" })).rejects.toMatchObject({ reason: "no-speech", answered: true });

@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ orgId: string; clientId: string }> };
 // POST { email } — "Invite someone new" (spec §6.2), by the owner or anyone with Invite on this
 // client: the invite is always for this client (from the URL), and invited_by is the caller. The
 // new person signs up and waits as Signed up until the owner gives access. An Invite holder's
-// "already invited" refusal names only a client they are on (D511).
+// "already invited" refusal names only a client they are on (D549).
 export async function POST(req: Request, { params }: Ctx) {
   return withTeam(req, params, { need: "invite" }, (ctx) =>
     withQuietErrors("Could not send the invite.", async () => {

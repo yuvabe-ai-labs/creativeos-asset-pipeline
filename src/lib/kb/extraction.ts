@@ -3,6 +3,7 @@ import { listKBDocuments } from "@/lib/db/kb";
 import { computeFillRate } from "@/lib/kb/fill-rate";
 import { getKBProvider } from "@/lib/kb/providers/interface";
 import { defaultEmptyImageAnalysis, type TraceableBrandKB } from "@/lib/kb/schema";
+import type { RecordFor } from "@/lib/generations/record-for";
 
 export type KBExtractionResult = {
   kbOutput: TraceableBrandKB;
@@ -19,6 +20,7 @@ export async function runKBExtraction(input: {
   clientId: string;
   docIds: string[];
   researchMarkdown: string | null;
+  recordFor?: RecordFor;
 }): Promise<KBExtractionResult> {
   const allDocs = await listKBDocuments(input.clientId);
   const docs = allDocs.filter((d) => input.docIds.includes(d.id));
@@ -33,6 +35,7 @@ export async function runKBExtraction(input: {
     clientId: input.clientId,
     docIds: input.docIds,
     researchMarkdown: input.researchMarkdown,
+    recordFor: input.recordFor,
   });
 
   const kbOutput: TraceableBrandKB = {

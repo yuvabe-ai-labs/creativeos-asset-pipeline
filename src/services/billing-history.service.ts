@@ -3,7 +3,7 @@ import type { BillingLogPage } from "@/lib/db/billing-admin";
 import type { OwnerPaymentsPage } from "@/lib/db/billing-owner";
 import type { AdminPaymentsPage } from "@/lib/db/billing-admin-payments";
 
-// Older pages of billing's history lists (D529): one call per route, typed through readJson.
+// Older pages of billing's history lists (D588): one call per route, typed through readJson.
 export async function fetchBillingLog(orgId: string, page: number): Promise<BillingLogPage> {
   return readJson<BillingLogPage>(await fetch(`/api/admin/orgs/${orgId}/billing-log?page=${page}`), "Could not load the billing log.");
 }

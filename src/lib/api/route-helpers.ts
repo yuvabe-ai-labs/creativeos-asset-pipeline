@@ -22,7 +22,7 @@ import type { Actor, OpResult } from "@/lib/people/ops";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyResponse = NextResponse<any>;
 
-// D501/D504: every handler names the one action it needs. Required, so TypeScript forces the
+// D539/D542: every handler names the one action it needs. Required, so TypeScript forces the
 // decision; route-coverage.test.ts fails on any handler that skips the chokepoints.
 export type Guard = { need: Action };
 
@@ -111,6 +111,12 @@ type CanvasWithOrg = CanvasRow & {
   clients: { org_id: string } | { org_id: string }[] | null;
 };
 
+/** A canvas lookup that Supabase answered with an error: logged, and a plain 500 for the user. */
+function canvasReadFailed(error: { message: string }): NextResponse<{ error: string }> {
+  console.error("[canvas-read]", error.message);
+  return apiError("We couldn't open this canvas. Please try again.", 500);
+}
+
 // Same shape as withClient() for routes rooted at a canvas id (/api/canvas/[id]/*,
 // /api/canvases/[cid]/*): agency, client scope and the permission, 404 before 403.
 // Canvas -> client -> org in one query via an embedded join, beside the caller.
@@ -126,7 +132,7 @@ export async function withCanvas(
     supabase.from("canvases").select("*, clients!inner(org_id)").eq("id", canvasId).maybeSingle(),
     resolveActingCaller(),
   ]);
-  if (error) throw error;
+  if (error) return canvasReadFailed(error);
   if (!data) return apiError("Canvas not found.", 404);
 
   const row = data as unknown as CanvasWithOrg;
@@ -141,6 +147,64 @@ export async function withCanvas(
 
   const { clients: _clients, ...canvas } = row;
   return handler(canvasId, canvas as CanvasRow, acting.caller, acting.effectiveOrgId);
+}
+
+// ── Body-named canvas resolution ──────────────────────────────────────────────
+
+/** The canvas a request body names, once it is known to be in the caller's effective org. */
+export type VerifiedCanvas = {
+  id: string;
+  orgId: string;
+  clientId: string;
+  scriptId: string | null;
+};
+
+type BodyCanvasRow = {
+  client_id: string;
+  source_script_id: string | null;
+  clients: { org_id: string } | { org_id: string }[] | null;
+};
+
+// withCanvas() for routes that take the canvas id from the request BODY instead of the
+// path (the copilot routes). src/proxy.ts only requires a signed-in user, so without this
+// any caller could name another org's canvas and read its content back. Canvas -> client ->
+// org in one query, only the columns used, beside the caller (resolved once, as in withNode()).
+// Another agency's canvas or a client outside the person's list is a 404, a missing permission
+// a 403, and the impersonation write gate runs as in withCanvas().
+export async function withBodyCanvas(
+  req: Request,
+  canvasId: string,
+  guard: Guard,
+  handler: (canvas: VerifiedCanvas, caller: CallerContext) => Promise<AnyResponse | Response>,
+): Promise<AnyResponse | Response> {
+  const supabase = createServerSupabase();
+  const [{ data, error }, acting] = await Promise.all([
+    supabase
+      .from("canvases")
+      .select("client_id, source_script_id, clients!inner(org_id)")
+      .eq("id", canvasId)
+      .maybeSingle(),
+    resolveActingCaller(),
+  ]);
+  if (error) return canvasReadFailed(error);
+  if (!data) return apiError("Canvas not found.", 404);
+
+  const row = data as unknown as BodyCanvasRow;
+  const client = unwrapEmbed(row.clients);
+  if (!client || client.org_id !== acting.effectiveOrgId) {
+    return apiError("Canvas not found.", 404);
+  }
+
+  const decision = decide(acting, guard.need, row.client_id);
+  if (decision !== "allow") return denial(decision, "Canvas not found.");
+
+  const blocked = await writeGate(req, acting.impersonation);
+  if (blocked) return blocked;
+
+  return handler(
+    { id: canvasId, orgId: client.org_id, clientId: row.client_id, scriptId: row.source_script_id },
+    acting.caller,
+  );
 }
 
 // ── Node resolution ───────────────────────────────────────────────────────────

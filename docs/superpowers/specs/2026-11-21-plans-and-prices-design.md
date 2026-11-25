@@ -1,7 +1,7 @@
 # Billing piece 3: plans, packs and prices in Admin
 
 **Date:** 2026-11-21 · **Branch:** `feat/razorpay-test` · **Map:** `2026-11-19-billing-phase-1-design.md`
-(piece 3) · **Builds on:** the catalog schema (0068, D518) · **Migration:** 0069
+(piece 3) · **Builds on:** the catalog schema (0092, D577) · **Migration:** 0093
 
 ## Goal
 
@@ -14,7 +14,7 @@ is warned when a price earns less than the minimum. Nothing is sold yet (pieces 
   with. Our real cost today is about ₹95 to ₹97 (market rate plus the card fee), so ₹100 sits a
   little above it.
 - **Minimum margin: 15%.** Below it, Admin shows a warning on the price.
-- 0069 adds a settings row: ₹100, plan margin 20%, top-up margin 25%, minimum 15%. The margins are examples until the real prices are set; the 0068 seed row (1%, 20%, 10%) stays as history.
+- 0093 adds a settings row: ₹100, plan margin 20%, top-up margin 25%, minimum 15%. The margins are examples until the real prices are set; the 0092 seed row (1%, 20%, 10%) stays as history.
 
 ## Pricing math (`src/lib/billing/pricing.ts`)
 
@@ -49,7 +49,7 @@ Phase 1 offers only monthly intervals in the price dialog (`PLAN_INTERVALS = [1]
 half-yearly and yearly are added to that list when piece 5 supports them. Custom plans for one
 agency (`org_id`) and discount codes have no screen yet; the schema is ready for both.
 
-## Database (migration 0069; 0067 and 0068 are applied)
+## Database (migration 0093; 0091 and 0092 are applied)
 
 - `billing_log.org_id` becomes nullable: catalog and settings changes are logged with no agency.
 - Functions, each writing its `billing_log` row in the same transaction; `security definer`,

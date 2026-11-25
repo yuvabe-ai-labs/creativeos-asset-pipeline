@@ -5,6 +5,7 @@ import { getClientById, updateClientWebsiteUrl } from "@/lib/db/clients";
 import { getBrandDetails, patchBrandDetails } from "@/lib/db/brand-kit";
 import { insertJob, listRecentJobs, setJobRunId, failJob, failStaleJobs } from "@/lib/jobs/db";
 import { JobLockedError, type BackgroundJobRow } from "@/lib/jobs/types";
+import { sayJobFailed } from "@/lib/journey/kb-copilot/job-failed";
 import { IMPORT_SOURCES, IMPORT_SOURCE_LABELS, type ImportSource } from "./constants";
 import type { AssetImport, AssetImportInput, AssetImportResult } from "./types";
 import { facebookPageUrl, instagramProfileUrl, websiteUrl } from "./utils";
@@ -115,6 +116,7 @@ export async function startAssetImports(args: {
         // logs; people get a plain sentence.
         console.error("[asset-import] could not queue", { jobId: job.id, source, error: describeError(e) });
         await failJob(job.id, importCopy.couldNotStart);
+        await sayJobFailed({ client_id: args.clientId, kind: "asset-import", input: job.input });
       }
       return job;
     }),

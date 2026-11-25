@@ -19,7 +19,7 @@ import { multishotPromptFor } from "@/prompts/multishot-prompt-for";
 import { multishotCapabilityFor } from "@/lib/nodes/multishot-models";
 import { buildUserContent, isVisionAttachment } from "@/lib/nodes/compose-message";
 import { insertVersion } from "@/lib/db/versions";
-import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { NO_PRICE_MESSAGE, NoPriceError } from "@/lib/ai-models/run-price";
 import { runPromptGeneration, CreditLimitError, type ModelUsage } from "@/lib/api/prompt-run";
 import { describeModelRequest } from "@/lib/nodes/model-request";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
@@ -146,7 +146,6 @@ export async function POST(
       });
 
     const model = `openai:${spec.model}`;
-    const estimatedCredits = estimatePromptCredits(resolved.upstream.filter(isVisionAttachment).length);
 
     // Set inside `call()` as soon as the (real, billed) completion comes back — BEFORE the
     // parsePlan check below, which can throw. onFailure closes over this too, so a plan that
@@ -165,7 +164,7 @@ export async function POST(
         operatorUserId: caller.userId, // R11.1: the maker
         type: "prompt",
         model,
-        estimatedCredits,
+        attachmentCount: resolved.upstream.filter(isVisionAttachment).length,
         generationParamsSnapshot: {
           model: spec.model,
           promptId: spec.id,
@@ -330,6 +329,7 @@ export async function POST(
         versionId,
       });
     } catch (e) {
+      if (e instanceof NoPriceError) return apiError(NO_PRICE_MESSAGE, 409);
       const message = e instanceof Error ? e.message : "Generation failed";
       const status =
         e instanceof PlanValidationError ? 422 : e instanceof CreditLimitError ? 402 : 500;

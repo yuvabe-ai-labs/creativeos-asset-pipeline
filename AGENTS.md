@@ -34,7 +34,8 @@ the in-repo source of truth. Aesthetic: *"light editorial premium."*
   (`neutral-900` text, `neutral-500` metadata, `neutral-200` borders, `neutral-25/50` bg).
   Yellow `#ffca2d` only as a soft radial glow.
 - **Drive everything through the shadcn CSS variables** in `globals.css` — never hardcode
-  colors. Use the `.text-eyebrow` utility for tracked small-caps labels (not mono).
+  colors. Use the `.text-eyebrow` utility for tracked small-caps labels (not mono), and only for a
+  real section label: never above every heading or field. Field labels and card titles are sentence case.
 - **Hierarchy from weight / casing / tracking / color, not size.** ~3 type sizes per page.
 - **Cards:** white, 1px `neutral-200` border, soft blue-black shadow
   (`shadow-card`: `0 1px 2px rgba(11,15,25,.08), 0 6px 14px rgba(11,15,25,.1)` — ambient
@@ -205,6 +206,45 @@ Every resource is split into three layers, and nothing skips one:
 <!-- END:data-fetching -->
 
 <!-- BEGIN:performance -->
+# Streaming — a copilot shows its work as it happens
+
+**Anything a copilot does that a person waits on is shown as it happens, not when it is finished** (D514).
+This holds for every copilot surface: brand KB, market research, scripts, and the stages still to come.
+Spec: [docs/superpowers/specs/2026-11-17-copilot-streaming-design.md](docs/superpowers/specs/2026-11-17-copilot-streaming-design.md).
+
+- **Its words appear as they are written.** A reply never arrives whole after a silent wait.
+- **Each thing it does shows at the moment it is done.** A save the copilot makes is on the page then, not at the end of the turn.
+- **A line always says what it is doing now**, from the moment the person presses send.
+- **Showing early never changes what is stored.** After a turn the thread reads the same as after a reload, and the page never shows a value that was not saved.
+- **A new copilot surface is built this way from the start.** An existing one that does not yet do it moves when it is next substantially changed, not in passing.
+- Background work that runs for minutes (a build, a collection) is not part of this: it reports through the live status lines.
+# Turn traces — every copilot turn leaves a trace
+
+**Every agent turn keeps a trace of exactly what the model was sent, each tool call and what it
+returned, and what code did around it** (D521), seen in the copilot panel behind the "Turns" switch.
+Spec: [docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md](docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md).
+
+- An agent on the shared loop passes a `traceRecorder()` to `runAgent` (`trace:`), reports any
+  choice carried out by code and any refusal it says in a sentence, and its route stores the row
+  **after** the answer has gone, inside its own try/catch. Never trace by hand; never skip it.
+- A trace keeps the exact input, never a summary. A trace that cannot be kept never fails a turn.
+
+# The page shows the copilot's work
+
+**Whatever the copilot changes on a page, the page shows it happening** (D520): it goes there, shimmers
+what is being changed, and shows the change land. A field is marked only when its value changes,
+never while the copilot just asks about it (D528).
+Spec: [docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md](docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md).
+
+- A page names what the copilot can work on as **targets**: wrap each in `CopilotTarget` and call
+  `useFollowCopilot(clientId, reveal)` once per page. The agent reports each change by target id
+  (`on.target`). Never build a separate follow mechanism per page.
+- The page moves only for this browser's own turns; the "asking" mark is for everyone.
+- The copilot's change wins over an unsaved edit of the same thing; every other unsaved edit is kept.
+- No new request and no new polling: the page reads what the panel already holds.
+- The Market page's targets are its signals (`marketTarget.signal(id)`, D530): a kept draft switches to
+  the Signals tab and lands there; references a fetch brings in land highlighted once (`useFreshItems`).
+
 # Performance — rules we never break
 
 Learned the hard way (October 2026: one cost request per node, auth checked twice per request,

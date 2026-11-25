@@ -1,8 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { PanelView } from "@/lib/scripts/visualise/state";
 import { makeTake, reel01Doc } from "@/lib/scripts/visualise/__tests__/fixtures";
 import { PanelTile } from "../panel-tile";
+
+vi.mock("@/hooks/queries/ai-models", () => ({ useAiCatalog: () => ({ isPending: false }), useModelPrice: () => ({ price: null, loading: false }) }));
 
 const doc = reel01Doc();
 const shot = doc.shots[0];

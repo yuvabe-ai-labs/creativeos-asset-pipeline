@@ -12,7 +12,7 @@ import { HistoryPager } from "@/components/billing/history-pager";
 const WHAT = { plan: "Plan", renewal: "Renewal", topup: "Top-up", test: "Test" } as const;
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
-// Admin › Payments: every payment across agencies, newest first, 25 at a time (D525, D529). Page 1
+// Admin › Payments: every payment across agencies, newest first, 25 at a time (D584, D588). Page 1
 // comes with the page; older pages load on demand.
 export function AdminPaymentsList({ initial }: { initial: AdminPaymentsPage }) {
   const [page, setPage] = useState(1);

@@ -15,7 +15,7 @@ export const metadata = { title: "Billing · CreativeOS" };
 
 const n = (v: number) => v.toLocaleString("en-IN");
 
-// The owner's Billing (spec 2026-11-21-owner-billing-design.md, D523): the plan, the credits by kind
+// The owner's Billing (spec 2026-11-21-owner-billing-design.md, D582): the plan, the credits by kind
 // with their ends, top-ups, and payments. One parallel read; a managed agency has no billing page.
 export default async function BillingPage() {
   const orgId = await requireBillingOwner();

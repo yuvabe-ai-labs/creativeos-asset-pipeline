@@ -10,7 +10,7 @@ const TITLE_MAX = 200;
 // PATCH /api/nodes/:id/client-review/versions/:n — change one version: its Allow download switch
 // (D497) and/or its title. Body: { allowDownload?: boolean, title?: string }. Download takes effect
 // at once on the server; an open client page shows the change on its next load. Both change what
-// the client gets on their link, so this needs Share (D500), like uploading the version.
+// the client gets on their link, so this needs Share (D538), like uploading the version.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string; n: string }> }) {
   const { n } = await params;
   const versionNo = Number(n);

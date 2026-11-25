@@ -1,6 +1,7 @@
-import { defaultsForModel, imageGenClientModelMap } from "@/lib/image-gen/client-models";
-import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { paramDefaults, type ImageModels } from "@/lib/ai-models/model-lists";
+import { imageEstimateUsd } from "@/lib/ai-models/image-price";
+import type { AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
+import { creditsFromUsd } from "@/lib/credits/units";
 import {
   AVATAR_FRAMING_CLAUSE, AVATAR_SHEET_ASPECT, AVATAR_STYLES, AVATAR_WORKS_WITH, SEEDANCE_FACE_MODEL_ID,
   type AvatarAttributes, type AvatarStyleId,
@@ -41,53 +42,50 @@ export function familyClause(relatives: string[]): string {
 
 /** D395 — the sheet is one 16:9 image with the front as its reference; its four views are cut
  *  from it at no further cost. */
-export function estimateSheetCredits(modelId: string): number | null {
-  return estimateAvatarImageCredits({ modelId, aspect: AVATAR_SHEET_ASPECT, referenceCount: 1 });
+export function estimateSheetCredits(images: ImageModels, price: AiModelPrice | null, modelId: string, settings: CreditSettings | null): number | null {
+  return estimateAvatarImageCredits(images, price, { modelId, aspect: AVATAR_SHEET_ASPECT, referenceCount: 1 }, settings);
 }
 
-/** The model's own defaults with the aspect ratio forced. Null for an unknown model. */
-export function avatarImageParams(
-  modelId: string,
-  aspect: string,
-): Record<string, unknown> | null {
-  const model = imageGenClientModelMap[modelId];
+/** The model's own defaults with the aspect ratio forced. Null for a model the catalog lacks. */
+export function avatarImageParams(images: ImageModels, modelId: string, aspect: string): Record<string, unknown> | null {
+  const model = images.get(modelId);
   if (!model) return null;
-  return { ...defaultsForModel(model), aspect_ratio: aspect };
+  return { ...paramDefaults(model.params), aspect_ratio: aspect };
 }
 
-export function estimateAvatarImageCostUsd(input: {
-  modelId: string;
-  aspect: string;
-  referenceCount: number;
-}): number | null {
-  const params = avatarImageParams(input.modelId, input.aspect);
-  if (!params) return null;
-  return estimateImageGenerationCostUsd({
+export function estimateAvatarImageCostUsd(
+  images: ImageModels,
+  price: AiModelPrice | null,
+  input: { modelId: string; aspect: string; referenceCount: number },
+): number | null {
+  const params = avatarImageParams(images, input.modelId, input.aspect);
+  if (!params || !price) return null;
+  return imageEstimateUsd(price, {
     modelId: input.modelId,
     quality: params.quality as string | undefined,
     aspectRatio: input.aspect,
     imageSize: params.image_size as string | undefined,
-    // Only the count is read; the URLs themselves do not change the price.
-    referenceUrls: Array.from({ length: input.referenceCount }, () => ""),
+    referenceCount: input.referenceCount,
   });
 }
 
-export function estimateAvatarImageCredits(input: {
-  modelId: string;
-  aspect: string;
-  referenceCount: number;
-}): number | null {
-  const usd = estimateAvatarImageCostUsd(input);
-  return usd === null ? null : usdToFinalCredits(usd);
+export function estimateAvatarImageCredits(
+  images: ImageModels,
+  price: AiModelPrice | null,
+  input: { modelId: string; aspect: string; referenceCount: number },
+  settings: CreditSettings | null,
+): number | null {
+  const usd = estimateAvatarImageCostUsd(images, price, input);
+  return usd === null || !settings ? null : creditsFromUsd(usd, settings);
 }
 
 export function isSeedanceFaceModel(modelId: string): boolean {
   return modelId === SEEDANCE_FACE_MODEL_ID;
 }
 
-/** The display name of the one model Seedance accepts — derived, so it is named once. */
-export function seedanceFaceModelLabel(): string {
-  return imageGenClientModelMap[SEEDANCE_FACE_MODEL_ID]?.label ?? SEEDANCE_FACE_MODEL_ID;
+/** The display name of the one model Seedance accepts — from the catalog, so it is named once. */
+export function seedanceFaceModelLabel(images: ImageModels): string {
+  return images.get(SEEDANCE_FACE_MODEL_ID)?.label ?? "Seedream 5.0 Lite";
 }
 
 // ── Batches (the Studio's candidate grid) ─────────────────────────────────────

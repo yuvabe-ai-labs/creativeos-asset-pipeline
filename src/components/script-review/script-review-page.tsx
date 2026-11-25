@@ -1,10 +1,11 @@
 // src/components/script-review/script-review-page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { NameGate } from "@/components/client-review/name-gate";
 import { useIsServerOrHydrating } from "@/hooks/use-is-server-or-hydrating";
 import { useReviewColumn } from "@/hooks/use-review-column";
+import { useElementHeight } from "@/hooks/use-element-width";
 import { useApproveScript, useEditScriptComment, usePostScriptComment, usePublicScriptReview } from "@/hooks/queries/script-review";
 import {
   PREPAINT_SCRIPT, browserStore, clearReviewerName, readReviewerName, saveReviewerName,
@@ -78,6 +79,9 @@ export function ScriptReviewPage({ token, initial }: { token: string; initial: P
     />
   ) : null;
 
+  // The header stays put while the board scrolls; the sticky comments column sits just below it.
+  const [measureHeader, headerHeight] = useElementHeight<HTMLDivElement>();
+
   return (
     <div data-reviewer={name ? "known" : "unknown"} suppressHydrationWarning className="group/review flex min-h-dvh flex-col">
       {serverPass && <script dangerouslySetInnerHTML={{ __html: PREPAINT_SCRIPT }} />}
@@ -90,8 +94,14 @@ export function ScriptReviewPage({ token, initial }: { token: string; initial: P
         />
       </div>
 
-      <div className="hidden flex-1 flex-col gap-6 px-4 py-6 group-data-[reviewer=known]/review:flex lg:mx-auto lg:w-full lg:max-w-[96rem] lg:px-6">
+      <div
+        className="hidden flex-1 flex-col gap-6 px-4 py-6 group-data-[reviewer=known]/review:flex lg:mx-auto lg:w-full lg:max-w-[96rem] lg:px-6"
+        style={headerHeight ? ({ "--review-sticky-top": `${headerHeight + 24}px` } as CSSProperties) : undefined}
+      >
         <ReviewSurfaceProvider value={surface}>
+          {/* Locked to the top: -mt-6/pt-6 covers the page's top padding so nothing scrolls into
+              the gap above it; the background hides the board passing underneath. */}
+          <div ref={measureHeader} className="sticky top-0 z-30 -mt-6 bg-background pt-6">
           <ScriptReviewHeader
             review={review}
             name={name}
@@ -106,6 +116,7 @@ export function ScriptReviewPage({ token, initial }: { token: string; initial: P
               </>
             }
           />
+          </div>
           <ScopeNote scope={version.scope} />
           <FrozenBoard
             version={version}

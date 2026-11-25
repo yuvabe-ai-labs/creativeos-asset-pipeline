@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { GenerationRow } from "./types";
+import type { GenerationRow, RecordOnlyType } from "./types";
+import type { ProviderBill } from "@/lib/ai-models/types";
 import { getReservationAmounts } from "./credit-transactions";
 import type { GenerationRow as ImpersonationGenerationRow } from "@/lib/auth/impersonation-audit-view";
 import { isUuid } from "@/lib/avatars/utils";
@@ -47,6 +48,8 @@ export async function insertGeneration(input: {
   modelUsed?: string;
   paramsSnapshot?: Record<string, unknown>;
   inputsSnapshot?: Record<string, unknown>;
+  /** D557 — the price row the run is reserved and charged with. */
+  modelPriceId?: string;
 }): Promise<GenerationRow> {
   if (!input.nodeId && !input.avatarId && !input.scriptId) {
     throw new Error("A generation must belong to a node or an avatar, or a script.");
@@ -71,6 +74,8 @@ export async function insertGeneration(input: {
       model_used: input.modelUsed ?? null,
       params_snapshot: input.paramsSnapshot ?? {},
       inputs_snapshot: input.inputsSnapshot ?? {},
+      // Migration 0076 (generations.model_price_id) must be applied before this code runs: every caller sets the field.
+      ...(input.modelPriceId ? { model_price_id: input.modelPriceId } : {}),
     })
     .select()
     .single();
@@ -86,6 +91,8 @@ export async function succeedGeneration(input: {
   tokensUsed?: Record<string, unknown> | null;
   outputSnapshot?: string;
   meta?: Record<string, unknown>;
+  /** D558 — what the provider reported for the run. Untouched when omitted. */
+  providerBill?: ProviderBill | null;
 }): Promise<void> {
   const supabase = createServerSupabase();
   const update: Record<string, unknown> = {
@@ -105,6 +112,7 @@ export async function succeedGeneration(input: {
   // (e.g. the creator's email) and an unconditional overwrite here would silently wipe
   // that out on every completion, since most callers never pass meta.
   if (input.meta !== undefined) update.meta = input.meta;
+  if (input.providerBill !== undefined) update.provider_bill = input.providerBill;
 
   const { error } = await supabase
     .from("generations")
@@ -138,6 +146,20 @@ export async function getGeneration(id: string): Promise<GenerationRow> {
     .single();
   if (error) throw error;
   return data as GenerationRow;
+}
+
+export type GenerationForSettle = Pick<GenerationRow, "id" | "org_id" | "model_used" | "model_price_id" | "created_at">;
+
+/** The columns a run's settle prices it with: its row, its model and when it started. */
+export async function getGenerationForSettle(id: string): Promise<GenerationForSettle> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("generations")
+    .select("id, org_id, model_used, model_price_id, created_at")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  return data as GenerationForSettle;
 }
 
 /** D366 — whether this node has a generation still running: one at a time per node. */
@@ -181,23 +203,15 @@ export async function listLatestGenerations(
   return out;
 }
 
-export async function listGenerations(nodeId: string): Promise<GenerationRow[]> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("generations")
-    .select("*")
-    .eq("node_id", nodeId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as GenerationRow[];
-}
-
+// The admin org page lists jobs. Record-only rows (D560: a Copilot reply, a KB build) charge
+// nothing and are not jobs, so the count and the list both leave them out.
 export async function countGenerationsForOrg(orgId: string): Promise<number> {
   const supabase = createServerSupabase();
   const { count, error } = await supabase
     .from("generations")
     .select("*", { count: "exact", head: true })
-    .eq("org_id", orgId);
+    .eq("org_id", orgId)
+    .eq("record_only", false);
   if (error) throw error;
   return count ?? 0;
 }
@@ -240,7 +254,8 @@ export async function listGenerationsForOrgPage(
   let q = supabase
     .from("generations")
     .select("*", { count: "exact" })
-    .eq("org_id", orgId);
+    .eq("org_id", orgId)
+    .eq("record_only", false);
   if (query?.trim()) q = q.ilike("model_used", `%${query.trim()}%`);
   q =
     sort === "name"
@@ -275,6 +290,9 @@ export async function listGenerationsForOrgPage(
 // real settled credit amount. `credits_charged` is therefore what the view wants, and it
 // is carried under that name rather than aliased back — reviving the old name is exactly
 // the confusion 0019 existed to end.
+//
+// Record-only rows (D560) are kept here, unlike the admin list: the audit shows every provider
+// call the operator made while impersonating, and a Copilot reply or a KB build is one of them.
 export async function listGenerationsInWindowForOrg(
   orgId: string,
   fromISO: string,
@@ -318,6 +336,8 @@ export async function listAvatarGenerations(avatarId: string): Promise<Generatio
     .from("generations")
     .select("*")
     .eq("avatar_id", avatarId)
+    // D560: a record-only row is a cost record, not one of the avatar's pictures.
+    .eq("record_only", false)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as GenerationRow[];
@@ -374,4 +394,44 @@ export async function sumAvatarCredits(avatarId: string): Promise<number> {
     (sum, row) => sum + (row.credits_charged ?? 0),
     0,
   );
+}
+
+/** D560: a provider call that charges no credits, kept so we know what it cost us. No ledger rows. */
+export async function insertRecordOnlyGeneration(input: {
+  orgId: string;
+  clientId?: string | null;
+  userId?: string | null;
+  userEmail?: string | null;
+  nodeId?: string | null;
+  avatarId?: string | null;
+  scriptId?: string | null;
+  type: RecordOnlyType;
+  modelUsed: string;
+  modelPriceId: string | null;
+  costUsd: number | null;
+  providerBill: ProviderBill;
+  tokensUsed?: Record<string, unknown> | null;
+}): Promise<void> {
+  const { error } = await createServerSupabase().from("generations").insert({
+    org_id: input.orgId,
+    client_id: input.clientId ?? null,
+    user_id: input.userId ?? null,
+    // generations has no user_email column: the creator's email lives in meta, as insertGeneration does.
+    meta: input.userEmail ? { email: input.userEmail } : null,
+    node_id: input.nodeId ?? null,
+    avatar_id: input.avatarId ?? null,
+    script_id: input.scriptId ?? null,
+    type: input.type,
+    model_used: input.modelUsed,
+    model_price_id: input.modelPriceId,
+    status: "succeeded",
+    record_only: true,
+    cost_usd: input.costUsd,
+    credits_charged: 0,
+    provider_bill: input.providerBill,
+    tokens_used: input.tokensUsed ?? null,
+    // generations has no completed_at column; updated_at is the finish time of a row written once.
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw new Error(`insertRecordOnlyGeneration: ${error.message}`);
 }

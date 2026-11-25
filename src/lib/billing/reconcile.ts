@@ -11,7 +11,7 @@ import {
 } from "@/lib/db/billing-subscriptions";
 import { cancelSubscription, getSubscription, listOrderPayments, listSubscriptionInvoices } from "./razorpay";
 
-// The check against Razorpay (spec 2026-11-21-failed-payments-design.md, D526). Webhooks can be
+// The check against Razorpay (spec 2026-11-21-failed-payments-design.md, D585). Webhooks can be
 // late, missing (Razorpay disables a webhook after 24 hours of failures) or out of order; this
 // brings our records in line with Razorpay's, using the same once-only functions as the webhook,
 // so running it twice changes nothing. Every agency is checked on its own: one failure never

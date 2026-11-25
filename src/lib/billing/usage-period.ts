@@ -1,4 +1,4 @@
-// The periods "who used what" offers (D524): calendar months in India time.
+// The periods "who used what" offers (D583): calendar months in India time.
 
 export type UsagePeriod = "this_month" | "last_month";
 export type UsageBy = "member" | "client" | "canvas";

@@ -27,7 +27,7 @@
 
 | File | Responsibility |
 |---|---|
-| `supabase/migrations/0066_billing_payments.sql` | Table, owner-read policy, `record_razorpay_payment` |
+| `supabase/migrations/0090_billing_payments.sql` | Table, owner-read policy, `record_razorpay_payment` |
 | `src/lib/billing/constants.ts` | `TEST_PACK` |
 | `src/lib/billing/test-mode.ts` | `isBillingTestEnabled()` |
 | `src/lib/billing/razorpay.ts` | `createOrder`, `razorpayKeyId`, both signature checks |
@@ -44,10 +44,10 @@
 
 ---
 
-### Task 1: Migration 0066 and docs
+### Task 1: Migration 0090 and docs
 
 **Files:**
-- Create: `supabase/migrations/0066_billing_payments.sql`
+- Create: `supabase/migrations/0090_billing_payments.sql`
 - Modify: `docs/database-schema.md`, `docs/auth-production-migration.md`, `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7, after D513)
 
 **Interfaces:**
@@ -56,7 +56,7 @@
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- Razorpay test top-up (spec 2026-11-19-razorpay-test-top-up-design.md, D514).
+-- Razorpay test top-up (spec 2026-11-19-razorpay-test-top-up-design.md, D573).
 -- One row per Razorpay order. Only the server writes (service role); an agency's owners read
 -- their own rows, like credit_transactions since 0065.
 create table billing_payments (
@@ -119,14 +119,14 @@ notify pgrst, 'reload schema';
 
 - [ ] **Step 2: Docs**
 
-In `docs/database-schema.md`: bump "up to 0065" to "up to 0066" and add a `billing_payments` entry (columns as above; RLS: owners read, server writes; function `record_razorpay_payment`).
+In `docs/database-schema.md`: bump "up to 0065" to "up to 0090" and add a `billing_payments` entry (columns as above; RLS: owners read, server writes; function `record_razorpay_payment`).
 
-In `docs/auth-production-migration.md`: add a "0066 billing_payments" section after 0065: what it adds, that it is safe to apply (new table and function only, no change to existing rows), and that it can go to production even though the test page stays off there.
+In `docs/auth-production-migration.md`: add a "0090 billing_payments" section after 0065: what it adds, that it is safe to apply (new table and function only, no change to existing rows), and that it can go to production even though the test page stays off there.
 
 In the roadmap §7, after D513, append:
 
 ```markdown
-### D514 — Razorpay is proven with a hidden test top-up before the billing build *(recorded 2026-11-19; originated → `2026-11-19-razorpay-test-top-up-design.md`)*
+### D573 — Razorpay is proven with a hidden test top-up before the billing build *(recorded 2026-11-19; originated → `2026-11-19-razorpay-test-top-up-design.md`)*
 
 **Decision:** A `/billing-test` page (only where `RAZORPAY_TEST_PAGE=1`: a developer's machine and the dev deployment) sells one ₹100 pack of 1,000 credits through Razorpay Orders and Checkout. Only the signed `order.paid` webhook adds credits, through `record_razorpay_payment`, which marks the order paid and writes a negative `adjustment` row once. No SDK; settings `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` carry no test or live in their names.
 **Why:** It proves checkout, signatures, webhook delivery and idempotent crediting end to end without designing plans, subscriptions or the billing page; a negative adjustment needs no change to `reserve_credits` and ends with the month like the planned top-ups.
@@ -136,8 +136,8 @@ In the roadmap §7, after D513, append:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add supabase/migrations/0066_billing_payments.sql docs/database-schema.md docs/auth-production-migration.md docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
-git commit -m "feat(billing): billing_payments table and record_razorpay_payment (migration 0066)"
+git add supabase/migrations/0090_billing_payments.sql docs/database-schema.md docs/auth-production-migration.md docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
+git commit -m "feat(billing): billing_payments table and record_razorpay_payment (migration 0090)"
 ```
 
 ---
@@ -240,7 +240,7 @@ Expected: FAIL, cannot resolve `./razorpay`.
 
 ```ts
 // src/lib/billing/constants.ts
-/** The one pack the test page sells (D514): ₹100 for 1,000 credits. */
+/** The one pack the test page sells (D573): ₹100 for 1,000 credits. */
 export const TEST_PACK = { amountPaise: 10_000, credits: 1_000 } as const;
 ```
 
@@ -249,7 +249,7 @@ export const TEST_PACK = { amountPaise: 10_000, credits: 1_000 } as const;
 import "server-only";
 
 /** The test page and its routes exist only where RAZORPAY_TEST_PAGE=1: a developer's machine
- *  and the dev deployment. Test-mode payments are not real money (D514). */
+ *  and the dev deployment. Test-mode payments are not real money (D573). */
 export function isBillingTestEnabled(): boolean {
   return process.env.RAZORPAY_TEST_PAGE === "1";
 }
@@ -260,7 +260,7 @@ export function isBillingTestEnabled(): boolean {
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-// Razorpay through its REST API, no SDK (D514). Test or live is decided only by which keys are
+// Razorpay through its REST API, no SDK (D573). Test or live is decided only by which keys are
 // set; the names are the same in every environment.
 
 export type RazorpayOrder = { id: string; amount: number; currency: string; status: string };
@@ -435,7 +435,7 @@ Expected: FAIL, cannot resolve `./route`.
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-/** The order as started; credits are added only when its webhook arrives (D514). */
+/** The order as started; credits are added only when its webhook arrives (D573). */
 export async function insertCreatedPayment(row: {
   orgId: string;
   orderId: string;
@@ -454,7 +454,7 @@ export async function insertCreatedPayment(row: {
   if (error) throw error;
 }
 
-/** Migration 0066: marks the order paid and adds its credits, once. False for an unknown or
+/** Migration 0090: marks the order paid and adds its credits, once. False for an unknown or
  *  already-paid order. */
 export async function recordRazorpayPayment(orderId: string, paymentId: string): Promise<boolean> {
   const { data, error } = await createServerSupabase().rpc("record_razorpay_payment", {
@@ -477,7 +477,7 @@ type RazorpayEvent = {
   payload?: { payment?: { entity?: { id?: string; order_id?: string } } };
 };
 
-// D514: the only path that adds credits. No session here (the proxy skips /api/webhooks); the
+// D573: the only path that adds credits. No session here (the proxy skips /api/webhooks); the
 // signature on the raw body is the check, so the body is read as text before any parsing.
 // Answers fast (two database calls) because Razorpay retries anything slower than 5 seconds.
 export async function POST(req: Request) {
@@ -695,7 +695,7 @@ import { createOrder, razorpayKeyId } from "@/lib/billing/razorpay";
 import { isBillingTestEnabled } from "@/lib/billing/test-mode";
 import { insertCreatedPayment } from "@/lib/db/billing-payments";
 
-// D514: starts a test payment for the owner's agency. The amount and credits come from TEST_PACK,
+// D573: starts a test payment for the owner's agency. The amount and credits come from TEST_PACK,
 // never from the browser. Credits are added only by the webhook.
 export async function POST(req: Request) {
   if (!isBillingTestEnabled()) return apiError("Not found.", 404);
@@ -727,7 +727,7 @@ import { isBillingTestEnabled } from "@/lib/billing/test-mode";
 
 type ConfirmBody = { orderId?: string; paymentId?: string; signature?: string };
 
-// D514: checks Checkout's signature so the page can say "payment received". It never adds
+// D573: checks Checkout's signature so the page can say "payment received". It never adds
 // credits: a closed tab or a forged call can't change a balance; the webhook does that.
 export async function POST(req: Request) {
   if (!isBillingTestEnabled()) return apiError("Not found.", 404);
@@ -797,7 +797,7 @@ export const billingService = new BillingService();
 import { useMutation } from "@tanstack/react-query";
 import { billingService, type CheckoutResult } from "@/services/billing.service";
 
-// D514: the test page only writes. The credits it adds reach the profile popover through that
+// D573: the test page only writes. The credits it adds reach the profile popover through that
 // popover's own realtime channel on credit_transactions, so nothing here is cached or invalidated.
 export function useCreateTestOrder() {
   return useMutation({ mutationFn: () => billingService.createTestOrder() });
@@ -881,7 +881,7 @@ type Status = { tone: "info" | "ok" | "error"; text: string } | null;
 
 const TONE_CLASS = { info: "text-muted-foreground", ok: "text-foreground", error: "text-destructive" } as const;
 
-// D514: one test pack, paid in Razorpay Checkout. Confirm only reports "received"; the webhook
+// D573: one test pack, paid in Razorpay Checkout. Confirm only reports "received"; the webhook
 // adds the credits, and the profile popover shows them as they arrive.
 export function TestTopUp() {
   const createOrder = useCreateTestOrder();
@@ -953,7 +953,7 @@ import { TestTopUp } from "@/components/billing/test-top-up";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Buy credits (test) — CreativeOS" };
 
-// D514: only where RAZORPAY_TEST_PAGE=1, and only for the agency's owner (view_credits);
+// D573: only where RAZORPAY_TEST_PAGE=1, and only for the agency's owner (view_credits);
 // anyone else gets the 404 page.
 export default async function BillingTestPage() {
   if (!isBillingTestEnabled()) notFound();
@@ -991,7 +991,7 @@ git commit -m "feat(billing): hidden test page to buy credits with Razorpay Chec
 - [ ] **Step 2: Focused tests.** Run `npx vitest run src/lib/billing src/app/api/billing src/app/api/webhooks/razorpay` and `npx tsc --noEmit`. Expected: all pass.
 
 - [ ] **Step 3: Hand-off to the user** (they act; nothing here is automated):
-  1. Apply migration 0066 to the dev database.
+  1. Apply migration 0090 to the dev database.
   2. Run this worktree's dev server on a free port (e.g. `npx next dev -p 3003`) and point the tunnel at it (`ngrok http 3003`).
   3. Razorpay Dashboard → Test mode → Webhooks → add `<tunnel>/api/webhooks/razorpay`, secret = `RAZORPAY_WEBHOOK_SECRET` from `.env`, event `order.paid` (OTP `754081` if asked).
   3b. In the Razorpay Dashboard (test mode), set payment capture to automatic: `order.paid` fires only when a payment is captured.

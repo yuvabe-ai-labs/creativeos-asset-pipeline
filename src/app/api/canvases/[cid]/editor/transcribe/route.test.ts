@@ -13,6 +13,7 @@ vi.mock("@/lib/supabase/server", () => ({
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: "cv1", client_id: "cl1", clients: { org_id: "org-1" } }, error: null }) }) }) }),
   }),
 }));
+vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock());
 vi.mock("@/lib/editor/load-state", () => ({ loadEditorState: vi.fn() }));
 vi.mock("@/lib/editor/transcribe-plan", () => ({ planTranscription: vi.fn(), playableSoundUrls: vi.fn(() => ["https://s/a.mp4", "https://s/b.mp4"]) }));
 vi.mock("@/lib/db/media-transcripts", () => ({ listTranscribedUrls: vi.fn(), listTranscripts: vi.fn() }));
@@ -25,6 +26,12 @@ vi.mock("@/lib/db/credit-transactions", () => ({
 vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() }, runs: { retrieve: vi.fn() } }));
 vi.mock("@/lib/jobs/db", () => ({ insertJob: vi.fn(), failStaleJobs: vi.fn(), setJobRunId: vi.fn(), failJob: vi.fn(async () => {}), getJob: vi.fn(), listRecentJobs: vi.fn(async () => []) }));
 
+import { priceForNewRun } from "@/lib/ai-models/run-price";
+import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
+import { transcribeFilesEstimateUsd } from "@/lib/ai-models/service-price";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededSettingsRow } from "@/lib/ai-models/test-catalog";
 import { runs, tasks } from "@trigger.dev/sdk";
 import { refundReservation, reserveCredits } from "@/lib/db/credit-transactions";
 import { insertGeneration } from "@/lib/db/generations";
@@ -47,7 +54,7 @@ beforeEach(() => {
   vi.mocked(loadEditorState).mockResolvedValue({ editorNodeId: NODE, doc: {}, sources: [] } as never);
   vi.mocked(planTranscription).mockReturnValue({ files: [{ url: "https://s/a.mp4", seconds: 8 }, { url: "https://s/b.mp4", seconds: 9 }], noSound: [] });
   vi.mocked(listTranscribedUrls).mockResolvedValue(new Set());
-  vi.mocked(insertGeneration).mockResolvedValue({ id: "gen1" } as never);
+  vi.mocked(insertGeneration).mockResolvedValue({ id: "gen1", created_at: new Date().toISOString() } as never);
   vi.mocked(reserveCredits).mockResolvedValue({ ok: true });
   vi.mocked(insertJob).mockResolvedValue({ id: "job1" } as never);
   vi.mocked(tasks.trigger).mockResolvedValue({ id: "run1" } as never);
@@ -75,6 +82,30 @@ describe("POST /api/canvases/[cid]/editor/transcribe", () => {
       input: { canvasId: "cv1", nodeId: NODE, generationId: "gen1", orgId: "org-1", files: [{ url: "https://s/b.mp4", seconds: 9 }] },
     });
     expect(tasks.trigger).toHaveBeenCalledWith("editor-transcribe", { jobId: "job1" });
+  });
+
+  it("records the price row and reserves its estimate (D558)", async () => {
+    await post({ nodeId: NODE });
+    const row = seededPrice(TRANSCRIBE_MODEL_ID);
+    expect(vi.mocked(insertGeneration).mock.calls[0][0]).toMatchObject({ modelPriceId: row.id });
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "gen1", creditsFromUsd(transcribeFilesEstimateUsd(row, [8, 9])!, seededSettingsRow()));
+  });
+
+  it("reserves each file's credits rounded up on its own, as ElevenLabs bills them", async () => {
+    // 200 clips of 3 s: 1 credit each = 200 credits (40 after rounding), not ceil(600 x 0.2834) = 171 (35)
+    const files = Array.from({ length: 200 }, (_, i) => ({ url: `https://s/${i}.mp4`, seconds: 3 }));
+    vi.mocked(planTranscription).mockReturnValue({ files, noSound: [] });
+    await post({ nodeId: NODE });
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "gen1", 40);
+  });
+
+  it("409s before anything is recorded when the model has no price", async () => {
+    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const res = await post({ nodeId: NODE });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("This model has no price set, so it can't run right now.");
+    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(reserveCredits).not.toHaveBeenCalled();
   });
 
   it("402s at the credit limit and gives the reservation back", async () => {

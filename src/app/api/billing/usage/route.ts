@@ -2,7 +2,7 @@ import { apiError, apiOk, withAccess, withQuietErrors } from "@/lib/api/route-he
 import { getUsageBy } from "@/lib/db/billing-usage";
 import { isUsageBy, isUsagePeriod, usageRange } from "@/lib/billing/usage-period";
 
-// Who used what (D524), owners only: credits charged in a month per member, client or canvas.
+// Who used what (D583), owners only: credits charged in a month per member, client or canvas.
 export async function GET(req: Request) {
   return withAccess(req, { need: "view_credits" }, (_caller, orgId) =>
     withQuietErrors("Could not load usage.", async () => {

@@ -15,6 +15,7 @@ import {
   estimateAvatarImageCredits, imageModelWorksWith, isSeedanceFaceModel, listSentence,
   seedanceFaceModelLabel,
 } from "@/lib/avatars/generation";
+import { useCreditSettings, useImageModels, useModelPrice } from "@/hooks/queries/ai-models";
 import type { GenerateFrontInput } from "@/lib/avatars/schema";
 import { AvatarCreditCost } from "./avatar-credit-cost";
 import { AvatarAdvancedSettings } from "./avatar-advanced-settings";
@@ -36,9 +37,12 @@ type Props = {
 export function AvatarDescribePanel({ busy, composer, onComposerChange, onGenerate }: Props) {
   const { description, attributes, styleId, modelId, count } = composer;
 
-  const perImage = estimateAvatarImageCredits({ modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
+  const { price } = useModelPrice(modelId);
+  const images = useImageModels();
+  const settings = useCreditSettings();
+  const perImage = estimateAvatarImageCredits(images, price, { modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 }, settings);
   const canGenerate = description.trim().length > 0 && perImage !== null && !busy;
-  const seedanceFaceLabel = seedanceFaceModelLabel();
+  const seedanceFaceLabel = seedanceFaceModelLabel(images);
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border bg-card p-3">

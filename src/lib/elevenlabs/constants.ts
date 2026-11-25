@@ -1,7 +1,6 @@
 // D282 — ElevenLabs voice change. Prices from the ElevenAPI pricing page, checked 2026-09-24.
 export const ELEVENLABS_API_BASE = "https://api.elevenlabs.io";
 export const VOICE_CHANGE_MODEL_ID = "eleven_multilingual_sts_v2";
-export const VOICE_CHANGE_USD_PER_MINUTE = 0.12;
 
 /** Voices we created on the account (cloned / designed / professional) — listed before stock. */
 export const CUSTOM_VOICE_CATEGORIES = new Set(["cloned", "generated", "professional"]);

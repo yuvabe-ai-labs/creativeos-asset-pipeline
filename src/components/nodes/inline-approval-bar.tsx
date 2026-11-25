@@ -49,7 +49,7 @@ export function InlineApprovalBar({
   note: string;
   saving: boolean;
   // R2.3: hides the control from someone without Approve as a COURTESY. The real gate is the
-  // Approve check inside setVersionApprovalAction, which resolves the caller server-side (D504) —
+  // Approve check inside setVersionApprovalAction, which resolves the caller server-side (D542) —
   // this prop is not, and must never become, the mechanism.
   canApprove: boolean;
   onSet: (status: ApprovalStatus, note: string | null) => void;

@@ -31,7 +31,7 @@ beforeEach(() => {
   m.getDisplayName.mockResolvedValue("Yuva");
 });
 
-describe("admin actions are the super admin's only (D505)", () => {
+describe("admin actions are the super admin's only (D543)", () => {
   it("answers anyone else with not found and touches nothing", async () => {
     m.resolveCallerContext.mockResolvedValue({ userId: "u1", platformRole: "member" });
     await expect(resendOwnerInviteAction(ORG)).rejects.toThrow("NOT_FOUND");

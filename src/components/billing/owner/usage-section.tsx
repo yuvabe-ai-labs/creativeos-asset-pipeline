@@ -23,7 +23,7 @@ const PERIOD_OPTIONS: { value: UsagePeriod; label: string }[] = [
 
 const n = (v: number) => Math.round(v).toLocaleString("en-IN");
 
-// Who used what (D524): credits charged this or last month by member, client or canvas, each row
+// Who used what (D583): credits charged this or last month by member, client or canvas, each row
 // opening to its runs. One request per view; the rows' share bars need nothing more.
 export function UsageSection() {
   const [by, setBy] = useState<UsageBy>("member");

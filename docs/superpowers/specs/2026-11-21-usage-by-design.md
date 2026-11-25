@@ -1,7 +1,7 @@
 # Who used what (billing piece 6, part 2)
 
-**Date:** 2026-11-21 · **Branch:** `feat/razorpay-test` · **Migration:** 0073 · **Builds on:** the owner
-screens (`2026-11-21-owner-billing-design.md`, D523)
+**Date:** 2026-11-21 · **Branch:** `feat/razorpay-test` · **Migration:** 0097 · **Builds on:** the owner
+screens (`2026-11-21-owner-billing-design.md`, D582)
 
 ## Goal
 
@@ -17,7 +17,7 @@ canvas, each row opening to its runs. Agreed on the 20 November call ("down to g
 - A member is `generations.user_id`; a client is `client_id`; a canvas is the run's node's
   `canvas_id`. Runs with no canvas (avatars, scripts) form one row, "Outside a canvas". A run whose
   member has left shows as "Someone no longer in the agency".
-- `org_credit_usage_by(org, from, to, by)` (0073) groups and sums in the database. A new index on
+- `org_credit_usage_by(org, from, to, by)` (0097) groups and sums in the database. A new index on
   `generations (org_id, created_at)` serves it and the runs list.
 
 ## Calls

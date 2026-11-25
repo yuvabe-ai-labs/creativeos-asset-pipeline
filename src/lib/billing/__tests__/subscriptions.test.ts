@@ -111,7 +111,7 @@ describe("cancelPlan and changePlan", () => {
   });
 });
 
-describe("a payment due (D526)", () => {
+describe("a payment due (D585)", () => {
   it("ends the plan at once when cancelled, since no paid month is left", async () => {
     m.getLive.mockResolvedValue(live({ status: "payment_due" }));
     await expect(cancelPlan("org")).resolves.toEqual({ ok: true, value: { endsAt: null } });

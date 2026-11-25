@@ -26,7 +26,7 @@ export function ProfilePopover() {
   // Null without view_credits: the server sends no figures to anyone but the owner, and nothing
   // listens for them.
   const showCredits = creditsUsed !== null;
-  // A refused run's message depends on who is viewing (D523); the 402 handlers read this.
+  // A refused run's message depends on who is viewing (D582); the 402 handlers read this.
   useEffect(() => setViewerOwnsAgency(isOwner === true), [isOwner]);
   const queryClient = useQueryClient();
   // Runs counted live since the figures from /api/me were read. Fresh figures already include
@@ -84,7 +84,7 @@ export function ProfilePopover() {
             setLiveDelta((d) => d + row.amount);
           },
         )
-        // D527: new credits (a top-up, a plan payment, free credits) and plan changes (paid,
+        // D586: new credits (a top-up, a plan payment, free credits) and plan changes (paid,
         // payment due, cancelled) re-read /api/me, which the popover, the workspace bar and the
         // Billing link all show. Only grant INSERTs: every run UPDATEs its grant's used total,
         // and refetching per run is what the performance rules forbid. Bursts (a charge writes a
@@ -161,7 +161,7 @@ export function ProfilePopover() {
             <ProfileCredits
               used={used}
               monthlyCreditLimit={monthlyCreditLimit}
-              // A paying agency sees credits left (D523); runs since the page loaded come off live.
+              // A paying agency sees credits left (D582); runs since the page loaded come off live.
               paying={billing && "state" in billing && billing.mode === "plans" ? { left: billing.left - liveDelta, total: billing.total } : undefined}
             />
             <div className="h-px bg-border" aria-hidden="true" />

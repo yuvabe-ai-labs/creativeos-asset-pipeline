@@ -1,0 +1,98 @@
+// D551 — bill a video from what the provider says it used, not only from its length.
+//
+// Probed 2026-11-19 (real Omni 1.2 generations, 3s 360p): Google's `usage` block reports input
+// tokens (a reference image ~1,100; an edit's source video as many tokens as the output),
+// thinking tokens (330–1,530 per call) and the video output. Only the video output was priced, so it charged 7–18% below Google's bill. BytePlus reports
+// `usage.completion_tokens`, the exact tokens it bills (its minimum included).
+
+export type OmniUsage = {
+  kind: "omni";
+  inputTokens: number;
+  videoOutputTokens: number;
+  textOutputTokens: number;
+  thoughtTokens: number;
+};
+export type SeedanceUsage = { kind: "seedance"; completionTokens: number };
+/** `raw` is Kling's billing list, verbatim, kept on the bill for audit. */
+export type KlingUsage = { kind: "kling"; units: number; raw?: unknown[] };
+export type VideoProviderUsage = OmniUsage | SeedanceUsage | KlingUsage;
+
+/** Token usage (what tokens_used holds): Omni's and Seedance's. Kling reports units, which live on the bill. */
+export function isTokenUsage(usage: VideoProviderUsage | null): usage is OmniUsage | SeedanceUsage {
+  if (!usage) return false;
+  switch (usage.kind) {
+    case "omni":
+    case "seedance":
+      return true;
+    case "kling":
+      return false;
+    default: {
+      const unknown: never = usage;
+      return unknown;
+    }
+  }
+}
+
+const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
+
+/** Google's Interactions `usage` block, as the four numbers it is billed on. */
+export function normalizeOmniUsage(raw: unknown): OmniUsage | null {
+  if (!raw || typeof raw !== "object") return null;
+  const u = raw as Record<string, unknown>;
+  const byModality = Array.isArray(u.output_tokens_by_modality) ? u.output_tokens_by_modality : [];
+  const video = byModality.find((m) => (m as { modality?: unknown })?.modality === "video") as
+    | { tokens?: unknown }
+    | undefined;
+  if (!video || !isCount(video.tokens)) return null;
+  const totalOut = isCount(u.total_output_tokens) ? u.total_output_tokens : video.tokens;
+  return {
+    kind: "omni",
+    inputTokens: isCount(u.total_input_tokens) ? u.total_input_tokens : 0,
+    videoOutputTokens: video.tokens,
+    textOutputTokens: Math.max(0, totalOut - video.tokens),
+    thoughtTokens: isCount(u.total_thought_tokens) ? u.total_thought_tokens : 0,
+  };
+}
+
+/** BytePlus's task `usage` block. */
+export function normalizeSeedanceUsage(raw: unknown): SeedanceUsage | null {
+  const tokens = (raw as { completion_tokens?: unknown } | null | undefined)?.completion_tokens;
+  return isCount(tokens) ? { kind: "seedance", completionTokens: tokens } : null;
+}
+
+/** D558 — Kling's task `billing` list: the units deducted for this task. */
+export function normalizeKlingBilling(raw: unknown): KlingUsage | null {
+  if (!Array.isArray(raw)) return null;
+  let units = 0;
+  for (const entry of raw) {
+    const e = (entry ?? {}) as { charge_type?: unknown; amount?: unknown };
+    if (e.charge_type !== "unit") continue;
+    const n = Number(e.amount);
+    if (Number.isFinite(n) && n > 0) units += n;
+  }
+  return units > 0 ? { kind: "kling", units, raw } : null;
+}
+
+/** A usage that arrived in a webhook body: accepted only in exactly the shape we send. */
+export function readVideoUsage(value: unknown): VideoProviderUsage | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  if (v.kind === "omni") {
+    const keys = ["inputTokens", "videoOutputTokens", "textOutputTokens", "thoughtTokens"] as const;
+    if (!keys.every((k) => isCount(v[k]))) return null;
+    return {
+      kind: "omni",
+      inputTokens: v.inputTokens as number,
+      videoOutputTokens: v.videoOutputTokens as number,
+      textOutputTokens: v.textOutputTokens as number,
+      thoughtTokens: v.thoughtTokens as number,
+    };
+  }
+  if (v.kind === "seedance" && isCount(v.completionTokens)) {
+    return { kind: "seedance", completionTokens: v.completionTokens };
+  }
+  if (v.kind === "kling" && isCount(v.units)) {
+    return { kind: "kling", units: v.units, ...(Array.isArray(v.raw) ? { raw: v.raw } : {}) };
+  }
+  return null;
+}

@@ -2,7 +2,7 @@ import { apiError, apiOk, withQuietErrors } from "@/lib/api/route-helpers";
 import { verifyWebhookSignature } from "@/lib/billing/razorpay";
 import { eventIdFor, handleRazorpayWebhook, type RazorpayWebhook } from "@/lib/billing/webhook";
 
-// The only path that adds credits (D514, D521). No session here (the proxy skips /api/webhooks);
+// The only path that adds credits (D573, D580). No session here (the proxy skips /api/webhooks);
 // the signature on the raw body is the check, so the body is read as text before any parsing.
 // Every event is stored once and answered quickly; a failure answers 500 so Razorpay retries.
 export async function POST(req: Request) {

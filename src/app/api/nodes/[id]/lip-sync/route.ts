@@ -7,7 +7,10 @@ import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
 import { signLipSyncedUpload } from "@/lib/storage";
 import { durationOfParams } from "@/lib/voice-change/record";
-import { lipSyncCredits } from "@/lib/dubbing/cost";
+import { pricingForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { lipSyncUsd } from "@/lib/ai-models/service-price";
+import { LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { LIP_SYNC_ENGINE } from "@/lib/dubbing/providers";
 import { DUBBING_NOT_SET_UP_MESSAGE } from "@/lib/dubbing/copy";
 import { readDubbingOutput, type LipSyncRecord } from "@/lib/dubbing/types";
@@ -27,12 +30,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!process.env.FAL_KEY) return apiError(DUBBING_NOT_SET_UP_MESSAGE, 400);
       if (node.active_version_id !== versionId) return apiError("Lip sync runs on the dub you're viewing. Reopen the node and try again.", 400);
 
-      const [version, running, locked] = await Promise.all([getVersionById(versionId), hasRunningGeneration(nodeId), editorLockResponse(nodeId, { canvasId: node.canvas_id, sessionId: editorSessionId })]);
+      // D558 - the price row this run is reserved and charged with is read beside the rest (rule 5).
+      const [version, running, locked, { price, catalog }] = await Promise.all([
+        getVersionById(versionId),
+        hasRunningGeneration(nodeId),
+        editorLockResponse(nodeId, { canvasId: node.canvas_id, sessionId: editorSessionId }),
+        pricingForNewRun(LIP_SYNC_MODEL_ID),
+      ]);
       if (locked) return locked; // D390
       if (running) return apiError("This node is already working. Try again when it finishes.", 409);
       const output = version && version.node_id === nodeId ? readDubbingOutput(version.output) : null;
       const durationSeconds = version ? durationOfParams(version.params_used ?? {}) : 0;
       if (!output || !durationSeconds) return apiError("Make a dub first, then lip-sync it.", 400);
+
+      // None, no run.
+      if (!price) return apiError(NO_PRICE_MESSAGE, 409);
+      const usd = lipSyncUsd(price, durationSeconds);
+      if (usd === null) return apiError(NO_PRICE_MESSAGE, 409);
 
       const lipSync: LipSyncRecord = { versionId, provider: LIP_SYNC_ENGINE.provider, model: LIP_SYNC_ENGINE.model, runs: 0 };
       const generation = await insertGeneration({
@@ -43,12 +57,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         userEmail: caller.email,
         type: "lipsync",
         modelUsed: LIP_SYNC_ENGINE.modelUsed,
+        modelPriceId: price.id,
         paramsSnapshot: { durationSeconds },
         inputsSnapshot: { lipSync },
       });
 
       try {
-        const reservation = await reserveCredits(effectiveOrgId, generation.id, lipSyncCredits(durationSeconds));
+        const reservation = await reserveCredits(effectiveOrgId, generation.id, creditsFromUsd(usd, creditSettingsAt(catalog, new Date(generation.created_at))));
         if (!reservation.ok) throw creditLimitError(reservation.reason);
         const upload = await signLipSyncedUpload({ nodeId, generationId: generation.id });
         await tasks.trigger("video-lip-sync", {

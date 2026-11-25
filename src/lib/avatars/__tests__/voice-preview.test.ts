@@ -10,10 +10,15 @@ import { AVATAR_VOICE_PREVIEW_SLOT, AVATAR_VOICE_SAMPLE_SECONDS } from "../const
 import { GENERATED, makeAvatar, makeImage } from "./fixtures";
 import type { AvatarVoice } from "../schema";
 import type { GenerationRow } from "@/lib/db/types";
-import { computeVideoCost } from "@/lib/video-gen/cost";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
-import { usdToFinalCredits } from "@/lib/credits/units";
-import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { videoSecondsUsd } from "@/lib/ai-models/video-price";
+import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededSettingsRow } from "@/lib/ai-models/test-catalog";
+import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
+
+const S = seededSettingsRow();
 
 const NAMED: AvatarVoice = { mode: "named", voiceId: "v1", name: "Surabhi", labels: {}, previewUrl: null };
 const NATIVE: AvatarVoice = { mode: "native" };
@@ -32,7 +37,7 @@ function row(overrides: Partial<GenerationRow> = {}): GenerationRow {
       voiceName: "Surabhi", priceMultiplier: 1, frontUrl: FRONT,
     },
     output_snapshot: "https://storage.googleapis.com/b/preview.mp4",
-    tokens_used: null, cost_usd: 0.61, credits_charged: 615, version_id: null, user_id: "u1",
+    tokens_used: null, cost_usd: 0.61, credits_charged: 615, record_only: false, version_id: null, user_id: "u1",
     error: null, meta: null,
     created_at: "2026-09-30T10:00:00.000Z", updated_at: "2026-09-30T10:01:00.000Z",
     ...overrides,
@@ -132,31 +137,39 @@ describe("voicePreviewParams", () => {
 });
 
 describe("cost", () => {
+  const P = { omni: seededPrice(GEMINI_OMNI_MODEL_ID), seedance: seededPrice(SEEDANCE_MODEL_ID) };
+  const V = seededPrice(VOICE_CHANGE_PRICE_MODEL_ID);
   it("a named preview is the Omni clip plus the voice change, at the voice's rate", () => {
-    const video = computeVideoCost(GEMINI_OMNI_MODEL_ID, 6, false, "720p")!.usd;
-    expect(voicePreviewCostUsd("named", "omni", 6, "720p", 2)).toBeCloseTo(video + computeVoiceChangeCost(6, 2).usd);
+    const video = videoSecondsUsd(seededPrice(GEMINI_OMNI_MODEL_ID), 6, false, "720p")!;
+    expect(voicePreviewCostUsd(P.omni, V, "named", "omni", 6, "720p", 2)).toBeCloseTo(video + voiceChangeEstimateUsd(V, 6, 2)!);
+  });
+  it("a named preview with no voice-change price has no cost", () => {
+    expect(voicePreviewCostUsd(P.omni, null, "named", "omni", 6, "720p", 2)).toBeNull();
   });
   it("a native preview is the Seedance clip alone — its voice arrives with it", () => {
-    expect(voicePreviewCostUsd("native", "seedance", 5, "480p", 1))
-      .toBeCloseTo(computeVideoCost(SEEDANCE_MODEL_ID, 5, false, "480p")!.usd);
+    expect(voicePreviewCostUsd(P.seedance, null, "native", "seedance", 5, "480p", 1))
+      .toBeCloseTo(videoSecondsUsd(seededPrice(SEEDANCE_MODEL_ID), 5, false, "480p")!);
   });
   it("a voice's price multiplier never touches a native preview", () => {
-    expect(voicePreviewCostUsd("native", "seedance", 5, "480p", 3)).toBe(voicePreviewCostUsd("native", "seedance", 5, "480p", 1));
+    expect(voicePreviewCostUsd(P.seedance, null, "native", "seedance", 5, "480p", 3)).toBe(voicePreviewCostUsd(P.seedance, null, "native", "seedance", 5, "480p", 1));
   });
   it("estimates each mode at its own fixed length", () => {
-    expect(estimateVoicePreviewCredits("native", "seedance")).toBe(
-      usdToFinalCredits(voicePreviewCostUsd("native", "seedance", AVATAR_VOICE_SAMPLE_SECONDS, "480p", 1)!),
+    expect(estimateVoicePreviewCredits(P.seedance, null, "native", "seedance", 1, S)).toBe(
+      creditsFromUsd(voicePreviewCostUsd(P.seedance, null, "native", "seedance", AVATAR_VOICE_SAMPLE_SECONDS, "480p", 1)!, S),
     );
-    expect(estimateVoicePreviewCredits("named", "omni", 1)).toBe(
-      usdToFinalCredits(voicePreviewCostUsd("named", "omni", 6, "720p", 1)!),
+    expect(estimateVoicePreviewCredits(P.omni, V, "named", "omni", 1, S)).toBe(
+      creditsFromUsd(voicePreviewCostUsd(P.omni, V, "named", "omni", 6, "720p", 1)!, S),
     );
   });
   it("an engine's own voice on Omni is the Omni clip alone — nothing is re-voiced", () => {
-    expect(voicePreviewCostUsd("native", "omni", 6, "720p", 2))
-      .toBeCloseTo(computeVideoCost(GEMINI_OMNI_MODEL_ID, 6, false, "720p")!.usd);
+    expect(voicePreviewCostUsd(P.omni, null, "native", "omni", 6, "720p", 2))
+      .toBeCloseTo(videoSecondsUsd(seededPrice(GEMINI_OMNI_MODEL_ID), 6, false, "720p")!);
+  });
+  it("is null before the clip's price is known", () => {
+    expect(estimateVoicePreviewCredits(null, null, "native", "omni", 1, S)).toBeNull();
   });
   it("has no price for a resolution the engine does not sell", () => {
-    expect(voicePreviewCostUsd("named", "omni", 6, "8k", 1)).toBeNull();
+    expect(voicePreviewCostUsd(P.omni, V, "named", "omni", 6, "8k", 1)).toBeNull();
   });
 });
 

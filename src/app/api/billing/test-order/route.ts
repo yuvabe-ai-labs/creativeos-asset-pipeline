@@ -4,7 +4,7 @@ import { createOrder, razorpayKeyId } from "@/lib/billing/razorpay";
 import { isBillingTestEnabled } from "@/lib/billing/test-mode";
 import { insertCreatedPayment } from "@/lib/db/billing-payments";
 
-// D514: starts a test payment for the owner's agency. The amount and credits come from TEST_PACK,
+// D573: starts a test payment for the owner's agency. The amount and credits come from TEST_PACK,
 // never from the browser. Credits are added only by the webhook.
 export async function POST(req: Request) {
   if (!isBillingTestEnabled()) return apiError("Not found.", 404);

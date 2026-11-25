@@ -8,7 +8,7 @@ import type { BillingLogPage } from "@/lib/db/billing-admin";
 import { useBillingLogPage } from "@/hooks/queries/billing-history";
 import { HistoryPager } from "@/components/billing/history-pager";
 
-// Every billing change Yuvabe made to this agency (spec §4), newest first, ten at a time (D529).
+// Every billing change Yuvabe made to this agency (spec §4), newest first, ten at a time (D588).
 // Page 1 comes with the admin page; older pages load on demand.
 export function BillingLog({ orgId, initial }: { orgId: string; initial: BillingLogPage }) {
   const [page, setPage] = useState(1);

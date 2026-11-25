@@ -1,6 +1,5 @@
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { getBillingSettings, getCatalog, getSubscriberCounts } from "@/lib/db/billing-catalog";
-import { AdminSectionNav } from "@/components/admin/admin-section-nav";
 import { SettingsBar } from "@/components/admin/plans/settings-bar";
 import { OffersSection } from "@/components/admin/plans/offers-section";
 
@@ -16,7 +15,6 @@ export default async function AdminPlansPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-14">
-      <AdminSectionNav />
       <div className="mb-6 flex flex-col gap-1">
         <h1 className="font-display text-2xl font-semibold tracking-tight">Plans and prices</h1>
         <p className="text-sm text-muted-foreground">What agencies that pay for a plan can buy. The same for every agency.</p>

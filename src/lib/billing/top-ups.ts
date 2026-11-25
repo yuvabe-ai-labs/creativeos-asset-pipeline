@@ -7,7 +7,7 @@ import { createOrder, razorpayKeyId } from "./razorpay";
 import { withGst } from "./gst";
 import type { StepResult } from "./subscriptions";
 
-// The owner buys a top-up pack (spec 2026-11-21-top-ups-design.md, D522). Answers the Razorpay
+// The owner buys a top-up pack (spec 2026-11-21-top-ups-design.md, D581). Answers the Razorpay
 // order for Checkout; the credits come only with the signed order.paid webhook.
 
 const refuse = (status: 400 | 404 | 409, error: string) => ({ ok: false as const, status, error });

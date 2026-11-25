@@ -20,7 +20,7 @@ const KIND: Record<string, string> = {
 const kind = (t: string) => KIND[t] ?? t.replace(/[-_]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
-// The runs inside one row of Who used what (D524), newest first, a page at a time.
+// The runs inside one row of Who used what (D583), newest first, a page at a time.
 export function UsageRuns({ by, rowKey, period }: { by: UsageBy; rowKey: string | null; period: UsagePeriod }) {
   const [page, setPage] = useState(1);
   const { data, isPending, isError, isFetching } = useUsageRuns(by, rowKey, period, page, true);

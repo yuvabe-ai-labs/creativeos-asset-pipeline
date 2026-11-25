@@ -6,6 +6,7 @@ import { buildImport } from "../import";
 import { shotSummary } from "@/lib/scripts/utils";
 import { acceptProposal, prepareInline, prepareTurn, spliceSelection, type TurnDeps } from "../turn";
 import { angleText } from "../brief";
+import { RESEARCH_HANDED } from "../constants";
 import { EMPTY_BRIEF, EMPTY_NOTES, type Brief, type GenerateScript, type ImportCard, type ProposalCard } from "../schema";
 import type { CopilotContext } from "../context";
 import type { EditOp, Extraction } from "../output";
@@ -18,7 +19,7 @@ import type { Script } from "@/lib/scripts/schema";
 const doc = scriptDocSchema.parse(reel01);
 const ctx: CopilotContext = {
   clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026",
-  signals: { brief: "Market signal: Onam lunches", digest: "[S1] Onam lunches", list: [{ id: "sig-1", name: "Onam lunches" }] },
+  signals: { brief: "Market signal: Onam lunches", digest: "[S1] Onam lunches", list: [{ id: "sig-1", name: "Onam lunches" }], all: [] },
 };
 const script = (over: Partial<GenerateScript> = {}): GenerateScript => ({
   id: "s1", clientId: "c1", stage: "generate", doc: null, brief: EMPTY_BRIEF, notes: EMPTY_NOTES, docVersion: 1, createdAt: "t", updatedAt: "t", ...over,
@@ -26,7 +27,7 @@ const script = (over: Partial<GenerateScript> = {}): GenerateScript => ({
 const none = { action: "none" as const, value: "" };
 const extraction = (over: Partial<Extraction> = {}): Extraction => ({
   format: none, occasion: { ...none, postDate: "" }, lead: { ...none, avatarId: null }, narrative: { ...none, angleId: null }, suggestions: [],
-  skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", ...over,
+  skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", signals: { add: [], remove: [] }, research: null, ...over,
 });
 const angle = (id: string, signalIds: string[] = []) => ({
   id, hook: `Hook ${id}`, situation: "s", productMoment: "m", supportingCast: "c", proof: "p",
@@ -81,7 +82,7 @@ describe("before the draft", () => {
     expect(out.patch?.brief?.format).toEqual({ value: "UGC", status: "given" });
   });
 
-  it("goes straight to three angles with a Market Research card when the message gives everything but the angle", async () => {
+  it("goes straight to three angles, each naming the signals it drew on, when the message gives everything but the angle (D531)", async () => {
     const m = fakeModel({
       script_brief_read: [extraction({
         format: { action: "given", value: "UGC" }, occasion: { action: "given", value: "Kerala Piravi", postDate: "Sun 1 Nov" },
@@ -92,20 +93,16 @@ describe("before the draft", () => {
     const d = deps(m.call);
     const out = ok(await run(script(), "Reel 04, Kerala Piravi, UGC, Saraswathi", d));
     expect(m.calls).toEqual(["script_brief_read", "script_angles"]);
-    const [research, angles] = out.result;
-    // The card is the whole message: no prose explaining what signals are for.
-    expect(research.content).toBe("");
-    expect(research.card).toEqual({ kind: "research", signals: [{ id: "sig-1", name: "Onam lunches" }], perAngle: [
-      { angleId: "A", signalIds: ["sig-1"] },
-      { angleId: "B", signalIds: [] },
-      { angleId: "C", signalIds: [] },
-    ] });
-    expect(angles.card?.kind).toBe("angles");
+    // No separate research card: the angles card names the signals (D531).
+    expect(out.result).toHaveLength(1);
+    const [angles] = out.result;
+    expect(angles.card).toMatchObject({ kind: "angles", signals: [{ id: "sig-1", name: "Onam lunches" }] });
+    expect(angles.card?.kind === "angles" && angles.card.angles.map((x) => x.signalIds)).toEqual([["sig-1"], [], []]);
     expect(out.patch?.brief?.angles.map((a) => a.id)).toEqual(["A", "B", "C"]);
     expect(out.patch?.brief?.reelNumber).toBe(4);
   });
 
-  it("puts the angles call's chips on the angles message, the turn's last reply, not on the research card", async () => {
+  it("puts the angles call's chips on the angles message, the turn's last reply", async () => {
     const m = fakeModel({
       script_brief_read: [extraction({
         format: { action: "given", value: "UGC" }, occasion: { action: "given", value: "Diwali", postDate: "" },
@@ -113,8 +110,7 @@ describe("before the draft", () => {
       })],
       script_angles: [{ angles: [angle("A"), angle("B"), angle("C")], suggestions: ["Blend A and C"] }],
     });
-    const [research, angles] = ok(await run(script(), "UGC, Diwali, Asha", deps(m.call))).result;
-    expect(research.suggestions ?? []).toEqual([]);
+    const [angles] = ok(await run(script(), "UGC, Diwali, Asha", deps(m.call))).result;
     expect(angles.suggestions).toEqual(["Blend A and C"]);
   });
 
@@ -135,7 +131,7 @@ describe("before the draft", () => {
     });
     const out = ok(await run(script(), "take it from here", deps(m.call)));
     expect(m.calls).toEqual(["script_brief_read", "script_angles", "script_card"]);
-    expect(out.result.map((r) => r.card?.kind ?? null)).toEqual(["research", "angles", null, "confirmation"]);
+    expect(out.result.map((r) => r.card?.kind ?? null)).toEqual(["angles", null, "confirmation"]);
     expect(out.patch?.brief?.narrative.status).toBe("proposed");
     expect(out.patch?.brief?.lead).toEqual({ value: "Saraswathi", status: "proposed" });
     expect(out.patch?.brief?.phase).toBe("confirm");
@@ -471,5 +467,63 @@ describe("acceptImport", () => {
   });
   it("refuses a card that was already settled", () => {
     expect(acceptImport(script({ doc }), { ...card, status: "rejected" })).toEqual({ error: "That was already settled.", status: 409 });
+  });
+});
+
+// Copilot journey spec §5.3: the route refuses short messages up front; a long one reaches here,
+// and only a whole pasted script may go on while new scripts are locked.
+describe("while new scripts wait for market research approval", () => {
+  const GATE = "New scripts open once market research is approved. You can paste a script you already have.";
+  const longBrief = "Notes for the reel.\n".repeat(30);
+
+  it("answers a long message that is not a whole script with the gate, and reads no brief", async () => {
+    const m = fakeModel({ script_detect: [{ wholeScript: false }] });
+    const apply = await prepareTurn({ script: script(), ctx, text: longBrief, history: [], locked: true }, deps(m.call));
+    expect(apply(script())).toEqual({ patch: null, result: [{ content: GATE, card: null }] });
+    expect(m.calls).toEqual(["script_detect"]);
+  });
+
+  it("still imports a whole pasted script", async () => {
+    const m = fakeModel({ script_detect: [{ wholeScript: true }], script_import: [REEL_07_IMPORT] });
+    const apply = await prepareTurn({ script: script(), ctx, text: REEL_07_PASTE, history: [], locked: true }, deps(m.call));
+    expect(ok(apply(script())).patch?.doc?.shots).toHaveLength(9);
+  });
+
+  it("never blocks an edit to a script that is already written", async () => {
+    const written = script({ doc });
+    const m = fakeModel({ script_edit: [{ reply: "Done.", ops: [], suggestions: [] }] });
+    const apply = await prepareTurn({ script: written, ctx, text: "Shorter hook", history: [], locked: true }, deps(m.call));
+    const out = apply(written);
+    expect("error" in out ? out.error : out.result[0].content).not.toBe(GATE);
+  });
+});
+
+describe("research asked for inside a script (D532)", () => {
+  const written = script({ doc, brief: { ...EMPTY_BRIEF, phase: "written" }, docVersion: 5 });
+
+  it("before the draft, hands the question to market research once and says where to review it", async () => {
+    const m = fakeModel({ script_brief_read: [extraction({ research: "what competitors post for monsoon" })] });
+    const onResearch = vi.fn();
+    const out = ok(await run(script(), "research what competitors post for monsoon", { ...deps(m.call), onResearch }));
+    expect(onResearch).toHaveBeenCalledTimes(1);
+    expect(onResearch).toHaveBeenCalledWith("what competitors post for monsoon");
+    expect(out.result.at(-1)?.content).toContain(RESEARCH_HANDED);
+    expect(m.calls).toEqual(["script_brief_read"]);
+  });
+
+  it("asks nothing of market research when the person did not ask to research", async () => {
+    const m = fakeModel({ script_brief_read: [extraction({ format: { action: "given", value: "UGC" } })] });
+    const onResearch = vi.fn();
+    await run(script(), "UGC", { ...deps(m.call), onResearch });
+    expect(onResearch).not.toHaveBeenCalled();
+  });
+
+  it("after the draft, hands it over from an edit turn and changes nothing", async () => {
+    const m = fakeModel({ script_edit: [{ ops: [], reply: "Sure.", research: "Diwali hooks in skincare" }] });
+    const onResearch = vi.fn();
+    const out = ok(await run(written, "can you look up Diwali hooks in skincare?", { ...deps(m.call), onResearch }));
+    expect(onResearch).toHaveBeenCalledWith("Diwali hooks in skincare");
+    expect(out.patch).toBeNull();
+    expect(out.result[0].content).toContain(RESEARCH_HANDED);
   });
 });

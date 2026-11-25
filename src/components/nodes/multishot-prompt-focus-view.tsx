@@ -27,7 +27,9 @@ import { SliceToggles } from "./slice-toggles";
 import { creditRefusalMessage } from "@/lib/billing/refusal-copy";
 import { GenerateFooter } from "./generate-footer";
 import { useConnectedInputsKey } from "@/hooks/use-connected-inputs-key";
-import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { useModelPrice } from "@/hooks/queries/ai-models";
+import { PROMPT_MODEL_ID, priceUnavailableReason } from "@/lib/ai-models/service-models";
+import { promptFlatCredits } from "@/lib/ai-models/service-price";
 import { visionAttachmentsOf, isVisionAttachment } from "@/lib/nodes/compose-message";
 import type { KBSliceKey } from "@/lib/kb/parse-context";
 import { ReferenceImageStrip } from "./reference-image-strip";
@@ -295,7 +297,10 @@ export function MultishotPromptFocusView({
     [planDraft, cap, refIds],
   );
 
-  const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
+  // D559 - the flat price comes from the catalog row; the button waits for it.
+  const { price: promptPrice, loading: promptPriceLoading, error: promptPriceError } = useModelPrice(PROMPT_MODEL_ID);
+  const estimatedCredits = promptPrice ? promptFlatCredits(promptPrice, upstream.filter(isVisionAttachment).length) : null;
+  const noPriceReason = priceUnavailableReason({ loading: promptPriceLoading, error: promptPriceError }, estimatedCredits !== null);
   const totalCutSeconds = cuts.reduce((sum, c) => sum + c.seconds, 0);
 
   const mode: "skeleton" | "result" | "empty" = generating
@@ -918,7 +923,7 @@ export function MultishotPromptFocusView({
                       label={planDraft ? "Re-generate" : "Generate multishot prompt"}
                       busy={generating}
                       onClick={runGenerate}
-                      disabled={generating || isReadOnly || cuts.length === 0 || !!refining || dirty || isViewingOther}
+                      disabled={generating || isReadOnly || cuts.length === 0 || !!refining || dirty || isViewingOther || promptPriceLoading || estimatedCredits === null}
                       disabledReason={
                         isReadOnly
                           ? "This canvas is read-only."
@@ -928,9 +933,10 @@ export function MultishotPromptFocusView({
                               ? "A rewrite is running."
                               : dirty
                                 ? "Save or discard your edits first."
-                                : null
+                                : noPriceReason
                       }
                       credits={estimatedCredits}
+                      estimating={promptPriceLoading}
                       notice={
                         <>
                           {isViewingOther && <ActiveOnlyNotice label={viewedLabel} />}

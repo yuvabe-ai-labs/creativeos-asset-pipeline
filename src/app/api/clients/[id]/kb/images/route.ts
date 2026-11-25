@@ -77,7 +77,8 @@ export async function DELETE(
     if (!imageId) return apiError("imageId is required.", 400);
 
     await deleteBrandImage(clientId, imageId);
-    await startImageAnalysisQuietly(clientId);
+    // A chat attachment removed before its message was sent was never studied: nothing to redo.
+    if (!new URL(req.url).searchParams.has("studyLater")) await startImageAnalysisQuietly(clientId);
     return apiOk({ ok: true as const });
   });
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, Sparkles } from "lucide-react";
+import { Check, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { priceUnavailableReason } from "@/lib/ai-models/service-models";
 import { cn } from "@/lib/utils";
 import { useAutoCaptionsContext } from "./auto-captions-context";
 import { useEditorStore } from "./editor-store-provider";
@@ -15,14 +16,17 @@ export function EditorAutoCaptionsButton({ pieceIds, label = "Auto captions", si
   size?: "sm" | "default";
   className?: string;
 }) {
-  const { cost, start, listening, todo } = useAutoCaptionsContext();
+  const { cost, priceLoading, priceError, start, listening, todo } = useAutoCaptionsContext();
   const editable = useEditorStore((s) => s.editable);
   const hasPieces = useEditorStore((s) => s.doc.pieces.length > 0);
   const ids = pieceIds ?? todo;
   const busy = pieceIds ? pieceIds.some((id) => listening.has(id)) : listening.size > 0;
   const allDone = !pieceIds && hasPieces && !busy && todo.length === 0;
   const c = cost(ids);
-  const why = !editable ? "Someone else is editing this reel." : !hasPieces ? "Add a clip to the timeline first." : busy ? "Listening to the clips…" : undefined;
+  const needsPrice = ids.length > 0 && !c.free;
+  const priceWhy = needsPrice ? priceUnavailableReason({ loading: priceLoading, error: priceError }, c.credits !== null) : null;
+  const why = !editable ? "Someone else is editing this reel." : !hasPieces ? "Add a clip to the timeline first." : busy ? "Listening to the clips…" : priceWhy ?? undefined;
+  const blocked = Boolean(why) || (needsPrice && (priceLoading || c.credits === null));
   if (allDone) {
     return (
       <Button variant="ghost" size={size} disabled title="Every clip has captions. Redo one from its right-click menu." className={cn("gap-1.5 text-muted-foreground", className)}>
@@ -35,14 +39,15 @@ export function EditorAutoCaptionsButton({ pieceIds, label = "Auto captions", si
     <Button
       variant="outline"
       size={size}
-      disabled={Boolean(why)}
+      disabled={blocked}
       title={why}
       onClick={() => start(ids)}
       className={cn("gap-1.5 border-dashed border-primary/40 text-primary hover:bg-primary/5", className)}
     >
       <Sparkles className="size-3.5" strokeWidth={1.5} />
       {label}
-      {c.credits > 0 && <span className="font-normal opacity-70">· {c.credits} credits</span>}
+      {priceLoading && ids.length > 0 && <Loader2 className="size-3.5 animate-spin" strokeWidth={1.5} />}
+      {c.credits !== null && c.credits > 0 && <span className="font-normal opacity-70">· {c.credits} credits</span>}
     </Button>
   );
 }

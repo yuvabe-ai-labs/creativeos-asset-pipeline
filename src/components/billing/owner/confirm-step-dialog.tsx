@@ -12,7 +12,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-// Cancel plan and Change plan ask once, saying what happens, before they act (D523). Plain Buttons,
+// Cancel plan and Change plan ask once, saying what happens, before they act (D582). Plain Buttons,
 // not the close primitives, so the dialog stays open until the step answers.
 export function ConfirmStepDialog({
   trigger,

@@ -3,18 +3,24 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useClientId } from "@/components/canvas/client-id-context";
+import { useCachedAvatars } from "@/hooks/queries/avatars";
 import { canAcceptIncoming, canConnect, type AppNode } from "@/lib/canvas-nodes";
 import { nodeLabel } from "@/lib/nodes/describe-node";
 import { isGeneratedImageType } from "@/lib/nodes/image-node-types";
 
 // The candidate's image, when it has one: an image File's upload, a Draw's sketch,
-// an Image Gen's generated still (`parsed` is its URL). Text-bearing nodes → none.
-function thumbUrl(node: AppNode): string | undefined {
+// an Image Gen's generated still (`parsed` is its URL), an Avatar's front face (read from the
+// avatars cache — the node itself holds only the id). Text-bearing nodes → none.
+function thumbUrl(node: AppNode, faces: Map<string, { front: { url: string } | null }>): string | undefined {
   const d = node.data as Record<string, unknown>;
+  if (node.type === "avatar")
+    return typeof d.avatarId === "string" ? faces.get(d.avatarId)?.front?.url : undefined;
   if (node.type === "file")
     return d.fileKind === "image" && typeof d.fileUrl === "string" ? d.fileUrl : undefined;
   if (node.type === "draw") return typeof d.fileUrl === "string" ? d.fileUrl : undefined;
@@ -44,6 +50,14 @@ export function AddConnection({
   const nodes = useCanvasStore((s) => s.nodes);
   const connectNodes = useCanvasStore((s) => s.connectNodes);
   const canEdit = useCanvasEditable();
+  const clientId = useClientId();
+  // Avatar faces from the cache the canvas's Avatar nodes already filled — no request per row
+  // (performance rule 1).
+  const avatarIds = nodes.flatMap((n) => {
+    const id = n.type === "avatar" ? (n.data as { avatarId?: unknown }).avatarId : undefined;
+    return typeof id === "string" && id ? [id] : [];
+  });
+  const faces = useCachedAvatars(clientId, avatarIds);
 
   // D374 — a one-input target that already has its input offers no more (and renders nothing).
   if (!canEdit || !canAcceptIncoming(targetType, connectedIds.length)) return null;
@@ -81,7 +95,7 @@ export function AddConnection({
             <CommandGroup>
               {candidates.map((n) => {
                 const { name, handle } = nodeLabel(n);
-                const thumb = thumbUrl(n);
+                const thumb = thumbUrl(n, faces);
                 return (
                   <CommandItem
                     key={n.id}
@@ -98,7 +112,7 @@ export function AddConnection({
                       <img
                         src={thumb}
                         alt=""
-                        className="size-12 shrink-0 rounded-md border border-border object-cover"
+                        className={cn("size-12 shrink-0 rounded-md border border-border object-cover", n.type === "avatar" && "object-top")}
                       />
                     )}
                     <span className="text-eyebrow shrink-0 whitespace-nowrap text-[9px] text-primary">

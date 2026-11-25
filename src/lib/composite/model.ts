@@ -1,6 +1,6 @@
 import { SEEDANCE_FACE_MODEL_ID } from "@/lib/avatars/constants";
 import { imageModelWorksWith, listSentence } from "@/lib/avatars/generation";
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import type { ImageModels } from "@/lib/ai-models/model-lists";
 
 // D312 — which image model a composite is made with. Seedream by default: a composite with an
 // avatar in it is a new picture of that face, and Seedance takes a face only from
@@ -32,10 +32,10 @@ export function compositeModelNote(modelId: string, hasAvatar: boolean): string 
   return worksWith.includes("Seedance") ? `${line}.` : `${line} — not Seedance.`;
 }
 
-/** What the picker shows as selected: the stored model while Image Gen still lists it, else the
- *  default. The composite offers every image model Image Gen does. */
-export function compositePickerModelId(stored: string | undefined): string {
-  return stored && stored in imageGenClientModelMap ? stored : COMPOSITE_DEFAULT_MODEL_ID;
+/** What the picker shows as selected: the stored model while the composite may use it (live, or
+ *  hidden and already this node's), else the default while live, else the catalog's default. */
+export function compositePickerModelId(images: ImageModels, stored: string | undefined): string {
+  return stored && images.isOffered(stored, stored) ? stored : images.liveOr(COMPOSITE_DEFAULT_MODEL_ID);
 }
 
 /** Params with the aspect ratio held to the composite's two; any other stored value becomes 9:16. */

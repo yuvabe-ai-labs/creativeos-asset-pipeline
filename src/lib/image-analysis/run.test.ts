@@ -19,12 +19,24 @@ vi.mock("@/lib/db/image-cards", () => ({
 }));
 vi.mock("./read-image", () => ({ readImageCard: vi.fn() }));
 vi.mock("./gemini", () => ({ generateStructured: vi.fn() }));
+vi.mock("@/lib/db/copilot-messages", () => ({
+  hasCopilotMessages: vi.fn(), insertCopilotMessages: vi.fn(),
+  listPendingChangeCards: vi.fn(), listSettledChangeCards: vi.fn(), claimChangeCard: vi.fn(),
+}));
+vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
+vi.mock("@/lib/journey/thread/opening", () => ({ ensureOpening: vi.fn() }));
+vi.mock("@/lib/journey/kb-copilot/job-failed", () => ({ sayJobFailed: vi.fn() }));
 
 import { failJob, getJob, listRecentJobs, succeedJob } from "@/lib/jobs/db";
 import { getActiveKBVersion } from "@/lib/db/kb";
 import { listCardImageIds, listImageCards, listImagesNeedingCards, setKBImageAnalysis, upsertImageCard } from "@/lib/db/image-cards";
 import { defaultEmptyImageAnalysis } from "@/lib/kb/schema";
+import { claimChangeCard, hasCopilotMessages, insertCopilotMessages, listPendingChangeCards, listSettledChangeCards } from "@/lib/db/copilot-messages";
+import { getClientById } from "@/lib/db/clients";
+import { ensureOpening } from "@/lib/journey/thread/opening";
+import type { ChangeCard } from "@/lib/journey/thread/schema";
 import { readImageCard } from "./read-image";
+import { sayJobFailed } from "@/lib/journey/kb-copilot/job-failed";
 import { generateStructured } from "./gemini";
 import { cardSetKey, runImageAnalysis } from "./run";
 import type { ImageCard } from "./card-schema";
@@ -71,6 +83,22 @@ describe("runImageAnalysis", () => {
     vi.mocked(listCardImageIds).mockResolvedValue(["a"]);
     vi.mocked(listImagesNeedingCards).mockResolvedValue([]);
     vi.mocked(generateStructured).mockResolvedValue(SUMMARY);
+    vi.mocked(listPendingChangeCards).mockResolvedValue([]);
+    vi.mocked(listSettledChangeCards).mockResolvedValue([]);
+    vi.mocked(claimChangeCard).mockResolvedValue(true);
+    vi.mocked(getClientById).mockResolvedValue({ id: "client-1" } as never);
+    vi.mocked(insertCopilotMessages).mockResolvedValue(undefined);
+    vi.mocked(hasCopilotMessages).mockResolvedValue(true);
+  });
+
+  // D560 — the job row says whose run it is; every Gemini call is recorded for them.
+  it("names the job's org, client and starter on every Gemini call", async () => {
+    vi.mocked(getJob).mockResolvedValue({ id: "job-1", org_id: "org-1", client_id: "client-1", created_by: "user-1", input: {} } as never);
+    vi.mocked(listImagesNeedingCards).mockResolvedValueOnce([image("a")]).mockResolvedValue([]);
+    await runImageAnalysis("job-1");
+    const recordFor = { orgId: "org-1", clientId: "client-1", userId: "user-1" };
+    expect(vi.mocked(readImageCard).mock.calls[0][1]).toEqual({ recordFor });
+    expect(vi.mocked(generateStructured).mock.calls[0][0]).toMatchObject({ recordFor });
   });
 
   it("reads every image without a card, then writes the section to the active KB version", async () => {
@@ -160,6 +188,183 @@ describe("runImageAnalysis", () => {
     vi.mocked(generateStructured).mockRejectedValue(new Error("HTTP 503"));
     await runImageAnalysis("job-1");
     expect(failJob).toHaveBeenCalledWith("job-1", "The image analysis didn't finish. Try again in a few minutes.");
+    expect(sayJobFailed).toHaveBeenCalledWith(expect.objectContaining({ client_id: "client-1", kind: "image-analysis" }));
     log.mockRestore();
+  });
+
+  describe("saying what a re-study changed", () => {
+    const studied = { ...defaultEmptyImageAnalysis(), visual_mood: { value: "Busy", confidence: "high" as const, evidence_type: "inferred" as const, status: "needs_review" as const } };
+
+    it("says in the client's thread which fields a re-study changed", async () => {
+      vi.mocked(getActiveKBVersion).mockResolvedValue(version("v-1", studied));
+      vi.mocked(hasCopilotMessages).mockResolvedValue(true);
+      await runImageAnalysis("job-1");
+      const [, , , messages] = vi.mocked(insertCopilotMessages).mock.calls[0];
+      expect(messages[0]).toMatchObject({ role: "assistant", card: { kind: "note" } });
+      expect(messages[0].content).toMatch(/^Studied the images again. Changed: .*Visual Mood/);
+    });
+
+    it("says nothing on the first study, or for a client with no thread yet", async () => {
+      vi.mocked(hasCopilotMessages).mockResolvedValue(true);
+      await runImageAnalysis("job-1");
+      vi.mocked(getActiveKBVersion).mockResolvedValue(version("v-1", studied));
+      vi.mocked(hasCopilotMessages).mockResolvedValue(false);
+      await runImageAnalysis("job-1");
+      expect(insertCopilotMessages).not.toHaveBeenCalled();
+    });
+
+    it("still succeeds when the thread cannot be written", async () => {
+      vi.mocked(getActiveKBVersion).mockResolvedValue(version("v-1", studied));
+      vi.mocked(hasCopilotMessages).mockResolvedValue(true);
+      vi.mocked(insertCopilotMessages).mockRejectedValue(new Error("down"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      await runImageAnalysis("job-1");
+      expect(succeedJob).toHaveBeenCalled();
+    });
+  });
+});
+
+// ── Piece 2b: a study proposes what it would change in a reviewed field ───────
+
+describe("runImageAnalysis, proposing changes to reviewed fields", () => {
+  const reviewedField = (value: string, status: "approved" | "needs_review" = "approved") => ({ value, confidence: "high" as const, evidence_type: "inferred" as const, status });
+  const reviewed = (over: Record<string, unknown> = {}) => ({ ...defaultEmptyImageAnalysis(), aesthetic: reviewedField("Earthy"), ...over }) as ReturnType<typeof defaultEmptyImageAnalysis>;
+  const cardMessages = () => vi.mocked(insertCopilotMessages).mock.calls.map((c) => c[3][0]).filter((m) => m.card?.kind === "change");
+  const imageCard = (after: string): ChangeCard => ({
+    kind: "change", versionId: "v-1", status: "pending", decision: null,
+    fields: [{ path: "image_analysis.aesthetic", label: "Image Analysis · Aesthetic", before: "Earthy", after, from: "Image study", docId: null }],
+  });
+  const docCard: ChangeCard = {
+    kind: "change", versionId: "v-1", status: "pending", decision: null,
+    fields: [{ path: "brand_profile.tone_of_voice", label: "Tone", before: "Warm", after: "Plain", from: "guide.pdf", docId: "d1" }],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getJob).mockResolvedValue({ id: "job-1", client_id: "client-1", input: {} } as never);
+    vi.mocked(listRecentJobs).mockResolvedValue([]);
+    vi.mocked(getActiveKBVersion).mockResolvedValue(version("v-1", reviewed()));
+    vi.mocked(listImageCards).mockResolvedValue([{ imageId: "a", source: "upload", card: CARD }]);
+    vi.mocked(listCardImageIds).mockResolvedValue(["a"]);
+    vi.mocked(listImagesNeedingCards).mockResolvedValue([]);
+    vi.mocked(generateStructured).mockResolvedValue(SUMMARY);
+    vi.mocked(listPendingChangeCards).mockResolvedValue([]);
+    vi.mocked(listSettledChangeCards).mockResolvedValue([]);
+    vi.mocked(claimChangeCard).mockResolvedValue(true);
+    vi.mocked(getClientById).mockResolvedValue({ id: "client-1" } as never);
+    vi.mocked(insertCopilotMessages).mockResolvedValue(undefined);
+    vi.mocked(hasCopilotMessages).mockResolvedValue(true);
+  });
+
+  it("stores a reviewed field as it was and puts the new reading on a card", async () => {
+    await runImageAnalysis("job-1");
+    expect(written()?.aesthetic).toMatchObject({ value: "Earthy", status: "approved" });
+    const [message] = cardMessages();
+    expect(message.content).toBe("The new images read differently for a field you reviewed. Nothing changes until you approve.");
+    expect(message.card).toMatchObject({ kind: "change", versionId: "v-1", status: "pending", fields: [{ path: "image_analysis.aesthetic", before: "Earthy", after: "Clean", from: "Image study" }] });
+    expect(ensureOpening).toHaveBeenCalled();
+  });
+
+  it("names only the fields it changed directly in the thread line", async () => {
+    vi.mocked(getActiveKBVersion).mockResolvedValue(version("v-1", reviewed({ visual_mood: reviewedField("Loud", "needs_review") })));
+    await runImageAnalysis("job-1");
+    const note = vi.mocked(insertCopilotMessages).mock.calls.map((c) => c[3][0]).find((m) => m.card?.kind === "note");
+    expect(note?.content).toContain("Visual Mood");
+    expect(note?.content).not.toContain("Aesthetic");
+  });
+
+  it("marks an earlier unanswered image-study card out of date, and leaves a document card alone", async () => {
+    vi.mocked(listPendingChangeCards).mockResolvedValue([{ id: "m-old", card: imageCard("Bold") }, { id: "m-doc", card: docCard }]);
+    await runImageAnalysis("job-1");
+    expect(claimChangeCard).toHaveBeenCalledTimes(1);
+    expect(claimChangeCard).toHaveBeenCalledWith("client-1", "m-old", expect.objectContaining({ status: "stale" }));
+    expect(cardMessages()).toHaveLength(1);
+  });
+
+  it("marks the earlier card out of date even when it has nothing new to propose", async () => {
+    vi.mocked(generateStructured).mockResolvedValue({ ...SUMMARY, aesthetic: "Earthy" });
+    vi.mocked(listPendingChangeCards).mockResolvedValue([{ id: "m-old", card: imageCard("Bold") }]);
+    await runImageAnalysis("job-1");
+    expect(claimChangeCard).toHaveBeenCalledWith("client-1", "m-old", expect.objectContaining({ status: "stale" }));
+    expect(cardMessages()).toHaveLength(0);
+  });
+
+  it("treats a field approved while the summary was being written as reviewed", async () => {
+    vi.mocked(getActiveKBVersion)
+      .mockResolvedValueOnce(version("v-1", reviewed({ aesthetic: reviewedField("Earthy", "needs_review") })))
+      .mockResolvedValue(version("v-1", reviewed()));
+    await runImageAnalysis("job-1");
+    expect(written()?.aesthetic).toMatchObject({ value: "Earthy", status: "approved" });
+    expect(cardMessages()).toHaveLength(1);
+  });
+
+  it("retires an earlier study's card before it writes, so the older reading cannot be approved meanwhile", async () => {
+    vi.mocked(listPendingChangeCards).mockResolvedValue([{ id: "m-old", card: imageCard("Bold") }]);
+    await runImageAnalysis("job-1");
+    const order = (fn: unknown) => vi.mocked(fn as () => unknown).mock.invocationCallOrder[0];
+    expect(order(claimChangeCard)).toBeLessThan(order(setKBImageAnalysis));
+  });
+
+  it("builds the card against what is stored when it writes it, not what it read earlier", async () => {
+    // By the time the card is written, the field already says what the study would propose.
+    vi.mocked(getActiveKBVersion)
+      .mockResolvedValueOnce(version("v-1", reviewed()))
+      .mockResolvedValueOnce(version("v-1", reviewed()))
+      .mockResolvedValue(version("v-1", reviewed({ aesthetic: reviewedField("Clean") })));
+    await runImageAnalysis("job-1");
+    expect(cardMessages()).toHaveLength(0);
+  });
+
+  it("writes no card when the brand KB was rebuilt while the study ran", async () => {
+    vi.mocked(getActiveKBVersion)
+      .mockResolvedValueOnce(version("v-1", reviewed()))
+      .mockResolvedValueOnce(version("v-1", reviewed()))
+      .mockResolvedValue(version("v-2", reviewed()));
+    await runImageAnalysis("job-1");
+    expect(cardMessages()).toHaveLength(0);
+  });
+
+  it("does not propose a value the person already discarded for that field", async () => {
+    vi.mocked(listSettledChangeCards).mockResolvedValue([{ ...imageCard("Clean"), status: "discarded", decision: { by: "Cyril", byId: null, at: "", kept: [], outOfDate: [] } }]);
+    await runImageAnalysis("job-1");
+    expect(cardMessages()).toHaveLength(0);
+  });
+
+  it("still stores the section and succeeds when the card cannot be written", async () => {
+    vi.mocked(listPendingChangeCards).mockRejectedValue(new Error("thread down"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await runImageAnalysis("job-1");
+    expect(setKBImageAnalysis).toHaveBeenCalled();
+    expect(succeedJob).toHaveBeenCalledWith("job-1", result, expect.any(String));
+    expect(failJob).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledWith("[image-analysis] could not write the change card", expect.anything());
+    spy.mockRestore();
+  });
+
+  it("writes no card and touches no thread when the run wrote nothing", async () => {
+    vi.mocked(listRecentJobs).mockResolvedValue([{ id: "job-0", status: "succeeded", result: { cardSetKey: cardSetKey(["a"]) } }] as never);
+    await runImageAnalysis("job-1");
+    expect(setKBImageAnalysis).not.toHaveBeenCalled();
+    expect(listPendingChangeCards).not.toHaveBeenCalled();
+    expect(cardMessages()).toHaveLength(0);
+  });
+});
+
+describe("runImageAnalysis, showing the model what the team approved (2b follow-up)", () => {
+  it("gives the summary the approved words, so it keeps them when the images say the same", async () => {
+    vi.clearAllMocks();
+    vi.mocked(getJob).mockResolvedValue({ id: "job-1", client_id: "client-1", input: {} } as never);
+    vi.mocked(listRecentJobs).mockResolvedValue([]);
+    const approved = { ...defaultEmptyImageAnalysis(), aesthetic: { value: "Earthy and calm", confidence: "high" as const, evidence_type: "inferred" as const, status: "approved" as const } };
+    vi.mocked(getActiveKBVersion).mockResolvedValue(version("v-1", approved as never));
+    vi.mocked(listImageCards).mockResolvedValue([{ imageId: "a", source: "upload", card: CARD }]);
+    vi.mocked(listCardImageIds).mockResolvedValue(["a"]);
+    vi.mocked(listImagesNeedingCards).mockResolvedValue([]);
+    vi.mocked(generateStructured).mockResolvedValue(SUMMARY);
+    vi.mocked(listPendingChangeCards).mockResolvedValue([]);
+    vi.mocked(listSettledChangeCards).mockResolvedValue([]);
+    await runImageAnalysis("job-1");
+    const sent = vi.mocked(generateStructured).mock.calls[0][0].parts[0] as { text: string };
+    expect(sent.text).toContain("aesthetic: Earthy and calm");
   });
 });

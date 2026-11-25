@@ -1,7 +1,7 @@
 # Billing piece 5: monthly plans through Razorpay Subscriptions
 
 **Date:** 2026-11-21 · **Branch:** `feat/razorpay-test` · **Map:** `2026-11-19-billing-phase-1-design.md`
-(piece 5, built before piece 4 because top-ups need a plan) · **Migration:** 0071
+(piece 5, built before piece 4 because top-ups need a plan) · **Migration:** 0095
 
 ## Goal
 
@@ -57,7 +57,7 @@ drives it), top-ups (piece 4), the nightly check against Razorpay (piece 7), ema
    the new price's plan at the cycle end; our row keeps `next_price_id` until the next charge
    lands on the new plan.
 
-## Database (migration 0071)
+## Database (migration 0095)
 
 - `record_subscription_charge(p_razorpay_subscription_id, p_razorpay_plan_id, p_payment_id,
   p_order_id, p_total_minor, p_period_start, p_period_end) returns boolean`: false for an unknown
@@ -84,9 +84,9 @@ drives it), top-ups (piece 4), the nightly check against Razorpay (piece 7), ema
 
 ## Rollout
 
-0071 changes `reserve_credits_v2`, which the live code calls. Until the release that knows
+0095 changes `reserve_credits_v2`, which the live code calls. Until the release that knows
 `payment_due` is out, the old code treats that answer as unknown and fails the run (an error, not
-a charge); no agency has a subscription before the release, so the answer can't occur. Apply 0071,
+a charge); no agency has a subscription before the release, so the answer can't occur. Apply 0095,
 then release.
 
 ## Testing

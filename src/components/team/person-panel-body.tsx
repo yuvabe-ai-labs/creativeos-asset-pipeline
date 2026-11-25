@@ -23,7 +23,7 @@ export function personHistory(person: AgencyPerson): string | null {
 }
 
 // What the person panel shows (spec §6.1): who they are, their permissions (set here and nowhere
-// else, D509), and the clients they are on, with Remove from a client and Add to a client.
+// else, D547), and the clients they are on, with Remove from a client and Add to a client.
 export function PersonPanelBody({
   orgId,
   person,

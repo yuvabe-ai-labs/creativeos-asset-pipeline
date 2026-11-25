@@ -10,7 +10,7 @@ const AVATAR = "7a2d3c4e-0000-4000-8000-000000000002";
 const none = { action: "none" as const, value: "" };
 const ex = (over: Partial<Extraction> = {}): Extraction => ({
   format: none, occasion: { ...none, postDate: "" }, lead: { ...none, avatarId: null }, narrative: { ...none, angleId: null }, suggestions: [],
-  skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", ...over,
+  skipAll: false, reelNumber: null, confirm: false, cardChange: "", ack: "", signals: { add: [], remove: [] }, research: null, ...over,
 });
 const angle = (id: string, over: Partial<Angle> = {}): Angle => ({
   id, hook: `Hook ${id}`, situation: `Situation ${id}`, productMoment: "Lunch, curd", supportingCast: "Husband",
@@ -207,5 +207,12 @@ describe("the copilot's own words", () => {
     const b = applyAngle({ ...EMPTY_BRIEF, occasion: given("Onam") }, angle("A", { occasion: "Kerala Piravi" }), "proposed");
     expect(b.occasion).toEqual(given("Onam"));
     expect(b.narrative.status).toBe("proposed");
+  });
+});
+
+describe("the opening while new scripts are locked (copilot journey spec §5.3)", () => {
+  it("asks for a pasted script and does not ask the format", () => {
+    const text = openingMessage({ clientName: "Chupps", formats: ["UGC"], hasKb: true, locked: true });
+    expect(text).toBe("New scripts for Chupps open once market research is approved.\n\nIf you already have a script, paste the whole of it here, shot table included, and I will bring it in as written.");
   });
 });

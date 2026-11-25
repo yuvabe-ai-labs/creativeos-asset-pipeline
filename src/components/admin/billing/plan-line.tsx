@@ -11,7 +11,7 @@ const STATUS: Record<LiveSubscription["status"], { label: string; warn?: boolean
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
-// A paying agency's plan on Admin's Billing card (D521): which plan, its state, and when it renews
+// A paying agency's plan on Admin's Billing card (D580): which plan, its state, and when it renews
 // or ends. A due payment is the one state shown as a warning: AI runs are stopped.
 export function PlanLine({ subscription }: { subscription: LiveSubscription | null }) {
   if (!subscription) {
