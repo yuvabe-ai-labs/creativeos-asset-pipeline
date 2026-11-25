@@ -1,31 +1,28 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import * as z from "zod";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import {
-  createOrgWithOwner,
+  getOrgById,
   updateOrgCreditLimit,
   resetMemberPassword,
   generateTempPassword,
-  addOrgMember,
-  updateMemberRole,
-  removeOrgMember,
 } from "@/lib/db/organizations";
 import {
-  CreateOrgSchema,
-  AddMemberSchema,
-  ORG_ROLES,
   parseCreditLimit,
   parseResetPassword,
 } from "@/lib/orgs/org-schema";
+import { AgencyIdSchema, CreateAgencySchema } from "@/lib/people/schema";
+import { createAgency, inviteOwner, resendOwnerInvite } from "@/lib/people/ops";
+import { getDisplayName } from "@/lib/db/profiles";
+import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 
-// This file's three actions are deliberately NOT gated by withAction() (Stage 4's
+// This file's actions are deliberately NOT gated by withAction() (Stage 4's
 // impersonation write-gate). They're /admin platform-administration actions
 // (requireSuperAdmin()-gated already) — D85 draws an explicit line between
 // "administering the platform" via /admin and "acting as an org" via impersonation,
 // and these actions' target orgId is an explicit caller-supplied parameter (or, for
-// createOrgAction, doesn't exist yet) that's never correlated with whatever org an
+// createAgencyAction, doesn't exist yet) that's never correlated with whatever org an
 // operator happens to be impersonating elsewhere in the same session. Gating them was
 // tried and reverted (review round 2): it both spuriously blocked unrelated /admin
 // work during an unrelated impersonation session, and made the impersonation_audit_log
@@ -34,44 +31,91 @@ import {
 // See docs/superpowers/plans/2026-08-09-impersonation-stage4-fixes-2.md and the
 // ALLOWLIST entries in src/lib/actions/with-action-coverage.test.ts.
 
-export type CreateOrgState =
-  | { error?: string; result?: { email: string; tempPassword: string; orgId: string } }
+export type CreateAgencyState =
+  | {
+      error?: string;
+      /** limitNotSaved: the agency and its invite were made but the chosen credit limit wasn't saved. */
+      result?: { orgId: string; email: string; link: string; emailed: boolean; limitNotSaved?: true };
+    }
   | undefined;
 
-export async function createOrgAction(
-  _prev: CreateOrgState,
-  formData: FormData,
-): Promise<CreateOrgState> {
-  await requireSuperAdmin();
-
-  const parsed = CreateOrgSchema.safeParse({
-    name: formData.get("name"),
-    email: formData.get("email"),
-    displayName: formData.get("displayName"),
-    creditLimit: formData.get("creditLimit") ?? "",
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
-  }
-
-  let creditLimit: number | null;
+// Spec §6.6 "Add an agency": the agency and its owner invite in one step, and its monthly credit
+// limit (Unlimited unless one is set). The owner signs up from the email (or the copied link) and
+// can do everything in the agency. No temporary password.
+export async function createAgencyAction(_prev: CreateAgencyState, formData: FormData): Promise<CreateAgencyState> {
+  const admin = await requireSuperAdmin();
+  const parsed = CreateAgencySchema.safeParse({ name: formData.get("name"), email: formData.get("email") });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the name and email." };
+  // The same parsing as the agency page's credit limit editor; blank (the default) is Unlimited.
+  let limit: number | null;
   try {
-    creditLimit = parseCreditLimit(parsed.data.creditLimit);
+    limit = parseCreditLimit(String(formData.get("creditLimit") ?? ""));
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Invalid credit limit." };
   }
-
   try {
-    const { orgId, tempPassword } = await createOrgWithOwner({
-      name: parsed.data.name,
-      email: parsed.data.email,
-      displayName: parsed.data.displayName,
-      creditLimit,
-    });
+    const name = (await getDisplayName(admin.userId)) ?? "Yuvabe";
+    const result = await createAgency(parsed.data.name, parsed.data.email, { userId: admin.userId, name });
+    if (!result.ok) return { error: result.error };
+    const orgId = result.value.orgId;
+    // A new agency starts Unlimited, so only a set limit is written. The agency and its invite
+    // exist by now: a failed write is reported beside the owner's link rather than as a failure.
+    let savedLimit: number | null = null;
+    let limitNotSaved = false;
+    if (limit !== null) {
+      try {
+        await updateOrgCreditLimit(orgId, limit);
+        savedLimit = limit;
+      } catch (e) {
+        console.error("[admin] could not save the new agency's credit limit", e);
+        limitNotSaved = true;
+      }
+    }
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "create_agency", email: parsed.data.email, limit: savedLimit } });
     revalidatePath("/admin");
-    return { result: { email: parsed.data.email, tempPassword, orgId } };
+    return { result: { ...result.value, email: parsed.data.email, ...(limitNotSaved ? { limitNotSaved: true as const } : {}) } };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Failed to create organization." };
+    console.error("[admin] could not create the agency", e);
+    return { error: "Could not create the agency." };
+  }
+}
+
+export type OwnerInviteResult = { error?: string; email?: string; link?: string; emailed?: boolean };
+
+// The agencies list's Resend for an owner who hasn't signed up: a new link, emailed and shown.
+export async function resendOwnerInviteAction(orgId: string): Promise<OwnerInviteResult> {
+  const admin = await requireSuperAdmin();
+  if (!AgencyIdSchema.safeParse(orgId).success) return { error: "Agency not found." };
+  try {
+    const [org, name] = await Promise.all([getOrgById(orgId), getDisplayName(admin.userId)]);
+    if (!org) return { error: "Agency not found." };
+    const result = await resendOwnerInvite({ orgId, orgName: org.name }, { userId: admin.userId, name: name ?? "Yuvabe" });
+    if (!result.ok) return { error: result.error };
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "resend_owner_invite", email: result.value.invite.email } });
+    return { email: result.value.invite.email, link: result.value.link, emailed: result.value.emailed };
+  } catch (e) {
+    console.error("[admin] could not resend the owner invite", e);
+    return { error: "Could not send the invite." };
+  }
+}
+
+// The agencies list's Invite an owner, for an agency with no owner and no open owner invite
+// (spec §6.6, D505): a new owner invite, emailed and shown.
+export async function inviteOwnerAction(orgId: string, rawEmail: string): Promise<OwnerInviteResult> {
+  const admin = await requireSuperAdmin();
+  if (!AgencyIdSchema.safeParse(orgId).success) return { error: "Agency not found." };
+  try {
+    const [org, name] = await Promise.all([getOrgById(orgId), getDisplayName(admin.userId)]);
+    if (!org) return { error: "Agency not found." };
+    const result = await inviteOwner({ orgId, orgName: org.name }, rawEmail, { userId: admin.userId, name: name ?? "Yuvabe" });
+    if (!result.ok) return { error: result.error };
+    const email = result.value.invite.email;
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "invite_owner", email } });
+    revalidatePath("/admin");
+    return { email, link: result.value.link, emailed: result.value.emailed };
+  } catch (e) {
+    console.error("[admin] could not invite the owner", e);
+    return { error: "Could not send the invite." };
   }
 }
 
@@ -79,7 +123,7 @@ export async function updateOrgCreditLimitAction(
   orgId: string,
   rawLimit: string,
 ): Promise<{ error?: string }> {
-  await requireSuperAdmin();
+  const admin = await requireSuperAdmin();
   let limit: number | null;
   try {
     limit = parseCreditLimit(rawLimit);
@@ -88,6 +132,7 @@ export async function updateOrgCreditLimitAction(
   }
   try {
     await updateOrgCreditLimit(orgId, limit);
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "credit_limit", limit } });
     revalidatePath(`/admin/orgs/${orgId}`);
     revalidatePath("/admin");
     return {};
@@ -105,7 +150,7 @@ export async function resetMemberPasswordAction(
   userId: string,
   rawPassword: string,
 ): Promise<ResetPasswordState> {
-  await requireSuperAdmin();
+  const admin = await requireSuperAdmin();
 
   let password: string;
   try {
@@ -116,93 +161,10 @@ export async function resetMemberPasswordAction(
 
   try {
     await resetMemberPassword(orgId, userId, password);
+    await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "reset_password", userId } });
     revalidatePath(`/admin/orgs/${orgId}`);
     return { result: { tempPassword: password } };
   } catch {
     return { error: "Failed to reset password." };
-  }
-}
-
-export type AddMemberState =
-  | { error?: string; result?: { email: string; tempPassword: string } }
-  | undefined;
-
-// R1.1/R1.2. Super-admin only (PRD §6.12) — org owners provisioning their own seats is
-// deferred, not rejected (PRD §10 Q1). Deliberately NOT wrapped in withAction(), for the
-// same reason as this file's other actions: see the note at the top of the file.
-export async function addOrgMemberAction(
-  orgId: string,
-  formData: FormData,
-): Promise<AddMemberState> {
-  await requireSuperAdmin();
-
-  const parsed = AddMemberSchema.safeParse({
-    email: formData.get("email"),
-    displayName: formData.get("displayName"),
-    orgRole: formData.get("orgRole"),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
-  }
-
-  try {
-    const { tempPassword } = await addOrgMember({
-      orgId,
-      email: parsed.data.email,
-      displayName: parsed.data.displayName,
-      orgRole: parsed.data.orgRole,
-    });
-    revalidatePath(`/admin/orgs/${orgId}`);
-    return { result: { email: parsed.data.email, tempPassword } };
-  } catch (e) {
-    // Surface the real message rather than a generic string: "a user with this email
-    // address has already been registered" is the common failure and is actionable — it
-    // usually means the person already belongs to another org (one_org_per_user).
-    return { error: e instanceof Error ? e.message : "Failed to add member." };
-  }
-}
-
-// R1.3. The last-owner rule (R1.4) is enforced by migration 0012's
-// org_memberships_last_owner trigger; its error is surfaced verbatim rather than
-// pre-checked here, so the constraint stays the single source of the rule.
-export async function updateMemberRoleAction(
-  orgId: string,
-  userId: string,
-  orgRole: string,
-): Promise<{ error?: string }> {
-  await requireSuperAdmin();
-
-  const parsed = z.enum(ORG_ROLES).safeParse(orgRole);
-  if (!parsed.success) return { error: "Invalid role." };
-
-  try {
-    await updateMemberRole(orgId, userId, parsed.data);
-    revalidatePath(`/admin/orgs/${orgId}`);
-    return {};
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Failed to change role." };
-  }
-}
-
-// D181. Super-admin only, same as the rest of seat provisioning (D164) — an org owner
-// cannot remove their own colleagues any more than they can add them.
-//
-// The last-owner rule is enforced by migration 0012's org_memberships_last_owner trigger,
-// which covers DELETE as well as demotion; its message is surfaced verbatim rather than
-// pre-checked here, so the constraint stays the single source of the rule (same treatment
-// as updateMemberRoleAction). Deliberately NOT wrapped in withAction(), for the same
-// reason as this file's other actions: see the note at the top of the file.
-export async function removeOrgMemberAction(
-  orgId: string,
-  userId: string,
-): Promise<{ error?: string }> {
-  await requireSuperAdmin();
-
-  try {
-    await removeOrgMember(orgId, userId);
-    revalidatePath(`/admin/orgs/${orgId}`);
-    return {};
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Failed to remove member." };
   }
 }

@@ -1,6 +1,5 @@
 import { apiError, apiOk, withClient, withQuietErrors } from "@/lib/api/route-helpers";
 import { countImportedBrandImages } from "@/lib/db/kb";
-import { resolveCallerContextOrNull } from "@/lib/dal";
 import { IMPORT_SOURCES, type ImportSource } from "@/lib/asset-import/constants";
 import { listImportTargets, listLatestAssetImports, startAssetImports } from "@/lib/asset-import/start";
 
@@ -8,7 +7,7 @@ import { listImportTargets, listLatestAssetImports, startAssetImports } from "@/
 // from, and how many assets there are (D302). Small on purpose: the browser polls it while an import runs. The assets themselves are
 // paged from ./assets.
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "view" }, async (clientId) =>
     withQuietErrors("Couldn't load the brand assets. Try again.", async () => {
       const [imports, counts, targets] = await Promise.all([
         listLatestAssetImports(clientId),
@@ -23,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // POST /api/clients/:id/asset-imports — start importing. Body `{ sources?: [...] }`; all sources
 // with a saved target when omitted. Returns at once; the scrapes run in the background.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, _client, caller) =>
     withQuietErrors("Couldn't start the refresh. Try again.", async () => {
       const body = (await req.json().catch(() => ({}))) as { sources?: unknown };
       let sources: ImportSource[] | undefined;
@@ -33,8 +32,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         }
         sources = body.sources as ImportSource[];
       }
-      const caller = await resolveCallerContextOrNull();
-      const imports = await startAssetImports({ clientId, sources, userId: caller?.userId ?? null });
+      const imports = await startAssetImports({ clientId, sources, userId: caller.userId });
       return apiOk({ imports });
     }),
   );

@@ -326,9 +326,14 @@ export async function releaseStuckArchives(olderThanIso: string): Promise<number
   return ((data ?? []) as unknown[]).length;
 }
 
-export async function removeItem(itemId: string): Promise<void> {
+/** Scoped to the board the route checked: the item id comes from the URL beside it. */
+export async function removeItem(moodboardId: string, itemId: string): Promise<void> {
   const supabase = createServerSupabase();
-  const { error } = await supabase.from("moodboard_items").delete().eq("id", itemId);
+  const { error } = await supabase
+    .from("moodboard_items")
+    .delete()
+    .eq("id", itemId)
+    .eq("moodboard_id", moodboardId);
   if (error) throw error;
 }
 
@@ -342,14 +347,19 @@ export type ClientWithBoards = {
 // Scoped to ONE org — this previously returned every active client on the platform to
 // an unauthenticated caller, which was a cross-org leak once orgs existed. orgId is a
 // required argument, not an optional filter, so a caller cannot forget to pass it.
-export async function listClientsWithMoodboards(orgId: string): Promise<ClientWithBoards[]> {
+export async function listClientsWithMoodboards(
+  orgId: string,
+  clientIds: readonly string[] | null,
+): Promise<ClientWithBoards[]> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  let query = supabase
     .from("clients")
     .select("slug, name, moodboards(id, name)")
     .eq("org_id", orgId)
     .is("archived_at", null)
     .order("name", { ascending: true });
+  if (clientIds !== null) query = query.in("id", clientIds);
+  const { data, error } = await query;
   if (error) throw error;
   return (
     (data ?? []) as { slug: string; name: string; moodboards: { id: string; name: string }[] | null }[]

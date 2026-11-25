@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { placeNewNode, buildHistory, resolveScriptTarget, resolveNodeTarget, fileNameToTitle, scriptCreatedMessage } from "./actions";
+import { placeNewNode, buildHistory, resolveScriptTarget, resolveNodeTarget, fileNameToTitle, scriptCreatedMessage, copilotActionChangesCanvas, COPILOT_VIEW_ONLY_REPLY } from "./actions";
 import { nodeHandle } from "@/lib/nodes/describe-node";
 import type { AppNode } from "@/lib/canvas-nodes";
 
@@ -172,5 +172,19 @@ describe("selectionSignature", () => {
     expect(
       selectionSignature([node("aaaa1111", "file", true), node("bbbb2222", "shot", false)]),
     ).toBe("aaaa1111");
+  });
+});
+
+describe("copilotActionChangesCanvas", () => {
+  it("treats opening a node as navigation and every other action as a canvas change", () => {
+    expect(copilotActionChangesCanvas("open_node")).toBe(false);
+    for (const name of ["add_node", "create_script_node", "parse_script", "connect_nodes", "run_playbook"] as const) {
+      expect(copilotActionChangesCanvas(name)).toBe(true);
+    }
+  });
+
+  it("has one short plain reply for a view-only canvas", () => {
+    expect(COPILOT_VIEW_ONLY_REPLY).not.toMatch(/—/);
+    expect(COPILOT_VIEW_ONLY_REPLY.length).toBeLessThan(80);
   });
 });

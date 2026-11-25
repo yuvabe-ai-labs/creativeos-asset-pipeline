@@ -12,7 +12,7 @@ vi.mock("@/lib/db/script-assets", () => ({ changeScriptAssets: vi.fn(), foreignI
 vi.mock("@/lib/storage", () => ({ signScriptAssetUpload: vi.fn() }));
 vi.mock("@/lib/storage/gcs", () => ({ publicUrlFor: (p: string) => `https://storage.example/${p}` }));
 
-import { resolveOrgId } from "@/lib/dal";
+import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { changeScriptAssets, foreignImageUrls } from "@/lib/db/script-assets";
@@ -36,6 +36,7 @@ const built = () => (vi.mocked(changeScriptAssets).mock.calls[0][2] as AssetOpBu
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(resolveOrgId).mockResolvedValue("org-1");
+  vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", email: "u@x.com", orgId: "org-1" } as never);
   vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
   vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Client", org_id: "org-1" } as never);
   vi.mocked(changeScriptAssets).mockResolvedValue({ ok: true, doc, stage: "generate" });

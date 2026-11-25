@@ -25,7 +25,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "edit" }, async (clientId) =>
     withTryCatch("Could not save the asset.", async () => {
       const body = (await req.json().catch(() => null)) as {
         path?: string;

@@ -1,13 +1,12 @@
 "use client";
 
 import { Mic } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { dubLanguageLabel, type DubbingOutput } from "@/lib/dubbing/types";
 import { lipSyncCredits } from "@/lib/dubbing/cost";
 import { lipSyncBlockedReason } from "@/lib/dubbing/blocked-reasons";
 import { FieldLabel } from "./field-label";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
-import { DisabledReason } from "./disabled-reason";
+import { GatedButton } from "@/components/permissions/gated-button";
 
 type Props = {
   /** The dub being viewed. The tab is disabled until there is one. */
@@ -32,12 +31,17 @@ export function DubbingLipSyncPanel({ activeDub, activeDubSeconds, running, edit
         </p>
       </div>
       <div className="flex flex-col gap-2">
-        <DisabledReason reason={blocked}>
-          <Button onClick={onLipSync} disabled={Boolean(blocked)} className="w-full">
-            {running === "lipsync" ? "Lip-syncing…" : activeDub.lipSynced ? "Lip sync again" : "Lip sync"}
-            {running !== "lipsync" && activeDubSeconds > 0 && <EstimatedCreditsLabel credits={lipSyncCredits(activeDubSeconds)} />}
-          </Button>
-        </DisabledReason>
+        <GatedButton
+          onClick={onLipSync}
+          disabled={Boolean(blocked)}
+          disabledReason={blocked}
+          className="w-full"
+          triggerClassName="block w-full"
+          tooltipSide="bottom"
+        >
+          {running === "lipsync" ? "Lip-syncing…" : activeDub.lipSynced ? "Lip sync again" : "Lip sync"}
+          {running !== "lipsync" && activeDubSeconds > 0 && <EstimatedCreditsLabel credits={lipSyncCredits(activeDubSeconds)} />}
+        </GatedButton>
         {activeDub.lipSynced && <p className="text-xs text-muted-foreground">Running it again replaces this dub&apos;s lip-synced video.</p>}
       </div>
     </div>

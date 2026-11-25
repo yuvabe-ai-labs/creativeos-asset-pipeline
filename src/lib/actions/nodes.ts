@@ -11,7 +11,7 @@ export async function saveCanvasNodesAction(
   canvasId: string,
   nodes: PersistedNode[],
 ) {
-  return withAction("saveCanvasNodesAction", async () => {
+  return withAction("saveCanvasNodesAction", { need: "edit", on: { canvasId } }, async () => {
     await saveCanvasNodes(canvasId, nodes);
   });
 }
@@ -29,7 +29,7 @@ export async function saveCanvasAction(
     sessionId: string;
   },
 ): Promise<{ ok: true } | { ok: false; lockLost: true }> {
-  return withAction("saveCanvasAction", async () => {
+  return withAction("saveCanvasAction", { need: "edit", on: { canvasId } }, async () => {
     const holder = await getCanvasLockHolder(canvasId);
     if (holder !== payload.sessionId) return { ok: false, lockLost: true };
 
@@ -42,7 +42,7 @@ export async function saveCanvasAction(
 // Save manual edits to the Script node's parsed output (D19): updates the
 // active version's output in place — does NOT create a new version.
 export async function saveScriptOutputAction(nodeId: string, output: unknown) {
-  return withAction("saveScriptOutputAction", async () => {
+  return withAction("saveScriptOutputAction", { need: "edit", on: { nodeId } }, async () => {
     await updateActiveVersionOutput(nodeId, output);
   });
 }
@@ -50,7 +50,7 @@ export async function saveScriptOutputAction(nodeId: string, output: unknown) {
 // Save manual edits to the Prompt node's generated output (D19): updates the
 // active version's output in place — does NOT create a new version.
 export async function savePromptOutputAction(nodeId: string, output: unknown) {
-  return withAction("savePromptOutputAction", async () => {
+  return withAction("savePromptOutputAction", { need: "edit", on: { nodeId } }, async () => {
     await updateActiveVersionOutput(nodeId, output);
   });
 }

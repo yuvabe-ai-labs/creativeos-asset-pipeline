@@ -8,7 +8,13 @@ const {
   resolveImpersonationStateMock,
   acquireCanvasLockMock,
   getCanvasLockMock,
+  checkActionAccessMock,
+  heartbeatCanvasLockMock,
+  releaseCanvasLockMock,
 } = vi.hoisted(() => ({
+  checkActionAccessMock: vi.fn(async (): Promise<unknown> => ({})),
+  heartbeatCanvasLockMock: vi.fn(async () => undefined),
+  releaseCanvasLockMock: vi.fn(async () => undefined),
   resolveImpersonationStateMock: vi.fn(
     async (): Promise<ImpersonationStateMockResult> => ({ isImpersonating: false }),
   ),
@@ -22,27 +28,67 @@ const {
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/permissions/action-guard", () => ({ checkActionAccess: checkActionAccessMock }));
 vi.mock("@/lib/auth/impersonation", () => ({
   resolveImpersonationState: resolveImpersonationStateMock,
 }));
 vi.mock("@/lib/db/canvas-lock", () => ({
   acquireCanvasLock: acquireCanvasLockMock,
-  heartbeatCanvasLock: vi.fn(async () => undefined),
-  releaseCanvasLock: vi.fn(async () => undefined),
+  heartbeatCanvasLock: heartbeatCanvasLockMock,
+  releaseCanvasLock: releaseCanvasLockMock,
   getCanvasLock: getCanvasLockMock,
 }));
 
-import { acquireCanvasLockAction } from "./canvas-lock";
+import {
+  acquireCanvasLockAction,
+  heartbeatCanvasLockAction,
+  releaseCanvasLockAction,
+  getCanvasLockAction,
+} from "./canvas-lock";
 
-describe("acquireCanvasLockAction", () => {
-  beforeEach(() => {
-    resolveImpersonationStateMock.mockReset().mockResolvedValue({ isImpersonating: false });
-    acquireCanvasLockMock.mockReset().mockResolvedValue({ ok: true });
-    getCanvasLockMock.mockReset().mockResolvedValue({ heldBy: null, heartbeatAt: null });
+function resetMocks() {
+  resolveImpersonationStateMock.mockReset().mockResolvedValue({ isImpersonating: false });
+  acquireCanvasLockMock.mockReset().mockResolvedValue({ ok: true });
+  getCanvasLockMock.mockReset().mockResolvedValue({ heldBy: null, heartbeatAt: null });
+  checkActionAccessMock.mockReset().mockResolvedValue({ impersonation: { isImpersonating: false } });
+  heartbeatCanvasLockMock.mockClear();
+  releaseCanvasLockMock.mockClear();
+}
+
+// The guard resolves the impersonation state with the caller; the action reads it from there.
+function guardResolves(impersonation: ImpersonationStateMockResult) {
+  checkActionAccessMock.mockResolvedValue({ impersonation });
+}
+
+describe("lock actions declare their permission", () => {
+  beforeEach(resetMocks);
+
+  it("acquire and heartbeat need edit (Generate) on the canvas", async () => {
+    await acquireCanvasLockAction("canvas-1", "s1", "Op");
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "edit", on: { canvasId: "canvas-1" } });
+    await heartbeatCanvasLockAction("canvas-1", "s1");
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "edit", on: { canvasId: "canvas-1" } });
   });
 
+  it("release and get need view on the canvas", async () => {
+    await releaseCanvasLockAction("canvas-1", "s1");
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "view", on: { canvasId: "canvas-1" } });
+    await getCanvasLockAction("canvas-1");
+    expect(checkActionAccessMock).toHaveBeenLastCalledWith({ need: "view", on: { canvasId: "canvas-1" } });
+  });
+
+  it("acquire does not write the lock when the guard rejects", async () => {
+    checkActionAccessMock.mockRejectedValue(new Error("Not found."));
+    await expect(acquireCanvasLockAction("canvas-1", "s1", "Op")).rejects.toThrow("Not found.");
+    expect(acquireCanvasLockMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("acquireCanvasLockAction", () => {
+  beforeEach(resetMocks);
+
   it("does not acquire the lock while impersonating read-only (returns the current lock state instead)", async () => {
-    resolveImpersonationStateMock.mockResolvedValue({
+    guardResolves({
       isImpersonating: true,
       operatorId: "op-1",
       targetOrgId: "target-org",
@@ -67,7 +113,7 @@ describe("acquireCanvasLockAction", () => {
   });
 
   it("does not acquire the lock while impersonating read-only when nobody currently holds it", async () => {
-    resolveImpersonationStateMock.mockResolvedValue({
+    guardResolves({
       isImpersonating: true,
       operatorId: "op-1",
       targetOrgId: "target-org",
@@ -86,7 +132,7 @@ describe("acquireCanvasLockAction", () => {
   });
 
   it("still acquires the lock normally when not impersonating", async () => {
-    resolveImpersonationStateMock.mockResolvedValue({ isImpersonating: false });
+    guardResolves({ isImpersonating: false });
     acquireCanvasLockMock.mockResolvedValue({ ok: true });
 
     const result = await acquireCanvasLockAction("canvas-1", "session-1", "Operator");
@@ -97,7 +143,7 @@ describe("acquireCanvasLockAction", () => {
   });
 
   it("still acquires the lock when impersonating elevated", async () => {
-    resolveImpersonationStateMock.mockResolvedValue({
+    guardResolves({
       isImpersonating: true,
       operatorId: "op-1",
       targetOrgId: "target-org",
@@ -110,5 +156,11 @@ describe("acquireCanvasLockAction", () => {
     expect(acquireCanvasLockMock).toHaveBeenCalledWith("canvas-1", "session-1", "Operator");
     expect(getCanvasLockMock).not.toHaveBeenCalled();
     expect(result).toEqual({ ok: true });
+  });
+
+  it("reads the impersonation state once, through the guard", async () => {
+    await acquireCanvasLockAction("canvas-1", "session-1", "Operator");
+    expect(checkActionAccessMock).toHaveBeenCalledTimes(1);
+    expect(resolveImpersonationStateMock).not.toHaveBeenCalled();
   });
 });

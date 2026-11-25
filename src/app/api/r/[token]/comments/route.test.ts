@@ -7,21 +7,25 @@ vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() 
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/storage", () => ({ publicUrlFor: (p: string) => `https://cdn/${p}` }));
 vi.mock("@/lib/db/client-reviews", () => ({
-  getReviewByToken: vi.fn(),
+  getReviewVersionByLink: vi.fn(),
   listComments: vi.fn(),
   insertComment: vi.fn(),
   updateComment: vi.fn(),
   countComments: vi.fn(),
 }));
-import { countComments, getReviewByToken, insertComment } from "@/lib/db/client-reviews";
+import { countComments, getReviewVersionByLink, insertComment } from "@/lib/db/client-reviews";
 const TOKEN = "a".repeat(43);
 const review = {
   id: "r1", canvas_id: "cv-secret", node_id: "n-secret", org_id: "org-secret",
-  video_path: "clients/c/canvases/cv/nodes/n/client-review/cut.mp4",
   share_token: TOKEN, created_by: "u", created_at: "t", title: "Dosa film",
 };
+const version = {
+  id: "v1", review_id: "r1", version_no: 1, title: null, allow_download: true, legacy_link: true,
+  video_path: "clients/c/canvases/cv/nodes/n/client-review/cut.mp4",
+  created_by: "u", created_at: "t",
+};
 const commentRow = {
-  id: "c1", review_id: "r1", author_name: "Priya", body: "Logo too small",
+  id: "c1", review_id: "r1", version_id: "v1", author_name: "Priya", body: "Logo too small",
   timecode_ms: 4000, edited_by_name: null, created_at: "t1", updated_at: "t1",
 };
 
@@ -37,21 +41,21 @@ const params = Promise.resolve({ token: TOKEN });
 describe("POST /api/r/[token]/comments", () => {
   beforeEach(() => vi.resetAllMocks());
 
-  it("stores the comment against the token's review and returns 201", async () => {
-    vi.mocked(getReviewByToken).mockResolvedValue(review);
+  it("stores the comment on the link's version and returns 201 (D496)", async () => {
+    vi.mocked(getReviewVersionByLink).mockResolvedValue({ review, version });
     vi.mocked(countComments).mockResolvedValue(499);
     vi.mocked(insertComment).mockResolvedValue(commentRow);
     const { POST } = await import("./route");
     const res = await POST(post({ authorName: " Priya ", body: "Logo too small", timecodeMs: 4000 }), { params });
     expect(res.status).toBe(201);
     expect(vi.mocked(insertComment)).toHaveBeenCalledWith({
-      reviewId: "r1", authorName: "Priya", body: "Logo too small", timecodeMs: 4000,
+      reviewId: "r1", versionId: "v1", authorName: "Priya", body: "Logo too small", timecodeMs: 4000,
     });
     expect((await res.json()).comment.authorName).toBe("Priya");
   });
 
   it("400s a whitespace-only comment without inserting", async () => {
-    vi.mocked(getReviewByToken).mockResolvedValue(review);
+    vi.mocked(getReviewVersionByLink).mockResolvedValue({ review, version });
     const { POST } = await import("./route");
     const res = await POST(post({ authorName: "Priya", body: "   ", timecodeMs: 0 }), { params });
     expect(res.status).toBe(400);
@@ -59,25 +63,25 @@ describe("POST /api/r/[token]/comments", () => {
   });
 
   it("404s an unknown token", async () => {
-    vi.mocked(getReviewByToken).mockResolvedValue(null);
+    vi.mocked(getReviewVersionByLink).mockResolvedValue(null);
     const { POST } = await import("./route");
     const res = await POST(post({ authorName: "P", body: "x", timecodeMs: 0 }), { params });
     expect(res.status).toBe(404);
   });
 
-  it("409s once the review holds 500 comments, without inserting", async () => {
-    vi.mocked(getReviewByToken).mockResolvedValue(review);
+  it("409s once the link's version holds 500 comments, without inserting", async () => {
+    vi.mocked(getReviewVersionByLink).mockResolvedValue({ review, version });
     vi.mocked(countComments).mockResolvedValue(500);
     const { POST } = await import("./route");
     const res = await POST(post({ authorName: "P", body: "x", timecodeMs: 0 }), { params });
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("This review has reached its comment limit.");
-    expect(vi.mocked(countComments)).toHaveBeenCalledWith("r1");
+    expect(vi.mocked(countComments)).toHaveBeenCalledWith("v1");
     expect(vi.mocked(insertComment)).not.toHaveBeenCalled();
   });
 
   it("500s a database failure without leaking its message", async () => {
-    vi.mocked(getReviewByToken).mockResolvedValue(review);
+    vi.mocked(getReviewVersionByLink).mockResolvedValue({ review, version });
     vi.mocked(countComments).mockResolvedValue(0);
     vi.mocked(insertComment).mockRejectedValue(new Error("pg secret detail"));
     vi.spyOn(console, "error").mockImplementation(() => {});

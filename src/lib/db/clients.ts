@@ -1,7 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { uniqueSlug } from "@/lib/slug";
-import type { ClientRow } from "./types";
+import type { ClientBrief, ClientRow } from "./types";
 import {
   mapClientWithCount,
   type ClientWithCount,
@@ -16,28 +16,51 @@ export type { ClientWithCount };
 // Org-scoped: every caller — including super_admin — sees only their own org's
 // clients here. Cross-org visibility is /admin's job (organizations.ts), not this
 // repository's; super_admin's own everyday workspace stays exactly like any owner's.
-export async function listClients(orgId: string): Promise<ClientWithCount[]> {
+export async function listClients(
+  orgId: string,
+  clientIds: readonly string[] | null,
+): Promise<ClientWithCount[]> {
   const supabase = createServerSupabase();
   // Embed canvas timestamps over the FK relationship; derive count + last_active in JS.
-  const { data, error } = await supabase
+  let query = supabase
     .from("clients")
     .select("*, canvases(updated_at)")
     .eq("org_id", orgId)
-    .is("archived_at", null) // active clients only
-    .order("created_at", { ascending: false });
+    .is("archived_at", null); // active clients only
+  if (clientIds !== null) query = query.in("id", [...clientIds]);
+  const { data, error } = await query.order("created_at", { ascending: false });
   if (error) throw error;
   return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
 }
 
-// Archived clients, most-recently-archived first — for the Archived tab. Org-scoped.
-export async function listArchivedClients(orgId: string): Promise<ClientWithCount[]> {
+// The agency's active clients by id, name, slug and logo only, for screens that name, link and
+// mark them (the Team page, Admin). One query; listClients also embeds every canvas timestamp,
+// which these never read.
+export async function listClientNames(orgId: string): Promise<ClientBrief[]> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from("clients")
+    .select("id, name, slug, logo_url")
+    .eq("org_id", orgId)
+    .is("archived_at", null)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ClientBrief[];
+}
+
+// Archived clients, most-recently-archived first — for the Archived tab. Org-scoped.
+export async function listArchivedClients(
+  orgId: string,
+  clientIds: readonly string[] | null,
+): Promise<ClientWithCount[]> {
+  const supabase = createServerSupabase();
+  let query = supabase
+    .from("clients")
     .select("*, canvases(updated_at)")
     .eq("org_id", orgId)
-    .not("archived_at", "is", null)
-    .order("archived_at", { ascending: false });
+    .not("archived_at", "is", null);
+  if (clientIds !== null) query = query.in("id", [...clientIds]);
+  const { data, error } = await query.order("archived_at", { ascending: false });
   if (error) throw error;
   return ((data ?? []) as RawClientWithCanvases[]).map(mapClientWithCount);
 }

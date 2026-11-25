@@ -18,7 +18,7 @@ describe("scriptSharePathFor", () => {
     expect(toCanonicalShareToken("a-new-title-6f1c")).toBe("6f1c");
   });
 
-  it("leaves the video review links exactly as they were", () => {
-    expect(sharePathFor("b4b4", "")).toBe("/r/cut-b4b4");
+  it("leaves the video review links exactly as they were (a pre-version v1, D496)", () => {
+    expect(sharePathFor("b4b4", "", { versionNo: 1, legacyLink: true })).toBe("/r/cut-b4b4");
   });
 });

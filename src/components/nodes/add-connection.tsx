@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { canAcceptIncoming, canConnect, type AppNode } from "@/lib/canvas-nodes";
 import { nodeLabel } from "@/lib/nodes/describe-node";
@@ -42,9 +43,10 @@ export function AddConnection({
   const [open, setOpen] = useState(false);
   const nodes = useCanvasStore((s) => s.nodes);
   const connectNodes = useCanvasStore((s) => s.connectNodes);
+  const canEdit = useCanvasEditable();
 
   // D374 — a one-input target that already has its input offers no more (and renders nothing).
-  if (!canAcceptIncoming(targetType, connectedIds.length)) return null;
+  if (!canEdit || !canAcceptIncoming(targetType, connectedIds.length)) return null;
 
   const candidates = nodes.filter(
     (n) =>

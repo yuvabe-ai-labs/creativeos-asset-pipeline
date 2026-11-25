@@ -1,6 +1,5 @@
-import { getClientBySlug } from "@/lib/db/clients";
+import { loadClientPage } from "@/lib/permissions/page";
 import { getCanvasBySlug } from "@/lib/db/canvases";
-import { resolveOrgId } from "@/lib/dal";
 import { loadEditorState } from "@/lib/editor/load-state";
 import { EditorEmpty } from "@/components/editor/editor-empty";
 import { EditorShell } from "@/components/editor/editor-shell";
@@ -12,12 +11,11 @@ export const dynamic = "force-dynamic";
 export default async function EditorPage({ params }: { params: Promise<{ id: string; cid: string }> }) {
   const { id, cid } = await params; // client slug, canvas slug
   const canvasPath = `/clients/${id}/canvases/${cid}`;
-  const client = await getClientBySlug(id);
-  const canvas = client ? await getCanvasBySlug(client.id, cid) : null;
-  const effectiveOrgId = await resolveOrgId();
+  const { client } = await loadClientPage(id, "view");
+  const canvas = await getCanvasBySlug(client.id, cid);
 
   // Org isolation, as the canvas page: a foreign canvas reads as not found.
-  if (!client || !canvas || client.org_id !== effectiveOrgId) {
+  if (!canvas) {
     return <EditorEmpty message="Canvas not found" backHref="/" backLabel="← All clients" />;
   }
 
@@ -37,6 +35,7 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
   return (
     <EditorShell
       canvasId={canvas.id}
+      clientId={client.id}
       canvasPath={canvasPath}
       breadcrumb={`${client.name} / ${canvas.name}`}
       title={`${reelName} · rough cut`}

@@ -1,37 +1,17 @@
-import { apiError, apiOk } from "@/lib/api/route-helpers";
-import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
-import { orgRoleToIdentityRole } from "@/lib/dal-logic";
-import { createServerSupabase } from "@/lib/supabase/server";
-import { getOrgById, getOrgCreditUsage } from "@/lib/db/organizations";
+// src/app/api/me/route.ts
+import { apiOk, withQuietErrors } from "@/lib/api/route-helpers";
+import { resolveActingCaller } from "@/lib/permissions/server";
+import { buildMePayload } from "@/lib/me/payload";
 
-// Explicit, not just relying on cookies() usage inside resolveCallerContext() to implicitly
-// opt this route out of caching — this is the identity endpoint every auth-state transition
-// (login, sign-out + sign-in as someone else, a forced password change) depends on returning
-// fresh data for, every single time. Paired with useIdentity()'s fetch({ cache: "no-store" }).
+// Explicit, not just relying on cookies() inside resolveCallerContext() to opt this route out of
+// caching: every auth-state transition (login, sign-out and sign-in as someone else, a forced
+// password change) depends on fresh data here. Paired with fetchMe()'s cache: "no-store".
 export const dynamic = "force-dynamic";
 
-// Feeds useIdentity(). Returns the display name + the frozen Identity.role (owner/senior →
-// "senior" so Approve shows — see dal-logic) alongside the real orgRole, kept separate: the
-// profile popover needs to show an Owner "Owner", not "Senior".
+// Feeds useMe(). The caller is resolved once (plan 1, performance rule 6) and the payload is the
+// same one the root layout seeds the first render with.
 export async function GET() {
-  const caller = await resolveCallerContext();
-  const effectiveOrgId = await resolveOrgId();
-  const db = createServerSupabase();
-  const [{ data, error }, org, creditsUsed] = await Promise.all([
-    db.from("profiles").select("display_name").eq("user_id", caller.userId).maybeSingle(),
-    getOrgById(effectiveOrgId),
-    getOrgCreditUsage(effectiveOrgId),
-  ]);
-  if (error) return apiError("Failed to load profile.", 500);
-
-  return apiOk({
-    name: (data?.display_name as string) ?? "User",
-    role: orgRoleToIdentityRole(caller.orgRole),
-    orgRole: caller.orgRole,
-    platformRole: caller.platformRole,
-    orgId: effectiveOrgId,
-    orgName: org?.name ?? null,
-    creditsUsed,
-    monthlyCreditLimit: org?.monthly_credit_limit ?? null,
-  });
+  const acting = await resolveActingCaller();
+  // A failure is shown as plain copy, never a database message (AGENTS.md: plain user-facing copy).
+  return withQuietErrors("Could not load your account.", async () => apiOk(await buildMePayload(acting)));
 }

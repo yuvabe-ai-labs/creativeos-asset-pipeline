@@ -3,10 +3,12 @@
 import Link from "next/link";
 import type { XYPosition } from "@xyflow/react";
 import { ArrowUpRight, Plus, UserRound } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useClientSlug } from "@/components/canvas/client-id-context";
 import { useLibraryAvatars } from "@/hooks/queries/avatars";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useAddAvatarNode } from "@/hooks/use-add-avatar-node";
 import { AVATAR_DRAG_MIME, avatarVoiceLine } from "@/lib/avatars/canvas";
 
@@ -26,6 +28,7 @@ export function GalleryAvatarsTab({ clientId, connectToNodeId, defaultPosition, 
   const clientSlug = useClientSlug();
   const avatars = useLibraryAvatars(clientId);
   const addAvatarNode = useAddAvatarNode();
+  const canEdit = useCanvasEditable();
   const libraryHref = `/clients/${clientSlug}/avatars`;
 
   if (avatars.isLoading) {
@@ -62,7 +65,9 @@ export function GalleryAvatarsTab({ clientId, connectToNodeId, defaultPosition, 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-muted-foreground">
-        {connectToNodeId
+        {!canEdit
+          ? "Avatars saved for this client."
+          : connectToNodeId
           ? "Choose who presents this script."
           : "Drag an avatar onto the canvas, or onto a script to use it in that script's videos."}
       </p>
@@ -70,12 +75,13 @@ export function GalleryAvatarsTab({ clientId, connectToNodeId, defaultPosition, 
         {list.map((avatar) => (
           <div
             key={avatar.id}
-            draggable
+            draggable={canEdit}
             onDragStart={(e) => {
+              if (!canEdit) return;
               e.dataTransfer.setData(AVATAR_DRAG_MIME, JSON.stringify({ avatarId: avatar.id }));
               e.dataTransfer.effectAllowed = "copy";
             }}
-            className="flex cursor-grab flex-col gap-1.5 rounded-lg border bg-card p-1.5 active:cursor-grabbing"
+            className={cn("flex flex-col gap-1.5 rounded-lg border bg-card p-1.5", canEdit && "cursor-grab active:cursor-grabbing")}
           >
             <div className="relative aspect-[3/4] overflow-hidden rounded-md bg-muted">
               {avatar.front ? (
@@ -90,6 +96,7 @@ export function GalleryAvatarsTab({ clientId, connectToNodeId, defaultPosition, 
                 <p className="truncate text-sm font-medium">{avatar.name || "Untitled avatar"}</p>
                 <p className="truncate text-xs text-muted-foreground">{avatarVoiceLine(avatar.voice)}</p>
               </div>
+              {canEdit && (
               <Button
                 variant="outline"
                 size="icon-sm"
@@ -102,6 +109,7 @@ export function GalleryAvatarsTab({ clientId, connectToNodeId, defaultPosition, 
               >
                 <Plus className="size-3.5" strokeWidth={1.5} />
               </Button>
+              )}
             </div>
           </div>
         ))}

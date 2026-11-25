@@ -6,7 +6,6 @@ vi.mock("@/lib/dal", () => ({
     userId: "user-1",
     platformRole: "member",
     orgId: "org-1",
-    orgRole: "designer",
     mustChangePassword: false,
   })),
   resolveOrgId: vi.fn(async () => "org-1"),
@@ -51,6 +50,16 @@ describe("POST /api/clients/[id]/market/signals", () => {
         createdBy: "user-1",
       }),
     );
+  });
+
+  it("answers 404 when an item is not on this client's boards (createSignal wrote nothing)", async () => {
+    vi.mocked(createSignal).mockResolvedValue(null);
+    const { POST } = await import("./route");
+    const res = await POST(
+      req({ name: "x", tags: [], description: "", itemIds: ["other-client-item"] }) as never,
+      { params },
+    );
+    expect(res.status).toBe(404);
   });
 
   it("rejects an empty name or missing itemIds array", async () => {

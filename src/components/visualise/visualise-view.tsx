@@ -22,6 +22,7 @@ import { PanelTile } from "./panel-tile";
 import { StoryboardGrid } from "./storyboard-grid";
 import { VisualiseReadiness } from "./visualise-readiness";
 import { ScriptAssetsProvider } from "@/components/scripts/script-assets-context";
+import { useCan } from "@/components/permissions/use-can";
 
 // Spec 3 §4, laid out as a storyboard sheet (D465): the readiness line across the top; the summary
 // card with the cast, locations and products as chips; then every shot's panel at full width, each
@@ -46,10 +47,13 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
   const draws = usePanelDraws(clientId, script.id, panelModelId);
   const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt, panelModelId);
   const reopen = useReopenScript(clientId, script.id);
+  const canReopen = useCan("approve", clientId);
+  // Typing the script's text is an edit: it needs Generate (D500), like every other change by hand.
+  const canEditText = useCan("edit", clientId);
   const setField = useSetVisualiseField(clientId, script.id);
   // D489 — the script's text is typed here while it is in Visualise; In review it is read-only,
   // as the client was sent it. Adding or removing shots stays with the copilot (Reopen).
-  const edit: ScriptEdit | null = script.stage === "visualise"
+  const edit: ScriptEdit | null = script.stage === "visualise" && canEditText
     ? {
         commit: (path, value) => setField.mutate({ path, value }, { onError: (e) => toast.error(errorMessage(e, "Could not save that change")) }),
         busyPath: null,
@@ -77,6 +81,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
     <MaybeScriptEdit edit={edit}>
     <div className="flex flex-col gap-6">
       <VisualiseReadiness
+        canReopen={canReopen}
         stage={script.stage}
         readiness={model.readiness}
         kitsFound={board.kits.length > 0}

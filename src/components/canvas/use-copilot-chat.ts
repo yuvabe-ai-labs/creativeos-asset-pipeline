@@ -5,6 +5,8 @@ import { useCanvasStoreApi } from "./canvas-store-provider";
 import { nodeHandle, nodeLabel, resolveMentions } from "@/lib/nodes/describe-node";
 import {
   buildHistory,
+  copilotActionChangesCanvas,
+  COPILOT_VIEW_ONLY_REPLY,
   mergeMentionedIds,
   resolveScriptTarget,
   resolveNodeTarget,
@@ -16,7 +18,10 @@ import {
 import type { AppNode } from "@/lib/canvas-nodes";
 import { CURRENT_GROUPING_VERSION } from "@/lib/nodes/group-shots";
 import { parseScriptNode } from "@/lib/nodes/parse-script-node";
+import { useCanvasEditable } from "./canvas-editable-context";
 import { usePlaybookRunner } from "./use-playbook-runner";
+import { addNodeRefusal } from "@/lib/editor/rules";
+import { soleClientReviewId } from "@/lib/client-review/rules";
 import { normalizeSlots } from "@/lib/copilot/runner";
 
 // A node the copilot referenced — arrives as STRUCTURED data (not text), so we can
@@ -40,6 +45,8 @@ export function useCopilotChat(canvasId: string) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [thinking, setThinking] = useState(false);
   const storeApi = useCanvasStoreApi();
+  // The chat may still answer on a view-only canvas, but nothing that adds or changes nodes runs.
+  const canEdit = useCanvasEditable();
   const { setCenter, screenToFlowPosition } = useReactFlow();
 
   // Run narration (instructions, ✓ lines, cancellations) lands in the transcript
@@ -155,7 +162,19 @@ export function useCopilotChat(canvasId: string) {
   // like create_script_node / parse_script — no proposal gate. The real HITL gate is owed
   // later at the GENERATION step, where cost + irreversibility earn it.
   function addNodeAndOpen(args: { type: string; title?: string }) {
-    const { addNode, updateNodeData } = storeApi.getState();
+    const { addNode, updateNodeData, nodes } = storeApi.getState();
+    // D495 — the canvas's one Client review node opens instead of a second one.
+    const existingReview = args.type === "client-review" ? soleClientReviewId(nodes) : null;
+    if (existingReview) {
+      openNode(nodeHandle({ id: existingReview, type: "client-review" }));
+      return;
+    }
+    // D388 / D495 — one Editor and one Client review node per canvas, as from the add menu.
+    const refusal = addNodeRefusal(args.type, nodes);
+    if (refusal) {
+      setMessages((m) => [...m, { role: "assistant", content: refusal }]);
+      return;
+    }
     const id = crypto.randomUUID();
     const position = viewportCenterPosition();
     addNode(args.type, position, id);
@@ -218,6 +237,10 @@ export function useCopilotChat(canvasId: string) {
     if (attachment) {
       const file = attachment;
       setMessages((m) => [...m, { role: "user", content: `📄 ${file.name}` }]);
+      if (!canEdit) {
+        say(COPILOT_VIEW_ONLY_REPLY);
+        return;
+      }
       createScriptNode(file.text, fileNameToTitle(file.name));
       return;
     }
@@ -303,6 +326,13 @@ export function useCopilotChat(canvasId: string) {
         }
       } catch {
         /* best-effort — a failed decision just falls through to a normal answer */
+      }
+
+      // View only: any decision that would add or change nodes or edges is skipped, said plainly.
+      if (action && !canEdit && copilotActionChangesCanvas(action.name)) {
+        say(COPILOT_VIEW_ONLY_REPLY);
+        setThinking(false);
+        return;
       }
 
       // "Turn this pasted script into a Script node" is a COMMAND → run the code recipe

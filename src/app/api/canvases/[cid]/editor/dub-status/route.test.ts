@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/dal", () => ({ resolveOrgId: vi.fn(async () => "org-1"), resolveCallerContext: vi.fn() }));
+vi.mock("@/lib/dal", () => ({ resolveOrgId: vi.fn(async () => "org-1"), resolveCallerContext: vi.fn(async () => ({ userId: "u1", orgId: "org-1" })) }));
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn(async () => ({ isImpersonating: false })) }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));

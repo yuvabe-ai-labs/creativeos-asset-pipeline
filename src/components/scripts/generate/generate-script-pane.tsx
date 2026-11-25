@@ -18,6 +18,7 @@ import { InlineEditPrompt } from "./inline-edit-prompt";
 import { MarkFinalBar } from "./mark-final-bar";
 import { ScriptNotesPanel } from "./script-notes-panel";
 import { ScriptAssetsProvider } from "../script-assets-context";
+import { useCan } from "@/components/permissions/use-can";
 
 type Undo = { path: string; before: string };
 
@@ -36,6 +37,7 @@ export function GenerateScriptPane({ clientId, state, chatBusy, draft, reviewed 
   const inline = useInlineEdit(clientId, script.id);
   const link = useLinkCastAvatar(clientId, script.id);
   const markFinal = useMarkFinal(clientId, script.id);
+  const canMarkFinal = useCan("approve", clientId);
   const [undos, setUndos] = useState<Undo[]>([]);
   const pane = useRef<HTMLDivElement>(null);
   const { selection, clear } = useScriptSelection(pane, script.doc !== null);
@@ -102,6 +104,7 @@ export function GenerateScriptPane({ clientId, state, chatBusy, draft, reviewed 
   return (
     <div ref={pane} className="relative flex min-w-0 flex-col gap-6">
       <MarkFinalBar
+        canMarkFinal={canMarkFinal}
         leading={reviewed ? <GenerateCommentsButton /> : null}
         openItems={state.openItems}
         canUndo={undos.length > 0}

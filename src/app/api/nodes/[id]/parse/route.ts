@@ -20,7 +20,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, _node, caller) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, _node, caller) => {
     const body = (await req.json().catch(() => null)) as
       | { source?: unknown; slices?: unknown; signalIds?: unknown; signalMode?: unknown }
       | null;

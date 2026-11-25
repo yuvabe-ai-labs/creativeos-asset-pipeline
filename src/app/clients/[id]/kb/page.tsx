@@ -1,7 +1,6 @@
+import { loadClientPage } from "@/lib/permissions/page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getClientBySlug } from "@/lib/db/clients";
-import { resolveOrgId } from "@/lib/dal";
 import {
   listKBDocuments,
   listBrandImages,
@@ -10,6 +9,7 @@ import {
 import { getLatestKBJob } from "@/lib/db/kb-jobs";
 import { getBrandDetails } from "@/lib/db/brand-kit";
 import { ClientIdentity } from "@/components/clients/client-identity";
+import { ClientMembersButton } from "@/components/clients/client-members-button";
 import { KBOnboardingUploadStep } from "@/components/kb/kb-onboarding-upload-step";
 import { KBOnboardingReviewStep } from "@/components/kb/kb-onboarding-review-step";
 import {
@@ -30,14 +30,7 @@ export default async function KBPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const client = await getClientBySlug(id);
-  const effectiveOrgId = await resolveOrgId();
-
-  // Org isolation: a client outside the caller's org redirects the same as a
-  // nonexistent one — see the note in ../page.tsx.
-  if (!client || client.org_id !== effectiveOrgId) {
-    redirect("/");
-  }
+  const { client } = await loadClientPage(id, "view");
 
   const [documents, images, activeKBVersion, latestJob, brandDetails] = await Promise.all([
     listKBDocuments(client.id),
@@ -61,25 +54,31 @@ export default async function KBPage({
           : "mx-auto w-full max-w-5xl flex-1 px-6 py-12"
       }
     >
-      <Breadcrumb className="animate-rise shrink-0">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink render={<Link href="/">Clients</Link>} />
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink
-              render={
-                <Link href={`/clients/${client.slug}`}>{client.name}</Link>
-              }
-            />
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>Brand KB</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      {/* Until the brand KB is ready the client page sends everyone here, so the Members button
+          that sits in the client page's header sits in this page's header too (spec 6.2). The
+          review step has no header, so there it sits beside the breadcrumb. */}
+      <div className="animate-rise flex shrink-0 items-center justify-between gap-4">
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink render={<Link href="/">Clients</Link>} />
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink
+                render={
+                  <Link href={`/clients/${client.slug}`}>{client.name}</Link>
+                }
+              />
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Brand KB</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        {isReviewOrEdit && !isEditMode && <ClientMembersButton slug={client.slug} clientId={client.id} />}
+      </div>
 
       {isReviewOrEdit ? (
         <KBOnboardingReviewStep
@@ -98,12 +97,15 @@ export default async function KBPage({
         />
       ) : (
         <>
-          <header className="animate-rise mb-8 mt-4">
-            <h1 className="text-eyebrow mb-3 text-muted-foreground">Brand Knowledge Base</h1>
-            <ClientIdentity clientId={client.id} name={client.name} logoUrl={client.logo_url} size="md" />
-            <p className="mt-3 text-sm text-muted-foreground">
-              Upload brand documents and images to extract your brand knowledge base.
-            </p>
+          <header className="animate-rise mb-8 mt-4 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-eyebrow mb-3 text-muted-foreground">Brand Knowledge Base</h1>
+              <ClientIdentity clientId={client.id} name={client.name} logoUrl={client.logo_url} size="md" />
+              <p className="mt-3 text-sm text-muted-foreground">
+                Upload brand documents and images to extract your brand knowledge base.
+              </p>
+            </div>
+            {!isEditMode && <ClientMembersButton slug={client.slug} clientId={client.id} />}
           </header>
           <KBOnboardingUploadStep
             clientId={client.id}

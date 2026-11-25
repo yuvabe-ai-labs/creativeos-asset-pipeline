@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
-  return { ...actual, withNode: (_r: Request, _p: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", { type: mocks.nodeType.value }) };
+  return { ...actual, withNode: (_r: Request, _p: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", { type: mocks.nodeType.value }) };
 });
 vi.mock("@/lib/sarvam/client", () => ({ textToSpeech: mocks.tts }));
 vi.mock("@/lib/storage", () => ({ publicUrlFor: (p: string) => `https://store/${p}`, uploadDubVoicePreview: mocks.upload }));

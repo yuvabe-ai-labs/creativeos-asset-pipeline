@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
-  return { ...actual, withNode: (_r: Request, _p: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", { type: mocks.nodeType.value }, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
+  return { ...actual, withNode: (_r: Request, _p: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", { type: mocks.nodeType.value }, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
 });
 vi.mock("@/lib/dubbing/source", () => ({ resolveDubSource: mocks.resolve }));
 vi.mock("@/lib/db/nodes", () => ({ getUpstreamOutputs: vi.fn() }));

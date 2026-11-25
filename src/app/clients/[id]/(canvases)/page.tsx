@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getClientBySlug } from "@/lib/db/clients";
+import { loadClientPage } from "@/lib/permissions/page";
 import { listCanvases } from "@/lib/db/canvases";
 import { getOrgReviewCounts } from "@/lib/db/review";
-import { resolveOrgId } from "@/lib/dal";
+import { check, clientIdsWith } from "@/lib/permissions/check";
+import { accessOf } from "@/lib/permissions/server";
 import { NewCanvasDialog } from "@/components/canvases/new-canvas-dialog";
 import { CanvasesTable } from "@/components/canvases/canvases-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ClientSettingsMenu } from "@/components/clients/client-settings-menu";
+import { ClientMembersButton } from "@/components/clients/client-members-button";
 import { ClientIdentity } from "@/components/clients/client-identity";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -38,27 +39,7 @@ export default async function ClientPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params; // `id` is the client slug
-  const client = await getClientBySlug(id);
-  const effectiveOrgId = await resolveOrgId();
-
-  // Org isolation: a client outside the caller's org renders as not-found, never
-  // confirming a foreign org's client exists — same rule as withClient() in
-  // route-helpers.ts, applied here since this page bypasses that helper.
-  if (!client || client.org_id !== effectiveOrgId) {
-    return (
-      <main className="mx-auto flex w-full max-w-4xl flex-1 items-center justify-center px-6 py-12">
-        <Card className="flex min-w-[26rem] flex-col items-center gap-3 border-dashed p-16 text-center">
-          <p className="font-display text-2xl font-medium">Client not found</p>
-          <Button
-            variant="outline"
-            className="mt-2"
-            nativeButton={false}
-            render={<Link href="/">← All clients</Link>}
-          />
-        </Card>
-      </main>
-    );
-  }
+  const { client, caller, effectiveOrgId } = await loadClientPage(id, "view");
 
   if (client.kb_status !== "ready") {
     redirect(`/clients/${client.slug}/kb`);
@@ -68,8 +49,10 @@ export default async function ClientPage({
   // numbers. Same RPC the client list uses — R5.5 holds at runtime, not just in the schema.
   const [canvases, reviewCounts] = await Promise.all([
     listCanvases(client.id),
-    getOrgReviewCounts(effectiveOrgId),
+    getOrgReviewCounts(effectiveOrgId, clientIdsWith(accessOf(caller), effectiveOrgId, "approve")),
   ]);
+
+  const canAddCanvas = check(accessOf(caller), "edit", { orgId: effectiveOrgId, clientId: client.id }) === "allow";
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
@@ -90,7 +73,8 @@ export default async function ClientPage({
 
         <div className="flex shrink-0 items-end gap-2">
           <ClientSettingsMenu slug={client.slug} />
-          <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />
+          <ClientMembersButton slug={client.slug} clientId={client.id} />
+          {canAddCanvas && <NewCanvasDialog clientId={client.id} clientSlug={client.slug} />}
         </div>
       </header>
 
@@ -99,17 +83,20 @@ export default async function ClientPage({
           title="No canvases yet"
           body="A canvas is one reel project — script, shots, prompts, images and clips on a single board."
           action={
-            <NewCanvasDialog
-              clientId={client.id}
-              clientSlug={client.slug}
-              trigger={<Button>+ New canvas</Button>}
-            />
+            canAddCanvas ? (
+              <NewCanvasDialog
+                clientId={client.id}
+                clientSlug={client.slug}
+                trigger={<Button>+ New canvas</Button>}
+              />
+            ) : undefined
           }
         />
       ) : (
         <div className="animate-rise">
           <CanvasesTable
             canvases={canvases}
+            clientId={client.id}
             clientSlug={client.slug}
             reviewCounts={reviewCounts}
           />

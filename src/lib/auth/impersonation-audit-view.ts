@@ -98,7 +98,8 @@ export type AuditEventType =
   | "session_started"
   | "elevated_mode_entered"
   | "write_action"
-  | "session_ended";
+  | "session_ended"
+  | "admin_action";
 
 export type AuditEventRow = {
   id: string;
@@ -176,6 +177,10 @@ export function groupIntoSessions(
       openByOperator.set(event.operator_id, session);
       continue;
     }
+
+    // Admin's people changes are not part of a view-as session (D85). They are not shown in this
+    // view yet; the rows stay in the audit log.
+    if (event.event_type === "admin_action") continue;
 
     const open = openByOperator.get(event.operator_id);
 

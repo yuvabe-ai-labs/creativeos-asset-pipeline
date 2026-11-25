@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useFlushAutosave } from "@/components/canvas/autosave-flush-context";
 import { fileNodeService } from "@/services/file-node.service";
 import type { GalleryImage } from "@/components/canvas/gallery-drawer/types";
@@ -17,12 +18,14 @@ export function useGalleryDrawer() {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const connectNodes = useCanvasStore((s) => s.connectNodes);
   const flushAutosave = useFlushAutosave();
+  const canEdit = useCanvasEditable();
 
   const handleAdd = useCallback(
     (
       images: GalleryImage[],
       opts: { position: { x: number; y: number }; connectToNodeId?: string; applyOffset?: boolean },
     ) => {
+      if (!canEdit) return; // view-only or locked by someone else: nothing is added locally
       const offset = opts.applyOffset !== false ? OFFSET_X : 0;
       const base = { x: opts.position.x + offset, y: opts.position.y };
       const drivePicks: { nodeId: string; image: GalleryImage }[] = [];
@@ -102,7 +105,7 @@ export function useGalleryDrawer() {
         })();
       }
     },
-    [addNode, updateNodeData, connectNodes, flushAutosave],
+    [canEdit, addNode, updateNodeData, connectNodes, flushAutosave],
   );
 
   return { handleAdd };

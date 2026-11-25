@@ -74,7 +74,7 @@ import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib
 import { usdToFinalCredits } from "@/lib/credits/units";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
-import { useIdentity } from "@/hooks/use-identity";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import {
   useNodeVersions,
@@ -744,7 +744,7 @@ export function VideoGenFocusView({
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const generationLock = useGenerationLock(nodeId);
   const lockReason = generationLock ? GENERATION_LOCK_COPY[generationLock].short : null;
-  const { identity } = useIdentity();
+  const { approve: canApprove } = useCanvasPermissions();
   const flushAutosave = useFlushAutosave();
 
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
@@ -2129,7 +2129,7 @@ export function VideoGenFocusView({
                           saving={approvalSaving}
                           // R7.1/D160: not gated on `editable` — approval writes only to
                           // node_versions, outside what the D33 lock serialises.
-                          canApprove={identity?.role === "senior" && !viewing.isViewingOther}
+                          canApprove={canApprove && !viewing.isViewingOther}
                           onSet={saveApproval}
                           annotationCount={reviewDrafts.drafts.length}
                           annotating={reviewAnnotating}

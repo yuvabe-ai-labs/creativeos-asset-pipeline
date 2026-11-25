@@ -15,7 +15,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 //
 // Two queries plus a JS join, not a PostgREST embed: org_memberships and profiles both
 // reference auth.users but neither has a direct FK to the other, so there is nothing for
-// PostgREST to auto-embed across. Same shape as listOrgMembers and resolveCallerContext.
+// PostgREST to auto-embed across. Same shape as resolveCallerContext.
 export async function resolveDisplayNames(
   orgId: string,
   userIds: string[],
@@ -47,4 +47,15 @@ export async function resolveDisplayNames(
       p.display_name,
     ]),
   );
+}
+
+/** The person's own display name; null when they have no profile row yet. */
+export async function getDisplayName(userId: string): Promise<string | null> {
+  const { data, error } = await createServerSupabase()
+    .from("profiles")
+    .select("display_name")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { display_name: string | null } | null)?.display_name ?? null;
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useCan } from "@/components/permissions/use-can";
 import { useIdentity } from "@/hooks/use-identity";
 import { useReviewList } from "@/hooks/use-review-list";
 import { ApprovalStatusIcon } from "@/components/review/approval-status-icon";
@@ -19,23 +20,25 @@ import { cn } from "@/lib/utils";
 // R9.6: lives in the app CHROME, because the work it points at spans canvases and clients.
 // No single canvas could host it.
 //
-// R9.5: one control, one meaning — "things waiting on you." For a designer that is their
-// own rejected work; for a senior/owner it is what is pending review, plus their own
-// rejections. The role split lives server-side, so this component never branches on role —
-// which is why there is no role prop here to get wrong.
+// R9.5: one control, one meaning — "things waiting on you." For someone without Approve that is
+// their own rejected work; for someone with Approve (or the owner) it is what is pending review,
+// plus their own rejections. The split lives server-side, so this component never branches on
+// a permission, which is why there is no such prop here to get wrong.
 export function ReviewInbox() {
   const { hydrated } = useIdentity();
+  // Spec §5: no client to view means no inbox, and no request the server would refuse.
+  const canReview = useCan("view");
   const [open, setOpen] = useState(false);
   // Kept subscribed while closed so the badge count is live — the badge IS the feature
   // (R9.1); a count that only updates when you open the popover would be pointless.
   const { items, loading, loadingMore, hasMore, loadMore } = useReviewList(
     "/api/review/inbox",
-    hydrated,
+    hydrated && canReview,
   );
 
   // Nothing waiting: render nothing at all, matching PendingCountPill's zero rule (R5.1).
   // An empty inbox icon is a small standing reproach for no reason.
-  if (!hydrated || (!loading && items.length === 0)) return null;
+  if (!canReview || !hydrated || (!loading && items.length === 0)) return null;
   // Don't flash an empty badge during the very first load.
   if (loading && items.length === 0) return null;
 

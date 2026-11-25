@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/dal", () => ({ resolveOrgId: vi.fn(async () => "org-1") }));
+vi.mock("@/lib/dal", () => ({
+  resolveCallerContext: vi.fn(async () => ({ userId: "user-1", orgId: "org-1" })),
+  resolveOrgId: vi.fn(async () => "org-1"),
+}));
 vi.mock("@/lib/auth/impersonation", () => ({
   resolveImpersonationState: vi.fn(async () => ({ isImpersonating: false })),
 }));

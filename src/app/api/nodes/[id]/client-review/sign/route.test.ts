@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({
-  resolveCallerContext: vi.fn(async () => ({ userId: "user-1", orgId: "org-1", orgRole: "owner" })),
+  resolveCallerContext: vi.fn(async () => ({ userId: "user-1", orgId: "org-1" })),
   resolveOrgId: vi.fn(async () => "org-1"),
 }));
 vi.mock("@/lib/auth/impersonation", () => ({
@@ -81,11 +81,11 @@ describe("POST /api/nodes/[id]/client-review/sign", () => {
     expect(res.status).toBe(400);
   });
 
-  it("409s when the node already has a cut", async () => {
+  it("signs another cut when the node already has one — it becomes the next version (D495)", async () => {
     vi.mocked(getReviewByNodeId).mockResolvedValue({ id: "r1" } as never);
     const { POST } = await import("./route");
     const res = await POST(sign({ filename: "a.mp4", contentType: "video/mp4", size: 10 }), { params });
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
   });
 
   it("400s a non-positive size", async () => {

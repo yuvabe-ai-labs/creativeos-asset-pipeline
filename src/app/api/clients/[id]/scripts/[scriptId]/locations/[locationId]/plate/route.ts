@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { getScript } from "@/lib/db/scripts";
 import { changeScriptAssets } from "@/lib/db/script-assets";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
@@ -31,16 +30,12 @@ const Body = z.discriminatedUnion("mode", [
 // script's other pictures, then written as the location's image through the one asset write.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId, locationId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("Could not draw the location.", async () => {
       // No body is a first Generate: fresh, no note.
       const body = Body.safeParse((await req.json().catch(() => null)) ?? { mode: "fresh" });
       if (!body.success) return apiError("Invalid request body.", 400);
-      const [script, kbText, caller] = await Promise.all([
-        getScript(clientId, scriptId),
-        loadKbText(clientId),
-        resolveCallerContext(),
-      ]);
+      const [script, kbText] = await Promise.all([getScript(clientId, scriptId), loadKbText(clientId)]);
       if (!script) return apiError("Script not found.", 404);
       if (script.stage !== "generate" && !isVisualiseStage(script.stage)) {
         return apiError("Locations can be drawn while the script is being written or visualised.", 409);

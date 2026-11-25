@@ -15,7 +15,16 @@ export function isVoiceAvailableToClient(voice: PickerVoice, clientVoiceIds: str
   return isStockVoice(voice) || clientVoiceIds.includes(voice.voiceId);
 }
 
-/** The picker's "This client" list, in the account's own order. */
+/** A voice cloned on the account for some client (not a saved Library copy) that this client
+ *  doesn't have. Saving a "Library voice" by such an id would attach another client's clone (any
+ *  agency) to this one, so the save routes refuse it. */
+export function isOtherClientsClone(voice: PickerVoice, clientVoiceIds: string[]): boolean {
+  const libraryCopy = voice.originalVoiceId !== undefined || voice.publicOwnerId !== undefined;
+  return voice.category === "cloned" && !libraryCopy && !clientVoiceIds.includes(voice.voiceId);
+}
+
+/** The picker's "This client" list, in the account's own order. Also the account-wide list, given
+ *  the voice ids of every client the caller can see. */
 export function clientPickerVoices(accountVoices: PickerVoice[], clientVoiceIds: string[]): PickerVoice[] {
   return accountVoices.filter((v) => isVoiceAvailableToClient(v, clientVoiceIds));
 }

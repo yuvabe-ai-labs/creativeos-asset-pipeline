@@ -34,7 +34,7 @@ export async function patchKBFieldAction(
   path: string[],
   patch: Record<string, unknown>,
 ): Promise<void> {
-  return withAction("patchKBFieldAction", async () => {
+  return withAction("patchKBFieldAction", { need: "edit", on: { kbVersionId: versionId } }, async () => {
     const supabase = createServerSupabase();
     const { data, error } = await supabase
       .from("client_kb_versions")
@@ -62,7 +62,7 @@ export async function saveKBOutputAction(
   versionId: string,
   output: TraceableBrandKB,
 ): Promise<void> {
-  return withAction("saveKBOutputAction", async () => {
+  return withAction("saveKBOutputAction", { need: "edit", on: { kbVersionId: versionId } }, async () => {
     const stored = await getKBImageAnalysis(versionId);
     await saveKBOutputKeepingImageAnalysis(versionId, output);
     if (stored && JSON.stringify(stored) !== JSON.stringify(output.image_analysis)) {
@@ -78,7 +78,9 @@ export async function markKBReadyAction(
   versionId: string,
   clientSlug: string,
 ): Promise<{ ok: true } | { error: string }> {
-  return withAction("markKBReadyAction", async () => {
+  return withAction("markKBReadyAction", { need: "edit", on: { kbVersionId: versionId } }, async (ctx) => {
+    // The guard resolved the version's own client; the caller-supplied clientId must match it.
+    if (ctx.target?.clientId !== clientId) return { error: "Version not found." };
     const supabase = createServerSupabase();
     const { data, error } = await supabase
       .from("client_kb_versions")
@@ -107,7 +109,7 @@ export async function deleteKBDocumentAction(
   clientId: string,
   docId: string,
 ): Promise<void> {
-  return withAction("deleteKBDocumentAction", async () => {
+  return withAction("deleteKBDocumentAction", { need: "delete", on: { clientId } }, async () => {
     const supabase = createServerSupabase();
     const { data, error } = await supabase
       .from("client_kb_documents")
@@ -135,7 +137,7 @@ export async function deleteBrandImageAction(
   clientId: string,
   imageId: string,
 ): Promise<void> {
-  return withAction("deleteBrandImageAction", async () => {
+  return withAction("deleteBrandImageAction", { need: "delete", on: { clientId } }, async () => {
     const supabase = createServerSupabase();
     const { data, error } = await supabase
       .from("client_brand_images")
@@ -161,7 +163,7 @@ export async function deleteBrandImageAction(
 // ── KB Build Job ──────────────────────────────────────────────────────────────
 
 export async function startKBBuildJob(clientId: string): Promise<{ jobId: string }> {
-  return withAction("startKBBuildJob", async () => {
+  return withAction("startKBBuildJob", { need: "generate", on: { clientId } }, async () => {
     const client = await getClientById(clientId);
     if (!client) throw new Error("Client not found.");
 
@@ -200,8 +202,10 @@ export async function startKBBuildJob(clientId: string): Promise<{ jobId: string
   });
 }
 
+// Needs Generate, like startKBBuildJob: it marks any unfinished job failed with no staleness
+// check, so on a build that is still running it throws away the credits spent on it.
 export async function markStuckJobFailed(jobId: string): Promise<void> {
-  return withAction("markStuckJobFailed", async () => {
+  return withAction("markStuckJobFailed", { need: "generate", on: { kbJobId: jobId } }, async () => {
     const job = await getKBJob(jobId);
     if (!job) throw new Error("Job not found.");
     await markKBJobStuckIfRunning(jobId);

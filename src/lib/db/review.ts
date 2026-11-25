@@ -11,7 +11,6 @@ import {
 // One page of a review list. Small enough that the first paint is fast on a slow
 // connection, large enough that a normal canvas needs no second fetch.
 export const DEFAULT_PAGE_SIZE = 25;
-import type { OrgRole } from "@/lib/dal-logic";
 import type { ApprovalStatus } from "@/lib/approval";
 
 // D159: every function here is a filter over the ONE review_queue_items view (migration
@@ -46,17 +45,17 @@ const QUEUE_COLUMNS =
   "node_id, node_type, node_title, version_id, output, approval_status, note, " +
   "operator_user_id, operator, approved_by_user_id, approved_seen_at, created_at";
 
-// R5.1/R5.2/R5.3 — one RPC call, never one query per row (PRD §8: the client list renders
-// for every org member on every visit).
-export async function getOrgReviewCounts(orgId: string): Promise<ReviewCounts> {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase.rpc("org_review_counts", { p_org_id: orgId });
+// R5.1/R5.2/R5.3: one read, never one query per row (PRD §8: the client list renders for every
+// org member on every visit). Pending counts are of the work the person can approve (D507): the
+// clients whose row has Approve, or every client for the owner (null). An empty list reads nothing.
+export async function getOrgReviewCounts(orgId: string, clientIds: readonly string[] | null): Promise<ReviewCounts> {
+  if (clientIds !== null && clientIds.length === 0) return summarizeCounts([]);
+  const inScope = clientIds === null ? null : new Set(clientIds);
+  const { data, error } = await createServerSupabase().rpc("org_review_counts", { p_org_id: orgId });
   if (error) throw error;
-  return summarizeCounts(
-    ((data ?? []) as { client_id: string; canvas_id: string; pending: number }[]).map(
-      (r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: r.pending }),
-    ),
-  );
+  const rows = ((data ?? []) as { client_id: string; canvas_id: string; pending: number }[])
+    .filter((r) => inScope === null || inScope.has(r.client_id));
+  return summarizeCounts(rows.map((r) => ({ clientId: r.client_id, canvasId: r.canvas_id, pending: r.pending })));
 }
 
 // Resolves maker names in ONE round trip for the whole page of rows, then maps. Doing it
@@ -171,18 +170,27 @@ export async function listCanvasApprovalStatuses(
 export async function listOrgReviewInbox(
   orgId: string,
   userId: string,
-  role: OrgRole,
+  scope: {
+    reviewTypes: readonly string[];
+    /** Clients the person is on (their own rejected work shows on these); null = all. */
+    clientIds: readonly string[] | null;
+    /** Clients where pending work is listed (those with Approve); null = all. */
+    pendingClientIds: readonly string[] | null;
+  },
   page: { limit: number; offset: number } = { limit: DEFAULT_PAGE_SIZE, offset: 0 },
 ): Promise<InboxItem[]> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  let query = supabase
     .from("review_queue_items")
     .select(QUEUE_COLUMNS)
     .eq("org_id", orgId)
-    // The role rule runs in SQL, not in JS after the fetch — otherwise every page comes
+    // The review-type rule runs in SQL, not in JS after the fetch — otherwise every page comes
     // back the wrong size (ask for 25, get 9). inboxFilterFor is proven equivalent to
     // selectInboxFor by queue.test.ts.
-    .or(inboxFilterFor(role, userId))
+    .or(inboxFilterFor(scope.reviewTypes, userId, scope.pendingClientIds));
+  // null = all clients; otherwise only the person's own clients.
+  if (scope.clientIds !== null) query = query.in("client_id", [...scope.clientIds]);
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .order("version_id", { ascending: false })
     .range(page.offset, page.offset + page.limit - 1);

@@ -13,7 +13,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string; messageId: string }
 // Accepting re-applies its operations to the script as it is now; if a targeted shot is gone, nothing is applied (Review Focus 4).
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId, messageId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "edit" }, async (clientId) =>
     withTryCatch("Could not apply that change.", async () => {
       const body = (await req.json().catch(() => null)) as { decision?: unknown } | null;
       const decision = body?.decision;

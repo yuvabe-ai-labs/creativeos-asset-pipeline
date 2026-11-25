@@ -1,7 +1,7 @@
 // src/hooks/use-post-editor.ts
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PostLayer, ImageLayer, IconLayer, ShapeLayer, ImageSource, IconSource, PostFormat, TextLayer } from "@/lib/post/types";
 import {
   createTextLayer, createShapeLayer, createImageLayer, createIconLayer,
@@ -33,6 +33,9 @@ export function usePostEditor(
   initial: PostDesign,
   onChange: (next: PostDesign) => void,
   onChangeDelayMs = 2000,
+  // View-only (no canvas edit right, or someone else holds the lock): every mutation is a no-op
+  // and nothing is reported to onChange.
+  readOnly = false,
 ) {
   const [history, setHistory] = useState<History<PostDesign>>(() => createHistory(initial));
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -50,6 +53,10 @@ export function usePostEditor(
   // that only rebuilds when `history.present` changes.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const readOnlyRef = useRef(readOnly);
+  useEffect(() => {
+    readOnlyRef.current = readOnly;
+  }, [readOnly]);
   // The outer persistence write (-> onPatch -> updateNodeData -> canvas store -> autosave) is the
   // expensive part, not local editing (the stage renders off `layers` above, not off a round-trip
   // through the parent) — debounce ONLY this outer notification, so rapid edits (typing, dragging a
@@ -65,6 +72,7 @@ export function usePostEditor(
 
   // Commit a new set of layers, carrying format/templateId through untouched.
   const applyLayers = useCallback((nextLayers: PostLayer[]) => {
+    if (readOnlyRef.current) return;
     liveLayersRef.current = null;
     setHistory((h) => {
       // history.commit() skips a no-op by reference equality, but it compares the whole
@@ -123,6 +131,7 @@ export function usePostEditor(
   // on every pointermove while dragging/resizing/rotating, or on every keystroke while
   // editing text inline. Must be followed by commitLayerChange() once the gesture ends.
   const updateLayerLive = useCallback((id: string, patch: Partial<PostLayer>) => {
+    if (readOnlyRef.current) return;
     const base = liveLayersRef.current ?? history.present.layers;
     liveLayersRef.current = updateLayer(base, id, patch);
     forceRender((n) => n + 1);
@@ -237,6 +246,7 @@ export function usePostEditor(
   }, [history.present, selectedIds, applyLayers]);
 
   const undo = useCallback(() => {
+    if (readOnlyRef.current) return;
     let nextPresent: PostDesign | undefined;
     setHistory((h) => {
       const next = undoHistory(h);
@@ -247,6 +257,7 @@ export function usePostEditor(
   }, [debouncedOnChange]);
 
   const redo = useCallback(() => {
+    if (readOnlyRef.current) return;
     let nextPresent: PostDesign | undefined;
     setHistory((h) => {
       const next = redoHistory(h);
@@ -267,6 +278,7 @@ export function usePostEditor(
   // Pass `null` to actively CLEAR the template (starting from blank): `undefined` has to keep
   // the current one, since that is what every plain call site means by omitting the argument.
   const replaceAllLayers = useCallback((nextLayers: PostLayer[], nextTemplateId?: string | null) => {
+    if (readOnlyRef.current) return;
     liveLayersRef.current = null;
     setHistory((h) => {
       const next = commitHistory(h, {
@@ -282,6 +294,7 @@ export function usePostEditor(
   }, [debouncedOnChange]);
 
   const setFormat = useCallback((next: PostFormat) => {
+    if (readOnlyRef.current) return;
     liveLayersRef.current = null;
     setHistory((h) => {
       if (h.present.format === next) return h;
@@ -292,6 +305,7 @@ export function usePostEditor(
   }, [debouncedOnChange]);
 
   const setTemplateId = useCallback((next: string | undefined) => {
+    if (readOnlyRef.current) return;
     setHistory((h) => {
       if (h.present.templateId === next) return h;
       const committed = commitHistory(h, { ...h.present, templateId: next });

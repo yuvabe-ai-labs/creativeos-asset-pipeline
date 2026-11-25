@@ -2,42 +2,51 @@ import { NextResponse } from "next/server";
 import { getClientById } from "@/lib/db/clients";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { ClientRow, CanvasRow, NodeRow } from "@/lib/db/types";
-import { resolveOrgId, resolveCallerContext, type CallerContext } from "@/lib/dal";
-import { resolveImpersonationState } from "@/lib/auth/impersonation";
+import type { CallerContext } from "@/lib/dal";
+import { resolveImpersonationState, type ImpersonationState } from "@/lib/auth/impersonation";
+import { accessOf, resolveActingCaller, type ActingCaller } from "@/lib/permissions/server";
+import { check, FORBIDDEN_MESSAGE, type Decision } from "@/lib/permissions/check";
+import type { Action } from "@/lib/permissions/model";
 import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/constants";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
-import { getReviewByToken, type ReviewByToken } from "@/lib/db/client-reviews";
-import { toCanonicalShareToken } from "@/lib/client-review/token";
+import { getReviewVersionByLink, type ReviewByToken } from "@/lib/db/client-reviews";
+import type { ReviewVersionRow } from "@/lib/client-review/wire";
+import { parseReviewLink, toCanonicalShareToken } from "@/lib/client-review/token";
 import { getScriptReviewByToken } from "@/lib/db/script-reviews";
 import type { ScriptReviewByToken } from "@/lib/script-review/wire";
-
-// PostgREST may surface an embedded to-one relation as an object or a single-element
-// array, depending on schema-cache heuristics (same ambiguity handled in
-// recent-canvas.ts and organizations.ts::listOrgMembers). Shared here since withCanvas
-// and withNode both need it (withNode needs it twice, for two nested levels).
-function unwrapEmbed<T>(value: T | T[] | null | undefined): T | null {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
+import { unwrapEmbed } from "@/lib/db/embed";
+import { getOrgById } from "@/lib/db/organizations";
+import { getDisplayName } from "@/lib/db/profiles";
+import type { Actor, OpResult } from "@/lib/people/ops";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyResponse = NextResponse<any>;
+
+// D501/D504: every handler names the one action it needs. Required, so TypeScript forces the
+// decision; route-coverage.test.ts fails on any handler that skips the chokepoints.
+export type Guard = { need: Action };
+
+function decide(acting: ActingCaller, need: Action, clientId: string | null): Decision {
+  return check(accessOf(acting.caller), need, { orgId: acting.effectiveOrgId, clientId });
+}
+
+function denial(decision: Exclude<Decision, "allow">, notFoundMessage: string): AnyResponse {
+  return decision === "not_found" ? apiError(notFoundMessage, 404) : apiError(FORBIDDEN_MESSAGE, 403);
+}
 
 // The Stage 4 write-gate (D81): while impersonating and not in elevated mode, every
 // non-GET/HEAD request is blocked before its handler runs. Allowed writes while
 // elevated are audit-logged here too, so every call site that adopts this gate gets
 // both behaviors for free — no per-route bookkeeping.
 export async function assertImpersonationWriteAllowed(req: Request): Promise<AnyResponse | null> {
+  return writeGate(req, await resolveImpersonationState());
+}
+
+async function writeGate(req: Request, impersonation: ImpersonationState): Promise<AnyResponse | null> {
   const method = req.method.toUpperCase();
   if (method === "GET" || method === "HEAD") return null;
-
-  const impersonation = await resolveImpersonationState();
   if (!impersonation.isImpersonating) return null;
-
-  if (!impersonation.elevated) {
-    return apiError(IMPERSONATION_READ_ONLY_MESSAGE, 403);
-  }
-
+  if (!impersonation.elevated) return apiError(IMPERSONATION_READ_ONLY_MESSAGE, 403);
   await logImpersonationEvent({
     operatorId: impersonation.operatorId,
     targetOrgId: impersonation.targetOrgId,
@@ -71,27 +80,29 @@ export function apiOk<T extends Record<string, unknown>>(
 
 // ── Client resolution ─────────────────────────────────────────────────────────
 
+// Every chokepoint below resolves the caller ONCE (resolveActingCaller) and hands the handler
+// that caller and the agency being acted in. Handlers use them and never resolve the caller
+// again: React's cache() does not dedupe inside route handlers, so a second resolution re-runs
+// the Auth check and the access read, and loses the owner access an impersonator acts with.
 export async function withClient(
   req: Request,
   params: Promise<{ id: string }>,
-  handler: (clientId: string, client: ClientRow) => Promise<AnyResponse>,
+  guard: Guard,
+  handler: (clientId: string, client: ClientRow, caller: CallerContext, effectiveOrgId: string) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: clientId } = await params;
-  const client = await getClientById(clientId);
-  if (!client) return apiError("Client not found.", 404);
+  // The client lookup and the caller don't depend on each other (same reasoning as withNode).
+  const [client, acting] = await Promise.all([getClientById(clientId), resolveActingCaller()]);
+  // Org isolation: 404, never 403 — do not confirm foreign resources exist.
+  if (!client || client.org_id !== acting.effectiveOrgId) return apiError("Client not found.", 404);
 
-  // Org isolation: a client outside the effective org (the caller's own org, or the
-  // impersonation target when active — resolveOrgId() decides which) is a 404 (never
-  // 403 — do not confirm foreign resources exist).
-  const effectiveOrgId = await resolveOrgId();
-  if (client.org_id !== effectiveOrgId) {
-    return apiError("Client not found.", 404);
-  }
+  const decision = decide(acting, guard.need, clientId);
+  if (decision !== "allow") return denial(decision, "Client not found.");
 
-  const blocked = await assertImpersonationWriteAllowed(req);
+  const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
 
-  return handler(clientId, client);
+  return handler(clientId, client, acting.caller, acting.effectiveOrgId);
 }
 
 // ── Canvas resolution ──────────────────────────────────────────────────────────
@@ -100,38 +111,36 @@ type CanvasWithOrg = CanvasRow & {
   clients: { org_id: string } | { org_id: string }[] | null;
 };
 
-// Same org-isolation shape as withClient(), for the handful of routes rooted at a
-// canvas id instead of a client id (/api/canvas/[id]/*, /api/canvases/[cid]/*) —
-// these never went through withClient() at all, since it only guards
-// /api/clients/[id]/*, so they had no org check whatsoever. Canvas -> client -> org,
-// resolved in one query via an embedded join, not two sequential lookups.
+// Same shape as withClient() for routes rooted at a canvas id (/api/canvas/[id]/*,
+// /api/canvases/[cid]/*): agency, client scope and the permission, 404 before 403.
+// Canvas -> client -> org in one query via an embedded join, beside the caller.
 export async function withCanvas(
   req: Request,
   params: Promise<{ id: string }>,
-  handler: (canvasId: string, canvas: CanvasRow) => Promise<AnyResponse>,
+  guard: Guard,
+  handler: (canvasId: string, canvas: CanvasRow, caller: CallerContext, effectiveOrgId: string) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { id: canvasId } = await params;
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("canvases")
-    .select("*, clients!inner(org_id)")
-    .eq("id", canvasId)
-    .maybeSingle();
+  const [{ data, error }, acting] = await Promise.all([
+    supabase.from("canvases").select("*, clients!inner(org_id)").eq("id", canvasId).maybeSingle(),
+    resolveActingCaller(),
+  ]);
   if (error) throw error;
   if (!data) return apiError("Canvas not found.", 404);
 
   const row = data as unknown as CanvasWithOrg;
   const client = unwrapEmbed(row.clients);
-  const effectiveOrgId = await resolveOrgId();
-  if (!client || client.org_id !== effectiveOrgId) {
-    return apiError("Canvas not found.", 404);
-  }
+  if (!client || client.org_id !== acting.effectiveOrgId) return apiError("Canvas not found.", 404);
 
-  const blocked = await assertImpersonationWriteAllowed(req);
+  const decision = decide(acting, guard.need, row.client_id);
+  if (decision !== "allow") return denial(decision, "Canvas not found.");
+
+  const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
 
   const { clients: _clients, ...canvas } = row;
-  return handler(canvasId, canvas as CanvasRow);
+  return handler(canvasId, canvas as CanvasRow, acting.caller, acting.effectiveOrgId);
 }
 
 // ── Node resolution ───────────────────────────────────────────────────────────
@@ -154,6 +163,7 @@ type NodeWithOrgChain = NodeRow & {
 export async function withNode(
   req: Request,
   params: Promise<{ id: string }>,
+  guard: Guard,
   handler: (
     nodeId: string,
     node: NodeRow,
@@ -161,10 +171,11 @@ export async function withNode(
     clientId: string,
     effectiveOrgId: string,
   ) => Promise<AnyResponse>,
-  // Route-local override for the "row doesn't exist" case. Callers whose result is
+  // Route-local override for the "row doesn't exist" case only. Callers whose result is
   // meaningless for a missing node (e.g. /cost — no row means no generations, same
-  // as zero) can hand back a soft default instead of the generic 404; the org-mismatch
-  // branch below always stays a hard 404 (that's an access check, not a lookup miss).
+  // as zero) can hand back a soft default instead of the generic 404. Every denial stays
+  // hard: another agency's node and a client outside the person's list are a 404, a
+  // missing permission a 403, and the write gate still runs (access checks, not lookup misses).
   options?: { onNotFound?: () => AnyResponse },
 ): Promise<AnyResponse> {
   const { id: nodeId } = await params;
@@ -173,42 +184,41 @@ export async function withNode(
   // the impersonation cookie don't depend on each other, so they run side by side — this
   // wrapper fronts every node route, the focus views' reads included.
   //
-  // The caller is resolved ONCE and the effective org derived from it here, rather than via
-  // resolveOrgId(): React's cache() does not dedupe inside route handlers, so calling both
-  // ran the Auth check and membership read twice per request, back to back.
-  const [{ data, error }, caller, impersonation] = await Promise.all([
+  // The caller is resolved ONCE (resolveActingCaller): React's cache() does not dedupe inside
+  // route handlers, so resolving it twice would re-run the Auth check and membership read.
+  const [{ data, error }, acting] = await Promise.all([
     supabase
       .from("nodes")
       .select("*, canvases!inner(client_id, clients!inner(org_id))")
       .eq("id", nodeId)
       .maybeSingle(),
-    resolveCallerContext(),
-    resolveImpersonationState(),
+    resolveActingCaller(),
   ]);
   if (error) throw error;
   if (!data) return options?.onNotFound?.() ?? apiError("Node not found.", 404);
-  // Same rule as resolveOrgId(): the impersonation target while a live session is active
-  // (D81), else the caller's own org.
-  const effectiveOrgId = impersonation.isImpersonating ? impersonation.targetOrgId : caller.orgId;
 
   const row = data as unknown as NodeWithOrgChain;
   const canvas = unwrapEmbed(row.canvases);
   const client = canvas ? unwrapEmbed(canvas.clients) : null;
-  if (!canvas || !client || client.org_id !== effectiveOrgId) {
+  if (!canvas || !client || client.org_id !== acting.effectiveOrgId) {
     return apiError("Node not found.", 404);
   }
 
-  const blocked = await assertImpersonationWriteAllowed(req);
+  const decision = decide(acting, guard.need, canvas.client_id);
+  if (decision !== "allow") return denial(decision, "Node not found.");
+
+  const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
 
   const { canvases: _canvases, ...node } = row;
-  return handler(nodeId, node as NodeRow, caller, canvas.client_id, effectiveOrgId);
+  return handler(nodeId, node as NodeRow, acting.caller, canvas.client_id, acting.effectiveOrgId);
 }
 
 // ── Moodboard resolution ──────────────────────────────────────────────────────
 
 type MoodboardWithOrg = {
   id: string;
+  client_id: string;
   clients: { org_id: string } | { org_id: string }[] | null;
 };
 
@@ -216,32 +226,136 @@ type MoodboardWithOrg = {
 // rooted at a moodboard id (/api/moodboards/[id]/*). Those shipped deliberately open
 // under D14 ("auth deferred, like the rest of the app") and were never revisited when
 // auth landed — so a board id from ANY org resolved and served, or deleted, its items.
-// Moodboard -> client -> org in one query, 404 (never 403) on mismatch.
+// Moodboard -> client -> org in one query: another agency or a client outside the person's
+// list is a 404, a missing permission a 403.
 export async function withMoodboard(
   req: Request,
   moodboardId: string,
-  handler: (moodboardId: string, caller: CallerContext) => Promise<AnyResponse>,
+  guard: Guard,
+  handler: (moodboardId: string, caller: CallerContext, effectiveOrgId: string) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("moodboards")
-    .select("id, clients!inner(org_id)")
-    .eq("id", moodboardId)
-    .maybeSingle();
+  const [{ data, error }, acting] = await Promise.all([
+    supabase
+      .from("moodboards")
+      .select("id, client_id, clients!inner(org_id)")
+      .eq("id", moodboardId)
+      .maybeSingle(),
+    resolveActingCaller(),
+  ]);
   if (error) throw error;
   if (!data) return apiError("Moodboard not found.", 404);
 
-  const client = unwrapEmbed((data as unknown as MoodboardWithOrg).clients);
-  const effectiveOrgId = await resolveOrgId();
-  if (!client || client.org_id !== effectiveOrgId) {
-    return apiError("Moodboard not found.", 404);
-  }
+  const row = data as unknown as MoodboardWithOrg;
+  const client = unwrapEmbed(row.clients);
+  if (!client || client.org_id !== acting.effectiveOrgId) return apiError("Moodboard not found.", 404);
 
-  const blocked = await assertImpersonationWriteAllowed(req);
+  const decision = decide(acting, guard.need, row.client_id);
+  if (decision !== "allow") return denial(decision, "Moodboard not found.");
+
+  const blocked = await writeGate(req, acting.impersonation);
   if (blocked) return blocked;
 
-  const caller = await resolveCallerContext();
-  return handler(moodboardId, caller);
+  return handler(moodboardId, acting.caller, acting.effectiveOrgId);
+}
+
+// For routes not rooted at one client or resource: the voice library, the moodboard index, the
+// review inbox and counts. A client action passes when held on at least one client the person is
+// on; the handler then keeps what it returns to those clients (clientIdsWith).
+export async function withAccess(
+  req: Request,
+  guard: Guard,
+  handler: (caller: CallerContext, effectiveOrgId: string) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const acting = await resolveActingCaller();
+  const decision = decide(acting, guard.need, null);
+  if (decision !== "allow") return denial(decision, "Not found.");
+  const blocked = await writeGate(req, acting.impersonation);
+  if (blocked) return blocked;
+  return handler(acting.caller, acting.effectiveOrgId);
+}
+
+// ── Team (spec §6.1, §6.2, §6.6) ──────────────────────────────────────────────
+
+export type TeamContext = {
+  orgId: string;
+  orgName: string;
+  caller: CallerContext;
+  /** Who is acting, for invites and emails ("{Inviter} has invited you"). */
+  actor: Actor;
+  /** Set when the route has a clientId: that client, checked to be in this agency. */
+  client: ClientRow | null;
+  /** A super admin working on the agency from Admin (not while viewing as it). */
+  viaAdmin: boolean;
+  /** The caller holds manage_team (the owner, or Admin). False for an Invite holder: the people
+   *  read then keeps to their clients and withholds invite links and permissions. */
+  canManage: boolean;
+  /** Writes made from Admin go to the audit log as admin_action; a no-op for the owner. */
+  logAdmin: (action: string, detail?: Record<string, unknown>) => Promise<void>;
+};
+
+// One chokepoint for the owner's Team and Members screens, Invite holders' Members screens and
+// Admin's People and Clients tabs. need "manage_team" is owner only. need "invite" is checked on
+// the route's client, taken from the URL (a client the caller is not on is a 404, one where they
+// lack Invite a 403), or on any client when the route names none (the people read); the owner
+// always passes. Both run under the usual impersonation write gate. A super admin working from
+// Admin passes for any agency (D85: Admin is platform administration, not acting as the agency)
+// and each change is audit-logged; while they view as this same agency, the agency path and its
+// write gate apply. The agency, the client and the caller are read side by side, once.
+export async function withTeam(
+  req: Request,
+  params: Promise<{ orgId: string; clientId?: string }>,
+  guard: { need: "manage_team" | "invite" },
+  handler: (ctx: TeamContext) => Promise<AnyResponse>,
+): Promise<AnyResponse> {
+  const { orgId, clientId } = await params;
+  const [acting, org, client] = await Promise.all([
+    resolveActingCaller(),
+    getOrgById(orgId),
+    clientId ? getClientById(clientId) : Promise.resolve(null),
+  ]);
+  // One message for every 404 here, so an outsider can't tell whether a client belongs to an agency.
+  if (!org) return apiError("Not found.", 404);
+  if (clientId && (!client || client.org_id !== orgId)) return apiError("Not found.", 404);
+
+  const { caller, impersonation } = acting;
+  const viewingThisAgency = impersonation.isImpersonating && impersonation.targetOrgId === orgId;
+  const viaAdmin = caller.platformRole === "super_admin" && !viewingThisAgency;
+  let canManage = viaAdmin;
+  if (!viaAdmin) {
+    if (orgId !== acting.effectiveOrgId) return apiError("Not found.", 404);
+    const access = accessOf(caller);
+    // The named client goes to the check for both needs: someone not on it gets 404 before an
+    // owner-only action's 403, so the refusal never confirms the client exists (spec §4.2 step 4).
+    const decision = check(access, guard.need, { orgId, clientId: clientId ?? null });
+    if (decision !== "allow") return denial(decision, "Not found.");
+    const blocked = await writeGate(req, impersonation);
+    if (blocked) return blocked;
+    canManage = check(access, "manage_team", { orgId, clientId: null }) === "allow";
+  }
+
+  // One primary-key read, after the gate so a refused caller costs nothing more.
+  const name = await getDisplayName(caller.userId);
+  const logAdmin = async (action: string, detail: Record<string, unknown> = {}) => {
+    if (!viaAdmin) return;
+    await logImpersonationEvent({ operatorId: caller.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action, ...detail } });
+  };
+  return handler({
+    orgId,
+    orgName: org.name,
+    caller,
+    actor: { userId: caller.userId, name: name ?? `Someone at ${org.name}` },
+    client,
+    viaAdmin,
+    canManage,
+    logAdmin,
+  });
+}
+
+/** A people rule's answer as a response: refusals with their status and words. */
+export function opResponse<T extends Record<string, unknown>>(result: OpResult<T | null>): AnyResponse {
+  if (!result.ok) return apiError(result.error, result.status);
+  return apiOk(result.value ?? {});
 }
 
 // ── Share-token resolution (D309) ─────────────────────────────────────────────
@@ -250,17 +364,19 @@ export async function withMoodboard(
 // src/proxy.ts). The token is the capability — no session, no org check, no
 // impersonation gate (there is no operator here). Unknown → 404, like every other
 // resolver; a malformed token never reaches the database.
+//
+// D496: a link names one version (`<title-slug>-<code>-v<n>`, no suffix = v1). The handler gets
+// that version and only ever acts on it; a version that doesn't exist is a 404.
 export async function withShareToken(
   params: Promise<{ token: string }>,
-  handler: (review: ReviewByToken) => Promise<AnyResponse>,
+  handler: (review: ReviewByToken, version: ReviewVersionRow) => Promise<AnyResponse>,
 ): Promise<AnyResponse> {
   const { token: raw } = await params;
-  // D311: a link is `<title-slug>-<code>`; only the code finds the review.
-  const token = toCanonicalShareToken(raw);
-  if (!token) return apiError("Review not found.", 404);
-  const review = await getReviewByToken(token);
-  if (!review) return apiError("Review not found.", 404);
-  return handler(review);
+  const link = parseReviewLink(raw);
+  if (!link) return apiError("Review not found.", 404);
+  const found = await getReviewVersionByLink(link.token, link.versionNo);
+  if (!found) return apiError("Review not found.", 404);
+  return handler(found.review, found.version);
 }
 
 // D356: the second named token resolver, for /api/r/s/[token]/* (script reviews). Same rules as

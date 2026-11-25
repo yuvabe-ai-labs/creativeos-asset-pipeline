@@ -1,7 +1,6 @@
+import { loadClientPage } from "@/lib/permissions/page";
 import { redirect } from "next/navigation";
-import { getClientBySlug } from "@/lib/db/clients";
 import { getAvatar } from "@/lib/db/avatars";
-import { resolveOrgId } from "@/lib/dal";
 import { loadAvatarGenerations, loadVoicePreviewState } from "@/lib/avatars/studio-server";
 import { AvatarStudio } from "@/components/avatars/avatar-studio";
 
@@ -13,9 +12,7 @@ export default async function AvatarPage({
   params: Promise<{ id: string; avatarId: string }>;
 }) {
   const { id, avatarId } = await params; // `id` is the client slug
-  const client = await getClientBySlug(id);
-  const effectiveOrgId = await resolveOrgId();
-  if (!client || client.org_id !== effectiveOrgId) redirect("/");
+  const { client } = await loadClientPage(id, "view");
 
   // Missing, another client's, or archived: back to the library, never confirming it exists.
   const avatar = await getAvatar(client.id, avatarId);
