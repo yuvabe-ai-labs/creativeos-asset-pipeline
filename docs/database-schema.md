@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0067** (`supabase/migrations/0001_init.sql` … `0067_market_item_readings.sql`). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied. 0063, 0064 and 0065 are pairs too: the permission work's `0063_close_views_and_count_resends`, `0064_lock_node_files_bucket`, `0065_client_scoped_reads`, and the copilot journey's `0063_client_market_status`, `0064_client_copilot_messages`, `0065_kb_review_writes` (then `0066_copilot_turn_traces`). A bare number below means the permission work's file; the copilot journey's are named in full.
+Generated from migrations up to **0089** (`supabase/migrations/0001_init.sql` … `0089_replace_credit_settings.sql`; the model catalog's 0076–0089 follow the copilot journey's 0067). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied. 0063, 0064 and 0065 are pairs too: the permission work's `0063_close_views_and_count_resends`, `0064_lock_node_files_bucket`, `0065_client_scoped_reads`, and the copilot journey's `0063_client_market_status`, `0064_client_copilot_messages`, `0065_kb_review_writes` (then `0066_copilot_turn_traces`). A bare number below means the permission work's file; the copilot journey's are named in full.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -181,7 +181,8 @@ One AI generation job (image/video/prompt/…), owned by a node, an avatar or a 
 - `type` · `status` (running/succeeded/failed) · `provider_job_id` · `model_used` · `params_snapshot`, `inputs_snapshot`, `tokens_used`, `meta` jsonb · `error`
 - `cost_usd` numeric (renamed from credits_consumed, 0019) · `credits_charged` numeric · `output_snapshot` text (0016)
 - `version_id` → node_versions (no on delete action) · `user_id` uuid (no FK) · `org_id` → organizations (not null) · `client_id` → clients (no on delete action, 0016)
-- Indexes: `node_id`, `status`, `version_id`, `org_id`, `client_id`, `avatar_id`, `script_id`
+- `model_price_id` → ai_model_prices (the price row the run used) · `provider_bill` jsonb (what the provider says it billed) · `record_only` bool: a free feature's provider call, cost recorded, no credits charged (0076). The owner check also passes for a record-only row with no node, avatar or script (0081).
+- Indexes: `node_id`, `status`, `version_id`, `org_id`, `client_id`, `avatar_id`, `script_id`, `model_price_id`, `(org_id, record_only, created_at)` (0076), `created_at` (0085)
 - RLS: select `org isolation`, limited to the reader's clients (`auth_client_ids()`, 0065).
 
 ### credit_transactions
@@ -189,6 +190,26 @@ The credit ledger: reservation, consumption, refund, adjustment. *0019* · org_i
 - `id` uuid PK · `org_id` → organizations · `generation_id` → generations set null (nullable, 0028) · `amount` numeric · `type` check
 - Indexes: `org_id`, `generation_id`, `(org_id, created_at)`
 - RLS: select owners of the agency only (0065). Written by `reserve_credits` and the server.
+
+### ai_models
+Every AI model the app runs, one row per model: kind, label, status, its adapter and parameters. *0076* (seeded 0077, 0079, 0082; adapters 0084) · platform-wide
+- `id` text PK (`provider:model`) · `provider` · `kind` check image/video/edit/voice/dub/lipsync/transcribe/text/scrape · `label` · `picker_label` · `provider_label` · `description`
+- `status` check draft/live/hidden/retired · `replaced_by` → ai_models (not itself) · `sort_order` int · `adapter_key` · `provider_model_id` · `params`, `rules` jsonb arrays · `capabilities` jsonb object · `updated_by` → auth.users set null
+- Indexes: `replaced_by`
+- RLS: service role only.
+
+### ai_model_prices
+A model's price, as dated rows that are never edited; a run uses the row with the latest `effective_from` at or before its start. *0076* (seeded 0078, 0080, 0083) · platform-wide
+- `id` uuid PK · `model_id` → ai_models · `effective_from` timestamptz · `lines` jsonb (non-empty array) · `estimate` jsonb object · `source_url` · `note` · `created_by` → auth.users set null
+- Unique `(model_id, effective_from)` (also serves lookups by model)
+- Trigger `ai_model_prices_guard`: no update; a row may be deleted only before it starts, and not in its last 2 minutes (0088).
+- RLS: service role only.
+
+### credit_settings
+How a run's cost becomes credits (margin and rounding step), as dated rows that are never edited. *0086* · platform-wide
+- `id` uuid PK · `effective_from` timestamptz unique · `margin_percent` numeric(5,2) check 0–200 · `round_step` int check 1/5/10 · `note` · `created_by` → auth.users set null
+- Trigger `credit_settings_guard`: no update; a row may be deleted only before it starts, and not in its last 2 minutes (0087).
+- RLS: service role only. Seeded with one row from 2026-01-01 (no margin, round to 5).
 
 ### background_jobs
 Generic background job rows (kind + input/result), one live job per `lock_key`. *0044* · org_id
@@ -383,6 +404,11 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `list_agency_people` | org_id → people rows (name, email, status, permissions, invited client, client_ids) | definer, service role | 0062 |
 | `find_user_by_email` | email → (user_id, org_id) | definer, service role | 0062 |
 | `take_invite_send` | org_id, limit → bool | definer, service role | 0063 |
+| `ai_model_month_stats` | from, to → (model_id, runs, cost_usd, credits, unpriced) | invoker; service role only (0088) | 0085 |
+| `replace_ai_model_price` | cancel_id, model_id, effective_from, lines, estimate, source_url, note, created_by → uuid (deletes a future price row and inserts its replacement, or neither) | invoker; service role only | 0088 |
+| `reorder_ai_models` | kind, ids text[], updated_by → void (writes `sort_order` for every model of the kind) | invoker; service role only | 0088 |
+| `ai_model_month_runs_by_org` | from, to → (model_id, org_id, org_name, runs, cost_usd, credits) | invoker; service role only | 0088 |
+| `replace_credit_settings` | cancel_id, effective_from, margin_percent, round_step, note, created_by → uuid (as `replace_ai_model_price`, for credit settings) | invoker; service role only | 0089 |
 
 ### Used by RLS
 - `auth_org_ids()` → setof uuid: the caller's agencies. Definer; executable by `authenticated` and `service_role` (0062).
@@ -404,6 +430,8 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `prepare_membership_client` (definer) | `membership_clients_prepare` | 0062 |
 | `keep_node_on_its_canvas` | `nodes_keep_canvas` | 0062 |
 | `keep_edge_on_its_canvas` (definer) | `edges_keep_canvas` | 0062 |
+| `ai_model_prices_guard` | `ai_model_prices_guard` | 0076, 0088 |
+| `credit_settings_guard` | `credit_settings_guard` | 0086, 0087 |
 
 Dropped: `org_review_counts_for_types` (created 0062, dropped 0063).
 

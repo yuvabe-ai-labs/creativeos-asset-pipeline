@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { draftIsDirty, commitDraft, type MultishotDraft } from "../multishot-draft";
 import { totalOf, type MultishotCut } from "../multishot-cuts";
-import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 const cuts = (...seconds: number[]): MultishotCut[] =>
   seconds.map((s, i) => ({ id: `c${i}`, text: `cut ${i + 1}`, seconds: s }));

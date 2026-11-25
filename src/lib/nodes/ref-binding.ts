@@ -153,7 +153,7 @@ export function singleTakeRefDialect(
 }
 
 /**
- * A Video Gen model's provider (`videoGenClientModelMap[id].provider`) → the single-take prompt
+ * A Video Gen model's provider (its catalog spec's `provider`) → the single-take prompt
  * target whose dialect its prompt is rendered in. Veo and Kling get undefined: prose, no tokens.
  */
 export function singleTakeTargetForProvider(provider: string | undefined): string | undefined {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { shotDataToMultishot, multishotDataToShot } from "../multishot-convert";
 import type { ShotNodeData, MultishotNodeData } from "@/lib/canvas-nodes";
-import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 const shotData: ShotNodeData = {
   order: 2,

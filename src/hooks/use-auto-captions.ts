@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useEditorStore, useEditorStoreApi } from "@/components/editor/editor-store-provider";
+import { useCreditSettings, useModelPrice } from "@/hooks/queries/ai-models";
+import { NO_PRICE_MESSAGE, NO_PRICE_REASON, TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { useStartTranscribe, useTranscribeStatus, useTranscripts } from "@/hooks/queries/editor";
 import { autoCaptionCost, captionsFollowSound, fillFromTranscripts, pieceSound, staleAutoPieces, uncaptionedPieces } from "@/lib/editor/auto-captions";
 import { setSound } from "@/lib/editor/pieces";
@@ -20,6 +22,12 @@ const FAILURE_COPY: Record<TranscribeFailureReason, string> = {
 export const failureCopy = (r: TranscribeFailureReason) => FAILURE_COPY[r];
 
 type Run = { pieces: string[]; added: string[]; replaced: Caption[]; failed: number; error?: string };
+/** The route's 409 is either no price row or a run already holding the lock; its own message is plain. */
+export function startErrorMessage(err: unknown): string {
+  if (err instanceof ApiError && err.status === 402) return CREDIT_LIMIT_TOAST_MESSAGE;
+  if (err instanceof ApiError && err.status === 409) return err.message === NO_PRICE_MESSAGE ? NO_PRICE_REASON : err.message;
+  return "Couldn't start captions. Try again.";
+}
 const EMPTY: ReadonlySet<string> = new Set();
 const NO_TRANSCRIPTS: ReadonlyMap<string, Transcript> = new Map();
 
@@ -30,6 +38,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
   const store = useEditorStoreApi();
   const doc = useEditorStore((s) => s.doc);
   const sources = useEditorStore((s) => s.sources);
+  const { price, loading: priceLoading, error: priceError } = useModelPrice(TRANSCRIBE_MODEL_ID);
   const transcripts = useTranscripts(canvasId);
   const startMutation = useStartTranscribe(canvasId);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -45,7 +54,8 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
   }, []);
 
   const transcribed = useMemo(() => new Set(transcripts.data?.keys() ?? []), [transcripts.data]);
-  const cost = useCallback((pieceIds?: string[]) => autoCaptionCost(doc, sources, transcribed, pieceIds), [doc, sources, transcribed]);
+  const settings = useCreditSettings();
+  const cost = useCallback((pieceIds?: string[]) => autoCaptionCost(price, doc, sources, transcribed, settings, pieceIds), [price, doc, sources, transcribed, settings]);
   const stale = useMemo(() => staleAutoPieces(doc, sources), [doc, sources]);
   const todo = useMemo(() => uncaptionedPieces(doc, sources, transcripts.data ?? NO_TRANSCRIPTS), [doc, sources, transcripts.data]);
 
@@ -153,7 +163,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
           onError: (err) => {
             run.current = null;
             setListening(new Set([...listeningRef.current].filter((x) => !wanted.has(x))));
-            toast.error(err instanceof ApiError && err.status === 402 ? CREDIT_LIMIT_TOAST_MESSAGE : "Couldn't start captions. Try again.");
+            toast.error(startErrorMessage(err));
           },
         },
       );
@@ -161,7 +171,7 @@ export function useAutoCaptions({ canvasId, nodeId }: { canvasId: string; nodeId
     [store, startMutation, nodeId, transcripts, setListening],
   );
 
-  return { cost, start, switchSound, listening, failed, stale, todo, transcripts: transcripts.data, busy: listening.size > 0 };
+  return { cost, priceLoading, priceError, start, switchSound, listening, failed, stale, todo, transcripts: transcripts.data, busy: listening.size > 0 };
 }
 
 export type AutoCaptions = ReturnType<typeof useAutoCaptions>;

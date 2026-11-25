@@ -1,8 +1,8 @@
 import "server-only";
 import { logger } from "@trigger.dev/sdk/v3";
-import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
-import { seedanceParams } from "../params/seedance";
+import type { VideoGenInput, VideoGenResult } from "../types";
 import { fitSeedanceImages } from "./seedance-images";
+import { normalizeSeedanceUsage } from "../provider-usage";
 
 const ARK_BASE = "https://ark.ap-southeast.bytepluses.com/api/v3";
 
@@ -16,11 +16,9 @@ const POLL_INTERVAL_MS = 5_000;
 /** Marks a poll failure worth retrying, so the catch below can tell it from a real error. */
 class RetryablePollError extends Error {}
 
-// The vendor's model string lives HERE and nowhere else. Its dated suffix changes when BytePlus
-// revises the model; our own id (`seedance:seedance-2-5`, client-models.ts) is what persists on
-// nodes and version rows. Keeping them separate makes a vendor bump a one-line edit rather than a
-// migration of every saved node.
-const VENDOR_MODEL = "dreamina-seedance-2-5-260628";
+// A default model name for tests and builders. The adapter always passes the catalog row's
+// provider_model_id, and that is what runs (D568); a vendor rename is a migration on the row.
+export const SEEDANCE_VENDOR_MODEL = "dreamina-seedance-2-5-260628";
 
 function getApiKey(): string {
   const key = process.env.BYTEPLUS_API_KEY;
@@ -34,7 +32,7 @@ type SeedanceContent = Record<string, unknown>;
 
 /**
  * Frames and references are MUTUALLY EXCLUSIVE on this endpoint, so this sends one or the other
- * and never both. The client rules (client-models.ts) disable the unavailable input, and this is
+ * and never both. The client rules (on the catalog row) disable the unavailable input, and this is
  * the backstop for a caller that bypassed them.
  *
  * A voice reference (D296) is NOT part of that exclusion — audio is a third part type and rides
@@ -69,10 +67,14 @@ function buildSeedanceContent(input: VideoGenInput, maxRefs: number): SeedanceCo
 }
 
 /** Exported for its tests: the request's shape is the thing worth pinning down. */
-export function buildSeedanceBody(input: VideoGenInput, maxRefs: number): Record<string, unknown> {
+export function buildSeedanceBody(
+  input: VideoGenInput,
+  maxRefs: number,
+  vendorModel: string = SEEDANCE_VENDOR_MODEL,
+): Record<string, unknown> {
   const duration = Number(input.params.duration ?? 5);
   return {
-    model: VENDOR_MODEL,
+    model: vendorModel,
     content: buildSeedanceContent(input, maxRefs),
     resolution: String(input.params.resolution ?? "720p"),
     // `ratio` is omitted when a first frame is present: the vendor derives the ratio from that
@@ -202,6 +204,8 @@ type SeedanceTask = {
   // not nested under `content` — the vendor doc's own response-parameters list has `duration`
   // as a sibling of `content`, not a field inside it.
   duration?: number;
+  /** D551 — `completion_tokens` is what BytePlus bills, its minimum included. */
+  usage?: { completion_tokens?: number; total_tokens?: number };
   error?: { code?: string; message?: string } | null;
 };
 
@@ -286,7 +290,8 @@ async function pollSeedanceTask(taskId: string): Promise<VideoGenResult> {
     if (task.status === "succeeded") {
       const videoUrl = task.content?.video_url;
       if (!videoUrl) throw new Error("Seedance task succeeded but returned no video output");
-      return { videoUrl, durationSeconds: Number(task.duration ?? 0) };
+      const usage = normalizeSeedanceUsage(task.usage);
+      return { videoUrl, durationSeconds: Number(task.duration ?? 0), ...(usage ? { usage } : {}) };
     }
     // For some Seedance 2.5 task types the vendor returns `error` only after the queued task is
     // consumed (ref/byteplus-docs/Retrieve a video generation task.md), so `error.message` here
@@ -301,31 +306,11 @@ async function pollSeedanceTask(taskId: string): Promise<VideoGenResult> {
   }
 }
 
-// Server-side twin of the client shape in client-models.ts (SEEDANCE_IMAGE_INPUTS). Same D99
-// split as Kling: this module is server-only and client-models.ts (safe for React) cannot import
-// it, so the shape is declared once on each side. maxReferenceImages MUST match the client copy —
-// the API route caps referenceUrls against the client value while generate() below is built from
-// this one, so a drift here silently truncates references on a paid generation.
-const SEEDANCE_IMAGE_INPUTS_SERVER = {
-  startFrame: true,
-  endFrame: true,
-  maxReferenceImages: 30,
-} as const;
-
-export const seedance25: VideoGenModelSpec = {
-  id: "seedance:seedance-2-5",
-  provider: "seedance",
-  label: "Seedance 2.5",
-  providerLabel: "Seedance",
-  maxDurationSeconds: 30,
-  imageInputs: SEEDANCE_IMAGE_INPUTS_SERVER,
-  params: seedanceParams,
-  // Images are brought inside the vendor's limits BEFORE the body is built (seedance-images.ts):
-  // an out-of-range image otherwise fails the whole paid request at task creation.
-  generate: (input) =>
-    fitSeedanceImages(input, SEEDANCE_IMAGE_INPUTS_SERVER.maxReferenceImages)
-      .then((fitted) =>
-        createSeedanceTask(buildSeedanceBody(fitted, SEEDANCE_IMAGE_INPUTS_SERVER.maxReferenceImages)),
-      )
-      .then(pollSeedanceTask),
-};
+/** D561 — one Seedance clip. `vendorModel` is BytePlus's dated name (the row's provider_model_id).
+ *  Images are brought inside the vendor's limits BEFORE the body is built (seedance-images.ts):
+ *  an out-of-range image otherwise fails the whole paid request at task creation. */
+export function generateWithSeedance(input: VideoGenInput, maxRefs: number, vendorModel: string): Promise<VideoGenResult> {
+  return fitSeedanceImages(input, maxRefs)
+    .then((fitted) => createSeedanceTask(buildSeedanceBody(fitted, maxRefs, vendorModel)))
+    .then(pollSeedanceTask);
+}

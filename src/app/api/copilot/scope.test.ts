@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
-// The real chokepoint (withCanvas) runs. The caller sees only "other-client"; the canvas belongs
+// The real chokepoint (withBodyCanvas) runs. The caller sees only "other-client"; the canvas belongs
 // to "client-1" in the caller's own agency. The canvas must be refused before its context (every
 // node on it) is built or sent anywhere.
 vi.unmock("@/lib/permissions/server");

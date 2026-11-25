@@ -1,9 +1,19 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ScriptAssetsProvider } from "@/components/scripts/script-assets-context";
 import { avatarMap, linkedDoc, MEENAKSHI_AVATAR, readyAvatar, SCRIPT_ID } from "@/lib/scripts/visualise/__tests__/fixtures";
 import { BoardChips } from "../board-chips";
+
+// D565 — a cast chip reads the image models below the client layout's gate; here, the seeded catalog.
+vi.mock("@/hooks/queries/ai-models", async (orig) => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  const { imageModelsFrom } = await import("@/lib/ai-models/model-lists");
+  return {
+    ...(await orig<typeof import("@/hooks/queries/ai-models")>()),
+    useImageModels: () => imageModelsFrom(seededModelCatalog()),
+  };
+});
 
 const doc = () => {
   const d = linkedDoc();

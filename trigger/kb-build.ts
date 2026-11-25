@@ -15,6 +15,8 @@ export const kbBuildTask = task({
   run: async (payload: {
     jobId: string;
     clientId: string;
+    /** D560 — the client's org, so the provider calls' cost is recorded; a run started before it was sent records nothing. */
+    orgId?: string;
     websiteUrl: string | null;
     docIds: string[];
   }) => {
@@ -40,6 +42,8 @@ export const kbBuildTask = task({
       return res;
     };
 
+    const recordFor = payload.orgId ? { orgId: payload.orgId, clientId: payload.clientId } : undefined;
+
     const phase = (status: string, message: string) =>
       postWebhook({ jobId: payload.jobId, kind: "phase", status, message });
 
@@ -62,7 +66,7 @@ export const kbBuildTask = task({
         logger.info("Phase 1: researching website", { url: payload.websiteUrl });
         await phase("researching", `Researching ${safeHost(payload.websiteUrl)}…`);
         const { researchBrandWebsite } = await import("@/lib/kb/website-research");
-        researchMarkdown = await researchBrandWebsite(payload.websiteUrl);
+        researchMarkdown = await researchBrandWebsite(payload.websiteUrl, recordFor);
         logger.info("Phase 1: research complete", { chars: researchMarkdown?.length ?? 0 });
       }
 
@@ -78,6 +82,7 @@ export const kbBuildTask = task({
         clientId: payload.clientId,
         docIds: payload.docIds,
         researchMarkdown,
+        recordFor,
       });
       logger.info("Phase 2: extraction complete", { modelUsed: result.modelUsed, fillRate: result.fillRate });
 

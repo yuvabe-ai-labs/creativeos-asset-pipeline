@@ -8,6 +8,7 @@ import { isAction } from "./model";
 const ALLOWLIST: Record<string, string> = {
   "admin/orgs/[id]/generations": "super admin (requireSuperAdmin)",
   "admin/orgs/[id]/impersonation-sessions": "super admin (requireSuperAdmin)",
+  "ai-models": "signed in; the platform-wide model catalog (D552), no agency data",
   "image-proxy": "signed in; proxies a public image URL, no agency data",
   me: "signed in; the caller's own identity and access",
   "r/[token]": "share token, no account (withShareToken)",
@@ -24,7 +25,7 @@ const ALLOWLIST: Record<string, string> = {
 
 const API_ROOT = join(process.cwd(), "src/app/api");
 const HANDLER_RE = /export\s+(?:async\s+)?(?:function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b/g;
-const GUARDED_RE = /\b(withClient|withCanvas|withNode|withMoodboard|withAccess|withTeam)\s*\([^]*?need:\s*"([a-z_.]+)"/;
+const GUARDED_RE = /\b(withClient|withCanvas|withBodyCanvas|withNode|withMoodboard|withAccess|withTeam)\s*\([^]*?need:\s*"([a-z_.]+)"/;
 
 function routeFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

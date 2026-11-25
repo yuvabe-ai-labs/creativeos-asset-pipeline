@@ -12,14 +12,9 @@ import {
   multishotPromptModels,
   multishotModelsSharingPlan,
 } from "../multishot-models";
-import {
-  videoGenClientModelMap,
-  GEMINI_OMNI_11_MODEL_ID,
-  GEMINI_OMNI_12_MODEL_ID,
-  GEMINI_OMNI_MODEL_ID,
-  KLING_OMNI_MODEL_ID,
-  SEEDANCE_MODEL_ID,
-} from "@/lib/video-gen/client-models";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 // The 10s-window cases below are written against Omni 1.1, which is still selectable (D484).
 const OMNI_11 = GEMINI_OMNI_11_MODEL_ID;
@@ -45,7 +40,7 @@ describe("multishotCapabilityFor", () => {
   // at Generate. Nothing else in the codebase would catch it.
   it("every capability names a real video-gen model", () => {
     for (const cap of MULTISHOT_MODELS) {
-      expect(videoGenClientModelMap[cap.id], `${cap.id} is not a video-gen model`).toBeDefined();
+      expect(videoModelsFrom(seededModelCatalog()).get(cap.id), `${cap.id} is not a video-gen model`).toBeDefined();
     }
   });
 

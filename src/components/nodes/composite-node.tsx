@@ -116,6 +116,7 @@ export function CompositeNode({ id, data, selected, positionAbsoluteX, positionA
         modelId={d.modelId}
         params={d.params}
         storyboardPanel={d.storyboardPanel}
+        retiredModelId={d.retiredModelId}
         onPatch={(patch) => updateNodeData(id, patch)}
       />
     </>

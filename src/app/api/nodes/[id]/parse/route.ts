@@ -13,6 +13,7 @@ import { compileScript } from "@/lib/nodes/script";
 import { scriptParsePrompt } from "@/prompts/script-parse";
 import { stampSceneBeats } from "@/lib/nodes/normalize-beats";
 import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
+import { openAiCost, recordAfterResponse } from "@/lib/generations/record-for";
 
 // POST /api/nodes/:id/parse  — extract a finished reel script into structured JSON.
 // This is the Script node's runAction: it holds the secret and runs the model.
@@ -20,7 +21,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, { need: "generate" }, async (nodeId, _node, caller) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, _node, caller, clientId, orgId) => {
     const body = (await req.json().catch(() => null)) as
       | { source?: unknown; slices?: unknown; signalIds?: unknown; signalMode?: unknown }
       | null;
@@ -68,6 +69,11 @@ export async function POST(
           { role: "user", content: user },
         ],
       });
+      // D560 — paid once it answered, whatever the answer turns out to be.
+      recordAfterResponse(openAiCost(
+        { orgId, clientId, userId: caller.userId, userEmail: caller.email, nodeId },
+        "parse", scriptParsePrompt.model, completion.usage, "chat",
+      ));
       const content = completion.choices[0]?.message?.content ?? "{}";
       // D286 — make each scene's beats add up and keep only valid tied lines, and record which row
       // text they were split from, so a later edit reads as a stale split.

@@ -7,13 +7,15 @@ import {
   type CanvasState,
   type CanvasStore,
 } from "@/lib/canvas-store";
+import { useImageModels, useVideoModels } from "@/hooks/queries/ai-models";
 import type { AppNode } from "@/lib/canvas-nodes";
 import type { Edge } from "@xyflow/react";
 
 // Store-provider pattern: the store is created in a ref on first render (never
 // at module scope), so Next.js server rendering can't share one store across
 // requests, and each mounted canvas gets a fresh instance — seeded with the
-// nodes and edges loaded from the DB on the server.
+// nodes and edges loaded from the DB on the server. It is created with the model lists of the
+// catalog at mount (D567); a later catalog refresh does not move nodes already open.
 const CanvasStoreContext = createContext<CanvasStore | null>(null);
 
 export function CanvasStoreProvider({
@@ -27,9 +29,11 @@ export function CanvasStoreProvider({
   canvasName?: string;
   children: ReactNode;
 }) {
+  const images = useImageModels();
+  const videos = useVideoModels();
   const storeRef = useRef<CanvasStore | null>(null);
   if (storeRef.current === null) {
-    storeRef.current = createCanvasStore(initialNodes, initialEdges, canvasName);
+    storeRef.current = createCanvasStore(initialNodes, initialEdges, canvasName, { images, videos });
   }
   return (
     <CanvasStoreContext.Provider value={storeRef.current}>

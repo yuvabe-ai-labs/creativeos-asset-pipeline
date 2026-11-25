@@ -41,7 +41,7 @@ const gen = (over: Partial<GenerationRow> = {}): GenerationRow => ({
   params_snapshot: { aspect_ratio: "3:4" },
   inputs_snapshot: { slot: "front", prompt: "A chef.", batchId: "b1", referenceUrls: [] },
   output_snapshot: "https://storage.googleapis.com/b/clients/c1/avatars/a1/generated/front/x.png",
-  tokens_used: null, cost_usd: 0.035, credits_charged: 35, version_id: null, user_id: "user-1",
+  tokens_used: null, cost_usd: 0.035, credits_charged: 35, record_only: false, version_id: null, user_id: "user-1",
   error: null, meta: { width: 1536, height: 2048, sizeBytes: 900 },
   created_at: "2026-09-30T10:00:00.000Z", updated_at: "2026-09-30T10:00:20.000Z",
   ...over,

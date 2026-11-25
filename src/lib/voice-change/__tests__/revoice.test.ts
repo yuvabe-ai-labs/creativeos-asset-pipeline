@@ -7,7 +7,7 @@ function deps(overrides: Partial<RevoiceDeps> = {}): RevoiceDeps {
   return {
     fetchBytes: vi.fn(async () => Buffer.from("video")),
     extractAudio: vi.fn(async () => Buffer.from("audio")),
-    speechToSpeech: vi.fn(async () => Buffer.from("voice")),
+    speechToSpeech: vi.fn(async () => ({ audio: Buffer.from("voice"), characterCost: 30 })),
     probeDurationSeconds: vi.fn(async () => 8),
     replaceAudio: vi.fn(async () => Buffer.from("final")),
     putBytes: vi.fn(async () => undefined),
@@ -25,7 +25,7 @@ const PAYLOAD = {
 describe("revoiceVideo", () => {
   it("runs download → extract → speech-to-speech → replace → upload in order", async () => {
     const d = deps();
-    expect(await revoiceVideo(PAYLOAD, d)).toEqual({ driftMs: 0 });
+    expect(await revoiceVideo(PAYLOAD, d)).toEqual({ driftMs: 0, characterCost: 30 });
     expect(d.fetchBytes).toHaveBeenCalledWith("https://s/o.mp4");
     expect(d.extractAudio).toHaveBeenCalledWith(Buffer.from("video"));
     expect(d.speechToSpeech).toHaveBeenCalledWith({
@@ -39,7 +39,7 @@ describe("revoiceVideo", () => {
 
   it("records the drift and fails non-retryably when the new voice is out of sync", async () => {
     const ok = deps({ probeDurationSeconds: vi.fn().mockResolvedValueOnce(8).mockResolvedValueOnce(8.1) });
-    expect(await revoiceVideo(PAYLOAD, ok)).toEqual({ driftMs: 100 });
+    expect(await revoiceVideo(PAYLOAD, ok)).toEqual({ driftMs: 100, characterCost: 30 });
 
     const bad = deps({ probeDurationSeconds: vi.fn().mockResolvedValueOnce(8).mockResolvedValueOnce(8.4) });
     const err = await revoiceVideo(PAYLOAD, bad).catch((e) => e);

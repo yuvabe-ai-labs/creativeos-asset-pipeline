@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { avatarSheetId, referenceCapFor, selectReferences, sheetsUnusable, type SelectReferencesInput } from "../select-references";
-import { GEMINI_OMNI_IMAGE_INPUTS } from "../gemini-omni-shape";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import { GEMINI_OMNI_11_MODEL_ID } from "@/lib/ai-models/model-ids";
+
+const GEMINI_OMNI_IMAGE_INPUTS = videoModelsFrom(seededModelCatalog()).get(GEMINI_OMNI_11_MODEL_ID)!.imageInputs;
 
 describe("referenceCapFor (D428)", () => {
   const none = { hasStartFrame: false, hasEndFrame: false };

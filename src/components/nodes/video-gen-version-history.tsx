@@ -2,7 +2,7 @@
 
 import type { ApprovalStatus, VersionDecisionSummary } from "@/lib/approval";
 import { describeVersionParams } from "@/lib/generations/version-params";
-import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
+import { useVideoModels } from "@/hooks/queries/ai-models";
 import { describeVoiceChange } from "@/lib/voice-change/describe";
 import { describeVideoEdit } from "@/lib/video-edit/describe";
 import { versionLabelsById } from "@/lib/generations/version-labels";
@@ -65,14 +65,16 @@ export function VideoGenVersionHistory({ versions, activeVersionId, viewedVersio
   // D284 — version id → `v{n}`, the same numbering VersionList renders on each row, so
   // "changed from v3" in a voice change's provenance line matches the row the operator sees.
   const labelById = versionLabelsById(versions);
+  const videos = useVideoModels();
 
   const rows = versions.map((v) => {
-    const modelLabel = (v.modelUsed ?? "").split(":")[1] ?? "";
+    const versionModel = videos.get(v.modelUsed);
+    const modelLabel = versionModel?.label ?? "";
     // YUV-295: what this version was actually generated with. Without it two rows for the
     // same shot are indistinguishable — and since restoring one now also restores its
     // model and params, the row has to show what restoring would apply.
     const paramSummary = describeVersionParams(
-      videoGenClientModelMap[v.modelUsed ?? ""]?.params,
+      versionModel?.params,
       v.paramsUsed,
     )
       .map((p) => `${p.label}: ${p.value}`)
@@ -82,7 +84,7 @@ export function VideoGenVersionHistory({ versions, activeVersionId, viewedVersio
     // plus the settings it ran with is more useful than the generic pair. A D282 legacy
     // version (`params_used.voice`) has no `inputsUsed.voiceChange` and keeps the lines above —
     // `describeVersionParams` already folds its `readVoiceMeta` line into `paramSummary`.
-    const provenance = describeVoiceChange(v.inputsUsed, labelById) ?? describeVideoEdit(v.inputsUsed, labelById);
+    const provenance = describeVoiceChange(v.inputsUsed, labelById) ?? describeVideoEdit(videos, v.inputsUsed, labelById);
 
     return {
       id: v.id,

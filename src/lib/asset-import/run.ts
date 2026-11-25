@@ -57,6 +57,8 @@ export async function runAssetImport(
   if (job.status === "succeeded" || job.status === "failed") return null;
   const clientId = job.client_id;
   const { source, target } = job.input;
+  // D560 — the job row says whose import it is: each Apify run's cost is recorded for them.
+  const recordFor = { orgId: job.org_id, clientId, userId: job.created_by };
 
   // A retry after a crash (D483) picks up the Apify runs the crashed attempt started, so the
   // scrape is read again rather than paid for twice. Assets it already saved are skipped below.
@@ -86,6 +88,10 @@ export async function runAssetImport(
       deadlineMs: IMPORT_SCRAPE_BUDGET_MS,
       resumeRunId: checkpoint.windowRunId,
       onStarted: (runId) => remember({ windowRunId: runId }),
+      recordFor,
+      // D560 — a resumed run the crashed attempt already recorded is not recorded again.
+      recordedRunId: checkpoint.windowRecordedRunId,
+      onRecorded: (runId) => remember({ windowRecordedRunId: runId }),
     });
     let { assets, error, errorCode } = NORMALIZERS[source](rows as never[]);
 
@@ -104,6 +110,9 @@ export async function runAssetImport(
         deadlineMs,
         resumeRunId: checkpoint.latestRunId,
         onStarted: (runId) => remember({ latestRunId: runId }),
+        recordFor,
+        recordedRunId: checkpoint.latestRecordedRunId,
+        onRecorded: (runId) => remember({ latestRecordedRunId: runId }),
       });
       ({ assets, error, errorCode } = NORMALIZERS[source](latestRows as never[], new Date(), { windowed: false }));
       // Nothing at all, even without the date filter: the page has never posted. The import

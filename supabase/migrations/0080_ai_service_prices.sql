@@ -1,0 +1,262 @@
+-- D535: frozen history — the service prices as seeded; the code constants they came from are gone.
+insert into ai_model_prices (model_id, effective_from, lines, estimate, source_url, note)
+select model_id, effective_from, lines, estimate, source_url, note
+from jsonb_to_recordset($seed$[
+  {
+    "model_id": "sarvam:dub",
+    "effective_from": "2026-01-01T00:00:00.000Z",
+    "estimate": {},
+    "source_url": "https://www.sarvam.ai/api-pricing",
+    "note": "Seeded from the code prices (D535).",
+    "lines": [
+      {
+        "meter": "audio_second",
+        "unit_usd": 0.006961122132887822
+      }
+    ]
+  },
+  {
+    "model_id": "fal:lipsync-2-pro",
+    "effective_from": "2026-01-01T00:00:00.000Z",
+    "estimate": {},
+    "source_url": "https://fal.ai/models/fal-ai/sync-lipsync/v2/pro",
+    "note": "Seeded from the code prices (D535).",
+    "lines": [
+      {
+        "meter": "video_second",
+        "unit_usd": 0.08333333333333333
+      }
+    ]
+  },
+  {
+    "model_id": "elevenlabs:eleven_multilingual_sts_v2",
+    "effective_from": "2026-01-01T00:00:00.000Z",
+    "estimate": {},
+    "source_url": "https://elevenlabs.io/pricing/api",
+    "note": "Seeded from the code prices (D535).",
+    "lines": [
+      {
+        "meter": "audio_second",
+        "unit_usd": 0.002
+      },
+      {
+        "meter": "provider_credit",
+        "unit_usd": 0.000182
+      }
+    ]
+  },
+  {
+    "model_id": "elevenlabs:scribe_v2",
+    "effective_from": "2026-01-01T00:00:00.000Z",
+    "source_url": "https://elevenlabs.io/pricing/api",
+    "note": "Seeded from the code prices (D535).",
+    "estimate": {
+      "provider_credits_per_audio_second": 0.2834
+    },
+    "lines": [
+      {
+        "meter": "provider_credit",
+        "unit_usd": 0.000182
+      }
+    ]
+  },
+  {
+    "model_id": "openai:gpt-5.4-mini",
+    "effective_from": "2026-01-01T00:00:00.000Z",
+    "estimate": {},
+    "source_url": "https://developers.openai.com/api/docs/pricing",
+    "note": "Seeded from the code prices (D535).",
+    "lines": [
+      {
+        "meter": "request",
+        "unit_usd": 0.005
+      },
+      {
+        "meter": "input_image",
+        "unit_usd": 0.0025
+      },
+      {
+        "meter": "input_token",
+        "unit_usd": 7.5e-7
+      },
+      {
+        "meter": "cached_input_token",
+        "unit_usd": 7.5e-8
+      },
+      {
+        "meter": "text_output_token",
+        "unit_usd": 0.0000045
+      }
+    ]
+  },
+  {
+    "model_id": "kling:kling-3-0",
+    "effective_from": "2026-11-23T00:00:00.000Z",
+    "estimate": {},
+    "source_url": "https://kling.ai/document-api/pricing/base/video",
+    "note": "Adds the price per Kling unit (D535).",
+    "lines": [
+      {
+        "meter": "video_second",
+        "unit_usd": 0.126,
+        "when": {
+          "resolution": "720p",
+          "audio": true
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.084,
+        "when": {
+          "resolution": "720p",
+          "audio": false
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.168,
+        "when": {
+          "resolution": "1080p",
+          "audio": true
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.112,
+        "when": {
+          "resolution": "1080p",
+          "audio": false
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.42,
+        "when": {
+          "resolution": "4k",
+          "audio": true
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.42,
+        "when": {
+          "resolution": "4k",
+          "audio": false
+        }
+      },
+      {
+        "meter": "provider_unit",
+        "unit_usd": 0.1508
+      }
+    ]
+  },
+  {
+    "model_id": "kling:kling-o1",
+    "effective_from": "2026-11-23T00:00:00.000Z",
+    "estimate": {},
+    "source_url": "https://kling.ai/document-api/pricing/base/video",
+    "note": "Adds the price per Kling unit (D535).",
+    "lines": [
+      {
+        "meter": "video_second",
+        "unit_usd": 0.112,
+        "when": {
+          "resolution": "720p",
+          "audio": true
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.112,
+        "when": {
+          "resolution": "720p",
+          "audio": false
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.112,
+        "when": {
+          "resolution": "1080p",
+          "audio": true
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.112,
+        "when": {
+          "resolution": "1080p",
+          "audio": false
+        }
+      },
+      {
+        "meter": "provider_unit",
+        "unit_usd": 0.1508
+      }
+    ]
+  },
+  {
+    "model_id": "kling:kling-3-0-omni",
+    "effective_from": "2026-11-23T00:00:00.000Z",
+    "estimate": {},
+    "source_url": "https://kling.ai/document-api/pricing/base/video",
+    "note": "Adds the price per Kling unit (D535).",
+    "lines": [
+      {
+        "meter": "video_second",
+        "unit_usd": 0.112,
+        "when": {
+          "resolution": "720p",
+          "audio": true
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.084,
+        "when": {
+          "resolution": "720p",
+          "audio": false
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.14,
+        "when": {
+          "resolution": "1080p",
+          "audio": true
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.112,
+        "when": {
+          "resolution": "1080p",
+          "audio": false
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.42,
+        "when": {
+          "resolution": "4k",
+          "audio": true
+        }
+      },
+      {
+        "meter": "video_second",
+        "unit_usd": 0.42,
+        "when": {
+          "resolution": "4k",
+          "audio": false
+        }
+      },
+      {
+        "meter": "provider_unit",
+        "unit_usd": 0.1508
+      }
+    ]
+  }
+]$seed$::jsonb) as r(
+  model_id text, effective_from timestamptz, lines jsonb, estimate jsonb, source_url text, note text
+)
+on conflict (model_id, effective_from) do nothing;

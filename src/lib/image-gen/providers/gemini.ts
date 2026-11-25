@@ -1,10 +1,6 @@
 import "server-only";
 import { createGemini } from "@/lib/gemini/server";
-import { buildZodFromParams } from "../schema-builder";
-import { gemini25FlashParams, geminiFlash2Params, geminiNanoBanana21Params, geminiProParams } from "../params/gemini";
-import type { ImageGenInput, ImageGenResult, MediaGenModelSpec } from "../types";
-
-export { gemini25FlashParams, geminiFlash2Params, geminiNanoBanana21Params, geminiProParams };
+import type { ImageGenInput, ImageGenResult } from "../types";
 
 // Params ref: https://ai.google.dev/gemini-api/docs/image-generation
 // Only imageConfig.aspectRatio and imageConfig.imageSize are supported via the
@@ -22,7 +18,7 @@ async function urlToInlineData(url: string): Promise<{ mimeType: string; data: s
 
 // ── Generate function ─────────────────────────────────────────────────────────
 
-async function generateWithGemini(
+export async function generateWithGemini(
   apiModelId: string,
   input: ImageGenInput,
 ): Promise<ImageGenResult> {
@@ -71,6 +67,8 @@ async function generateWithGemini(
   const outputTokens =
     usage?.candidatesTokensDetails?.find((d: { modality?: string }) => d.modality === "IMAGE")?.tokenCount ??
     usage?.candidatesTokenCount ?? 0;
+  // D551 — the rest of the output is text, and thinking is counted apart; both bill at the text rate.
+  const textOutputTokens = Math.max(0, (usage?.candidatesTokenCount ?? outputTokens) - outputTokens);
   return {
     imageBase64: imagePart.inlineData.data,
     mimeType: imagePart.inlineData.mimeType ?? "image/png",
@@ -79,6 +77,8 @@ async function generateWithGemini(
       image_input_tokens:  0,
       image_output_tokens: outputTokens,
       total_tokens:        usage?.totalTokenCount ?? (promptTokens + outputTokens),
+      text_output_tokens:  textOutputTokens,
+      thought_tokens:      usage?.thoughtsTokenCount ?? 0,
     },
   };
 }
@@ -86,7 +86,7 @@ async function generateWithGemini(
 // Nano Banana 2.1 is served through the Interactions API only, not generateContent
 // (https://ai.google.dev/gemini-api/docs/image-generation). Same contract as above: images
 // first, the prompt text last, one image back.
-async function generateWithGeminiInteractions(
+export async function generateWithGeminiInteractions(
   apiModelId: string,
   input: ImageGenInput,
 ): Promise<ImageGenResult> {
@@ -134,51 +134,9 @@ async function generateWithGeminiInteractions(
       image_input_tokens:  0,
       image_output_tokens: outputTokens,
       total_tokens:        usage?.total_tokens ?? (inputTokens + outputTokens),
+      // D551 — billed at the text rate, like the generateContent path above.
+      text_output_tokens:  Math.max(0, (usage?.total_output_tokens ?? outputTokens) - outputTokens),
+      thought_tokens:      usage?.total_thought_tokens ?? 0,
     },
   };
 }
-
-// ── Model configs ─────────────────────────────────────────────────────────────
-
-export const geminiModels: MediaGenModelSpec[] = [
-  {
-    id: "gemini:gemini-2.5-flash-image",
-    provider: "gemini", mediaType: "image",
-    label: "Nano Banana", providerLabel: "Gemini",
-    maxReferenceImages: 14, maxReferenceSizeBytes: 0,
-    maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
-    params: gemini25FlashParams,
-    schema: buildZodFromParams(gemini25FlashParams),
-    generate: (input) => generateWithGemini("gemini-2.5-flash-image", input),
-  },
-  {
-    id: "gemini:gemini-3.1-flash-image",
-    provider: "gemini", mediaType: "image",
-    label: "Nano Banana 2", providerLabel: "Gemini",
-    maxReferenceImages: 14, maxReferenceSizeBytes: 0,
-    maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
-    params: geminiFlash2Params,
-    schema: buildZodFromParams(geminiFlash2Params),
-    generate: (input) => generateWithGemini("gemini-3.1-flash-image", input),
-  },
-  {
-    id: "gemini:gemini-nano-banana-2.1",
-    provider: "gemini", mediaType: "image",
-    label: "Nano Banana 2.1", providerLabel: "Gemini",
-    maxReferenceImages: 14, maxReferenceSizeBytes: 0,
-    maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
-    params: geminiNanoBanana21Params,
-    schema: buildZodFromParams(geminiNanoBanana21Params),
-    generate: (input) => generateWithGeminiInteractions("gemini-nano-banana-2.1", input),
-  },
-  {
-    id: "gemini:gemini-3-pro-image",
-    provider: "gemini", mediaType: "image",
-    label: "Nano Banana Pro", providerLabel: "Gemini",
-    maxReferenceImages: 14, maxReferenceSizeBytes: 0,
-    maxTotalReferenceSizeBytes: 100 * 1024 * 1024,
-    params: geminiProParams,
-    schema: buildZodFromParams(geminiProParams),
-    generate: (input) => generateWithGemini("gemini-3-pro-image", input),
-  },
-];

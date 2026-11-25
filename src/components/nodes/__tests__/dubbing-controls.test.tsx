@@ -7,7 +7,36 @@ import { ALL_CLIENT_PERMISSIONS } from "@/lib/permissions/model";
 import { DubbingControls } from "../dubbing-controls";
 import { DubbingDubPanel } from "../dubbing-dub-panel";
 import { DubbingLipSyncPanel } from "../dubbing-lip-sync-panel";
-import { dubCredits, lipSyncCredits } from "@/lib/dubbing/cost";
+import { dubUsd, lipSyncUsd } from "@/lib/ai-models/service-price";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { DUB_MODEL_ID, LIP_SYNC_MODEL_ID } from "@/lib/ai-models/service-models";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededSettingsRow } from "@/lib/ai-models/test-catalog";
+
+const dubCredits = (s: number) => creditsFromUsd(dubUsd(seededPrice(DUB_MODEL_ID), s)!, seededSettingsRow());
+const lipSyncCredits = (s: number) => creditsFromUsd(lipSyncUsd(seededPrice(LIP_SYNC_MODEL_ID), s)!, seededSettingsRow());
+// D558 - the panels price from the price row; this stands in for the catalog read.
+const priceState = vi.hoisted(() => ({ loading: false, missing: false, error: false }));
+vi.mock("@/hooks/queries/ai-models", async () => {
+  const { seededPrice } = await import("@/lib/ai-models/test-prices");
+  const { seededSettingsRow } = await import("@/lib/ai-models/test-catalog");
+  return {
+    // D571 - the live credit settings row comes from the same catalog read.
+    useCreditSettings: () => (priceState.loading || priceState.error ? null : seededSettingsRow()),
+    useModelPrice: (modelId: string) => ({
+      price: priceState.loading || priceState.missing || priceState.error ? null : seededPrice(modelId),
+      loading: priceState.loading,
+      error: priceState.error,
+    }),
+  };
+});
+// The reason lives in a closed tooltip, which static markup does not render: read it off the wrapper.
+vi.mock("../disabled-reason", () => ({
+  DisabledReason: ({ reason, children }: { reason: string | null; children: React.ReactNode }) => <span data-reason={reason ?? ""}>{children}</span>,
+}));
+const reasonOf = (html: string) => /data-reason="([^"]*)"/.exec(html)?.[1].replace(/&#x27;/g, "'") ?? null;
+// Dub and Lip sync are GatedButtons: their reason is also in the markup, as sr-only text ("" = none).
+const gatedReasonOf = (html: string) => /<span class="sr-only">([^<]*)<\/span>/.exec(html)?.[1].replace(/&#x27;/g, "'") ?? "";
 
 // Dub and Lip sync are gated on Generate (spec §5); every render is the owner's.
 const renderGated = (el: ReactElement) => renderToStaticMarkup(
@@ -96,6 +125,49 @@ describe("Dub tab", () => {
     expect(find(dubPanel({ hasSource: false }), /^Dub/)?.disabled).toBe(true);
     expect(find(dubPanel({ running: "dub" }), /Dubbing…/)?.disabled).toBe(true);
     expect(find(dubPanel({ editable: false }), /^Dub/)?.disabled).toBe(true);
+  });
+});
+
+describe("waiting for the price (D558)", () => {
+  it("shows a spinner and keeps Dub and Lip sync disabled while the price loads", () => {
+    priceState.loading = true;
+    try {
+      const d = dubPanel();
+      expect(d).toContain("animate-spin");
+      expect(d).not.toContain("Est.");
+      expect(find(d, /^Dub/)?.disabled).toBe(true);
+      const l = lipPanel();
+      expect(l).toContain("animate-spin");
+      expect(find(l, /^Lip sync/)?.disabled).toBe(true);
+    } finally { priceState.loading = false; }
+  });
+
+  it("keeps both disabled when the model has no price, and says so", () => {
+    priceState.missing = true;
+    try {
+      expect(find(dubPanel(), /^Dub/)?.disabled).toBe(true);
+      expect(find(lipPanel(), /^Lip sync/)?.disabled).toBe(true);
+      expect(gatedReasonOf(dubPanel())).toBe("No price set for this model");
+      expect(gatedReasonOf(lipPanel())).toBe("No price set for this model");
+    } finally { priceState.missing = false; }
+  });
+
+  it("says the price could not be loaded when the catalog read failed, keeping both disabled", () => {
+    priceState.error = true;
+    try {
+      expect(find(dubPanel(), /^Dub/)?.disabled).toBe(true);
+      expect(find(lipPanel(), /^Lip sync/)?.disabled).toBe(true);
+      expect(gatedReasonOf(dubPanel())).toBe("Couldn't load the price. Try again.");
+      expect(gatedReasonOf(lipPanel())).toBe("Couldn't load the price. Try again.");
+    } finally { priceState.error = false; }
+  });
+
+  it("gives no price reason while the price loads", () => {
+    priceState.loading = true;
+    try {
+      expect(gatedReasonOf(dubPanel())).toBe("");
+      expect(gatedReasonOf(lipPanel())).toBe("");
+    } finally { priceState.loading = false; }
   });
 });
 

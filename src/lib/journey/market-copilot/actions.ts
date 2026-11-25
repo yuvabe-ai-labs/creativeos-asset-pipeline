@@ -27,7 +27,10 @@ export function marketActions(input: {
   const { client, userId } = input;
   return {
     findBrands: (focus) =>
-      findBrands({ clientName: client.name, kbText: input.kbText, ownHandle: input.ownHandle, focus, known: knownHandles(input.history) }),
+      findBrands(
+        { clientName: client.name, kbText: input.kbText, ownHandle: input.ownHandle, focus, known: knownHandles(input.history) },
+        { recordFor: { orgId: client.org_id, clientId: client.id, userId } },
+      ),
     updateBrands: async (messageId, card) => (await claimCopilotCard(client.id, messageId, "brands", "pending", card)) !== null,
     startFetch: async (messageId, card) => {
       const result = await confirmBrands({ client, userId, messageId, card });

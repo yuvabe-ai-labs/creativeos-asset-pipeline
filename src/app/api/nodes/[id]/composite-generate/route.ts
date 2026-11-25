@@ -1,5 +1,6 @@
-import { imageGenRegistry } from "@/lib/image-gen/registry";
-import { isImageModelDeprecated, IMAGE_MODEL_DEPRECATED_MESSAGE } from "@/lib/image-gen/client-models";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { nodeModelId, INVALID_PARAMS_MESSAGE, CATALOG_LOAD_FAILED_MESSAGE } from "@/lib/ai-models/runnable";
+import { imageRun } from "@/lib/image-gen/image-run";
 import { getStoryboardVersionInputs, getVersionById } from "@/lib/db/versions";
 import { STORYBOARD_PROMPT_ID, drawsAsSketch } from "@/lib/scripts/script-composites";
 import type { EditIntent } from "@/lib/image-gen/edit-prompt";
@@ -55,7 +56,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       typeof body?.instruction === "string" ? body.instruction : typeof stored === "string" ? stored : "";
     if (!rawInstruction.trim()) return apiError("Say what to make — the instruction is empty.", 400);
 
-    const inputs = await loadCompositeInputs(nodeId, clientId);
+    // The catalog read doesn't depend on the inputs: side by side.
+    const [inputs, catalog] = await Promise.all([
+      loadCompositeInputs(nodeId, clientId),
+      getAiCatalog().catch((e) => {
+        console.error("[composite-generate] catalog read failed", e);
+        return null;
+      }),
+    ]);
+    if (!catalog) return apiError(CATALOG_LOAD_FAILED_MESSAGE, 500);
     if (!inputs.ok) return apiError(inputs.error, 400);
     const { refs, avatarIds, contexts } = inputs;
 
@@ -66,16 +75,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // D312 — the operator's model, Seedream by default. A non-Seedream composite of an avatar
     // works with Gemini Omni, Kling and Veo but not Seedance; the picker says so.
     const modelId = resolveCompositeModelId(typeof body?.modelId === "string" ? body.modelId : undefined);
-    const config = imageGenRegistry[modelId];
-    if (!config) return apiError(`Unknown modelId: ${modelId}`, 400);
-    // D467 — a tab open from before the fallback can still send a deprecated model.
-    if (isImageModelDeprecated(modelId)) return apiError(IMAGE_MODEL_DEPRECATED_MESSAGE, 400);
+    // D563 — live runs; hidden only on the node that already uses it; anything else is refused.
+    const run = imageRun(catalog, modelId, { existingNodeModelId: nodeModelId(node.data) });
+    if (!run.ok) return apiError(run.message, 400);
+    const config = run.spec;
 
     const parsed = config.schema.safeParse(body?.params ?? {});
-    if (!parsed.success) return apiError(`Invalid params: ${parsed.error.message}`, 400);
+    if (!parsed.success) {
+      console.error("[composite-generate] invalid params", { modelId, issues: parsed.error.issues });
+      return apiError(INVALID_PARAMS_MESSAGE, 400);
+    }
     const validatedParams = parsed.data as Record<string, unknown>;
 
-    const run = { nodeId, clientId, orgId: effectiveOrgId, caller, modelId, config, params: validatedParams };
+    const compositeRun = { nodeId, clientId, orgId: effectiveOrgId, caller, modelId, config, params: validatedParams };
 
     // D312 — Edit: the composite's current picture is image 1; the ticked references and any the
     // instruction mentions follow it. Image Gen's per-intent template, plus the composite's
@@ -120,7 +132,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const prompt = withCompositeEditRules(brief, refs.some((r) => r.role === "avatar"));
       const referenceUrls = images.map((i) => i.url);
       return runCompositeGeneration({
-        ...run,
+        ...compositeRun,
         prompt,
         referenceUrls,
         mask,
@@ -157,7 +169,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const prompt = resolveCompositeMentions(rawInstruction, extras);
       const referenceUrls = images.map((i) => i.url);
       return runCompositeGeneration({
-        ...run,
+        ...compositeRun,
         prompt,
         referenceUrls,
         inputsUsed: {
@@ -183,7 +195,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     });
 
     return runCompositeGeneration({
-      ...run,
+      ...compositeRun,
       prompt,
       referenceUrls,
       inputsUsed: {

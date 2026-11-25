@@ -1,10 +1,14 @@
 import "server-only";
 import { insertVersion, setActiveVersion } from "@/lib/db/versions";
 import { getGeneration, succeedGeneration, failGeneration } from "@/lib/db/generations";
-import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
-import { settleGeneration, refundReservation } from "@/lib/db/credit-transactions";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { isTokenUsage, readVideoUsage, type VideoProviderUsage } from "@/lib/video-gen/provider-usage";
+import { pricingForGeneration, pricingForNewRun } from "@/lib/ai-models/run-price";
+import { voiceChangeCharge } from "@/lib/ai-models/service-price";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
+import { videoChargeUsd } from "@/lib/ai-models/video-price";
+import { settleGeneration, refundReservation, getReservationAmounts } from "@/lib/db/credit-transactions";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { uploadVideoGen, isOwnStoredUrl } from "@/lib/storage";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
@@ -12,7 +16,7 @@ import { readVideoEdit, plainVideoEditFailure } from "@/lib/video-edit/record";
 import { readVoiceChange } from "@/lib/voice-change/source";
 import { isVoicePreviewGeneration } from "@/lib/avatars/voice-preview";
 import { completeAvatarVoicePreview } from "@/lib/avatars/complete-voice-preview";
-import { computeImageCost } from "@/lib/image-gen/cost";
+import { imageChargeUsd } from "@/lib/ai-models/image-price";
 import { IMAGE_GENERATION_FAILED_MESSAGE, plainImageFailure } from "@/lib/image-gen/failure-copy";
 import type { ImageGenerationSucceeded } from "@/lib/image-gen/run-task";
 import { completeDubGeneration, completeLipSyncGeneration, dubbingCompleteDeps, type DubSucceeded, type LipSyncSucceeded } from "@/lib/dubbing/complete";
@@ -34,6 +38,21 @@ function videoFailureText(generation: GenerationRow, generationId: string, raw: 
   if (!readVideoEdit(generation.inputs_snapshot?.videoEdit)) return raw;
   console.error("[completeGeneration] video edit failed", { generationId, error: raw });
   return plainVideoEditFailure(raw);
+}
+
+// D557 — a finished paid run is never charged 0 because its price is missing: the provider has
+// billed us and the output is kept, so settle at what was reserved and record no dollar cost.
+export async function reservedAmountForUnpriced(
+  generationId: string,
+  generation: GenerationRow,
+  kind: "image" | "video" | "dub" | "lipsync" | "voice" | "transcribe" | "prompt",
+): Promise<number> {
+  console.error(`[completeGeneration] no price for a finished ${kind}; settled at the reserved amount`, {
+    generationId,
+    model: generation.model_used,
+  });
+  // No reservation row means nothing was reserved, so nothing is owed.
+  return (await getReservationAmounts([generationId])).get(generationId) ?? 0;
 }
 
 // D366 — an image arrives already stored (the task uploaded it through a signed URL).
@@ -67,14 +86,28 @@ async function completeImageGeneration(
     output: input.imageUrl,
   });
 
-  // A provider billed per image (Seedream) reports its exact charge; token-billed ones don't.
-  const cost =
-    input.costUsd !== undefined
-      ? { usd: input.costUsd }
-      : input.tokensUsed && generation.model_used
-        ? computeImageCost(generation.model_used, input.tokensUsed)
-        : null;
-  const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+  // D557 — priced with the row this run was reserved with: billed images (Seedream) or tokens.
+  const { price, catalog } = await pricingForGeneration(generation);
+  const charge = price
+    ? imageChargeUsd(price, { tokens: input.tokensUsed ?? null, billedImages: input.billedImages ?? null })
+    : null;
+  if (charge && charge.unpriced.length > 0) {
+    console.error(
+      `[completeGeneration] image ${input.generationId} (${generation.model_used}) has meters with no price: ${charge.unpriced.join(", ")}`,
+    );
+  }
+  // Partial pricing: the provider billed something but nothing priced, so charge the reservation, never 0.
+  const nothingPriced =
+    !!charge && charge.unpriced.length > 0 && charge.usd === 0 && Object.values(charge.meters).some((q) => (q ?? 0) > 0);
+  const cost = charge && !nothingPriced ? { usd: charge.usd } : null;
+  // A paid image with a missing price settles at what was reserved. A provider that reported
+  // neither tokens nor billed images still settles at 0 (unchanged). D571 — with the credit
+  // settings live when the run started.
+  const actualCredits = cost
+    ? creditsFromUsd(cost.usd, creditSettingsAt(catalog, new Date(generation.created_at)))
+    : price && !nothingPriced
+      ? 0
+      : await reservedAmountForUnpriced(input.generationId, generation, "image");
 
   // Settle before the image goes live: if settling throws, the row is still `running` and no
   // card shows an image the run never paid for.
@@ -86,6 +119,16 @@ async function completeImageGeneration(
     costUsd: cost?.usd,
     creditsCharged: actualCredits,
     tokensUsed: input.tokensUsed ? { ...input.tokensUsed } : null,
+    ...(charge && charge.unpriced.length > 0
+      ? {
+          providerBill: {
+            source: "provider_usage" as const,
+            meters: charge.meters,
+            unpriced: charge.unpriced,
+            ...(input.tokensUsed ? { raw: input.tokensUsed } : {}),
+          },
+        }
+      : {}),
     outputSnapshot: input.imageUrl,
   });
 }
@@ -99,6 +142,8 @@ export type VideoGenerationSucceeded = {
   /** D282 — `videoUrl` is already in our bucket (the task uploaded it); skip download/upload. */
   stored?: boolean;
   meta?: Record<string, unknown>;
+  /** D551 — the provider's own usage; read through readVideoUsage, never trusted as typed. */
+  usage?: VideoProviderUsage;
 };
 
 export type CompleteGenerationInput =
@@ -228,7 +273,7 @@ export async function completeGeneration(
       await failAndRefund(input.generationId, generation.org_id, `${input.kind} result for a ${generation.type} generation`);
       return;
     }
-    const deps = dubbingCompleteDeps(failAndRefund);
+    const deps = dubbingCompleteDeps(failAndRefund, reservedAmountForUnpriced);
     if (input.kind === "dub") await completeDubGeneration(nodeId, generation, input, deps);
     else await completeLipSyncGeneration(nodeId, generation, input, deps);
     return;
@@ -320,15 +365,50 @@ export async function completeGeneration(
   const audioEnabled = isVideoAudioEnabled(generation.params_snapshot?.audio);
   const resolution = asResolutionString(generation.params_snapshot?.resolution);
 
+  // D551/D557 — the provider's reported usage when it sent one, else the seconds, both priced
+  // with the row this run was reserved with. A voice change is ElevenLabs' work, priced by its voice.
+  const usage = voiceChange ? null : readVideoUsage(input.usage);
+  // D558 — the generation records the VIDEO's model, so a voice change's row is found by the
+  // ElevenLabs id; an older voice job (no recorded row) uses the row valid when it started.
+  // One catalog read either way; D571 takes the credit settings from it too.
+  const { price: rowPrice, catalog } = voiceChange
+    ? generation.model_price_id
+      ? await pricingForGeneration({ ...generation, model_used: VOICE_CHANGE_PRICE_MODEL_ID })
+      : await pricingForNewRun(VOICE_CHANGE_PRICE_MODEL_ID, new Date(generation.created_at))
+    : await pricingForGeneration(generation);
+  const price = voiceChange ? null : rowPrice;
+  const charge = price
+    ? videoChargeUsd(price, { usage, durationSeconds: input.durationSeconds, audioEnabled, resolution })
+    : null;
+  if (charge?.unpriced) {
+    console.error(
+      `[completeGeneration] video ${input.generationId} (${generation.model_used}) has meters with no price: ${charge.unpriced.join(", ")}`,
+    );
+  }
+  // D558 — a voice change is charged by the credits ElevenLabs reported (the last attempt's only:
+  // an earlier paid attempt that failed later is not counted), else by seconds x the voice's
+  // multiplier. The reported credits already reflect the voice's real charge, so the multiplier
+  // applies to the fallback alone.
+  const reported = Number((input.meta?.voiceChange as { characterCost?: unknown } | undefined)?.characterCost);
+  const voicePrice = voiceChange ? rowPrice : null;
+  const voiceCharge = voiceChange && voicePrice
+    ? voiceChangeCharge(voicePrice, {
+        characterCost: Number.isFinite(reported) && reported > 0 ? reported : null,
+        seconds: input.durationSeconds,
+        priceMultiplier: voiceChange.priceMultiplier,
+      })
+    : null;
   const cost = voiceChange
-    ? computeVoiceChangeCost(input.durationSeconds, voiceChange.priceMultiplier)
-    : generation.model_used
-      ? computeVideoCost(generation.model_used, input.durationSeconds, audioEnabled, resolution)
+    ? voiceCharge ? { usd: voiceCharge.usd } : null
+    : charge
+      ? { usd: charge.usd }
       : null;
-  // cost is only ever null when model_used is unset (shouldn't happen — every video
-  // generation records a model at insertGeneration) — an actual cost of 0 credits in that
-  // case, not a reason to skip settlement.
-  const actualCredits = cost ? usdToFinalCredits(cost.usd) : 0;
+  // D557 — a finished video is never charged 0 because its price is missing: the provider has
+  // billed us and the video is kept, so settle at what was reserved and record no dollar cost.
+  // D571 — with the credit settings live when the run started.
+  const actualCredits = cost
+    ? creditsFromUsd(cost.usd, creditSettingsAt(catalog, new Date(generation.created_at)))
+    : await reservedAmountForUnpriced(input.generationId, generation, voiceChange ? "voice" : "video");
 
   await settleGeneration({
     orgId: generation.org_id,
@@ -340,6 +420,18 @@ export async function completeGeneration(
     versionId: version.id,
     costUsd: cost?.usd,
     creditsCharged: actualCredits,
+    // tokens_used holds token usage only; Kling reports units, which live on the bill.
+    ...(isTokenUsage(usage) ? { tokensUsed: usage } : {}),
+    providerBill: voiceChange
+      ? voiceCharge?.bill ?? null
+      : charge
+        ? {
+            source: charge.source,
+            meters: charge.meters,
+            ...(charge.unpriced ? { unpriced: charge.unpriced } : {}),
+            ...(charge.source !== "request" && usage?.kind === "kling" && usage.raw ? { raw: usage.raw } : {}),
+          }
+        : null,
     outputSnapshot: storedVideoUrl,
     meta: input.meta,
   });

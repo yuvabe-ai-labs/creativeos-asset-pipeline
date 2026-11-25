@@ -1,6 +1,8 @@
-import { apiError, apiOk, withCanvas } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withBodyCanvas } from "@/lib/api/route-helpers";
 import { createOpenAI } from "@/lib/openai/server";
 import { buildCopilotContext } from "@/lib/copilot/context";
+import { copilotRecordFor } from "@/lib/copilot/record-for";
+import { openAiCost, recordAfterResponse } from "@/lib/generations/record-for";
 import { PLAYBOOKS, PLAYBOOK_NAMES } from "@/lib/copilot/playbooks";
 import { normalizeSlots } from "@/lib/copilot/runner";
 
@@ -207,12 +209,14 @@ export async function POST(req: Request) {
   const history = Array.isArray(body?.messages) ? body.messages : [];
   const canvasId = body?.canvasId;
   if (history.length === 0) return apiError("A 'messages' history is required.", 400);
-  if (!canvasId) return apiError("A 'canvasId' is required.", 400);
+  if (typeof canvasId !== "string" || !canvasId) return apiError("Open a canvas to use the copilot.", 400);
 
-  return withCanvas(req, Promise.resolve({ id: canvasId }), { need: "generate" }, async () => {
-    // Same grounding as the other calls (handles + @-referenced nodes spotlighted) — so
-    // "add a prompt like @PRM-A3F9" has the exact node in view.
-    const canvasContext = await buildCopilotContext(canvasId, body?.mentionedIds ?? []);
+  // Same grounding as the other calls (handles + @-referenced nodes spotlighted) — so
+  // "add a prompt like @PRM-A3F9" has the exact node in view.
+  // The canvas must be in the caller's org before anything of it is read (withBodyCanvas).
+  return withBodyCanvas(req, canvasId, { need: "generate" }, async (canvas, caller) => {
+    const recordFor = copilotRecordFor(canvas, caller);
+    const model = "gpt-4o-mini";
 
     // Elicitation fallback (runner spec §2.2): the client couldn't resolve a slot answer
     // itself (no @-mention, not "none"), so the model extracts the handle from free text.
@@ -222,9 +226,10 @@ export async function POST(req: Request) {
         : null;
 
     try {
+      const canvasContext = await buildCopilotContext(canvas.id, body?.mentionedIds ?? []);
       const openai = createOpenAI();
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model,
         tools,
         tool_choice: "auto", // the MODEL decides whether to call add_node
         messages: [
@@ -257,6 +262,9 @@ export async function POST(req: Request) {
           ...history,
         ],
       });
+
+      // D560 — paid once it answered, whether or not it asked for an action.
+      recordAfterResponse(openAiCost(recordFor, "copilot", model, completion.usage, "chat"));
 
       // The requested action lives in tool_calls, NOT in message.content. Arguments come
       // back as a JSON *string* the model wrote — parse it defensively.
@@ -351,7 +359,8 @@ export async function POST(req: Request) {
 
       return apiOk({ action: null });
     } catch (e) {
-      return apiError(e instanceof Error ? e.message : "Actions lookup failed.", 500);
+      console.error("[copilot/actions]", e instanceof Error ? e.message : e);
+      return apiError("The copilot couldn't work out what to do. Please try again.", 500);
     }
   });
 }

@@ -7,12 +7,13 @@ import { ScriptContextCard } from "@/components/scripts/script-context-card";
 import { ScriptSheetFrame } from "@/components/scripts/script-sheet-frame";
 import { usePickTake, useReopenScript, useSetVisualiseField } from "@/hooks/queries/visualise";
 import { ScriptEditProvider, type ScriptEdit } from "@/components/scripts/script-edit-context";
+import { useImageModels } from "@/hooks/queries/ai-models";
 import { errorMessage } from "@/lib/avatars/utils";
 import { formatRange, timeShots } from "@/lib/scripts/timeline";
 import { Label } from "@/components/ui/label";
 import { AvatarAdvancedSettings } from "@/components/avatars/avatar-advanced-settings";
 import { AvatarModelSelect } from "@/components/avatars/avatar-model-select";
-import { PANEL_MODEL_IDS } from "@/lib/scripts/visualise/constants";
+import { panelModelIds } from "@/lib/scripts/visualise/constants";
 import { BoardChips } from "./board-chips";
 import { GenerateAllDialog } from "./generate-all-dialog";
 import { PanelDialog } from "./panel-dialog";
@@ -43,6 +44,7 @@ export type VisualiseReview = {
 export function VisualiseView({ clientId, review }: { clientId: string; review?: VisualiseReview }) {
   const router = useRouter();
   const { data: { script, board }, panelModelId, setPanelModelId, draws, model } = useVisualiseBoardActions();
+  const images = useImageModels();
   const reopen = useReopenScript(clientId, script.id);
   const canReopen = useCan("approve", clientId);
   // Typing the script's text is an edit: it needs Generate (D538), like every other change by hand.
@@ -104,7 +106,7 @@ export function VisualiseView({ clientId, review }: { clientId: string; review?:
           settings={
             <AvatarAdvancedSettings className="max-w-sm">
               <Label htmlFor="panel-model" className="text-xs text-muted-foreground">Image model for panels</Label>
-              <AvatarModelSelect id="panel-model" value={panelModelId} onChange={setPanelModelId} modelIds={PANEL_MODEL_IDS} />
+              <AvatarModelSelect id="panel-model" value={panelModelId} onChange={setPanelModelId} modelIds={panelModelIds(images, null)} />
             </AvatarAdvancedSettings>
           }
           action={

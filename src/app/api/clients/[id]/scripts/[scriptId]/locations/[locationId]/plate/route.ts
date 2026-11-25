@@ -5,6 +5,7 @@ import { changeScriptAssets } from "@/lib/db/script-assets";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { runBilledImageGeneration } from "@/lib/image-gen/billed-run";
+import { ModelRefusedError } from "@/lib/ai-models/runnable";
 import { uploadScriptAsset } from "@/lib/storage";
 import { extForContentType } from "@/lib/storage/paths";
 import { isVisualiseStage } from "@/lib/scripts/visualise/cast";
@@ -73,6 +74,8 @@ export async function POST(req: Request, { params }: Ctx) {
         if (!url) throw new Error("The location could not be drawn.");
       } catch (e) {
         // Nothing was charged: the billed run refunded the reservation (D291).
+        // D563 — a refused model is refused before anything is recorded or reserved: a 400.
+        if (e instanceof ModelRefusedError) return apiError(e.message, 400);
         const capped = e instanceof CreditLimitError;
         return apiError(capped ? CREDIT_LIMIT_TOAST_MESSAGE : e instanceof Error ? e.message : "The location could not be drawn.", capped ? 402 : 502);
       }

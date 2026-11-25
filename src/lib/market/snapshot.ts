@@ -15,6 +15,8 @@ import {
 import { uploadMarketThumbnail } from "@/lib/storage";
 import { THUMBNAIL_SIZE_LIMIT } from "./constants";
 import { fetchProfileDetails } from "./apify";
+import type { RecordApifyCost } from "@/lib/asset-import/apify";
+import type { RecordFor } from "@/lib/generations/record-for";
 import { normalizeProfileItem } from "./performance";
 
 export type SnapshotResult =
@@ -24,14 +26,21 @@ export type SnapshotResult =
 export async function snapshotHandle(
   clientId: string,
   handle: string,
-  opts?: { fetchImpl?: typeof fetch },
+  // D560 — whom the Apify run's cost is recorded for, from what the caller already resolved. The
+  // route passes `record: recordAfterResponse`; the daily task keeps the default, which awaits it.
+  opts?: { fetchImpl?: typeof fetch; recordFor?: RecordFor; record?: RecordApifyCost },
 ): Promise<SnapshotResult> {
   const fetchImpl = opts?.fetchImpl ?? fetch;
 
   const token = process.env.APIFY_TOKEN;
   if (!token) throw new Error("Missing APIFY_TOKEN env var");
 
-  const item = await fetchProfileDetails(handle, { token, fetchImpl });
+  const item = await fetchProfileDetails(handle, {
+    token,
+    fetchImpl,
+    recordFor: opts?.recordFor,
+    record: opts?.record,
+  });
   if (!item) return { ok: false, reason: "no-data" };
 
   const { snapshot, posts } = normalizeProfileItem(item);

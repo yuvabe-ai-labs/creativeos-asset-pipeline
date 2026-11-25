@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { runSeededVideoModel } from "./run-seeded-model";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
@@ -190,7 +191,7 @@ describe("per-model settings builders", () => {
   });
 });
 
-describe("kling30.generate — poll flow", () => {
+describe("Kling 3.0 generate — poll flow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.useFakeTimers();
@@ -238,8 +239,7 @@ describe("kling30.generate — poll flow", () => {
       },
     );
 
-    const { kling30 } = await import("../providers/kling");
-    const resultPromise = kling30.generate({
+    const resultPromise = runSeededVideoModel("kling:kling-3-0", {
       prompt: "a cat walking",
       startFrameUrl: "https://x.test/start.png",
       referenceUrls: [],
@@ -258,6 +258,35 @@ describe("kling30.generate — poll flow", () => {
     const [createCall, pollCall] = apiCalls();
     expect(createCall[0]).toBe("https://api-singapore.klingai.com/image-to-video/kling-3.0");
     expect(pollCall[0]).toBe("https://api-singapore.klingai.com/tasks?task_ids=task123");
+  });
+
+  const succeededWith = (extra: Record<string, unknown>) => {
+    mockKlingApi(
+      { ok: true, json: async () => ({ code: 0, message: "", data: { id: "task123", status: "submitted" } }) },
+      {
+        ok: true,
+        json: async () => ({
+          code: 0,
+          message: "",
+          data: [{ id: "task123", status: "succeeded", outputs: [{ type: "video", url: "https://cdn.test/video.mp4", duration: "8" }], ...extra }],
+        }),
+      },
+    );
+  };
+
+  it("returns the units Kling billed for the task", async () => {
+    succeededWith({ billing: [{ charge_type: "unit", amount: "6.4", package_type: "video" }] });
+    const p = runSeededVideoModel("kling:kling-3-0", { prompt: "p", startFrameUrl: "https://x.test/s.png", referenceUrls: [], params: { resolution: "720p", duration: "8" } });
+    await vi.advanceTimersByTimeAsync(5000);
+    const result = await p;
+    expect(result.usage).toEqual({ kind: "kling", units: 6.4, raw: [{ charge_type: "unit", amount: "6.4", package_type: "video" }] });
+  });
+
+  it("returns no usage when the task reports no billing", async () => {
+    succeededWith({});
+    const p = runSeededVideoModel("kling:kling-3-0", { prompt: "p", startFrameUrl: "https://x.test/s.png", referenceUrls: [], params: { resolution: "720p", duration: "8" } });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect("usage" in (await p)).toBe(false);
   });
 
   it("throws with the failure message when task status is failed", async () => {
@@ -280,8 +309,7 @@ describe("kling30.generate — poll flow", () => {
       },
     );
 
-    const { kling30 } = await import("../providers/kling");
-    const resultPromise = kling30.generate({
+    const resultPromise = runSeededVideoModel("kling:kling-3-0", {
       prompt: "a cat walking",
       startFrameUrl: "https://x.test/start.png",
       referenceUrls: [],
@@ -294,9 +322,8 @@ describe("kling30.generate — poll flow", () => {
   });
 
   it("throws immediately when no start frame is provided", async () => {
-    const { kling30 } = await import("../providers/kling");
     await expect(
-      kling30.generate({ prompt: "a cat walking", referenceUrls: [], params: {} }),
+      runSeededVideoModel("kling:kling-3-0", { prompt: "a cat walking", referenceUrls: [], params: {} }),
     ).rejects.toThrow("requires a start frame");
   });
 });
@@ -357,15 +384,13 @@ describe("reference images are omni-only", () => {
   }
 
   it("kling30 drops referenceUrls", async () => {
-    const { kling30 } = await import("../providers/kling");
-    const body = await capturePayload(kling30.generate);
+    const body = await capturePayload((input) => runSeededVideoModel("kling:kling-3-0", input));
     expect(body.contents.some((c) => c.type === "refer_image")).toBe(false);
     expect(body.contents.some((c) => c.type === "first_frame")).toBe(true);
   });
 
   it("klingO1 forwards referenceUrls as refer_image alongside the first frame", async () => {
-    const { klingO1 } = await import("../providers/kling");
-    const body = await capturePayload(klingO1.generate);
+    const body = await capturePayload((input) => runSeededVideoModel("kling:kling-o1", input));
     expect(body.contents.filter((c) => c.type === "refer_image")).toHaveLength(2);
     expect(body.contents.some((c) => c.type === "first_frame")).toBe(true);
   });

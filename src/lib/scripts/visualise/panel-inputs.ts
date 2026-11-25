@@ -1,5 +1,6 @@
-import { imageGenClientModelMap } from "@/lib/image-gen/client-models";
+import type { ImageModels } from "@/lib/ai-models/model-lists";
 import { AVATAR_VIEWS } from "@/lib/avatars/constants";
+import type { AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
 import { estimateAvatarImageCredits } from "@/lib/avatars/generation";
 import { hasFourViews } from "@/lib/avatars/utils";
 import type { Avatar } from "@/lib/avatars/schema";
@@ -19,8 +20,8 @@ export function castReadyForPanels(avatar: Avatar | null | undefined): avatar is
 }
 
 /** The model's reference limit, less the one slot the house style image takes. */
-export function panelReferenceCap(modelId: string = PANEL_MODEL_ID): number {
-  return Math.max(0, (imageGenClientModelMap[modelId]?.maxReferenceImages ?? 0) - 1);
+export function panelReferenceCap(images: ImageModels, modelId: string = PANEL_MODEL_ID): number {
+  return Math.max(0, (images.get(modelId)?.maxReferenceImages ?? 0) - 1);
 }
 
 /** Cut at the model's cap, in priority order: every person's Front, then (D449) the shot's location
@@ -108,6 +109,13 @@ export function panelInputs(input: {
 
 /** D346 — a panel bills like any image: the same estimate the draw reserves. `referenceCount`
  *  is the people's views; the house style image the draw adds is counted here too. */
-export function estimatePanelCredits(referenceCount: number, aspect: string, modelId: string = PANEL_MODEL_ID): number | null {
-  return estimateAvatarImageCredits({ modelId, aspect, referenceCount: referenceCount + 1 });
+export function estimatePanelCredits(
+  images: ImageModels,
+  price: AiModelPrice | null,
+  referenceCount: number,
+  aspect: string,
+  settings: CreditSettings | null,
+  modelId: string = PANEL_MODEL_ID,
+): number | null {
+  return estimateAvatarImageCredits(images, price, { modelId, aspect, referenceCount: referenceCount + 1 }, settings);
 }

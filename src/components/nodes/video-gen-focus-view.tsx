@@ -42,12 +42,6 @@ import { GenerationErrorBadge } from "./generation-error-badge";
 import { normalizeTitle } from "@/lib/nodes/title";
 import { Button } from "@/components/ui/button";
 import {
-  DEFAULT_VIDEO_CLIENT_MODEL_ID,
-  defaultsForVideoModel,
-  videoGenClientModelMap,
-  isVideoModelDeprecated,
-} from "@/lib/video-gen/client-models";
-import {
   multishotCapabilityFor,
   multishotModelsSharingPlan,
   multishotRestrictionReason,
@@ -70,8 +64,12 @@ import {
 import { videoGenApi } from "@/lib/video-gen/api";
 import { VideoGenApiError } from "@/lib/video-gen/api";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
-import { computeVideoCost, isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
+import { videoEstimateUsd } from "@/lib/ai-models/video-price";
+import { useCreditSettings, useModelPrice, useVideoModels } from "@/hooks/queries/ai-models";
+import { paramDefaults, type VideoModels } from "@/lib/ai-models/model-lists";
+import { RetiredModelNotice } from "@/components/models/retired-model-notice";
+import { creditsFromUsd } from "@/lib/credits/units";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useCanvasPermissions } from "@/components/permissions/client-permissions";
@@ -238,6 +236,7 @@ function applyDefaultImageRoles(
  * into a render.
  */
 function migrateVideoModelState({
+  videos,
   nextModelId,
   previousModelId,
   currentParams,
@@ -245,6 +244,7 @@ function migrateVideoModelState({
   upstreamImages,
   derivedDuration,
 }: {
+  videos: VideoModels;
   nextModelId: string;
   /** D486 — the model being left, so a same-provider switch keeps free text (smartMergeVideoParams). */
   previousModelId: string;
@@ -262,10 +262,10 @@ function migrateVideoModelState({
   imageRoles: Record<string, ImageRole>;
   durationIsDerived: boolean;
 } {
-  const nextModel = videoGenClientModelMap[nextModelId];
+  const nextModel = videos.get(nextModelId);
   const defaults = nextModel
-    ? smartMergeVideoParams(currentParams, nextModel, previousModelId)
-    : defaultsForVideoModel(nextModelId);
+    ? smartMergeVideoParams(currentParams, nextModel, videos.get(previousModelId))
+    : {};
 
   // D216 — a multi-beat shot's motion prompt is a timecode ladder; the request's duration should
   // agree with it by default. Gated to the Omni provider — its duration param is the 3–10 slider
@@ -332,6 +332,8 @@ type Props = {
   imageRoles: Record<string, ImageRole>;
   voiceChange?: VoiceChangeNodeState;
   videoEdit?: VideoEditNodeState;
+  /** D567 — the retired model this node was moved off when the canvas opened. */
+  retiredModelId?: string;
   onPatch: (patch: Record<string, unknown>) => void;
 };
 
@@ -545,13 +547,15 @@ export function VideoGenFocusView({
   imageRoles: imageRolesProp,
   voiceChange: voiceChangeProp,
   videoEdit: videoEditProp,
+  retiredModelId,
   onPatch,
 }: Props) {
-  const initialModelId = modelIdProp ?? DEFAULT_VIDEO_CLIENT_MODEL_ID;
+  const videos = useVideoModels();
+  const initialModelId = modelIdProp ?? videos.defaultId;
 
   const [modelId, setModelId] = useState(initialModelId);
   const [params, setParams] = useState<Record<string, unknown>>(
-    () => paramsProp ?? defaultsForVideoModel(initialModelId),
+    () => paramsProp ?? paramDefaults(videos.specOrDefault(initialModelId).params),
   );
   // What this node is fed, from the shared cache: a reopen (or a hover before it) shows the last
   // known inputs at once. Shown only — every write and Generate wait for `loadingConnected` to
@@ -839,7 +843,7 @@ export function VideoGenFocusView({
   // model change runs. Patching `modelId` alone left the params behind: an Omni node at
   // `resolution: "360p"` (Omni's draft tier) coerced to Kling — 720p/1080p/4k only — kept the
   // 360p, rendered a select holding an unlisted value, left Generate enabled, and posted it. The
-  // route then rebuilt params from Kling's specs, took "360p" from the body, `computeVideoCost`
+  // route then rebuilt params from Kling's specs, took "360p" from the body, the price lookup
   // returned null, and the request died as a 500 AFTER inserting a generation row.
   //
   // D486 — "the model" is any model that reads the plan as written (Omni 1.1 and 1.2 share one), so
@@ -861,6 +865,7 @@ export function VideoGenFocusView({
     modelId !== multishotTargetModel
   ) {
     const migrated = migrateVideoModelState({
+      videos,
       nextModelId: multishotTargetModel,
       previousModelId: modelId,
       currentParams: params,
@@ -1048,6 +1053,7 @@ export function VideoGenFocusView({
     // smartMergeVideoParams then carries it forward untouched, which is exactly what keeps an
     // operator's own edit from ever being overwritten.
     const migrated = migrateVideoModelState({
+      videos,
       nextModelId,
       previousModelId: modelId,
       currentParams: params,
@@ -1063,6 +1069,7 @@ export function VideoGenFocusView({
       modelId: nextModelId,
       params: migrated.params,
       imageRoles: migrated.imageRoles,
+      retiredModelId: undefined,
     });
   }
 
@@ -1264,10 +1271,11 @@ export function VideoGenFocusView({
     const toastId = toast.loading("Restoring version…");
     try {
       const { output, modelUsed, paramsUsed, edited } = await videoGenApi.restoreVersion(nodeId, versionId);
-      // D461 — a version made on a deprecated model brings back its video, not its model.
+      // D461/D565 — a version made on a model no longer offered (retired, or hidden and not this
+      // node's own) brings back its video, not its model.
       // D483 — so does an edited version: Omni and a defaulted resolution are not the node's settings.
-      const restoredParams = !edited && modelUsed && !isVideoModelDeprecated(modelUsed)
-        ? paramsForRestore(videoGenClientModelMap[modelUsed]?.params, paramsUsed)
+      const restoredParams = !edited && modelUsed && videos.isOffered(modelUsed, modelId)
+        ? paramsForRestore(videos.get(modelUsed)!.params, paramsUsed)
         : null;
       if (modelUsed && restoredParams) {
         setModelId(modelUsed);
@@ -1275,7 +1283,12 @@ export function VideoGenFocusView({
         // D216 — a restored version is an authoritative recorded snapshot, not a fresh
         // derivation, so its duration is never labelled "derived from this shot".
         setDurationIsDerived(false);
-        onPatch({ parsed: output, modelId: modelUsed, params: restoredParams });
+        onPatch({
+          parsed: output,
+          modelId: modelUsed,
+          params: restoredParams,
+          ...(modelUsed !== modelId ? { retiredModelId: undefined } : {}),
+        });
       } else {
         onPatch({ parsed: output });
       }
@@ -1298,7 +1311,7 @@ export function VideoGenFocusView({
 
   // ── Derived state ──────────────────────────────────────────────────────────
 
-  const imageInputs = videoGenClientModelMap[modelId]?.imageInputs ?? {
+  const imageInputs = videos.get(modelId)?.imageInputs ?? {
     startFrame: true,
     endFrame: false,
     maxReferenceImages: 0,
@@ -1361,7 +1374,7 @@ export function VideoGenFocusView({
     }),
   ) as Record<string, ImageRole>;
 
-  const currentModel = videoGenClientModelMap[modelId];
+  const currentModel = videos.specOrDefault(modelId);
 
   // D428 — the reference cap for the frames actually set (Omni: fewer references with frames).
   // Everything that shows or enforces the cap reads this, the same number the route uses.
@@ -1450,8 +1463,14 @@ export function VideoGenFocusView({
   }
   const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
   const resolution = asResolutionString(effectiveParams.resolution);
-  const videoCostEstimate = computeVideoCost(modelId, durationSeconds, audioEnabled, resolution);
-  const estimatedCredits = videoCostEstimate ? usdToFinalCredits(videoCostEstimate.usd) : null;
+  // D551 — the same estimate the route reserves: Omni's images and thinking included.
+  // D557 — priced from the model's row in the session's catalog; a spinner until it arrives.
+  const { price: modelPrice, loading: priceLoading } = useModelPrice(modelId);
+  const videoCostEstimateUsd = modelPrice
+    ? videoEstimateUsd(modelPrice, { durationSeconds, audioEnabled, resolution, images: Object.keys(effectiveImageRoles).length })
+    : null;
+  const creditSettings = useCreditSettings();
+  const estimatedCredits = videoCostEstimateUsd === null || !creditSettings ? null : creditsFromUsd(videoCostEstimateUsd, creditSettings);
 
   // D236 — Video Gen's own disabled-Generate check for an illegal ladder. checkLadder's doc
   // comment (multishot-models.ts) has always claimed its reason "is shown verbatim on ... Video
@@ -1467,7 +1486,7 @@ export function VideoGenFocusView({
       ? checkLadder(upstreamMultishotCuts, multishotCapabilityFor(multishotTargetModel ?? effectiveMultishotModel))
       : null;
   // D299 — models the presenter's face rules out; a node already on one can't generate with it.
-  const presenterUnavailable = presenterAvatar ? unavailableModelsFor(presenterAvatar) : undefined;
+  const presenterUnavailable = presenterAvatar ? unavailableModelsFor(videos, presenterAvatar) : undefined;
   const presenterBlock = presenterUnavailable?.[modelId];
   const presenterNotes = presenterAvatar
     ? presenterVideoNotes({
@@ -1502,12 +1521,15 @@ export function VideoGenFocusView({
   const disableGenerate =
     Boolean(lockReason) ||
     loadingConnected ||
+    priceLoading ||
     Boolean(promptGap) ||
     constraints.disableGenerate || Boolean(ladderCheck && !ladderCheck.ok) || Boolean(presenterBlock) || Boolean(overCapReason);
   const disableGenerateReason = lockReason
     ? lockReason
     : loadingConnected
     ? "Loading connected inputs…"
+    : priceLoading
+    ? "Working out the cost…"
     : promptGap
     ? promptGap
     : constraints.disableGenerate
@@ -1879,6 +1901,7 @@ export function VideoGenFocusView({
                     locked={lockReason}
                     value={videoEditProp}
                     onChange={(next) => onPatch({ videoEdit: next })}
+                    nodeModelId={modelIdProp ?? null}
                     onStarted={() => {
                       videoRef.current?.pause();
                       setLastError(null);
@@ -1895,6 +1918,11 @@ export function VideoGenFocusView({
                   {/* Output settings share the model's card: resolution and duration are
                       properties OF the chosen model — its options, its locks — so a separate
                       "Output settings" heading split one decision across two places. */}
+                  <RetiredModelNotice
+                    className="-mb-7"
+                    retiredModelId={retiredModelId}
+                    onDismiss={() => onPatch({ retiredModelId: undefined })}
+                  />
                   <VideoGenModelPicker
                     modelId={modelId}
                     onModelChange={handleModelChange}
@@ -1954,7 +1982,7 @@ export function VideoGenFocusView({
                         here have nothing in this group. Collapsed rather than promoted to
                         primary because these are genuine fine-tunes next to resolution and
                         duration — the same call the Multishot Prompt view's look block makes. */}
-                    {hasParamsInGroup(modelId, "advanced") && (
+                    {hasParamsInGroup(videos.get(modelId), "advanced") && (
                       <Accordion className="mt-4 border-t border-border pt-3">
                         <AccordionItem value="advanced" className="border-none">
                           <AccordionTrigger className="py-0 hover:no-underline">
@@ -2024,6 +2052,9 @@ export function VideoGenFocusView({
                     disabled={isGenerating || disableGenerate || !editable || viewing.isViewingOther}
                     disabledReason={disableGenerate ? disableGenerateReason : null}
                     credits={estimatedCredits}
+                    // D551 — Omni's estimate counts the images sent, which are known only once
+                    // the connected inputs have loaded; a number before then reads too low.
+                    estimating={loadingConnected || priceLoading}
                     notice={
                       viewing.isViewingOther ? (
                         <ActiveOnlyNotice label={viewedLabel} />

@@ -30,6 +30,13 @@ describe("GenerateFooter", () => {
     expect(html).toMatch(/<button[^>]*disabled=""/);
   });
 
+  it("while the price loads: a disabled button with a spinner and no estimate", () => {
+    const html = render({ estimating: true, disabled: true, credits: null });
+    expect(html).toMatch(/<button[^>]*disabled=""/);
+    expect(html).toContain("animate-spin");
+    expect(text(html)).not.toContain("Est.");
+  });
+
   it("is disabled with the reason when generating is turned off for the person", () => {
     const html = render({}, { ...ALL_CLIENT_PERMISSIONS, generate: false });
     expect(html).toMatch(/<button[^>]*disabled=""/);

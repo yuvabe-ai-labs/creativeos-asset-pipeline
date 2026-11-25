@@ -2,6 +2,7 @@ import "server-only";
 import type OpenAI from "openai";
 import { z } from "zod";
 import { createOpenAI } from "@/lib/openai/server";
+import { openAiCost, recordAfterResponse, type RecordFor } from "@/lib/generations/record-for";
 import type { MarketBrand } from "@/lib/journey/thread/schema";
 import { marketBrandsSystem, marketBrandsUser } from "@/prompts/market-brands";
 import { MARKET_BRANDS_MODEL, MARKET_BRANDS_PER_GROUP } from "./constants";
@@ -57,7 +58,7 @@ function parseAnswer(text: string): z.infer<typeof answerSchema> {
 
 export async function findBrands(
   input: { clientName: string; kbText: string; ownHandle: string | null; focus: string | null; known: string[] },
-  deps: { openai?: Pick<OpenAI, "responses"> } = {},
+  deps: { openai?: Pick<OpenAI, "responses">; recordFor?: RecordFor } = {},
 ): Promise<MarketBrand[]> {
   const openai = deps.openai ?? createOpenAI();
   const res = await openai.responses.create({
@@ -68,6 +69,8 @@ export async function findBrands(
     ],
     tools: [{ type: "web_search" }],
   });
+  // D560: paid once it answered, whatever the answer turns out to be.
+  recordAfterResponse(openAiCost(deps.recordFor, "copilot", MARKET_BRANDS_MODEL, res.usage, "responses"));
   const exclude = new Set([input.ownHandle, ...input.known].flatMap((h) => (h ? [normalizeHandle(h) ?? h] : [])));
   return toBrands(parseAnswer(res.output_text ?? "").brands, exclude);
 }

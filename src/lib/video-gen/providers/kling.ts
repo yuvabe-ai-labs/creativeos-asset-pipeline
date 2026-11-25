@@ -1,7 +1,7 @@
 import "server-only";
+import { normalizeKlingBilling } from "../provider-usage";
 import { logger } from "@trigger.dev/sdk/v3";
-import type { VideoGenInput, VideoGenResult, VideoGenModelSpec } from "../types";
-import { kling30Params, klingO1Params, kling30OmniParams } from "../params/kling";
+import type { VideoGenInput, VideoGenResult } from "../types";
 import { fitKlingImages } from "./kling-images";
 import { generateKlingOnFal, type KlingFalModel } from "./kling-fal";
 
@@ -77,7 +77,7 @@ export function build3_0Settings(
 // O1 rejects every duration but 5 or 10 unless the request carries a `refer_image`:
 //   400 {"code":1201,"message":"Duration only supports 5 or 10 seconds when no refer_image is provided"}
 // D100 made buildKlingContents emit refer_image, so the wider range is now reachable in principle
-// — but klingO1Params still offers only 5/10 (a static spec cannot narrow itself back when the
+// — but O1's catalog params still offer only 5/10 (a static spec cannot narrow itself back when the
 // last reference is removed), so nothing upstream can ask for another value and the clamp holds.
 //
 // NOTE: the published /omni-video/kling-3.0-omni docs enumerate duration 3–15 with no such
@@ -86,9 +86,9 @@ export function build3_0Settings(
 // wins over the doc table here. Do not widen this list on the strength of that page alone;
 // widening it needs either an O1-specific doc or a real request that succeeds.
 //
-// klingO1Params no longer offers other values, but a node saved before that change still holds
+// O1's catalog params no longer offer other values, but a node saved before that change still holds
 // one and nothing re-validates persisted params on load, so clamp here too rather than ship a
-// guaranteed 400. Same shape as VALID_DURATIONS in veo.ts.
+// guaranteed 400.
 const O1_VALID_DURATIONS = [5, 10];
 
 // `original` retains a reference video's own soundtrack, and we never send a video — so a node
@@ -137,8 +137,8 @@ function buildOmniSettings(
     ...omniAspectRatioSetting(params, ctx.hasStartFrame),
     // Absent → false, matching multiShotParam's declared default. Kling's own server-side
     // default is TRUE, so omitting this field entirely (as this builder used to) silently
-    // opted every clip into multi-shot cuts — the exact thing params/kling.ts calls out as
-    // fighting the single continuous moment a product clip wants.
+    // opted every clip into multi-shot cuts — the exact thing the multi_shot param's own description
+    // calls out as fighting the single continuous moment a product clip wants.
     multi_shot: Boolean(params.multi_shot ?? false),
     audio: omniAudio(params.audio),
     resolution: String(params.resolution ?? "720p"),
@@ -219,6 +219,8 @@ type KlingTask = {
   status: "submitted" | "processing" | "succeeded" | "failed";
   message?: string;
   outputs?: KlingTaskOutput[];
+  /** D558 — what Kling deducted for the task: units for a resource package. */
+  billing?: unknown;
 };
 type KlingQueryResponse = { code: number; message: string; data: KlingTask[] };
 
@@ -301,9 +303,11 @@ async function pollKlingTask(taskId: string): Promise<VideoGenResult> {
     if (kTask?.status === "succeeded") {
       const video = kTask.outputs?.find((o) => o.type === "video");
       if (!video) throw new Error("Kling task succeeded but returned no video output");
+      const usage = normalizeKlingBilling(kTask.billing);
       return {
         videoUrl: video.url,
         durationSeconds: Number(video.duration ?? 0),
+        ...(usage ? { usage } : {}),
       };
     }
     if (kTask?.status === "failed") {
@@ -312,7 +316,7 @@ async function pollKlingTask(taskId: string): Promise<VideoGenResult> {
   }
 }
 
-type KlingEndpointConfig = {
+export type KlingEndpointConfig = {
   endpointPath: string;
   /** The same model on fal (D484). */
   falModel: KlingFalModel;
@@ -330,12 +334,12 @@ type KlingEndpointConfig = {
   requiresStartFrame: boolean;
 };
 
-type KlingSettingsBuilder = (
+export type KlingSettingsBuilder = (
   params: Record<string, unknown>,
   ctx: { hasStartFrame: boolean },
 ) => Record<string, unknown>;
 
-async function generateWithKling(
+export async function generateWithKling(
   config: KlingEndpointConfig,
   buildSettings: KlingSettingsBuilder,
   input: VideoGenInput,
@@ -346,7 +350,7 @@ async function generateWithKling(
     throw new Error("Kling image-to-video requires a start frame image");
   }
   // D101 — the omni endpoint animates from references alone, but not from nothing: with neither a
-  // start frame nor a reference there is no subject. Mirrors the client rule in client-models.ts
+  // start frame nor a reference there is no subject. Mirrors the client rule on the catalog row
   // so a caller that bypasses the UI gets a named error instead of a Kling 400 minutes later.
   if (!input.startFrameUrl && referenceUrls.length === 0) {
     throw new Error("Kling needs a start frame or at least one reference image");
@@ -392,93 +396,11 @@ async function generateWithKling(
   return pollKlingTask(taskId);
 }
 
-// D99: 3.0 and O1 cannot share one descriptor. Their reference mechanisms differ in kind —
-// 3.0's `element` is a pre-registered library resource addressed by `element_id`, while O1's
-// `refer_image` is a plain inline URL. One shared shape forced both to the lower bound.
-const KLING_30_IMAGE_INPUTS = {
-  startFrame: true,
-  endFrame: true,
-  maxReferenceImages: 0,
-} as const;
-
-// D100: 7-image omni budget less both frames, conservatively — the docs do not say whether
-// first_frame/last_frame count toward the 7. Must match the client copy in client-models.ts,
-// since the API route caps referenceUrls against this value.
-const KLING_O1_IMAGE_INPUTS = {
-  startFrame: true,
-  endFrame: true,
-  maxReferenceImages: 5,
-} as const;
-
-export const kling30: VideoGenModelSpec = {
-  id: "kling:kling-3-0",
-  provider: "kling",
-  label: "Kling 3.0",
-  providerLabel: "Kling",
-  maxDurationSeconds: 15,
-  imageInputs: KLING_30_IMAGE_INPUTS,
-  params: kling30Params,
-  generate: (input) =>
-    generateWithKling(
-      {
-        endpointPath: "/image-to-video/kling-3.0",
-        falModel: "kling-3-0",
-        supportsReferences: false,
-        requiresStartFrame: true,
-      },
-      build3_0Settings,
-      input,
-    ),
-};
-
-// D484 — on fal, O1 is 1080p only, silent and 5 or 10 s; klingO1Params follows fal. On the native
-// fallback the settings builder above still clamps duration to 5/10 and treats absent audio as off.
-export const klingO1: VideoGenModelSpec = {
-  id: "kling:kling-o1",
-  provider: "kling",
-  label: "Kling O1",
-  providerLabel: "Kling",
-  maxDurationSeconds: 10,
-  imageInputs: KLING_O1_IMAGE_INPUTS,
-  params: klingO1Params,
-  generate: (input) =>
-    generateWithKling(
-      {
-        endpointPath: "/omni-video/kling-o1",
-        falModel: "kling-o1",
-        supportsReferences: true,
-        requiresStartFrame: false,
-      },
-      buildO1Settings,
-      input,
-    ),
-};
-
-// Kling's flagship, and the second model that cuts between shots natively (D235/D236). A new
-// model entry on transport that already exists: the {contents, settings, options} envelope
-// generateWithKling sends is exactly what /omni-video/kling-3.0-omni documents, and
-// buildKlingContents already emits `refer_image` entries with the `image_N` ids the prompt's
-// @image_N handles bind to.
-//
-// Shares O1's image-input shape: same 7-image omni budget, same undocumented question about
-// whether the frames count toward it, so the same conservative 5.
-export const kling30Omni: VideoGenModelSpec = {
-  id: "kling:kling-3-0-omni",
-  provider: "kling",
-  label: "Kling 3.0 Omni",
-  providerLabel: "Kling",
-  maxDurationSeconds: 15,
-  imageInputs: KLING_O1_IMAGE_INPUTS,
-  params: kling30OmniParams,
-  generate: (input) =>
-    generateWithKling(
-      {
-        endpointPath: "/omni-video/kling-3.0-omni",
-        falModel: "kling-3-0-omni",
-        supportsReferences: true,
-        requiresStartFrame: false,
-      },
-      build30OmniSettings,
-      input,
-    ),
-};
+/** D561, D568 — a Kling model's endpoint. `vendorModel` is the row's provider_model_id; whether it
+ *  takes references is the row's imageInputs.maxReferenceImages.
+ *  Kling 3.0's image-to-video endpoint takes no references, so its row's maxReferenceImages must stay 0. */
+export function klingEndpoint(model: KlingFalModel, vendorModel: string, maxReferenceImages: number): KlingEndpointConfig {
+  const supportsReferences = maxReferenceImages > 0;
+  const family = model === "kling-3-0" ? "image-to-video" : "omni-video";
+  return { endpointPath: `/${family}/${vendorModel}`, falModel: model, supportsReferences, requiresStartFrame: !supportsReferences };
+}

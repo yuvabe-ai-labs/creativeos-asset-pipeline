@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
+const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+const nodeData = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
+});
 
 vi.mock("@/lib/dal", () => ({
   resolveCallerContext: vi.fn(async () => ({
@@ -30,7 +36,7 @@ vi.mock("@/lib/supabase/server", () => ({
                   canvas_id: "canvas-1",
                   type: "video-gen",
                   position: { x: 0, y: 0 },
-                  data: {},
+                  data: nodeData.value,
                   active_version_id: null,
                   created_at: "",
                   updated_at: "",
@@ -74,6 +80,9 @@ const GRAPH: Record<string, Row[]> = {
   // D450 — a single-shot clip: Shot -> Motion Prompt -> Video Gen, the script's product wired to the Shot.
   vg3: [{ nodeId: "vp3", type: "video-prompt", data: {}, activeOutput: "Hold on the pouch.", versionId: "v5" }],
   vp3: [{ nodeId: "sh", type: "shot", data: {}, activeOutput: null, versionId: null }],
+  // A Motion Prompt citing its composite, rendered in the Video Gen model's dialect.
+  vg4: [{ nodeId: "vp4", type: "video-prompt", data: {}, activeOutput: "She lifts @[Composite: comp.png](cmp).", versionId: "v6" }],
+  vp4: [{ nodeId: "cmp", type: "composite", data: {}, activeOutput: "https://img.example/comp.png", versionId: "v4" }],
   sh: [{
     nodeId: "pouch", type: "product", activeOutput: null, versionId: null,
     data: { scriptId: "s", productId: "pouch", name: "Chupps", images: [{ url: "https://img.example/p0.png" }, { url: "https://img.example/p1.png" }] },
@@ -100,7 +109,11 @@ describe("GET /api/nodes/[id]/upstream-images", () => {
   beforeAll(async () => {
     await import("./route");
   }, 60_000);
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cat.value = null;
+    nodeData.value = {};
+  });
 
   function makeRequest() {
     return new NextRequest("http://localhost/api/nodes/vg/upstream-images");
@@ -139,6 +152,32 @@ describe("GET /api/nodes/[id]/upstream-images", () => {
       expect.objectContaining({ id: "pouch:1", filename: "Chupps, angle 2", asset: { kind: "product", nodeId: "pouch", angle: 1 } }),
     ]);
     expect(json.promptNode).toMatchObject({ assetMainIds: ["pouch"], assetAngleIds: ["pouch:1"] });
+  });
+
+  // The dialect comes from the video row's provider, never a row of another kind with the same id.
+  it("renders the prompt in the video model's dialect, ignoring a non-video row with that id", async () => {
+    const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+    const { DEFAULT_VIDEO_MODEL_ID } = await import("@/lib/ai-models/default-models");
+    const seeded = seededModelCatalog();
+    const video = seeded.models.find((m) => m.id === DEFAULT_VIDEO_MODEL_ID && m.kind === "video")!;
+    cat.value = { ...seeded, models: [{ ...video, kind: "image", provider: "openai" }, ...seeded.models] };
+    const { GET } = await import("./route");
+    const res = await GET(new NextRequest("http://localhost/api/nodes/vg4/upstream-images"), { params: Promise.resolve({ id: "vg4" }) });
+    expect((await res.json()).promptNode.text).toBe("She lifts <IMAGE_REF_0>.");
+  });
+
+  // D567 — a node on a retired model reads as the browser opens it: on the replacement, while live.
+  it("renders the prompt in a retired model's live replacement's dialect", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    const { renderRefs } = await import("@/lib/nodes/ref-binding");
+    const { seedanceImageDialect } = await import("@/lib/nodes/prompt-token-dialect");
+    cat.value = withModel(seededModelCatalog(), "veo:veo-3.1", { status: "retired", replacedBy: "seedance:seedance-2-5" });
+    nodeData.value = { modelId: "veo:veo-3.1" };
+    const { GET } = await import("./route");
+    const res = await GET(new NextRequest("http://localhost/api/nodes/vg4/upstream-images"), { params: Promise.resolve({ id: "vg4" }) });
+    const expected = renderRefs("She lifts @[Composite: comp.png](cmp).", seedanceImageDialect(["cmp"])).text;
+    expect(expected).not.toBe("She lifts <IMAGE_REF_0>.");
+    expect((await res.json()).promptNode.text).toBe(expected);
   });
 
   it("surfaces a generated image wired into a Motion Prompt node", async () => {

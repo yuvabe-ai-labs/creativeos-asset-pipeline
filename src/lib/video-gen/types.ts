@@ -1,4 +1,5 @@
 import type { ParamSpec } from "@/lib/image-gen/types";
+import type { VideoProviderUsage } from "./provider-usage";
 
 export type { ParamSpec };
 
@@ -34,6 +35,8 @@ export type VideoGenInput = {
 export type VideoGenResult = {
   videoUrl: string;
   durationSeconds: number;
+  /** D551 — what the provider says it billed, when it says (Gemini Omni, Seedance). */
+  usage?: VideoProviderUsage;
 };
 
 // ── Constraint rule system (JSON-serializable, DB-ready) ──────────────────────
@@ -95,14 +98,16 @@ export type VideoGenModelSpec = {
   label: string;
   /** Short label for the compact model-picker chip; falls back to `label` when unset. */
   pickerLabel?: string;
-  /** D461 — not offered and can't generate; stays on the roster so its past versions still read. */
-  deprecated?: boolean;
   providerLabel: string;
   maxDurationSeconds: number;
   imageInputs: ImageInputCapabilities;
   params: ParamSpec[];
   rules?: ConstraintRule[];
-  generate: (input: VideoGenInput) => Promise<VideoGenResult>;
 };
 
-export type VideoGenClientModelSpec = Omit<VideoGenModelSpec, "generate">;
+export type VideoGenClientModelSpec = VideoGenModelSpec;
+
+/** D561 — what an adapter is given besides the request: the catalog's spec and the provider's
+ *  own name for the model (the row's provider_model_id). */
+export type VideoAdapterContext = { spec: VideoGenClientModelSpec; providerModelId: string };
+export type VideoAdapter = (input: VideoGenInput, ctx: VideoAdapterContext) => Promise<VideoGenResult>;

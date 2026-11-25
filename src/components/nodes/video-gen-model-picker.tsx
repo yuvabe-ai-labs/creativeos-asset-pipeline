@@ -5,11 +5,8 @@ import { Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  videoGenClientModelGroups,
-  modelPickerLabel,
-  videoGenClientModelMap,
-} from "@/lib/video-gen/client-models";
+import { modelPickerLabel } from "@/lib/ai-models/model-lists";
+import { useVideoModels } from "@/hooks/queries/ai-models";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 
@@ -32,6 +29,7 @@ export function VideoGenModelPicker({
   loading = false,
   unavailable,
   offeredModelIds,
+  ownModelId,
   children,
 }: {
   modelId: string;
@@ -69,18 +67,26 @@ export function VideoGenModelPicker({
   unavailable?: Record<string, string>;
   /** D483 — when set, only these models are offered (Edit runs on Omni only). */
   offeredModelIds?: readonly string[];
+  /**
+   * D563 — the model a hidden one is offered for, when it isn't `modelId` (Edit: the model the
+   * take was last edited with, else the node's). Absent: `modelId`.
+   */
+  ownModelId?: string | null;
   /** Settings that belong to the chosen model (resolution, duration) and share its card. */
   children?: ReactNode;
 }) {
+  const videos = useVideoModels();
   const editable = useCanvasEditable(); // D33: false when this session is read-only
 
   // Drop the models this node cannot use, and any provider group left with none.
   const offered = (id: string) =>
     (!lockedToModelIds || lockedToModelIds.includes(id)) && (!offeredModelIds || offeredModelIds.includes(id));
+  const own = ownModelId === undefined ? modelId : ownModelId;
   const shownGroups =
     !lockedToModelIds && !offeredModelIds
-      ? videoGenClientModelGroups
-      : videoGenClientModelGroups
+      ? videos.groups(own)
+      : videos
+          .groups(own)
           .map((g) => ({ ...g, models: g.models.filter((m) => offered(m.id)) }))
           .filter((g) => g.models.length > 0);
 
@@ -155,7 +161,7 @@ export function VideoGenModelPicker({
 
         {!loading && unavailable?.[modelId] && (
           <p className="mt-2 text-[0.7rem] text-destructive">
-            {modelPickerLabel(videoGenClientModelMap[modelId])} can&apos;t use this shot&apos;s avatar: {unavailable[modelId]}. Pick
+            {modelPickerLabel(videos.specOrDefault(modelId))} can&apos;t use this shot&apos;s avatar: {unavailable[modelId]}. Pick
             another model, or turn the avatar off in the prompt.
           </p>
         )}

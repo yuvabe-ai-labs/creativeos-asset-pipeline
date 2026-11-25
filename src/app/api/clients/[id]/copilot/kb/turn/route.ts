@@ -194,7 +194,7 @@ export async function POST(req: Request, { params }: Ctx) {
           let card: ChangeCard | BrandsCard | null = null;
           try {
             const result = await runKbTurn({
-              ctx: { ...ctx, market: marketWithThread(ctx.market, history) }, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL), trace: recorder,
+              ctx: { ...ctx, market: marketWithThread(ctx.market, history) }, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL, { orgId: client.org_id, clientId, userId, userEmail: caller.email }), trace: recorder,
               kb: version ? { versionId: version.id, output: version.output as unknown as TraceableBrandKB } : null,
               on: {
                 step: (line) => emit({ type: "step", text: line }),

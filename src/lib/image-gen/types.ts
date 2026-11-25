@@ -1,4 +1,5 @@
 import type { ZodTypeAny } from "zod";
+import type { BilledImages } from "@/lib/ai-models/image-price";
 
 export type ImageProvider = "openai" | "gemini" | "seedream";
 
@@ -7,6 +8,9 @@ export type ImageTokenUsage = {
   image_input_tokens: number;
   image_output_tokens: number;
   total_tokens: number;
+  /** D551 — Gemini only: the model's text output and its thinking, both billed at the text rate. */
+  text_output_tokens?: number;
+  thought_tokens?: number;
 };
 
 export type ImageGenInput = {
@@ -22,7 +26,8 @@ export type ImageGenResult = {
   imageBase64: string;       // raw bytes from provider, uploaded to Storage immediately
   mimeType: string;          // "image/png" | "image/jpeg" | "image/webp"
   tokensUsed: ImageTokenUsage;
-  costUsd?: number;          // exact per-image charge, for providers not billed by token (Seedream)
+  /** D557 — providers billed per image (Seedream) report what they billed; the price row prices it. */
+  billedImages?: BilledImages;
 };
 
 // ── Param manifest types ──────────────────────────────────────────────────────
@@ -50,13 +55,12 @@ export type ParamSpec = {
   description?: string;
 };
 
-// Server-side model config (includes generate function + derived Zod schema)
+// A model's spec as the app reads it: the catalog row's data plus the Zod schema derived from its params.
 export type MediaGenModelSpec = {
   id:                          string;
   provider:                    string;
   mediaType:                   MediaType;
   label:                       string;
-  deprecated?:                 boolean;   // D467 — not offered, can't generate; past versions still read it
   providerLabel:               string;
   maxReferenceImages:          number;
   maxReferenceSizeBytes:       number;
@@ -67,11 +71,12 @@ export type MediaGenModelSpec = {
   supportsMask?:               boolean;   // model accepts an alpha edit-mask (OpenAI images.edit)
   params:                      ParamSpec[];
   schema:                      ZodTypeAny;
-  generate:                    (input: ImageGenInput) => Promise<ImageGenResult>;
 };
 
-// Client-safe subset (no generate function)
-export type ClientModelSpec = Omit<MediaGenModelSpec, "generate">;
+// Client-safe alias; the spec carries no server-only members.
+export type ClientModelSpec = MediaGenModelSpec;
 
-// Legacy alias — keeps existing imports in registry.ts and API routes compiling
-export type ImageGenModelConfig = MediaGenModelSpec;
+/** D561 — what an adapter is given besides the request: the catalog's spec and the provider's
+ *  own name for the model (the row's provider_model_id). */
+export type ImageAdapterContext = { spec: ClientModelSpec; providerModelId: string };
+export type ImageAdapter = (input: ImageGenInput, ctx: ImageAdapterContext) => Promise<ImageGenResult>;

@@ -1,6 +1,6 @@
 import { task, logger, wait, AbortTaskRunError } from "@trigger.dev/sdk/v3";
 import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "@/lib/generations/post-webhook";
-import { PaidResultError, isFinalAttempt } from "@/lib/generations/task-failure";
+import { ModelUnavailableError, PaidResultError, isFinalAttempt } from "@/lib/generations/task-failure";
 
 // D366 — no automatic retry. A video provider bills the job when it is submitted, so a retry after a
 // failed or timed-out poll would pay for a second clip. The operator regenerates instead.
@@ -54,9 +54,10 @@ export const videoGenerateTask = task({
     }
 
     try {
-      const { videoGenRegistry } = await import("@/lib/video-gen/registry");
-      const config = videoGenRegistry[modelId];
-      if (!config) throw new Error(`Unknown video model: ${modelId}`);
+      // D564 — the model's row and adapter, from the catalog at run time. A missing one throws
+      // here; the catch below reports it as final (one attempt), which refunds.
+      const { videoGenerateForTask } = await import("@/lib/video-gen/video-run");
+      const generate = await videoGenerateForTask(modelId);
 
       logger.info("Starting video generation", {
         generationId,
@@ -68,7 +69,7 @@ export const videoGenerateTask = task({
         params: payload.params,
       });
 
-      const result = await config.generate({
+      const result = await generate({
         prompt: payload.prompt,
         startFrameUrl: payload.startFrameUrl,
         endFrameUrl: payload.endFrameUrl,
@@ -83,6 +84,8 @@ export const videoGenerateTask = task({
         modelId,
         videoUrl: result.videoUrl,
         durationSeconds: result.durationSeconds,
+        // D551 — so a run whose webhook fails can be completed by hand at what the provider billed.
+        usage: result.usage ?? null,
       });
 
       // The video EXISTS and has been billed: nothing from here may lead to a retry.
@@ -93,6 +96,8 @@ export const videoGenerateTask = task({
           status: "succeeded",
           videoUrl: result.videoUrl,
           durationSeconds: result.durationSeconds,
+          // D551 — the provider's own usage, so the charge follows what it billed.
+          ...(result.usage ? { usage: result.usage } : {}),
         });
       } catch (e) {
         // Name the URL, so a run lost to an unreachable webhook can be reconciled by hand.
@@ -119,7 +124,7 @@ export const videoGenerateTask = task({
       }
       // A paid result is never retried. Otherwise rethrow, so the run is marked failed with the
       // REAL reason (swallowing it made a failed generation show as a successful run).
-      if (e instanceof PaidResultError) throw new AbortTaskRunError(error);
+      if (e instanceof PaidResultError || e instanceof ModelUnavailableError) throw new AbortTaskRunError(error);
       throw e instanceof Error ? e : new Error(error);
     }
   },

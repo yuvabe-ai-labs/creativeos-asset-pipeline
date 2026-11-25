@@ -13,7 +13,15 @@ export class PaidResultError extends Error {
   }
 }
 
+/** A task's model lookup failed (no catalog row or no adapter). Final: a retry finds the same. */
+export class ModelUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ModelUnavailableError";
+  }
+}
+
 /** Whether this failure ends the run: report it as `failed`, and do not retry. */
 export function isFinalAttempt(attemptNumber: number, maxAttempts: number, error: unknown): boolean {
-  return error instanceof PaidResultError || attemptNumber >= maxAttempts;
+  return error instanceof PaidResultError || error instanceof ModelUnavailableError || attemptNumber >= maxAttempts;
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { ReferenceImageGrid, type GridImage } from "../reference-image-grid";
+import { useAiCatalog } from "@/hooks/queries/ai-models";
+import { catalogModelLabel } from "@/lib/ai-models/model-lists";
 import type { CanvasGenerationItem } from "@/app/api/canvas/[id]/generations/route";
 
 export type GeneratedSelectedImage = {
@@ -30,6 +32,7 @@ export function GenerationsImageBrowser({
 }: Props) {
   const [images, setImages] = useState<GridImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const catalog = useAiCatalog().data;
 
   useEffect(() => {
     if (!open) return;
@@ -47,7 +50,7 @@ export function GenerationsImageBrowser({
             id: item.id,
             imageUrl: item.imageUrl,
             filename: item.nodeName ?? "Image Gen",
-            subtitle: `${item.modelUsed ?? "unknown"} · ${new Date(item.createdAt).toLocaleDateString()}`,
+            subtitle: [catalogModelLabel(catalog, item.modelUsed), new Date(item.createdAt).toLocaleDateString()].filter(Boolean).join(" · "),
           }))
         );
         setLoading(false);
@@ -60,7 +63,7 @@ export function GenerationsImageBrowser({
 
     void load();
     return () => controller.abort();
-  }, [open, canvasId]);
+  }, [open, canvasId, catalog]);
 
   return (
     <ReferenceImageGrid

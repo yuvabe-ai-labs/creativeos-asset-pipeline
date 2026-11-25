@@ -3,6 +3,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { useVisualiseBoard, type BoardData } from "@/hooks/queries/visualise";
 import { usePanelDraws } from "@/hooks/use-panel-draws";
+import { useImageModels } from "@/hooks/queries/ai-models";
 import { useVisualiseModel } from "@/hooks/use-visualise-model";
 import { PANEL_MODEL_ID } from "@/lib/scripts/visualise/constants";
 import { ScriptAssetsProvider } from "@/components/scripts/script-assets-context";
@@ -25,7 +26,9 @@ const BoardContext = createContext<VisualiseBoardActions | null>(null);
 export function VisualiseBoardProvider({ clientId, initial, children }: { clientId: string; initial: BoardData; children: ReactNode }) {
   const query = useVisualiseBoard(clientId, initial.script.id, initial);
   const { script, board } = query.data;
-  const [panelModelId, setPanelModelId] = useState(PANEL_MODEL_ID);
+  const images = useImageModels();
+  // D566 — the panel default while it is live, else the catalog's.
+  const [panelModelId, setPanelModelId] = useState(() => images.liveOr(PANEL_MODEL_ID));
   const draws = usePanelDraws(clientId, script.id, panelModelId);
   const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt, panelModelId);
   const value = useMemo(

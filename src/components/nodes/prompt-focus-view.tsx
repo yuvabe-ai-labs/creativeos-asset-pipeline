@@ -37,7 +37,9 @@ import { FieldLabel } from "./field-label";
 import { GuidedNextButton } from "@/components/canvas/guided-next-button";
 import { SliceToggles } from "./slice-toggles";
 import { DEFAULT_INSTRUCTION } from "@/lib/nodes/prompt";
-import { estimatePromptCredits } from "@/lib/credits/prompt-estimate";
+import { useModelPrice } from "@/hooks/queries/ai-models";
+import { PROMPT_MODEL_ID, priceUnavailableReason } from "@/lib/ai-models/service-models";
+import { promptFlatCredits } from "@/lib/ai-models/service-price";
 import { isVisionAttachment } from "@/lib/nodes/compose-message";
 import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { GenerateFooter } from "./generate-footer";
@@ -127,7 +129,10 @@ export function PromptFocusView({
   // The @-mention list: the wired inputs plus the script's avatar while it is in this shot.
   const mentionUpstream = useMentionUpstream(nodeId, upstream);
   const params = useParams<{ id: string }>();
-  const estimatedCredits = estimatePromptCredits(upstream.filter(isVisionAttachment).length);
+  // D559 - the flat price comes from the catalog row; the button waits for it.
+  const { price: promptPrice, loading: promptPriceLoading, error: promptPriceError } = useModelPrice(PROMPT_MODEL_ID);
+  const estimatedCredits = promptPrice ? promptFlatCredits(promptPrice, upstream.filter(isVisionAttachment).length) : null;
+  const noPriceReason = priceUnavailableReason({ loading: promptPriceLoading, error: promptPriceError }, estimatedCredits !== null);
   const [draft, setDraft] = useState(output ?? "");
   // Local mirror of the instruction prop. The textarea is controlled by THIS, not
   // by the prop directly: the prop round-trips through zustand + React Flow's
@@ -782,9 +787,10 @@ export function PromptFocusView({
                     label={output ? "Re-generate" : "Generate prompt"}
                     busy={generating}
                     onClick={runGenerate}
-                    disabled={imageGenerateDisabled(generateBlocker, generating || viewing.isViewingOther, loadingPreview)}
-                    disabledReason={generateBlocker}
+                    disabled={imageGenerateDisabled(generateBlocker ?? noPriceReason, generating || viewing.isViewingOther, loadingPreview || promptPriceLoading)}
+                    disabledReason={generateBlocker ?? noPriceReason}
                     credits={estimatedCredits}
+                    estimating={promptPriceLoading}
                     notice={viewing.isViewingOther ? <ActiveOnlyNotice label={viewedLabel} /> : undefined}
                   />
                     </>

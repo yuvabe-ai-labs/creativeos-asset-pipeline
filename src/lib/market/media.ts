@@ -16,6 +16,7 @@ import "server-only";
 import type { ReferenceKind } from "./constants";
 import { ogImage } from "./thumbnail";
 import { fetchPostMedia, fetchYouTubeDownload } from "./apify";
+import type { RecordFor } from "@/lib/generations/record-for";
 
 export type MediaSource = {
   /** The file to download and re-host. */
@@ -62,7 +63,8 @@ export async function pinterestOriginal(
 
 export async function resolveMediaSource(
   item: { image_url: string; kind: ReferenceKind },
-  deps: { fetchImpl?: typeof fetch; token?: string } = {},
+  /** `recordFor` names whom a paid provider run is recorded for (D560); none records nothing. */
+  deps: { fetchImpl?: typeof fetch; token?: string; recordFor?: RecordFor } = {},
 ): Promise<MediaSource | null> {
   const fetchImpl = deps.fetchImpl ?? fetch;
 
@@ -83,7 +85,7 @@ export async function resolveMediaSource(
 
   if (item.kind === "instagram") {
     if (!deps.token) throw new Error("Missing APIFY_TOKEN env var");
-    const media = await fetchPostMedia(item.image_url, { token: deps.token, fetchImpl });
+    const media = await fetchPostMedia(item.image_url, { token: deps.token, fetchImpl, recordFor: deps.recordFor });
     if (!media) return null;
     // A reel archives as its video; a still post archives as its display image.
     // Either way displayUrl is the cover frame — and for Instagram that is the only
@@ -94,7 +96,7 @@ export async function resolveMediaSource(
 
   if (item.kind === "youtube") {
     if (!deps.token) throw new Error("Missing APIFY_TOKEN env var");
-    const url = await fetchYouTubeDownload(item.image_url, { token: deps.token, fetchImpl });
+    const url = await fetchYouTubeDownload(item.image_url, { token: deps.token, fetchImpl, recordFor: deps.recordFor });
     return url ? { url } : null;
   }
 

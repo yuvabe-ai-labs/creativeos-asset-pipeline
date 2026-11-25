@@ -52,7 +52,7 @@ export async function POST(req: Request, { params }: Ctx) {
           const src = avatars.get(c.id)?.front?.source;
           return { id: c.id, name: c.name, description: c.description, ...(src?.kind === "generated" && { look: src.prompt }) };
         }),
-      });
+      }, { recordFor: { orgId: client.org_id, clientId, scriptId } });
       const relatives = family.flatMap((f) => {
         const a = avatars.get(f.castId);
         return a?.front ? [{ avatarId: a.id, relation: f.relation.trim().slice(0, 40) || "relative" }] : [];

@@ -8,6 +8,8 @@ import {
   changeGenerateScript, changeVisualiseScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState,
 } from "@/lib/db/script-generate";
 import { getScript } from "@/lib/db/scripts";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
 import { setPanelPick } from "@/lib/db/script-panels";
 import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";
 import { boardFacts, resolvePicks } from "@/lib/scripts/visualise/board-facts";
@@ -60,14 +62,19 @@ export async function POST(req: Request, { params }: Ctx) {
         return apiError(SCRIPTS_LOCKED_MESSAGE, 409);
       }
 
-      const { userId } = caller;
+      const { userId, email } = caller;
+      // D560 — each model call's cost is recorded for this caller, after the response.
+      const recordFor = { orgId: client.org_id, clientId, userId, userEmail: email, scriptId };
       // A picture with no words is answered by code: nothing for the model to read (piece 5.1 §3.7).
       const pictureOnly = Boolean(picture && !text);
       // At Visualise the copilot is told the storyboard as it stands; read beside the history (rule 5).
       const [history, stored] = await Promise.all([
         pictureOnly ? [] : listScriptMessages(clientId, scriptId),
         atVisualise && !pictureOnly
-          ? getScript(clientId, scriptId).then(async (s) => (s ? { script: s, board: await loadVisualiseBoard(clientId, s) } : null))
+          ? Promise.all([
+              getScript(clientId, scriptId).then(async (s) => (s ? { script: s, board: await loadVisualiseBoard(clientId, s) } : null)),
+              getAiCatalog(),
+            ]).then(([found, catalog]) => (found ? { ...found, images: imageModelsFrom(catalog) } : null))
           : null,
       ]);
       const pictureCard = picture ? { kind: "picture" as const, ...picture } : null;
@@ -111,12 +118,12 @@ export async function POST(req: Request, { params }: Ctx) {
                   // Final review, Important 3 — a picture that came with the words is said, in code, so
                   // the copilot never asks for a picture it was just given. The saved message is as typed.
                   text: picture ? `[The person attached a picture, "${picture.name}", to ${pictured}; it is already on the board.] ${text}` : text,
-                  ...(atVisualise ? { stage: "visualise" as const, board: stored ? boardFacts(stored.script, stored.board, Date.now()) : undefined } : {}),
+                  ...(atVisualise ? { stage: "visualise" as const, board: stored ? boardFacts(stored.script, stored.board, stored.images, Date.now()) : undefined } : {}),
                 },
                 {
-                  call: structuredCaller(SCRIPT_WRITER_MODEL),
-                  quick: structuredCaller(SCRIPT_QUICK_MODEL),
-                  stream: streamingCaller(SCRIPT_WRITER_MODEL),
+                  call: structuredCaller(SCRIPT_WRITER_MODEL, { recordFor, recordType: "script" }),
+                  quick: structuredCaller(SCRIPT_QUICK_MODEL, { recordFor, recordType: "script" }),
+                  stream: streamingCaller(SCRIPT_WRITER_MODEL, { recordFor, recordType: "script" }),
                   onDraft: (draft) => emit({ type: "draft", draft }),
                   // D532 — research goes to the market research agent once the reply has gone (below).
                   onResearch: (question) => { research.push(question); },

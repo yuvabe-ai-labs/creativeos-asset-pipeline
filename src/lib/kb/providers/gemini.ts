@@ -1,6 +1,8 @@
 import "server-only";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { createGemini } from "@/lib/gemini/server";
+import { recordProviderCost } from "@/lib/generations/record-cost";
+import { geminiCost } from "@/lib/generations/record-for";
 import { listKBDocuments } from "@/lib/db/kb";
 import {
   TraceableBrandKBSchema,
@@ -36,7 +38,7 @@ async function fetchAsText(url: string, filename: string): Promise<string> {
 }
 
 export const geminiKBProvider: KBAnalysisProvider = {
-  async extractKB({ clientId, docIds, researchMarkdown }) {
+  async extractKB({ clientId, docIds, researchMarkdown, recordFor }) {
     const allDocs = await listKBDocuments(clientId);
     const docs = allDocs.filter((d) => docIds.includes(d.id));
 
@@ -75,6 +77,9 @@ export const geminiKBProvider: KBAnalysisProvider = {
         temperature: 0.5,
       },
     });
+    // D560 — runs in the KB build task, so the record is awaited; it never throws.
+    const cost = geminiCost(recordFor, "kb", geminiKbExtractPrompt.model, response.usageMetadata);
+    if (cost) await recordProviderCost(cost);
 
     const raw = response.text ?? "";
     if (!raw) throw new Error("Gemini KB extract returned no content.");
@@ -92,7 +97,7 @@ export const geminiKBProvider: KBAnalysisProvider = {
     };
   },
 
-  async researchWebsite(url) {
+  async researchWebsite(url, recordFor) {
     const ai = createGemini();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await (ai.models as any).generateContent({
@@ -103,6 +108,8 @@ export const geminiKBProvider: KBAnalysisProvider = {
         tools: [{ googleSearch: {} }],
       },
     });
+    const cost = geminiCost(recordFor, "kb", geminiWebsiteResearchPrompt.model, response.usageMetadata);
+    if (cost) await recordProviderCost(cost);
     const md = response.text?.trim();
     if (!md) throw new Error(`Website research returned no content for ${url}`);
     return md;

@@ -91,6 +91,16 @@ describe("runImageAnalysis", () => {
     vi.mocked(hasCopilotMessages).mockResolvedValue(true);
   });
 
+  // D560 — the job row says whose run it is; every Gemini call is recorded for them.
+  it("names the job's org, client and starter on every Gemini call", async () => {
+    vi.mocked(getJob).mockResolvedValue({ id: "job-1", org_id: "org-1", client_id: "client-1", created_by: "user-1", input: {} } as never);
+    vi.mocked(listImagesNeedingCards).mockResolvedValueOnce([image("a")]).mockResolvedValue([]);
+    await runImageAnalysis("job-1");
+    const recordFor = { orgId: "org-1", clientId: "client-1", userId: "user-1" };
+    expect(vi.mocked(readImageCard).mock.calls[0][1]).toEqual({ recordFor });
+    expect(vi.mocked(generateStructured).mock.calls[0][0]).toMatchObject({ recordFor });
+  });
+
   it("reads every image without a card, then writes the section to the active KB version", async () => {
     vi.mocked(listImagesNeedingCards).mockResolvedValueOnce([image("a"), image("b")]).mockResolvedValue([]);
     const result = await runImageAnalysis("job-1");

@@ -52,6 +52,26 @@ const ALLOWLIST: Record<string, string> = {
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
     "createAgencyAction — orgId is an explicit caller-supplied parameter, never correlated " +
     "with the impersonation session's target org.",
+  updateAiModelAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  addAiModelPriceAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  cancelAiModelPriceAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  replaceAiModelPriceAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  reorderAiModelsAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  undoAiModelPriceAction:
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
+  addCreditSettingsAction:
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
+  cancelCreditSettingsAction:
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
+  undoCreditSettingsAction:
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
+  replaceCreditSettingsAction:
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
 };
 
 function findActionFiles(dir: string): string[] {

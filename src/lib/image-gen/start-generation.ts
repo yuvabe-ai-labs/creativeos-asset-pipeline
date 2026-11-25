@@ -4,8 +4,10 @@ import { tasks } from "@trigger.dev/sdk/v3";
 import { insertGeneration, failGeneration, hasRunningGeneration } from "@/lib/db/generations";
 import { insertVersion } from "@/lib/db/versions";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
-import { estimateImageGenerationCostUsd } from "@/lib/image-gen/estimate";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { pricingForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { NO_ESTIMATE_MESSAGE } from "@/lib/ai-models/runnable";
+import { imageEstimateUsd } from "@/lib/ai-models/image-price";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { prepareImageGenUploads } from "@/lib/storage";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import type { CallerContext } from "@/lib/dal-logic";
@@ -40,6 +42,10 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
     return apiError("This node is already generating.", 409);
   }
 
+  // D557 — the price row this run is reserved and charged with; no row, no run.
+  const { price, catalog } = await pricingForNewRun(modelId);
+  if (!price) return apiError(NO_PRICE_MESSAGE, 409);
+
   const generation = await insertGeneration({
     nodeId,
     orgId,
@@ -48,23 +54,27 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
     userEmail: caller.email,
     type: "image",
     modelUsed: modelId,
+    modelPriceId: price.id,
     paramsSnapshot: params,
     inputsSnapshot: inputsUsed,
   });
 
   try {
-    const costUsd = estimateImageGenerationCostUsd({
+    const costUsd = imageEstimateUsd(price, {
       modelId,
       quality: params.quality as string | undefined,
       aspectRatio: params.aspect_ratio as string | undefined,
       imageSize: params.image_size as string | undefined,
-      referenceUrls,
+      referenceCount: referenceUrls.length,
     });
-    if (costUsd === null) throw new Error(`No cost estimate available for ${modelId} at this quality/size.`);
+    if (costUsd === null) {
+      console.error("[image-gen] no cost estimate", { modelId, params });
+      throw new Error(NO_ESTIMATE_MESSAGE);
+    }
     // Independent, so in parallel (AGENTS.md rule 5). Nothing is started until both succeed; a
     // failure of either lands in the catch, which refunds.
     const [reservation, { uploads, maskUrl }] = await Promise.all([
-      reserveCredits(orgId, generation.id, usdToFinalCredits(costUsd)),
+      reserveCredits(orgId, generation.id, creditsFromUsd(costUsd, creditSettingsAt(catalog, new Date(generation.created_at)))),
       prepareImageGenUploads({ nodeId, generationId: generation.id, mask }),
     ]);
     if (!reservation.ok) throw new CreditLimitError(CREDIT_LIMIT_MESSAGE);

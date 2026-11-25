@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { avatarsService } from "@/services/avatars.service";
+import { useImageModels } from "@/hooks/queries/ai-models";
 import { mergeCandidates, type PendingCandidate } from "@/lib/avatars/generation";
 import { errorMessage } from "@/lib/avatars/utils";
 import {
@@ -39,8 +40,12 @@ export function useAvatarGeneration({
   const [picking, setPicking] = useState<string | null>(null);
   // One sheet makes all four views at once (D395), so it is busy or it is not.
   const [generatingSheet, setGeneratingSheet] = useState(false);
-  const [composer, setComposerState] = useState<GenerateFrontInput>(DEFAULT_COMPOSER);
-  const [sheetModelId, setSheetModelId] = useState(AVATAR_DEFAULT_SHEET_MODEL_ID);
+  // D566 — the Studio's defaults while they are live, else the catalog's.
+  const images = useImageModels();
+  const [composer, setComposerState] = useState<GenerateFrontInput>(
+    () => ({ ...DEFAULT_COMPOSER, modelId: images.liveOr(AVATAR_DEFAULT_FRONT_MODEL_ID) }),
+  );
+  const [sheetModelId, setSheetModelId] = useState(() => images.liveOr(AVATAR_DEFAULT_SHEET_MODEL_ID));
   // Seeded from the server, the first avatar is already loaded.
   const loadedFor = useRef<string | null>(initial ? avatarId : null);
 

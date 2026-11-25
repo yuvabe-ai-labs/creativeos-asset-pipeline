@@ -1,11 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { voiceChangeEstimateCredits, canApplyVoiceChange } from "../workspace";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededSettingsRow } from "@/lib/ai-models/test-catalog";
+
+const S = seededSettingsRow();
 
 describe("workspace helpers", () => {
   it("estimates voice-only credits with the multiplier", () => {
-    expect(voiceChangeEstimateCredits(8, 2)).toBe(usdToFinalCredits(computeVoiceChangeCost(8, 2).usd));
+    expect(voiceChangeEstimateCredits(seededPrice(VOICE_CHANGE_PRICE_MODEL_ID), 30, 2, S)).toBe(creditsFromUsd((30 / 60) * 0.12 * 2, S));
+  });
+
+  it("has no estimate without the voice change's price", () => {
+    expect(voiceChangeEstimateCredits(null, 30, 2, S)).toBeNull();
   });
 
   it("explains why Apply is disabled", () => {

@@ -28,7 +28,7 @@ export async function startKBBuild(clientId: string): Promise<{ jobId: string }>
     throw e;
   }
 
-  const run = await tasks.trigger("kb-build", { jobId: job.id, clientId, websiteUrl: client.website_url, docIds });
+  const run = await tasks.trigger("kb-build", { jobId: job.id, clientId, orgId: client.org_id, websiteUrl: client.website_url, docIds });
   await setKBJobTriggerRunId(job.id, run.id);
   revalidatePath(`/clients/${client.slug}/kb`);
   return { jobId: job.id };

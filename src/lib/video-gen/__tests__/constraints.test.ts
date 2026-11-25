@@ -5,23 +5,26 @@ import {
   reconcileLockedParams,
   reconcileRolesWithRules,
 } from "../constraints";
-import { videoGenClientModelMap } from "../client-models";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+
+const videoSpec = (id: string) => videoModelsFrom(seededModelCatalog()).get(id)!;
 
 // Drives the "or" the spine shows between the frame slots and the reference slot, so the
 // either/or is visible before anything is assigned rather than discovered by being blocked.
 describe("areFramesAndRefsExclusive", () => {
   it("is true for a model whose rules block each side with the other", () => {
-    expect(areFramesAndRefsExclusive(videoGenClientModelMap["veo:veo-3.1-fast"].rules)).toBe(true);
-    expect(areFramesAndRefsExclusive(videoGenClientModelMap["veo:veo-3.1"].rules)).toBe(true);
+    expect(areFramesAndRefsExclusive(videoSpec("veo:veo-3.1-fast").rules)).toBe(true);
+    expect(areFramesAndRefsExclusive(videoSpec("veo:veo-3.1").rules)).toBe(true);
   });
 
   it("is false for Kling O1, which accepts frames and references together", () => {
-    expect(areFramesAndRefsExclusive(videoGenClientModelMap["kling:kling-o1"].rules)).toBe(false);
+    expect(areFramesAndRefsExclusive(videoSpec("kling:kling-o1").rules)).toBe(false);
   });
 
   // Veo Lite has no reference capability at all — nothing to be exclusive WITH.
   it("is false for a model with no reference capability", () => {
-    expect(areFramesAndRefsExclusive(videoGenClientModelMap["veo:veo-3.1-lite"].rules)).toBe(false);
+    expect(areFramesAndRefsExclusive(videoSpec("veo:veo-3.1-lite").rules)).toBe(false);
   });
 
   it("is false when the model declares no rules", () => {
@@ -37,7 +40,7 @@ describe("areFramesAndRefsExclusive", () => {
 // these pin down both paths and the cases that must stay free.
 describe("duration locking (drives the FIXED badge)", () => {
   const durationOf = (modelKey: string, state: Partial<Parameters<typeof evaluateConstraints>[1]>) =>
-    evaluateConstraints(videoGenClientModelMap[modelKey].rules, {
+    evaluateConstraints(videoSpec(modelKey).rules, {
       params: {},
       hasStartFrame: false,
       hasEndFrame: false,
@@ -74,8 +77,8 @@ describe("duration locking (drives the FIXED badge)", () => {
 });
 
 describe("reconcileRolesWithRules", () => {
-  const veoFast = videoGenClientModelMap["veo:veo-3.1-fast"];
-  const klingO1 = videoGenClientModelMap["kling:kling-o1"];
+  const veoFast = videoSpec("veo:veo-3.1-fast");
+  const klingO1 = videoSpec("kling:kling-o1");
 
   it("drops references when a model's rules block frames and refs mutually", () => {
     const roles = {
