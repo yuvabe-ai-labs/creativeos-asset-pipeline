@@ -111,7 +111,7 @@ export function voicePreviewParams(engine: VoicePreviewEngine): Record<string, u
 
 /** What a preview costs. A named preview pays for the clip and the voice change over the same
  *  seconds; a native one pays for the clip alone, because the engine's voice arrives with it.
- *  D534/D535 — the clip is priced from its model's row, the voice change from ElevenLabs'. Null without a price. */
+ *  D557/D558 — the clip is priced from its model's row, the voice change from ElevenLabs'. Null without a price. */
 export function voicePreviewCostUsd(
   price: AiModelPrice | null,
   voiceChangePrice: AiModelPrice | null,

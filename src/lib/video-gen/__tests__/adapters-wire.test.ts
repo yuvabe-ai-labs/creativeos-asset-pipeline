@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// D538 — behaviour must not change when the server moves from the registries to the adapter maps.
+// D561 — behaviour must not change when the server moves from the registries to the adapter maps.
 // Each adapter runs against the real provider code (only fetch and the fal client are fake) with
 // the provider_model_id migration 0084 seeds, and what leaves the process must name the vendor
 // model each model sends today.
@@ -57,7 +57,7 @@ function apiCalls() {
   return fake.fetch.mock.calls.filter(([url]) => API_HOSTS.some((h) => String(url).startsWith(h)));
 }
 
-describe("video adapters send today's vendor model (D538)", () => {
+describe("video adapters send today's vendor model (D561)", () => {
   it("covers every live and hidden video model below", () => {
     const live = seededModelCatalog().models.filter((m) => m.kind === "video" && m.status !== "retired");
     expect(live.map((m) => m.id).sort()).toEqual([

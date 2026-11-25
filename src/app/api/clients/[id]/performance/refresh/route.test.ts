@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({
   resolveCallerContext: vi.fn(async () => ({
-    userId: "user-1", platformRole: "member", orgId: "org-1", orgRole: "designer",
+    userId: "user-1", platformRole: "member", orgId: "org-1",
     mustChangePassword: false,
   })),
   resolveOrgId: vi.fn(async () => "org-1"),
@@ -93,7 +93,7 @@ describe("POST /api/clients/[id]/performance/refresh", () => {
     expect((await res.json()).postCount).toBe(12);
   });
 
-  it("records the Apify run's cost for the client's org after the response (D537)", async () => {
+  it("records the Apify run's cost for the client's org after the response (D560)", async () => {
     vi.mocked(isHandleTracked).mockResolvedValue(true);
     vi.mocked(getLatestSnapshot).mockResolvedValue(null);
     vi.mocked(snapshotHandle).mockResolvedValue({ ok: true, handle: "prakritisattva", postCount: 1 });

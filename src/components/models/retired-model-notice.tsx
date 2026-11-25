@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { MODEL_RETIRED_MESSAGE } from "@/lib/ai-models/runnable";
 import { cn } from "@/lib/utils";
 
-/** D544 — shown in a focus view whose node was moved off a retired model when the canvas opened. */
+/** D567 — shown in a focus view whose node was moved off a retired model when the canvas opened. */
 export function RetiredModelNotice({
   retiredModelId,
   onDismiss,

@@ -1,4 +1,4 @@
-// D548 — a stand-in for run-price.ts in tests: the seeded prices, and the pricing helpers that hand
+// D571 — a stand-in for run-price.ts in tests: the seeded prices, and the pricing helpers that hand
 // the price back with its catalog, so the credit settings a caller works out come from it. Not
 // imported by app code. Use inside a vi.mock factory:
 //   vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock());

@@ -11,7 +11,7 @@ import { recordProviderCost } from "@/lib/generations/record-cost";
 import { geminiMeters } from "@/lib/ai-models/text-usage";
 import { geminiKBProvider } from "../gemini";
 
-// D537 — the KB build runs in a task: each Gemini call's cost is recorded there, once.
+// D560 — the KB build runs in a task: each Gemini call's cost is recorded there, once.
 const usage = { promptTokenCount: 1200, cachedContentTokenCount: 200, candidatesTokenCount: 300, thoughtsTokenCount: 50 };
 const recordFor = { orgId: "org-1", clientId: "client-1" };
 const expected = { ...recordFor, type: "kb", modelId: "gemini:gemini-3.1-pro-preview", meters: geminiMeters(usage) };

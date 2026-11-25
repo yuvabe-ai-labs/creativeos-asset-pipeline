@@ -50,7 +50,7 @@ export type SkippedAsset = { ref: string; sourceUrl: string | null; reason: stri
 export type ImportCheckpoint = {
   windowRunId?: string;
   latestRunId?: string;
-  /** D537 — the run whose cost was recorded, so a retry that resumes it records it once. */
+  /** D560 — the run whose cost was recorded, so a retry that resumes it records it once. */
   windowRecordedRunId?: string;
   latestRecordedRunId?: string;
 };

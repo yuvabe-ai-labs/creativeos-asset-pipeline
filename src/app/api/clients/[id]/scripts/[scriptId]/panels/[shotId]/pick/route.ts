@@ -12,7 +12,7 @@ const Body = z.object({ takeId: z.uuid() });
 // this shot is current. The client only ever sees the pick.
 export async function PUT(req: Request, { params }: Ctx) {
   const { scriptId, shotId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "edit" }, async (clientId) =>
     withTryCatch("Could not pick the take.", async () => {
       const body = Body.safeParse(await req.json().catch(() => null));
       if (!body.success) return apiError("Invalid request body.", 400);

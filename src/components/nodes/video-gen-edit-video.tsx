@@ -68,7 +68,7 @@ export function VideoGenEditVideo({ nodeId, versions, sourceId, images, running,
   };
 
   const videos = useVideoModels();
-  // D540 — the same own model the route checks against; until the operator picks, the newest
+  // D563 — the same own model the route checks against; until the operator picks, the newest
   // edit model offered on this take.
   const editedWith = editOwnModelId(source?.inputsUsed, nodeModelId);
   const modelId = isVideoEditModelId(state.modelId) ? state.modelId : firstOfferedEditModel(videos, editedWith);

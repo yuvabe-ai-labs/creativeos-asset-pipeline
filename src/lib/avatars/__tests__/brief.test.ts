@@ -35,7 +35,7 @@ describe("briefFront (D395)", () => {
     });
   });
 
-  // D537 — the brief's call is recorded for whoever the route named, as an avatar brief.
+  // D560 — the brief's call is recorded for whoever the route named, as an avatar brief.
   it("asks for its quick-model caller with the record named", async () => {
     vi.mocked(structuredCaller).mockReturnValue((async () => { throw new Error("x"); }) as never);
     vi.spyOn(console, "warn").mockImplementation(() => {});

@@ -9,7 +9,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
   return {
     ...actual,
-    withNode: (_req: Request, _params: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
+    withNode: (_req: Request, _params: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
       fn("node-1", { data: stored }, { userId: "u1", email: "u@x.com" }, "client-1", "org-1"),
   };
 });
@@ -84,14 +84,14 @@ describe("POST composite-generate (D312)", () => {
     err.mockRestore();
   });
 
-  it("refuses a retired model before anything starts (D540)", async () => {
+  it("refuses a retired model before anything starts (D563)", async () => {
     const res = await post({ instruction: "x", modelId: "openai:gpt-image-1" });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("This model was retired. Pick another.");
     expect(start).not.toHaveBeenCalled();
   });
 
-  // D540 — a hidden model keeps running on the node that already uses it (its data.modelId).
+  // D563 — a hidden model keeps running on the node that already uses it (its data.modelId).
   it("runs a hidden model on the node that already uses it, and refuses it on any other", async () => {
     const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
     cat.value = withModel(seededModelCatalog(), "gemini:gemini-3-pro-image", { status: "hidden" });

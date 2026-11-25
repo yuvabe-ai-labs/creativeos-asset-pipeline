@@ -121,7 +121,7 @@ export async function isHandleTracked(clientId: string, handle: string): Promise
 /** The daily sweep's entire work list (D252) — every enrolled handle, all clients. */
 export async function listAllTrackedHandles(): Promise<{ clientId: string; orgId: string | null; handle: string }[]> {
   const supabase = createServerSupabase();
-  // The client's org rides along in the same query (D537: the sweep records each Apify run's
+  // The client's org rides along in the same query (D560: the sweep records each Apify run's
   // cost for it), so the sweep makes no extra lookup per handle.
   const { data, error } = await supabase
     .from("tracked_handles")

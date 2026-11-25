@@ -9,6 +9,7 @@ export type ClientRow = {
   logo_url: string | null;
   website_url: string | null;
   kb_status: "pending" | "in_review" | "ready";
+  market_status: "pending" | "approved"; // a person approves market research; scripts open on "approved"
   active_kb_version_id: string | null;
   created_at: string;
   updated_at: string;
@@ -16,6 +17,9 @@ export type ClientRow = {
   drive_root_folder_id: string | null;
   org_id: string; // tenant boundary (D42), added in migration 0013
 };
+
+/** A client as the people screens show it: named, linked (slug) and marked (logo or initials). */
+export type ClientBrief = Pick<ClientRow, "id" | "name" | "slug" | "logo_url">;
 
 export type ClientBrandImageRow = {
   id: string;
@@ -120,7 +124,7 @@ export type NodeVersionRow = {
   created_at: string;
 };
 
-/** D537 - types of record-only rows: provider calls that charge no credits. */
+/** D560 - types of record-only rows: provider calls that charge no credits. */
 export type RecordOnlyType =
   | "script" | "kb" | "image_analysis" | "avatar_brief" | "copilot"
   | "compose" | "parse" | "split_scene" | "file_extract" | "scrape";
@@ -145,9 +149,9 @@ export type GenerationRow = {
   tokens_used: Record<string, unknown> | null;
   cost_usd: number | null;
   credits_charged: number | null;
-  // D534 — the ai_model_prices row the run was reserved and is charged with (migration 0076).
+  // D557 — the ai_model_prices row the run was reserved and is charged with (migration 0076).
   model_price_id?: string | null;
-  // D537 — a provider call a free feature made, kept for what it cost us; never a job (migration 0081).
+  // D560 — a provider call a free feature made, kept for what it cost us; never a job (migration 0081).
   record_only: boolean;
   version_id: string | null;
   user_id: string | null;

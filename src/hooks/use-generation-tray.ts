@@ -97,7 +97,7 @@ export function useGenerationTray(canvasId: string): void {
             (payload: RealtimePostgresChangesPayload<GenerationRow>) => {
               const row = payload.new as GenerationRow;
               const state = storeApi.getState();
-              // Ignores record-only rows (D537) and other canvases' nodes.
+              // Ignores record-only rows (D560) and other canvases' nodes.
               if (!isLiveFeedRow(row, (id) => state.nodes.some((n) => n.id === id))) return;
               const effect = completionEffect(state.trayJobs[row.id], row);
               upsertTrayJob(row);

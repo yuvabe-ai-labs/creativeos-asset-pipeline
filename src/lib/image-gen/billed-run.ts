@@ -42,7 +42,7 @@ export type BilledImageArgs = {
 export async function runBilledImageGeneration(
   args: BilledImageArgs,
 ): Promise<{ generation: GenerationRow; creditsCharged: number }> {
-  // D540 — the same check every route makes; an avatar or panel has no node, so hidden is refused.
+  // D563 — the same check every route makes; an avatar or panel has no node, so hidden is refused.
   const catalog = await getAiCatalog();
   const images = imageModelsFrom(catalog);
   const run = imageRun(catalog, args.modelId);
@@ -56,7 +56,7 @@ export async function runBilledImageGeneration(
   }
   const validatedParams = parsed.data as Record<string, unknown>;
 
-  // D534 — the price row this image is reserved and charged with; no row, no image.
+  // D557 — the price row this image is reserved and charged with; no row, no image.
   const price = currentPrice(catalog, args.modelId, new Date());
   if (!price) throw new Error(NO_PRICE_MESSAGE);
 
@@ -113,7 +113,7 @@ export async function runBilledImageGeneration(
     const nothingPriced =
       !!charge && charge.unpriced.length > 0 && charge.usd === 0 && Object.values(charge.meters).some((q) => (q ?? 0) > 0);
     const cost = charge && !nothingPriced ? { usd: charge.usd } : null;
-    // D548 - settled with the credit settings live when the run started.
+    // D571 - settled with the credit settings live when the run started.
     const creditsCharged = cost ? creditsFromUsd(cost.usd, creditSettingsAt(catalog, new Date(generation.created_at))) : nothingPriced ? reservedCredits : 0;
     const meta = { ...(args.userEmail ? { email: args.userEmail } : {}), width, height, sizeBytes: bytes.length };
 

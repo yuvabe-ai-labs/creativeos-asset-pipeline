@@ -10,7 +10,7 @@ import { VIDEO_EDIT_REFUSED_MESSAGE } from "@/lib/video-edit/record";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 /** Default Gemini API model names for tests and builders. The adapter passes the catalog row's
- *  provider_model_id, and that is what runs (D545). */
+ *  provider_model_id, and that is what runs (D568). */
 export const OMNI_11_API_MODEL = "gemini-omni-1.1-flash";
 export const OMNI_12_API_MODEL = "gemini-omni-1.2-flash";
 
@@ -223,7 +223,7 @@ type OmniInteraction = {
   status?: string;
   steps?: OmniStep[];
   error?: { message?: string };
-  /** D528 — what Google bills: input, video output, text output and thinking tokens. */
+  /** D551 — what Google bills: input, video output, text output and thinking tokens. */
   usage?: unknown;
 };
 

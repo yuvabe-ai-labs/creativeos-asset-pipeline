@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({
-  resolveCallerContext: vi.fn(async () => ({ userId: "u1", email: "a@b.c", orgId: "org-1", orgRole: "owner" })),
+  resolveCallerContext: vi.fn(async () => ({ userId: "u1", email: "a@b.c", orgId: "org-1" })),
   resolveOrgId: vi.fn(async () => "org-1"),
 }));
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn(async () => ({ isImpersonating: false })) }));
@@ -84,7 +84,7 @@ describe("POST /api/canvases/[cid]/editor/transcribe", () => {
     expect(tasks.trigger).toHaveBeenCalledWith("editor-transcribe", { jobId: "job1" });
   });
 
-  it("records the price row and reserves its estimate (D535)", async () => {
+  it("records the price row and reserves its estimate (D558)", async () => {
     await post({ nodeId: NODE });
     const row = seededPrice(TRANSCRIBE_MODEL_ID);
     expect(vi.mocked(insertGeneration).mock.calls[0][0]).toMatchObject({ modelPriceId: row.id });

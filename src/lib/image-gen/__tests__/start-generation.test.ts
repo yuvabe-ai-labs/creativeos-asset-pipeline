@@ -52,7 +52,7 @@ const input: StartImageGenerationInput = {
 
 beforeEach(() => vi.clearAllMocks());
 
-it("refuses a model with no price before anything is recorded (D534)", async () => {
+it("refuses a model with no price before anything is recorded (D557)", async () => {
   const { priceForNewRun } = await import("@/lib/ai-models/run-price");
   vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
   const res = await startImageGeneration(input);

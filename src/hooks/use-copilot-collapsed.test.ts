@@ -18,6 +18,13 @@ describe("the copilot's collapsed state", () => {
     expect(readCopilotCollapsed("s2")).toBe(false);
   });
 
+  it("starts folded where the caller says so, until the person chooses", () => {
+    vi.stubGlobal("localStorage", fakeStorage());
+    expect(readCopilotCollapsed("s4.after-generate", true)).toBe(true);
+    writeCopilotCollapsed("s4.after-generate", false);
+    expect(readCopilotCollapsed("s4.after-generate", true)).toBe(false);
+  });
+
   it("still toggles for this visit when storage is blocked (a private window)", () => {
     vi.stubGlobal("localStorage", { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } });
     writeCopilotCollapsed("s3", true);

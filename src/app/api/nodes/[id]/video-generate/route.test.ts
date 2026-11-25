@@ -31,6 +31,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
     withNode: (
       req: Request,
       _params: unknown,
+      _guard: unknown,
       fn: (
         nodeId: string,
         node: unknown,
@@ -148,7 +149,7 @@ beforeEach(() => {
   cat.value = null;
 });
 
-describe("POST video-generate — retired models (D540)", () => {
+describe("POST video-generate — retired models (D563)", () => {
   it.each(["veo:veo-3.1-lite", "veo:veo-3.1-fast", "veo:veo-3.1"])(
     "refuses %s before any generation is recorded",
     async (modelId) => {
@@ -174,7 +175,7 @@ describe("POST video-generate — retired models (D540)", () => {
   });
 });
 
-describe("POST video-generate — the default model (D542)", () => {
+describe("POST video-generate — the default model (D565)", () => {
   it("with no modelId runs the catalog's default, the first live video model", async () => {
     const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
     const { videoModelsFrom } = await import("@/lib/ai-models/model-lists");
@@ -340,7 +341,7 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     expect(payload.params.multi_shot).toBeUndefined();
   });
 
-  it("refuses a model with no price before anything is recorded (D534)", async () => {
+  it("refuses a model with no price before anything is recorded (D557)", async () => {
     const { seededModelCatalog, withoutPrice } = await import("@/lib/ai-models/test-catalog");
     cat.value = withoutPrice(seededModelCatalog(), GEMINI_OMNI_MODEL_ID);
     mocks.graph = buildGraph(
@@ -617,8 +618,8 @@ describe("the Editor's generation lock", () => {
   });
 });
 
-// D548 — a new run is reserved with the credit settings live now, not an older row.
-describe("POST video-generate — credit settings live now (D548)", () => {
+// D571 — a new run is reserved with the credit settings live now, not an older row.
+describe("POST video-generate — credit settings live now (D571)", () => {
   it("reserves with the row that started an hour ago, not yesterday's", async () => {
     const { seededModelCatalog, withCreditSettings } = await import("@/lib/ai-models/test-catalog");
     const { creditsFromUsd } = await import("@/lib/credits/units");

@@ -133,7 +133,7 @@ export type ImageGenNodeData = {
   mediaHeight?: number;
   title?: string;
   modelId?: string;                   // e.g. "openai:gpt-image-2" — saved on node
-  /** D544 — the retired model this node was moved off when it opened; cleared once a model is picked. */
+  /** D567 — the retired model this node was moved off when it opened; cleared once a model is picked. */
   retiredModelId?: string;
   params?: Record<string, unknown>;   // last-used param values for selected model
   parsed?: unknown;                   // D19: active version output (image URL, display only — never persisted)
@@ -153,7 +153,7 @@ export type CompositeNodeData = {
   instruction?: string;
   /** Seedream by default; locked to SEEDANCE_FACE_MODEL_ID while an avatar is wired. */
   modelId?: string;
-  /** D544 — the retired model this node was moved off when it opened; cleared once a model is picked. */
+  /** D567 — the retired model this node was moved off when it opened; cleared once a model is picked. */
   retiredModelId?: string;
   params?: Record<string, unknown>;
   parsed?: unknown; // D19: active version output (image URL) — display only, never persisted
@@ -179,7 +179,7 @@ export type VideoGenNodeData = {
   mediaHeight?: number;
   title?: string;
   modelId?: string;
-  /** D544 — the retired model this node was moved off when it opened; cleared once a model is picked. */
+  /** D567 — the retired model this node was moved off when it opened; cleared once a model is picked. */
   retiredModelId?: string;
   params?: Record<string, unknown>;
   imageRoles?: Record<string, "start_frame" | "end_frame" | "reference">;

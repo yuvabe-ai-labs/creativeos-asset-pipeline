@@ -7,7 +7,7 @@ export type KBAnalysisProvider = {
     clientId: string;
     docIds: string[];
     researchMarkdown: string | null;
-    /** D537 — whom the provider call's cost is recorded for; without it nothing is recorded. */
+    /** D560 — whom the provider call's cost is recorded for; without it nothing is recorded. */
     recordFor?: RecordFor;
   }): Promise<KBExtractionResult>;
 

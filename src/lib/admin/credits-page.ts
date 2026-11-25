@@ -1,4 +1,4 @@
-// The Credits page (D548 settings, prototype v3 "Credits"): the settings in words, the worked example,
+// The Credits page (D571 settings, prototype v3 "Credits"): the settings in words, the worked example,
 // what typical runs cost in credits now and with new settings, each agency's month at either, and the
 // settings history with Cancel and Undo where the server takes them. Client-safe.
 import { currentPrice } from "@/lib/ai-models/pricing";
@@ -91,7 +91,7 @@ export const sameSettings = (a: Settings, b: Settings) => a.marginPercent === b.
 
 // ─── Runs priced for any settings ──────────────────────────────────────────────
 
-/** A run's cost to us, and its flat credits when it is a prompt run (D536: no margin, no step). */
+/** A run's cost to us, and its flat credits when it is a prompt run (D559: no margin, no step). */
 export type PricedRun = { usd: number; flat: number | null };
 
 /** What a run is charged under these settings: the same sum runCredits does. */

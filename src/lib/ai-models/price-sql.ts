@@ -1,4 +1,4 @@
-// D535 — a price seed migration's SQL, the same shape as 0078.
+// D558 — a price seed migration's SQL, the same shape as 0078.
 import { SEED_JSON_TAG } from "./seed";
 import type { PriceLine } from "./types";
 

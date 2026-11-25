@@ -136,7 +136,7 @@ function aspectRatioFor(model: RunModel, size: string): string | null {
   return [...selectOptions(model, "aspect_ratio"), "1:1", "16:9", "9:16"].find((r) => aspectRatioToOpenAISize(r) === size) ?? null;
 }
 
-/** A text row with a request line is charged that flat price per run (prompt runs, D536). */
+/** A text row with a request line is charged that flat price per run (prompt runs, D559). */
 const hasFlatPrice = (price: AiModelPrice) => lineFor(price, "request", {}) !== null;
 
 /** What this run costs us, in USD, by the estimator a real run reserves with. Null when the run has no price. */
@@ -188,7 +188,7 @@ export function runCredits(
   return flatCredits(model, price, spec) ?? creditsFromUsd(usd, settings);
 }
 
-/** A prompt run's flat credits (D536: no margin, no step); null for every other run. */
+/** A prompt run's flat credits (D559: no margin, no step); null for every other run. */
 export function flatCredits(model: RunModel, price: AiModelPrice, spec: RunSpec): number | null {
   if (spec.kind !== "text" || model.kind !== "text" || !hasFlatPrice(price)) return null;
   return promptFlatCredits(price, spec.attachments);

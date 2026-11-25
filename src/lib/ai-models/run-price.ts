@@ -3,14 +3,14 @@ import { getAiCatalog } from "./catalog";
 import { currentPrice, priceById } from "./pricing";
 import type { AiCatalog, AiModelPrice } from "./types";
 
-// D534 — where a run's price comes from: the catalog row valid when it starts. A run records the
+// D557 — where a run's price comes from: the catalog row valid when it starts. A run records the
 // row it reserved with, and is charged with that same row when it finishes.
 export { NO_PRICE_MESSAGE } from "./service-models";
 
 export class NoPriceError extends Error {}
 
 /**
- * D548 — a price with the catalog it was read from, so a caller that also needs the credit
+ * D571 — a price with the catalog it was read from, so a caller that also needs the credit
  * settings (creditSettingsAt) takes them from the same read instead of loading the catalog again.
  */
 export type RunPricing = { price: AiModelPrice | null; catalog: AiCatalog };

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { EditorAutoCaptionsButton } from "../editor-auto-captions-button";
 
-// D535 - the button waits for the model's price row; this stands in for the page's captions run.
+// D558 - the button waits for the model's price row; this stands in for the page's captions run.
 const ctx = vi.hoisted(() => ({
   cost: { credits: 4 as number | null, free: false },
   priceLoading: false,

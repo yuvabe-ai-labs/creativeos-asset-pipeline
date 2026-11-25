@@ -211,7 +211,7 @@ describe("a face drawn beside a relative's (D471)", () => {
   });
 });
 
-it("is null before the credit settings are known (D548)", () => {
+it("is null before the credit settings are known (D571)", () => {
   expect(estimateAvatarImageCredits(images, seededPrice(SEEDANCE_FACE_MODEL_ID), {
     modelId: SEEDANCE_FACE_MODEL_ID, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0,
   }, null)).toBeNull();

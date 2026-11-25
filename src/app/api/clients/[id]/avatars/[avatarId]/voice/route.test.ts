@@ -19,7 +19,7 @@ vi.mock("next/server", async (importOriginal) => ({
 vi.mock("@/lib/avatars/voice-reference", () => ({ prepareNamedVoiceReference: vi.fn() }));
 vi.mock("@/lib/elevenlabs/voice-catalog", () => ({ deleteVoice: vi.fn() }));
 
-import { resolveOrgId } from "@/lib/dal";
+import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { getAvatar, updateAvatar } from "@/lib/db/avatars";
@@ -43,6 +43,7 @@ const generic = () => makeAvatar({ personType: "generic", front: makeImage(GENER
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(resolveOrgId).mockResolvedValue("org-1");
+  vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", email: "u@x.com", orgId: "org-1" } as never);
   vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
   vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Acme", org_id: "org-1" } as never);
   vi.mocked(getAvatar).mockResolvedValue(makeAvatar());

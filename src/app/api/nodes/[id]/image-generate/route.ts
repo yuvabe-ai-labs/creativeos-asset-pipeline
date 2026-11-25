@@ -30,7 +30,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, node, caller, clientId, effectiveOrgId) => {
     const body = (await req.json().catch(() => null)) as
       | {
           modelId?: unknown;
@@ -47,7 +47,7 @@ export async function POST(
         }
       | null;
 
-    // D540 — the catalog decides whether this model runs here and supplies its params, limits and
+    // D563 — the catalog decides whether this model runs here and supplies its params, limits and
     // schema. Read beside the upstream nodes, which don't depend on it.
     const [catalog, upstream] = await Promise.all([
       getAiCatalog().catch((e) => {
@@ -57,7 +57,7 @@ export async function POST(
       getImageGenUpstream(nodeId),
     ]);
     if (!catalog) return apiError(CATALOG_LOAD_FAILED_MESSAGE, 500);
-    // D542 — no model named: the catalog's default, its first live image model.
+    // D565 — no model named: the catalog's default, its first live image model.
     const modelId = typeof body?.modelId === "string" ? body.modelId : imageModelsFrom(catalog).defaultId;
     const run = imageRun(catalog, modelId, { existingNodeModelId: nodeModelId(node.data) });
     if (!run.ok) return apiError(run.message, 400);

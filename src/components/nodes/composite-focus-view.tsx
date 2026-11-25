@@ -58,7 +58,7 @@ type Props = {
   params?: Record<string, unknown>;
   /** D454 — set on a storyboard Composite: the shot it draws. */
   storyboardPanel?: string;
-  /** D544 — the retired model this node was moved off when the canvas opened. */
+  /** D567 — the retired model this node was moved off when the canvas opened. */
   retiredModelId?: string;
   onPatch: (patch: Record<string, unknown>) => void;
 };

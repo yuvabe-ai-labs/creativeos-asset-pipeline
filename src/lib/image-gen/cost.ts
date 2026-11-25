@@ -1,4 +1,4 @@
-// D534 — image prices live in ai_model_prices; this file keeps the OpenAI size mapping.
+// D557 — image prices live in ai_model_prices; this file keeps the OpenAI size mapping.
 
 // ── Aspect ratio → pixel size mapping ────────────────────────────────────────
 //

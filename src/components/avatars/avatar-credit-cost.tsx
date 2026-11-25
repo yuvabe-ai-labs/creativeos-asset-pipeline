@@ -4,7 +4,7 @@ import { Loader2, Sparkles } from "lucide-react";
 import { useAiCatalog } from "@/hooks/queries/ai-models";
 
 // The credit cost shown on a generate control — the same number the route will reserve.
-// D534 — while the prices load it shows a spinner; with no priced estimate it shows nothing.
+// D557 — while the prices load it shows a spinner; with no priced estimate it shows nothing.
 export function AvatarCreditCost({ credits }: { credits: number | null }) {
   const catalog = useAiCatalog();
   if (credits === null) {

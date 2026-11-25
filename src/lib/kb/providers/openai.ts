@@ -64,7 +64,7 @@ export const openaiKBProvider: KBAnalysisProvider = {
       text: { format: zodTextFormat(DocExtractionSchema, "brand_kb") },
       temperature: 0.5,
     });
-    // D537 — runs in the KB build task, so the record is awaited; it never throws.
+    // D560 — runs in the KB build task, so the record is awaited; it never throws.
     const cost = openAiCost(recordFor, "kb", kbExtractPrompt.model, docResponse.usage, "responses");
     if (cost) await recordProviderCost(cost);
 

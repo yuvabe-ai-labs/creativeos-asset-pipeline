@@ -8,14 +8,14 @@
 
 **Tech Stack:** Next.js route handlers, Supabase Postgres (service-role client), Zod 4, Vitest 4, TanStack Query 5.
 
-**Spec:** `docs/superpowers/specs/2026-11-21-model-catalog-design.md` (D529–D533).
+**Spec:** `docs/superpowers/specs/2026-11-21-model-catalog-design.md` (D552–D556).
 
 **Later plans (not this one):** 1b — every reader moves to the catalog and the registries are deleted. 2 — pricing module, provider bills for every adapter, price seed. 3 — record-only features. 4 — super-admin screens.
 
 ## Global Constraints
 
 - Migration numbers start at **0076** (0062–0075 are used on the permissions and Razorpay branches).
-- Decision numbers in code comments: **D529** (catalog), **D530** (prices), **D531** (bills), **D532** (record only), **D533** (margin, access later).
+- Decision numbers in code comments: **D552** (catalog), **D553** (prices), **D554** (bills), **D555** (record only), **D556** (margin, access later).
 - Tables are default-deny under RLS: only the service-role client (`createServerSupabase`) reads or writes them.
 - Model ids stay exactly as today (`gemini:gemini-omni-1.2-flash`, …).
 - `kind` values: `image`, `video`, `edit`, `voice`, `dub`, `lipsync`, `transcribe`, `text`, `scrape`.
@@ -63,7 +63,7 @@ This task is SQL only; it has no unit test. It is verified by the queries in Ste
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- D529–D533: the AI model catalog. docs/superpowers/specs/2026-11-21-model-catalog-design.md
+-- D552–D556: the AI model catalog. docs/superpowers/specs/2026-11-21-model-catalog-design.md
 -- Every model the app runs is a row in ai_models; its prices are dated rows in ai_model_prices
 -- that are never edited. generations gains the price row a run used, the provider's bill, and a
 -- flag for calls that record their cost without charging credits.
@@ -96,7 +96,7 @@ create index if not exists ai_models_replaced_by_idx on ai_models (replaced_by);
 -- Default-deny: only the service role touches it.
 alter table ai_models enable row level security;
 
--- D530: one row per model per start date, never edited. A run uses the row with the latest
+-- D553: one row per model per start date, never edited. A run uses the row with the latest
 -- effective_from at or before its start.
 create table if not exists ai_model_prices (
   id              uuid primary key default gen_random_uuid(),
@@ -133,7 +133,7 @@ create trigger ai_model_prices_guard
   before update or delete on ai_model_prices
   for each row execute function ai_model_prices_guard();
 
--- D531, D532.
+-- D554, D555.
 alter table generations
   add column if not exists model_price_id uuid references ai_model_prices(id),
   add column if not exists provider_bill  jsonb,
@@ -150,7 +150,7 @@ create index if not exists generations_org_record_only_created_idx
 Append to `docs/auth-production-migration.md`:
 
 ````markdown
-## Migrations 0076 + 0077 — AI model catalog (D529–D533, 2026-11-21)
+## Migrations 0076 + 0077 — AI model catalog (D552–D556, 2026-11-21)
 
 `supabase/migrations/0076_ai_model_catalog.sql` (the `ai_models` and `ai_model_prices` tables, the
 price guard, three `generations` columns) and `supabase/migrations/0077_ai_models_seed.sql` (today's
@@ -180,7 +180,7 @@ select status, count(*) from ai_models group by status;
 
 ```bash
 git add supabase/migrations/0076_ai_model_catalog.sql docs/auth-production-migration.md
-git commit -m "feat(models): ai_models and ai_model_prices tables (migration 0076, D529, D530)"
+git commit -m "feat(models): ai_models and ai_model_prices tables (migration 0076, D552, D553)"
 ```
 
 The counts in the verify block (23 / 19 / 4) are checked against the seed in Task 4, Step 4; correct them there if the seed differs.
@@ -327,7 +327,7 @@ Expected: FAIL — `Cannot find module '../schema'` (or "Failed to load url").
 - [ ] **Step 3: Write `types.ts`**
 
 ```ts
-// D529 — the AI model catalog, as the app reads it. Rows live in ai_models / ai_model_prices
+// D552 — the AI model catalog, as the app reads it. Rows live in ai_models / ai_model_prices
 // (migration 0076); src/lib/ai-models/schema.ts checks them on load. Client-safe.
 import type { ParamSpec } from "@/lib/image-gen/types";
 import type { ConstraintRule } from "@/lib/video-gen/types";
@@ -340,7 +340,7 @@ export type AiModelKind = (typeof AI_MODEL_KINDS)[number];
 export const AI_MODEL_STATUSES = ["draft", "live", "hidden", "retired"] as const;
 export type AiModelStatus = (typeof AI_MODEL_STATUSES)[number];
 
-// D531 — what a provider bill and a price line are counted in.
+// D554 — what a provider bill and a price line are counted in.
 export const METERS = [
   "input_token", "cached_input_token", "text_output_token", "thought_token",
   "image_output_token", "video_output_token", "output_image", "input_image",
@@ -367,7 +367,7 @@ export type AiModel = {
   updatedAt: string;
 };
 
-/** D530 — one price line. `when` lists request params that must all match; none = any run. */
+/** D553 — one price line. `when` lists request params that must all match; none = any run. */
 export type PriceLine = {
   meter: Meter;
   unit_usd: number;
@@ -391,7 +391,7 @@ export type AiCatalog = { models: AiModel[]; prices: AiModelPrice[] };
 - [ ] **Step 4: Write `schema.ts`**
 
 ```ts
-// D529 — a catalog row is checked before the app uses it. A row that fails is left out of the
+// D552 — a catalog row is checked before the app uses it. A row that fails is left out of the
 // catalog (the loader logs it), never half used.
 import { z } from "zod";
 import type { ParamSpec } from "@/lib/image-gen/types";
@@ -542,7 +542,7 @@ Expected: PASS, 6 tests.
 
 ```bash
 git add src/lib/ai-models/types.ts src/lib/ai-models/schema.ts src/lib/ai-models/__tests__/schema.test.ts
-git commit -m "feat(models): catalog types and row checks (D529)"
+git commit -m "feat(models): catalog types and row checks (D552)"
 ```
 
 ---
@@ -647,7 +647,7 @@ Expected: FAIL — cannot find `../seed`.
 - [ ] **Step 3: Write `to-spec.ts`**
 
 ```ts
-// D529 — a catalog model as the spec shapes the app reads today, so Plan 1b can swap the
+// D552 — a catalog model as the spec shapes the app reads today, so Plan 1b can swap the
 // registries for the catalog without touching their readers. Client-safe.
 import type { ClientModelSpec } from "@/lib/image-gen/types";
 import type { VideoGenClientModelSpec } from "@/lib/video-gen/types";
@@ -695,7 +695,7 @@ export function toVideoClientSpec(model: AiModel): VideoGenClientModelSpec {
 - [ ] **Step 4: Write `seed.ts`**
 
 ```ts
-// D529 — today's image and video registries as ai_models rows, for migration 0077. Lives until
+// D552 — today's image and video registries as ai_models rows, for migration 0077. Lives until
 // Plan 1b deletes the registries; the drift test (seed-migration.test.ts) keeps 0077 equal to it.
 import type { ParamSpec } from "@/lib/image-gen/types";
 import type { ConstraintRule } from "@/lib/video-gen/types";
@@ -772,7 +772,7 @@ export function seedSql(rows: AiModelSeedRow[]): string {
     "id, provider, kind, label, picker_label, provider_label, status, replaced_by, sort_order, " +
     "adapter_key, params, rules, capabilities";
   return [
-    "-- D529: today's image and video models, from the TypeScript registries.",
+    "-- D552: today's image and video models, from the TypeScript registries.",
     "-- Generated by src/lib/ai-models/seed.ts. Regenerate with:",
     "--   UPDATE_SEED=1 npx vitest run src/lib/ai-models/__tests__/seed-migration.test.ts",
     `insert into ai_models (${cols})`,
@@ -797,7 +797,7 @@ Expected: PASS, 6 tests. If the round-trip test fails for a model, the failure n
 
 ```bash
 git add src/lib/ai-models/seed.ts src/lib/ai-models/to-spec.ts src/lib/ai-models/__tests__/seed.test.ts
-git commit -m "feat(models): seed rows from the registries, and catalog rows back to specs (D529)"
+git commit -m "feat(models): seed rows from the registries, and catalog rows back to specs (D552)"
 ```
 
 ---
@@ -822,7 +822,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { seedRowsFromRegistries, seedSql, SEED_JSON_TAG } from "../seed";
 
-// D529 — migration 0077 must hold exactly today's registries until Plan 1b deletes them.
+// D552 — migration 0077 must hold exactly today's registries until Plan 1b deletes them.
 // After 0077 is applied anywhere, a registry change needs a new migration, not a rewrite of 0077.
 // Vitest runs from the repo root.
 const FILE = resolve(process.cwd(), "supabase/migrations/0077_ai_models_seed.sql");
@@ -862,7 +862,7 @@ Expected: PASS without `UPDATE_SEED`.
 
 ```bash
 git add supabase/migrations/0077_ai_models_seed.sql src/lib/ai-models/__tests__/seed-migration.test.ts docs/auth-production-migration.md
-git commit -m "feat(models): seed today's models into ai_models (migration 0077, D529)"
+git commit -m "feat(models): seed today's models into ai_models (migration 0077, D552)"
 ```
 
 ---
@@ -1002,7 +1002,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { MODEL_COLUMNS, PRICE_COLUMNS, parseAiModelPriceRow, parseAiModelRow } from "./schema";
 import type { AiCatalog, AiModel, AiModelPrice } from "./types";
 
-// D529 — the catalog is read once and kept for a minute per server instance: a run reads its
+// D552 — the catalog is read once and kept for a minute per server instance: a run reads its
 // model and price from memory, never with a query of its own. An admin change clears the cache
 // in the instance that made it; other instances pick it up within a minute (a price applies by
 // its date, so that delay never changes a charge).
@@ -1054,7 +1054,7 @@ async function loadAiCatalog(): Promise<AiCatalog> {
   return { models, prices };
 }
 
-/** D530 — the price row a run starting at `at` uses: the latest one at or before it. */
+/** D553 — the price row a run starting at `at` uses: the latest one at or before it. */
 export function currentPrice(catalog: AiCatalog, modelId: string, at: Date): AiModelPrice | null {
   let best: AiModelPrice | null = null;
   for (const p of catalog.prices) {
@@ -1076,7 +1076,7 @@ Expected: PASS, 7 tests.
 
 ```bash
 git add src/lib/ai-models/catalog.ts src/lib/ai-models/__tests__/catalog.test.ts
-git commit -m "feat(models): server catalog loader with a one-minute cache (D529, D530)"
+git commit -m "feat(models): server catalog loader with a one-minute cache (D552, D553)"
 ```
 
 ---
@@ -1162,7 +1162,7 @@ import { getAiCatalog } from "@/lib/ai-models/catalog";
 
 export const dynamic = "force-dynamic";
 
-// D529 — the catalog for the browser: every model a signed-in user can see (draft models are
+// D552 — the catalog for the browser: every model a signed-in user can see (draft models are
 // the super admin's alone) with their prices. One request per session (useAiCatalog), never
 // one per node.
 export async function GET() {
@@ -1227,7 +1227,7 @@ import type { AiCatalog } from "@/lib/ai-models/types";
 import { readJson } from "./read-json";
 
 class AiModelsService {
-  /** D529 — the model catalog with prices; draft models are left out by the route. */
+  /** D552 — the model catalog with prices; draft models are left out by the route. */
   async catalog(): Promise<AiCatalog> {
     const res = await authFetch("/api/ai-models");
     const { catalog } = await readJson<{ catalog: AiCatalog }>(res, "Could not load the models.");
@@ -1246,7 +1246,7 @@ export const aiModelsService = new AiModelsService();
 import { useQuery } from "@tanstack/react-query";
 import { aiModelsService } from "@/services/ai-models.service";
 
-// D529 — the model catalog, through TanStack Query. One request per session: pickers and focus
+// D552 — the model catalog, through TanStack Query. One request per session: pickers and focus
 // views select from this cache, never fetch per node (performance rule 1).
 export const aiModelKeys = {
   all: ["ai-models"] as const,
@@ -1279,7 +1279,7 @@ Expected: no output (the two filtered lines are errors that predate this plan).
 
 ```bash
 git add src/app/api/ai-models src/services/ai-models.service.ts src/services/ai-models.service.test.ts src/hooks/queries/ai-models.ts
-git commit -m "feat(models): GET /api/ai-models, its service and useAiCatalog (D529)"
+git commit -m "feat(models): GET /api/ai-models, its service and useAiCatalog (D552)"
 ```
 
 ---

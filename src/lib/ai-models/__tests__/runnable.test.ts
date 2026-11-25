@@ -11,7 +11,7 @@ const ADAPTERS = { "image:gpt-image-2": "gpt-2-adapter", "image:gpt-image-1": "g
 const run = (catalog: AiCatalog, id = GPT2, opts: RunOptions = {}) =>
   runnableModel(catalog, id, { ...opts, kind: "image", adapters: ADAPTERS });
 
-describe("runnableModel (D540)", () => {
+describe("runnableModel (D563)", () => {
   it("runs a live model with its adapter and the provider's model name", () => {
     const r = run(seededModelCatalog());
     expect(r.ok && r.adapter).toBe("gpt-2-adapter");
@@ -79,7 +79,7 @@ describe("usableModelId", () => {
     expect(usableModelId(catalog, "", opts)).toBe(opts.fallbackId);
   });
 
-  it("moves a retired model to its live replacement, as the browser opens the node (D544)", () => {
+  it("moves a retired model to its live replacement, as the browser opens the node (D567)", () => {
     let catalog = withModel(seededModelCatalog(), "veo:veo-3.1", { status: "retired", replacedBy: "seedance:seedance-2-5" });
     expect(usableModelId(catalog, "veo:veo-3.1", opts)).toBe("seedance:seedance-2-5");
     catalog = withModel(catalog, "seedance:seedance-2-5", { status: "hidden" });

@@ -68,7 +68,7 @@ export function VideoGenModelPicker({
   /** D483 — when set, only these models are offered (Edit runs on Omni only). */
   offeredModelIds?: readonly string[];
   /**
-   * D540 — the model a hidden one is offered for, when it isn't `modelId` (Edit: the model the
+   * D563 — the model a hidden one is offered for, when it isn't `modelId` (Edit: the model the
    * take was last edited with, else the node's). Absent: `modelId`.
    */
   ownModelId?: string | null;

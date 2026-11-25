@@ -219,7 +219,7 @@ type KlingTask = {
   status: "submitted" | "processing" | "succeeded" | "failed";
   message?: string;
   outputs?: KlingTaskOutput[];
-  /** D535 — what Kling deducted for the task: units for a resource package. */
+  /** D558 — what Kling deducted for the task: units for a resource package. */
   billing?: unknown;
 };
 type KlingQueryResponse = { code: number; message: string; data: KlingTask[] };
@@ -396,7 +396,7 @@ export async function generateWithKling(
   return pollKlingTask(taskId);
 }
 
-/** D538, D545 — a Kling model's endpoint. `vendorModel` is the row's provider_model_id; whether it
+/** D561, D568 — a Kling model's endpoint. `vendorModel` is the row's provider_model_id; whether it
  *  takes references is the row's imageInputs.maxReferenceImages.
  *  Kling 3.0's image-to-video endpoint takes no references, so its row's maxReferenceImages must stay 0. */
 export function klingEndpoint(model: KlingFalModel, vendorModel: string, maxReferenceImages: number): KlingEndpointConfig {

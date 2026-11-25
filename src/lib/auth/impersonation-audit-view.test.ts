@@ -314,6 +314,23 @@ describe("groupIntoSessions", () => {
     expect(sessionB.endedAt).toBe("2026-08-11T00:20:00Z");
   });
 
+  it("leaves Admin's people changes (admin_action) out of view-as sessions", () => {
+    const sessions = groupIntoSessions(
+      [
+        ev("admin_action", "2026-08-11T00:05:00Z", { action: "remove_person", userId: "u7" }),
+        ev("session_started", "2026-08-11T00:12:00Z"),
+        ev("admin_action", "2026-08-11T00:20:00Z", { action: "make_owner", userId: "u8" }),
+        ev("session_ended", "2026-08-11T00:48:00Z"),
+      ],
+      [],
+      NAMES,
+    );
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].entries).toEqual([]);
+    expect(sessions[0].quietCount).toBe(0);
+    expect(sessions[0].endedAt).toBe("2026-08-11T00:48:00Z");
+  });
+
   it("falls back to a placeholder when the operator has no profile row", () => {
     const sessions = groupIntoSessions([ev("session_started", "2026-08-11T00:12:00Z")], [], {});
     expect(sessions[0].operatorName).toBe("Unknown operator");

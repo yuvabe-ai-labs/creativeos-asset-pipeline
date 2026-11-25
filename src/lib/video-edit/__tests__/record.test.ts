@@ -35,7 +35,7 @@ describe("readVideoEdit", () => {
 const S = seededSettingsRow();
 
 describe("videoEditEstimateCredits", () => {
-  it("prices the take at the chosen model's rate for the resolution, plus the take sent as input (D528)", () => {
+  it("prices the take at the chosen model's rate for the resolution, plus the take sent as input (D551)", () => {
     for (const m of [GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_11_MODEL_ID] as const) {
       const usd = videoEstimateUsd(seededPrice(m), { durationSeconds: 6, audioEnabled: true, resolution: "720p", images: 0, editInputSeconds: 6 })!;
       expect(usd).toBeGreaterThan(videoSecondsUsd(seededPrice(m), 6, true, "720p")!);

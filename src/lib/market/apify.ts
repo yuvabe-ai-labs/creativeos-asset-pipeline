@@ -1,6 +1,6 @@
 // Thin client for the Apify calls the performance pipeline and the media archive make (D235).
 // Each call runs its actor asynchronously and polls it, through the same flow asset import uses
-// (runApifyActor), because only a run reports what it cost (D537). The old run-sync calls capped
+// (runApifyActor), because only a run reports what it cost (D560). The old run-sync calls capped
 // each run at 280 s; that is still the run's timeout and our deadline.
 import type { ApifyProfileItem } from "./performance";
 import { readApifyDataset, runApifyActor, type RecordApifyCost } from "@/lib/asset-import/apify";
@@ -22,7 +22,7 @@ type RunOpts = {
 /**
  * Runs one actor to the end and returns its dataset, with the errors the old run-sync call gave:
  * `Apify request failed: HTTP n`, and HTTP 408 (Request Timeout) for a run that outlived its wait.
- * The run's cost is recorded for `recordFor` (D537), whether it succeeded, failed or was
+ * The run's cost is recorded for `recordFor` (D560), whether it succeeded, failed or was
  * aborted at the deadline.
  */
 async function runToItems<T>(actorId: string, input: Record<string, unknown>, opts: RunOpts): Promise<T[]> {
@@ -45,7 +45,7 @@ async function runToItems<T>(actorId: string, input: Record<string, unknown>, op
 }
 
 /**
- * One profile's details. `recordFor` names whom the run's cost is recorded for (D537); a request
+ * One profile's details. `recordFor` names whom the run's cost is recorded for (D560); a request
  * passes `record: recordAfterResponse`, a Trigger task leaves the default, which awaits the insert.
  */
 export async function fetchProfileDetails(handle: string, opts: RunOpts): Promise<ApifyProfileItem | null> {
@@ -83,7 +83,7 @@ type ApifyPostItem = {
  * video/mp4, plus a displayUrl serving a 142 KB cover jpeg. Billing is one result.
  *
  * Callers must download the returned URL immediately — it is a signed CDN link.
- * Reached only from Trigger tasks, so the run's cost record is awaited (D537).
+ * Reached only from Trigger tasks, so the run's cost record is awaited (D560).
  */
 export async function fetchPostMedia(
   url: string,
@@ -118,7 +118,7 @@ type ApifyYouTubeItem = { downloadedFileUrl?: string };
  * days, which is exactly why the caller downloads it immediately rather than
  * persisting the link. (Note `storeInKVStore: false` does NOT prevent this, so the
  * flag is not sent — it would only imply a guarantee the actor does not honour.)
- * Reached only from Trigger tasks, so the run's cost record is awaited (D537).
+ * Reached only from Trigger tasks, so the run's cost record is awaited (D560).
  */
 export async function fetchYouTubeDownload(url: string, opts: RunOpts): Promise<string | null> {
   const items = await runToItems<ApifyYouTubeItem>(

@@ -109,7 +109,7 @@ describe("runPromptGeneration", () => {
     expect(failGeneration).not.toHaveBeenCalled();
   });
 
-  // D536 — prompt runs keep a flat price from the row; the real token cost is only recorded.
+  // D559 — prompt runs keep a flat price from the row; the real token cost is only recorded.
   describe("flat price from the row", () => {
     const row = seededPrice(PROMPT_MODEL_ID);
     const usage = { prompt_tokens: 8606, completion_tokens: 160, total_tokens: 8766, prompt_tokens_details: { cached_tokens: 3968 } };

@@ -54,7 +54,7 @@ describe("snapshotHandle", () => {
     );
   });
 
-  it("passes whom the run's cost is recorded for, and how, to the scrape (D537)", async () => {
+  it("passes whom the run's cost is recorded for, and how, to the scrape (D560)", async () => {
     vi.mocked(fetchProfileDetails).mockResolvedValue(null);
     const record = vi.fn();
     const recordFor = { orgId: "org-1", clientId: "client-1" };

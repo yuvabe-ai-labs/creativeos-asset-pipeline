@@ -72,7 +72,7 @@ export async function completeDubGeneration(
     modelUsed: generation.model_used,
     output,
   });
-  // D535 - priced with the row this run was reserved with; never 0 for a delivered dub. D548 -
+  // D558 - priced with the row this run was reserved with; never 0 for a delivered dub. D571 -
   // credits with the settings live when the run started.
   const { price, catalog } = await deps.pricingFor(generation);
   const usd = price ? dubUsd(price, input.durationSeconds) : null;

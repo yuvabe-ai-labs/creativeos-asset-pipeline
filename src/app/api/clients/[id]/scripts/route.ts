@@ -1,18 +1,18 @@
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { listScripts } from "@/lib/db/scripts";
 import { isScriptStage } from "@/lib/scripts/constants";
-import { resolveCallerContext } from "@/lib/dal";
 import { isKbReady, KB_NOT_READY_MESSAGE } from "@/lib/clients/kb-gate";
 import { createGenerateScript } from "@/lib/db/script-generate";
 import { loadCopilotContext } from "@/lib/scripts/copilot/context";
 import { SCRIPT_FORMATS } from "@/lib/scripts/copilot/formats";
 import { openingMessage } from "@/lib/scripts/copilot/brief";
 import { EMPTY_BRIEF, EMPTY_NOTES } from "@/lib/scripts/copilot/schema";
+import { scriptsLocked } from "@/lib/journey/stages";
 
 // GET /api/clients/:id/scripts[?stage=approved] — the client's live scripts. The canvas
 // gallery's Scripts tab asks for approved ones only (spec 1 §5.1).
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "view" }, async (clientId) =>
     withTryCatch("Could not load the scripts.", async () => {
       const stage = new URL(req.url).searchParams.get("stage");
       if (stage !== null && !isScriptStage(stage)) return apiError("Unknown stage.", 400);
@@ -24,12 +24,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // POST /api/clients/:id/scripts — New script (spec 2 §3): an empty script at Generate, with the
 // copilot's opening already in its conversation. The copilot is the only way a script is made.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "edit" }, async (clientId, client, caller) =>
     withTryCatch("Could not start a new script.", async () => {
       if (!isKbReady(client)) return apiError(KB_NOT_READY_MESSAGE, 409); // D503
-      const { userId } = await resolveCallerContext();
+      const { userId } = caller;
       const ctx = await loadCopilotContext(client);
-      const opening = openingMessage({ clientName: client.name, formats: SCRIPT_FORMATS.map((f) => f.name), hasKb: ctx.hasKb });
+      const opening = openingMessage({ clientName: client.name, formats: SCRIPT_FORMATS.map((f) => f.name), hasKb: ctx.hasKb, locked: scriptsLocked(client) });
       const script = await createGenerateScript({ clientId, userId, brief: EMPTY_BRIEF, notes: EMPTY_NOTES, opening });
       return apiOk({ scriptId: script.id }, 201);
     }),

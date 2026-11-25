@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   if (typeof canvasId !== "string" || !canvasId) return apiError("Open a canvas to use the copilot.", 400);
 
   // The canvas must be in the caller's org before anything of it is read (withBodyCanvas).
-  return withBodyCanvas(canvasId, async (canvas, caller) => {
+  return withBodyCanvas(req, canvasId, { need: "generate" }, async (canvas, caller) => {
     const recordFor = copilotRecordFor(canvas, caller);
 
     try {
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       const completion = await openai.chat.completions.create({
         model: MODEL,
         stream: true,
-        // D537 — the last chunk then carries the call's usage, so its cost can be recorded.
+        // D560 — the last chunk then carries the call's usage, so its cost can be recorded.
         stream_options: { include_usage: true },
         messages: [
           {

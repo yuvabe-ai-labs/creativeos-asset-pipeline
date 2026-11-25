@@ -5,24 +5,24 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ScriptContextCard } from "@/components/scripts/script-context-card";
 import { ScriptSheetFrame } from "@/components/scripts/script-sheet-frame";
-import { usePickTake, useReopenScript, useSetVisualiseField, useVisualiseBoard, type BoardData } from "@/hooks/queries/visualise";
+import { usePickTake, useReopenScript, useSetVisualiseField } from "@/hooks/queries/visualise";
 import { ScriptEditProvider, type ScriptEdit } from "@/components/scripts/script-edit-context";
-import { usePanelDraws } from "@/hooks/use-panel-draws";
 import { useImageModels } from "@/hooks/queries/ai-models";
-import { useVisualiseModel } from "@/hooks/use-visualise-model";
 import { errorMessage } from "@/lib/avatars/utils";
 import { formatRange, timeShots } from "@/lib/scripts/timeline";
 import { Label } from "@/components/ui/label";
 import { AvatarAdvancedSettings } from "@/components/avatars/avatar-advanced-settings";
 import { AvatarModelSelect } from "@/components/avatars/avatar-model-select";
-import { PANEL_MODEL_ID, panelModelIds } from "@/lib/scripts/visualise/constants";
+import { panelModelIds } from "@/lib/scripts/visualise/constants";
 import { BoardChips } from "./board-chips";
 import { GenerateAllDialog } from "./generate-all-dialog";
 import { PanelDialog } from "./panel-dialog";
 import { PanelTile } from "./panel-tile";
 import { StoryboardGrid } from "./storyboard-grid";
 import { VisualiseReadiness } from "./visualise-readiness";
-import { ScriptAssetsProvider } from "@/components/scripts/script-assets-context";
+import { useCan } from "@/components/permissions/use-can";
+import { useVisualiseBoardActions } from "./visualise-board-context";
+import { FollowTarget } from "./script-follow-context";
 
 // Spec 3 §4, laid out as a storyboard sheet (D465): the readiness line across the top; the summary
 // card with the cast, locations and products as chips; then every shot's panel at full width, each
@@ -39,20 +39,20 @@ export type VisualiseReview = {
   column?: ReactNode;
 };
 
-export function VisualiseView({ clientId, initial, review }: { clientId: string; initial: BoardData; review?: VisualiseReview }) {
+/** The board, the panel model, the draws and the asset actions come from VisualiseBoardProvider
+ *  (piece 5.1), which the copilot's panel shares. */
+export function VisualiseView({ clientId, review }: { clientId: string; review?: VisualiseReview }) {
   const router = useRouter();
-  const query = useVisualiseBoard(clientId, initial.script.id, initial);
-  const { script, board } = query.data;
+  const { data: { script, board }, panelModelId, setPanelModelId, draws, model } = useVisualiseBoardActions();
   const images = useImageModels();
-  // D543 — the panel default while it is live, else the catalog's.
-  const [panelModelId, setPanelModelId] = useState(() => images.liveOr(PANEL_MODEL_ID));
-  const draws = usePanelDraws(clientId, script.id, panelModelId);
-  const model = useVisualiseModel(script, board, draws.drawing, query.dataUpdatedAt, panelModelId);
   const reopen = useReopenScript(clientId, script.id);
+  const canReopen = useCan("approve", clientId);
+  // Typing the script's text is an edit: it needs Generate (D538), like every other change by hand.
+  const canEditText = useCan("edit", clientId);
   const setField = useSetVisualiseField(clientId, script.id);
   // D489 — the script's text is typed here while it is in Visualise; In review it is read-only,
   // as the client was sent it. Adding or removing shots stays with the copilot (Reopen).
-  const edit: ScriptEdit | null = script.stage === "visualise"
+  const edit: ScriptEdit | null = script.stage === "visualise" && canEditText
     ? {
         commit: (path, value) => setField.mutate({ path, value }, { onError: (e) => toast.error(errorMessage(e, "Could not save that change")) }),
         busyPath: null,
@@ -75,11 +75,10 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
   };
 
   return (
-    // D446 — products and locations are edited here too: their pictures are visual work.
-    <ScriptAssetsProvider clientId={clientId} scriptId={script.id}>
     <MaybeScriptEdit edit={edit}>
     <div className="flex flex-col gap-6">
       <VisualiseReadiness
+        canReopen={canReopen}
         stage={script.stage}
         readiness={model.readiness}
         kitsFound={board.kits.length > 0}
@@ -119,8 +118,8 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
           }
         >
           {timed.map((t) => (
+            <FollowTarget key={t.shot.id} id={`shot:${t.shot.id}`}>
             <PanelTile
-              key={t.shot.id}
               shot={t.shot}
               doc={script.doc}
               label={`S${t.index + 1}`}
@@ -133,6 +132,7 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
               onVersions={() => setOpenShot(t.shot.id)}
               shotMarker={review?.shotMarker(t.shot.id)}
             />
+            </FollowTarget>
           ))}
         </StoryboardGrid>
       </ScriptSheetFrame>
@@ -159,7 +159,6 @@ export function VisualiseView({ clientId, initial, review }: { clientId: string;
       )}
     </div>
     </MaybeScriptEdit>
-    </ScriptAssetsProvider>
   );
 }
 

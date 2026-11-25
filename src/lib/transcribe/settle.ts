@@ -8,9 +8,9 @@ import type { GenerationRow } from "@/lib/db/types";
 type Gen = Pick<GenerationRow, "id" | "model_used" | "created_at" | "org_id"> & { model_price_id?: string | null };
 
 /**
- * D535 — what an auto-captions run is charged: the credits ElevenLabs reported, priced at the
+ * D558 — what an auto-captions run is charged: the credits ElevenLabs reported, priced at the
  * plan's credit price, else the seconds allowance. Never 0 for transcribed audio because a price
- * is missing: the reserved amount is kept and no dollar cost is recorded. D548 — turned into
+ * is missing: the reserved amount is kept and no dollar cost is recorded. D571 — turned into
  * credits with the settings live when the run started.
  */
 export async function settleTranscribe(

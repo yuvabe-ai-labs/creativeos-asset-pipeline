@@ -6,6 +6,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { failJob, getJob, saveJobCheckpoint, setJobPhase, startJob, succeedJob } from "@/lib/jobs/db";
 import { insertImportedBrandImage, listBrandImageRefs } from "@/lib/db/kb";
+import { sayJobFailed } from "@/lib/journey/kb-copilot/job-failed";
 import { removeObject, uploadImportedBrandMedia, uploadImportedBrandMediaStream } from "@/lib/storage";
 import { extForContentType } from "@/lib/storage/paths";
 import {
@@ -56,13 +57,18 @@ export async function runAssetImport(
   if (job.status === "succeeded" || job.status === "failed") return null;
   const clientId = job.client_id;
   const { source, target } = job.input;
-  // D537 — the job row says whose import it is: each Apify run's cost is recorded for them.
+  // D560 — the job row says whose import it is: each Apify run's cost is recorded for them.
   const recordFor = { orgId: job.org_id, clientId, userId: job.created_by };
 
   // A retry after a crash (D483) picks up the Apify runs the crashed attempt started, so the
   // scrape is read again rather than paid for twice. Assets it already saved are skipped below.
   const checkpoint: ImportCheckpoint = { ...job.result?.checkpoint };
   const remember = (patch: ImportCheckpoint) => saveJobCheckpoint(jobId, Object.assign(checkpoint, patch));
+  // Every failure is also said once in the client's copilot thread (D518).
+  const fail = async (reason: string) => {
+    await failJob(jobId, reason);
+    await sayJobFailed({ client_id: clientId, kind: "asset-import", input: job.input });
+  };
 
   try {
     const token = process.env.APIFY_TOKEN;
@@ -83,7 +89,7 @@ export async function runAssetImport(
       resumeRunId: checkpoint.windowRunId,
       onStarted: (runId) => remember({ windowRunId: runId }),
       recordFor,
-      // D537 — a resumed run the crashed attempt already recorded is not recorded again.
+      // D560 — a resumed run the crashed attempt already recorded is not recorded again.
       recordedRunId: checkpoint.windowRecordedRunId,
       onRecorded: (runId) => remember({ windowRecordedRunId: runId }),
     });
@@ -125,7 +131,7 @@ export async function runAssetImport(
         await succeedJob(jobId, result, importCopy.nothingNew);
         return result;
       }
-      await failJob(jobId, error);
+      await fail(error);
       return null;
     }
 
@@ -167,7 +173,7 @@ export async function runAssetImport(
     // Every new asset failing is a broken run (a missing column, storage down), not a quiet
     // "0 new": say so, and keep it from becoming the base the next refresh builds on.
     if (fresh.length > 0 && saved === 0 && failed === fresh.length) {
-      await failJob(jobId, importCopy.couldNotSave(fresh.length));
+      await fail(importCopy.couldNotSave(fresh.length));
       return result;
     }
     await succeedJob(jobId, result, importCopy.done(saved, assets.length, failed));
@@ -176,7 +182,7 @@ export async function runAssetImport(
   } catch (e) {
     // The cause (provider, HTTP status, configuration) belongs in the server logs, not on screen.
     console.error("[asset-import] failed", { jobId, source, error: describeError(e) });
-    await failJob(jobId, importCopy.unavailable(source));
+    await fail(importCopy.unavailable(source));
     return null;
   }
 }

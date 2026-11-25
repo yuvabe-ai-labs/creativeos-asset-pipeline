@@ -54,7 +54,7 @@ export const videoGenerateTask = task({
     }
 
     try {
-      // D541 — the model's row and adapter, from the catalog at run time. A missing one throws
+      // D564 — the model's row and adapter, from the catalog at run time. A missing one throws
       // here; the catch below reports it as final (one attempt), which refunds.
       const { videoGenerateForTask } = await import("@/lib/video-gen/video-run");
       const generate = await videoGenerateForTask(modelId);
@@ -84,7 +84,7 @@ export const videoGenerateTask = task({
         modelId,
         videoUrl: result.videoUrl,
         durationSeconds: result.durationSeconds,
-        // D528 — so a run whose webhook fails can be completed by hand at what the provider billed.
+        // D551 — so a run whose webhook fails can be completed by hand at what the provider billed.
         usage: result.usage ?? null,
       });
 
@@ -96,7 +96,7 @@ export const videoGenerateTask = task({
           status: "succeeded",
           videoUrl: result.videoUrl,
           durationSeconds: result.durationSeconds,
-          // D528 — the provider's own usage, so the charge follows what it billed.
+          // D551 — the provider's own usage, so the charge follows what it billed.
           ...(result.usage ? { usage: result.usage } : {}),
         });
       } catch (e) {

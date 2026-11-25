@@ -6,7 +6,7 @@ import type { AiCatalog } from "@/lib/ai-models/types";
 import { videoAdapters } from "./adapters";
 import type { VideoGenClientModelSpec, VideoGenInput, VideoGenResult } from "./types";
 
-// D538, D540 — a video model as the server runs it: its data (params, rules, image inputs) from
+// D561, D563 — a video model as the server runs it: its data (params, rules, image inputs) from
 // the catalog row, its generate from the adapter map.
 export type VideoRun = {
   ok: true;
@@ -22,7 +22,7 @@ export function videoRun(catalog: AiCatalog, modelId: string, opts: RunOptions =
   return { ok: true, spec, generate: (input) => found.adapter(input, ctx) };
 }
 
-/** D541 — a video task's generate, from the catalog at run time. The status is not checked again
+/** D564 — a video task's generate, from the catalog at run time. The status is not checked again
  *  (the route did, when it reserved the run); a missing row or adapter is final. */
 export async function videoGenerateForTask(modelId: string): Promise<VideoRun["generate"]> {
   const run = videoRun(await getAiCatalog(), modelId, { checkStatus: false });

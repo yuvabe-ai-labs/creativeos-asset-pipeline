@@ -214,7 +214,7 @@ export async function POST(req: Request) {
   // Same grounding as the other calls (handles + @-referenced nodes spotlighted) — so
   // "add a prompt like @PRM-A3F9" has the exact node in view.
   // The canvas must be in the caller's org before anything of it is read (withBodyCanvas).
-  return withBodyCanvas(canvasId, async (canvas, caller) => {
+  return withBodyCanvas(req, canvasId, { need: "generate" }, async (canvas, caller) => {
     const recordFor = copilotRecordFor(canvas, caller);
     const model = "gpt-4o-mini";
 
@@ -263,7 +263,7 @@ export async function POST(req: Request) {
         ],
       });
 
-      // D537 — paid once it answered, whether or not it asked for an action.
+      // D560 — paid once it answered, whether or not it asked for an action.
       recordAfterResponse(openAiCost(recordFor, "copilot", model, completion.usage, "chat"));
 
       // The requested action lives in tool_calls, NOT in message.content. Arguments come

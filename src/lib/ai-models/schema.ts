@@ -1,4 +1,4 @@
-// D529 — a catalog row is checked before the app uses it. A row that fails is left out of the
+// D552 — a catalog row is checked before the app uses it. A row that fails is left out of the
 // catalog (the loader logs it), never half used.
 import { z } from "zod";
 import type { ParamSpec } from "@/lib/image-gen/types";
@@ -65,7 +65,7 @@ const constraintRuleSchema = z.object({
   reason: z.string(),
 });
 
-// D539 — what a model can take, by kind: ClientModelSpec's limits for an image model, and
+// D562 — what a model can take, by kind: ClientModelSpec's limits for an image model, and
 // VideoGenClientModelSpec's maxDurationSeconds / imageInputs for a video model, field for field.
 // A key this build doesn't know is dropped rather than refused, so a row written by a newer
 // build still loads in an older one.
@@ -202,7 +202,7 @@ export function parseAiModelPriceRow(row: unknown): AiModelPrice | null {
   return checkAiModelPriceRow(row).price;
 }
 
-// D548 — Postgres `numeric` reaches us as a string ("0.00"); accept a number too.
+// D571 — Postgres `numeric` reaches us as a string ("0.00"); accept a number too.
 const creditSettingsRowSchema = z.object({
   id: z.string().min(1),
   effective_from: z.string().min(1),

@@ -9,7 +9,7 @@ import { speechToSpeech } from "@/lib/elevenlabs/client";
 import { videoDownloadHeaders } from "@/lib/video-gen/download-headers";
 import { postGenerationWebhook, postGenerationWebhookSafely, assertWebhookConfig } from "@/lib/generations/post-webhook";
 
-/** The engine for this mode, from the catalog's row and adapter (D541). Dynamic, because the
+/** The engine for this mode, from the catalog's row and adapter (D564). Dynamic, because the
  *  adapters and every provider under them carry `server-only` — a Next.js sentinel this build must
  *  not see statically (the same reason trigger/video-generate.ts imports it this way). A missing
  *  row or adapter throws inside the run's try, which reports the failure and refunds. */

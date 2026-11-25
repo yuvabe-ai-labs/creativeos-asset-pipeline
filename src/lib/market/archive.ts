@@ -36,7 +36,7 @@ export async function archiveItem(
 
   const item = await getArchiveItem(itemId);
   if (!item) return { ok: false, reason: "item not found" };
-  // D537 — a paid provider call is recorded for the item's own client and org, read with the
+  // D560 — a paid provider call is recorded for the item's own client and org, read with the
   // item above; never for the task's clientId. Without an org nothing is recorded.
   const recordFor: RecordFor | undefined = item.org_id ? { orgId: item.org_id, clientId: item.client_id } : undefined;
 

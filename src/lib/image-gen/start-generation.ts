@@ -42,7 +42,7 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
     return apiError("This node is already generating.", 409);
   }
 
-  // D534 — the price row this run is reserved and charged with; no row, no run.
+  // D557 — the price row this run is reserved and charged with; no row, no run.
   const { price, catalog } = await pricingForNewRun(modelId);
   if (!price) return apiError(NO_PRICE_MESSAGE, 409);
 

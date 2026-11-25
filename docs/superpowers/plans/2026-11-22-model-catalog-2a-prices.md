@@ -8,14 +8,14 @@
 
 **Tech Stack:** TypeScript, Zod 4, Vitest 4, Supabase Postgres, Next.js route handlers, Trigger.dev tasks.
 
-**Spec:** `docs/superpowers/specs/2026-11-21-model-catalog-design.md` (D529–D533). This plan records **D534**.
+**Spec:** `docs/superpowers/specs/2026-11-21-model-catalog-design.md` (D552–D556). This plan records **D557**.
 
 **Part 2a-ii** (`docs/superpowers/plans/2026-11-22-model-catalog-2a-prices-browser.md`) moves the browser estimates onto the catalog and deletes the code price tables. 2a-i must be complete first. **Plan 2b** covers dub, lip sync, voice change, transcribe, prompts and the Kling, fal, Sarvam and ElevenLabs bills. **Plan 1b** moves the model readers.
 
 ## Global Constraints
 
 - Migration number: **0078**. 0076/0077 exist only on the dev database (`tsmbsvoddxjndebxirvf`); staging and production need 0076, 0077 and 0078 before this plan's code is deployed there (deploy order is written into the migration doc in Task 6).
-- Decision number: **D534** in code comments for this plan.
+- Decision number: **D557** in code comments for this plan.
 - Price rows start at `PRICE_EPOCH = 2026-01-01T00:00:00Z`. Omni 1.1 has a second row from `2026-12-03T08:00:00Z` at 1.2 rates.
 - New meters: `text_input_token`, `image_input_token` (added to the 15 meters from Plan 1a).
 - A price line matches when every key in its `when` equals the run's dimension value. Video dimensions: `{ resolution: resolution ?? "720p", audio: boolean }`. Image dimensions: OpenAI `{ quality: "high" for undefined/"auto", size: aspectRatioToOpenAISize(aspect ?? "1:1") }`; Gemini and Seedream `{ size: imageSize ?? "1K" }`.
@@ -161,7 +161,7 @@ export const METERS = [
 - [ ] **Step 4: Write `pricing.ts`**
 
 ```ts
-// D534 — one engine prices every estimate and every charge: quantity × the matching line.
+// D557 — one engine prices every estimate and every charge: quantity × the matching line.
 // Client-safe: the focus views price their estimate with it too.
 import type { AiCatalog, AiModelPrice, Meter, PriceLine } from "./types";
 
@@ -197,7 +197,7 @@ export function priceMeters(
   return { usd, unpriced };
 }
 
-/** D530 — the price row a run starting at `at` uses: the latest one at or before it. */
+/** D553 — the price row a run starting at `at` uses: the latest one at or before it. */
 export function currentPrice(catalog: AiCatalog, modelId: string, at: Date): AiModelPrice | null {
   let best: AiModelPrice | null = null;
   for (const p of catalog.prices) {
@@ -232,7 +232,7 @@ Expected: PASS — pricing.test.ts (7 tests) and every existing ai-models test.
 
 ```bash
 git add src/lib/ai-models/types.ts src/lib/ai-models/pricing.ts src/lib/ai-models/catalog.ts src/lib/ai-models/__tests__/pricing.test.ts
-git commit -m "feat(credits): one pricing engine for estimates and charges (D534)"
+git commit -m "feat(credits): one pricing engine for estimates and charges (D557)"
 ```
 
 ---
@@ -340,7 +340,7 @@ Expected: FAIL — cannot find `../video-price`.
 - [ ] **Step 3: Write `video-price.ts`**
 
 ```ts
-// D534 — a video run's estimate and charge, from its model's price row. Client-safe.
+// D557 — a video run's estimate and charge, from its model's price row. Client-safe.
 import type { VideoProviderUsage } from "@/lib/video-gen/provider-usage";
 import { lineFor, priceMeters, type MeterQuantities, type PriceDims } from "./pricing";
 import type { AiModelPrice } from "./types";
@@ -418,7 +418,7 @@ Expected: PASS, 9 tests.
 
 ```bash
 git add src/lib/ai-models/video-price.ts src/lib/ai-models/__tests__/video-price.test.ts
-git commit -m "feat(credits): video estimate and charge from a price row (D534)"
+git commit -m "feat(credits): video estimate and charge from a price row (D557)"
 ```
 
 ---
@@ -540,7 +540,7 @@ Expected: FAIL — cannot find `../image-price`.
 - [ ] **Step 3: Write `image-price.ts`**
 
 ```ts
-// D534 — an image run's estimate and charge, from its model's price row. Client-safe.
+// D557 — an image run's estimate and charge, from its model's price row. Client-safe.
 import { aspectRatioToOpenAISize } from "@/lib/image-gen/cost";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import { lineFor, priceMeters, type MeterQuantities, type PriceDims } from "./pricing";
@@ -618,7 +618,7 @@ Expected: PASS, 10 tests.
 
 ```bash
 git add src/lib/ai-models/image-price.ts src/lib/ai-models/__tests__/image-price.test.ts
-git commit -m "feat(credits): image estimate and charge from a price row (D534)"
+git commit -m "feat(credits): image estimate and charge from a price row (D557)"
 ```
 
 ---
@@ -708,7 +708,7 @@ Expected: FAIL — cannot find `../price-seed`.
 - [ ] **Step 3: Write `price-seed.ts`**
 
 ```ts
-// D534 — today's video and image prices as ai_model_prices rows, for migration 0078. Built from
+// D557 — today's video and image prices as ai_model_prices rows, for migration 0078. Built from
 // the code tables' own public functions at every value each model can take, so a row prices
 // exactly what the code does (the equivalence test proves it). Lives until Plan 2a-ii deletes
 // the tables; 0078 is then frozen history.
@@ -742,7 +742,7 @@ const SOURCES: Record<string, string> = {
   openai: "https://developers.openai.com/api/docs/pricing",
   kling: "https://kling.ai/document-api/pricing/base/video",
 };
-const NOTE = "Seeded from the code price tables (D534).";
+const NOTE = "Seeded from the code price tables (D557).";
 
 const VIDEO_RESOLUTIONS = ["360p", "480p", "720p", "1080p", "4k"];
 const OPENAI_QUALITIES = ["low", "medium", "high", "xhigh", "max"];
@@ -889,7 +889,7 @@ export function priceSeedSql(rows: AiModelPriceSeedRow[]): string {
   if (json.includes(SEED_JSON_TAG)) throw new Error(`Seed JSON contains ${SEED_JSON_TAG}`);
   const cols = "model_id, effective_from, lines, estimate, source_url, note";
   return [
-    "-- D534: today's video and image prices, from the code price tables.",
+    "-- D557: today's video and image prices, from the code price tables.",
     "-- Generated by src/lib/ai-models/price-seed.ts. Regenerate with:",
     "--   UPDATE_SEED=1 npx vitest run src/lib/ai-models/__tests__/price-seed-migration.test.ts",
     `insert into ai_model_prices (${cols})`,
@@ -915,7 +915,7 @@ export function seedRowToPrice(row: AiModelPriceSeedRow): AiModelPrice {
 - [ ] **Step 4: Write `test-prices.ts`**
 
 ```ts
-// D534 — the seeded price rows, for tests anywhere in the app that need a model's real price.
+// D557 — the seeded price rows, for tests anywhere in the app that need a model's real price.
 // Not imported by app code.
 import { priceRowsFromCodeTables, seedRowToPrice } from "./price-seed";
 import { currentPrice } from "./pricing";
@@ -944,7 +944,7 @@ Expected: PASS, 5 tests. If the Omni allowance assertion fails by one token, the
 
 ```bash
 git add src/lib/ai-models/price-seed.ts src/lib/ai-models/test-prices.ts src/lib/ai-models/__tests__/price-seed.test.ts
-git commit -m "feat(credits): price rows built from today's code tables (D534)"
+git commit -m "feat(credits): price rows built from today's code tables (D557)"
 ```
 
 ---
@@ -976,7 +976,7 @@ import { imageGenClientModels } from "@/lib/image-gen/client-models";
 import { videoGenClientModelMap } from "@/lib/video-gen/client-models";
 import type { ParamSpec } from "@/lib/image-gen/types";
 
-// D534 — the seeded rows must reproduce today's prices for every model and every value its
+// D557 — the seeded rows must reproduce today's prices for every model and every value its
 // params can take, before any caller reads a row instead of a table.
 const BEFORE = new Date("2026-11-22T00:00:00Z");
 const AFTER = new Date("2026-12-04T00:00:00Z");
@@ -1098,18 +1098,18 @@ Expected: PASS for all 20 model tests and the 4 extra cases. If one fails, the f
 
 ```bash
 git add src/lib/ai-models/__tests__/price-equivalence.test.ts
-git commit -m "test(credits): seeded price rows reproduce today's video and image prices (D534)"
+git commit -m "test(credits): seeded price rows reproduce today's video and image prices (D557)"
 ```
 
 ---
 
-### Task 6: Migration 0078, its drift test, the migration doc and D534
+### Task 6: Migration 0078, its drift test, the migration doc and D557
 
 **Files:**
 - Create (generated): `supabase/migrations/0078_ai_model_prices_seed.sql`
 - Test: `src/lib/ai-models/__tests__/price-seed-migration.test.ts`
 - Modify: `docs/auth-production-migration.md` (append)
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (append D534)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (append D557)
 
 **Interfaces:**
 - Consumes: `priceRowsFromCodeTables`, `priceSeedSql`, `SEED_JSON_TAG`.
@@ -1125,7 +1125,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { priceRowsFromCodeTables, priceSeedSql } from "../price-seed";
 
-// D534 — migration 0078 holds exactly the code tables' prices until Plan 2a-ii deletes the
+// D557 — migration 0078 holds exactly the code tables' prices until Plan 2a-ii deletes the
 // tables. Vitest runs from the repo root.
 const FILE = resolve(process.cwd(), "supabase/migrations/0078_ai_model_prices_seed.sql");
 
@@ -1156,7 +1156,7 @@ Append to `docs/auth-production-migration.md` (keep its CRLF line endings; one b
 
 ````markdown
 
-## Migration 0078 — model prices (D534, 2026-11-22)
+## Migration 0078 — model prices (D557, 2026-11-22)
 
 `supabase/migrations/0078_ai_model_prices_seed.sql`: one price row per image and video model from
 1 Jan 2026, and a second row for Omni 1.1 at 1.2 rates from 3 Dec 2026 08:00 UTC. Paste into the
@@ -1180,13 +1180,13 @@ update ai_model_prices set note = note where model_id = 'gemini:gemini-omni-1.2-
 ```
 ````
 
-- [ ] **Step 5: Append D534 to the ADR log**
+- [ ] **Step 5: Append D557 to the ADR log**
 
 Append to `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`:
 
 ```markdown
 
-### D534 — Video and image runs are priced from the dated price row they start on *(recorded 2026-11-22; implements D530, D531)*
+### D557 — Video and image runs are priced from the dated price row they start on *(recorded 2026-11-22; implements D553, D554)*
 
 **Decision.** `ai_model_prices` holds one row per video and image model (migration 0078), seeded from the code tables through their own functions at every value a model can take. A row's lines price both the estimate (`video_second` per resolution, and audio for Kling; `output_image` per quality and size; Seedream's `input_image` after the first) and the charge (Omni's input, video, text and thinking tokens; Seedance's video tokens, with a 1080p line; image text, image and output tokens). Its `estimate` holds the allowances the request cannot show: Omni's 1,100 input tokens per image, 1,500 thinking tokens and the edit's source tokens per second; image input tokens as a base plus per reference; Gemini's 1,000 text and thinking tokens. Omni 1.1's move to 1.2 rates is its second row from 3 Dec 2026 08:00 UTC. One engine (`priceMeters`) prices quantities against the matching line. A new run reads the row valid now from the cached catalog and records it as `generations.model_price_id`; its completion is charged with that same row. A model with no row is refused before anything is recorded: "This model has no price set, so it can't run right now." Seedream reports the images it billed instead of a dollar figure.
 
@@ -1201,7 +1201,7 @@ Append to `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`:
 
 ```bash
 git add supabase/migrations/0078_ai_model_prices_seed.sql src/lib/ai-models/__tests__/price-seed-migration.test.ts docs/auth-production-migration.md docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
-git commit -m "feat(credits): seed model prices (migration 0078, D534)"
+git commit -m "feat(credits): seed model prices (migration 0078, D557)"
 ```
 
 ---
@@ -1278,7 +1278,7 @@ import { getAiCatalog } from "./catalog";
 import { currentPrice, priceById } from "./pricing";
 import type { AiModelPrice } from "./types";
 
-// D534 — where a run's price comes from: the catalog row valid when it starts. A run records the
+// D557 — where a run's price comes from: the catalog row valid when it starts. A run records the
 // row it reserved with, and is charged with that same row when it finishes.
 export const NO_PRICE_MESSAGE = "This model has no price set, so it can't run right now.";
 
@@ -1303,14 +1303,14 @@ export async function priceForGeneration(g: {
 In `src/lib/db/types.ts`, inside `GenerationRow`, after `credits_charged: number | null;` add:
 
 ```ts
-  // D534 — the ai_model_prices row the run was reserved and is charged with (migration 0076).
+  // D557 — the ai_model_prices row the run was reserved and is charged with (migration 0076).
   model_price_id?: string | null;
 ```
 
 In `src/lib/db/generations.ts`, add to `insertGeneration`'s input type after `inputsSnapshot?: Record<string, unknown>;`:
 
 ```ts
-  /** D534 — the price row the run is reserved and charged with. */
+  /** D557 — the price row the run is reserved and charged with. */
   modelPriceId?: string;
 ```
 
@@ -1330,7 +1330,7 @@ Expected: PASS (run-price.test.ts 5 tests; nothing else changes).
 
 ```bash
 git add src/lib/ai-models/run-price.ts src/lib/ai-models/__tests__/run-price.test.ts src/lib/db/types.ts src/lib/db/generations.ts
-git commit -m "feat(credits): a run's price comes from the catalog and is recorded on it (D534)"
+git commit -m "feat(credits): a run's price comes from the catalog and is recorded on it (D557)"
 ```
 
 ---
@@ -1371,7 +1371,7 @@ vi.mock("@/lib/ai-models/run-price", async () => {
 Add to `src/app/api/nodes/[id]/video-generate/route.test.ts`, after the test "generates the OMNI lane on the plan's own model, with the ladder's duration" (it uses that test's graph and request):
 
 ```ts
-it("refuses a model with no price before anything is recorded (D534)", async () => {
+it("refuses a model with no price before anything is recorded (D557)", async () => {
   const { priceForNewRun } = await import("@/lib/ai-models/run-price");
   vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
   mocks.graph = buildGraph(
@@ -1389,7 +1389,7 @@ it("refuses a model with no price before anything is recorded (D534)", async () 
 Add to `src/app/api/nodes/[id]/video-edit/route.test.ts`, inside its `describe`:
 
 ```ts
-it("refuses a model with no price before anything is recorded (D534)", async () => {
+it("refuses a model with no price before anything is recorded (D557)", async () => {
   const { priceForNewRun } = await import("@/lib/ai-models/run-price");
   vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
   const res = await post(BODY);
@@ -1432,7 +1432,7 @@ import { videoEstimateUsd } from "@/lib/ai-models/video-price";
 Immediately before `// Insert generation record (status: 'running')`, add:
 
 ```ts
-    // D534 — the price row this run is reserved and charged with; no row, no run.
+    // D557 — the price row this run is reserved and charged with; no row, no run.
     const price = await priceForNewRun(modelId);
     if (!price) return apiError(NO_PRICE_MESSAGE, 409);
 ```
@@ -1457,9 +1457,9 @@ In `src/lib/video-edit/record.ts`, replace `videoEditEstimateCredits` with:
 
 ```ts
 /**
- * The one price both the panel's estimate and the route's reservation use. D528 — Omni also
+ * The one price both the panel's estimate and the route's reservation use. D551 — Omni also
  * bills the take itself as input (as many tokens as the output) and any reference images.
- * D534 — priced from the model's price row; null until it is known or when it has no price.
+ * D557 — priced from the model's price row; null until it is known or when it has no price.
  */
 export function videoEditEstimateCredits(
   price: AiModelPrice | null,
@@ -1515,7 +1515,7 @@ import { videoChargeUsd } from "@/lib/ai-models/video-price";
 Replace the block from `const usage = voiceChange ? null : readVideoUsage(input.usage);` through the `const cost = voiceChange ? … : null);` statement with:
 
 ```ts
-  // D528/D534 — the provider's reported usage when it sent one, else the seconds, both priced
+  // D551/D557 — the provider's reported usage when it sent one, else the seconds, both priced
   // with the row this run was reserved with. A voice change is ElevenLabs' work, priced by its voice.
   const usage = voiceChange ? null : readVideoUsage(input.usage);
   const price = voiceChange ? null : await priceForGeneration(generation);
@@ -1577,7 +1577,7 @@ Expected: no output.
 
 ```bash
 git add "src/app/api/nodes/[id]/video-generate/route.ts" "src/app/api/nodes/[id]/video-generate/route.test.ts" "src/app/api/nodes/[id]/video-edit/route.ts" "src/app/api/nodes/[id]/video-edit/route.test.ts" src/lib/video-edit/record.ts src/lib/video-edit/__tests__/record.test.ts src/lib/generations/complete.ts src/lib/generations/complete.test.ts src/components/nodes/video-gen-edit-video.tsx src/lib/ai-models/price-seed.ts
-git commit -m "feat(credits): video runs reserve and settle with their price row (D534)"
+git commit -m "feat(credits): video runs reserve and settle with their price row (D557)"
 ```
 
 ---
@@ -1609,7 +1609,7 @@ In `src/lib/image-gen/providers/__tests__/seedream.test.ts`:
 - in "returns the image, the token usage and the exact charge" (Pro, 3 references), replace `expect(result.costUsd).toBeCloseTo(0.096, 6);` and its comment with:
 
 ```ts
-    // D534 — the images billed (2 references after the first); the price row turns them into $0.096.
+    // D557 — the images billed (2 references after the first); the price row turns them into $0.096.
     expect(result.billedImages).toEqual({ output_image: 1, input_image: 2, size: "2K" });
     expect("costUsd" in result).toBe(false);
 ```
@@ -1635,7 +1635,7 @@ In `src/lib/generations/complete.test.ts`, `describe("completeGeneration — ima
 - add:
 
 ```ts
-  it("prices the images Seedream billed with its row (D534)", async () => {
+  it("prices the images Seedream billed with its row (D557)", async () => {
     mocks.generation = { ...mocks.generation, model_used: "seedream:seedream-5-0-pro", params_snapshot: { image_size: "2K" } };
     await completeGeneration({ ...succeeded, tokensUsed: null, billedImages: { output_image: 1, input_image: 2, size: "2K" } });
     expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: usdToFinalCredits(0.096) }));
@@ -1647,7 +1647,7 @@ In `src/lib/image-gen/__tests__/billed-run.test.ts`, change the `generate.mockRe
 Add to `start-generation.test.ts`:
 
 ```ts
-it("refuses a model with no price before anything is recorded (D534)", async () => {
+it("refuses a model with no price before anything is recorded (D557)", async () => {
   const { priceForNewRun } = await import("@/lib/ai-models/run-price");
   vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
   const res = await startImageGeneration(input);
@@ -1672,7 +1672,7 @@ Expected: FAIL in the changed tests.
 In `src/lib/image-gen/types.ts`, in `ImageGenResult`, replace the `costUsd?: number;` line with:
 
 ```ts
-  /** D534 — providers billed per image (Seedream) report what they billed; the price row prices it. */
+  /** D557 — providers billed per image (Seedream) report what they billed; the price row prices it. */
   billedImages?: BilledImages;
 ```
 
@@ -1722,7 +1722,7 @@ import { imageEstimateUsd } from "@/lib/ai-models/image-price";
 After the `hasRunningGeneration` check add:
 
 ```ts
-  // D534 — the price row this run is reserved and charged with; no row, no run.
+  // D557 — the price row this run is reserved and charged with; no row, no run.
   const price = await priceForNewRun(modelId);
   if (!price) return apiError(NO_PRICE_MESSAGE, 409);
 ```
@@ -1793,7 +1793,7 @@ import { imageChargeUsd } from "@/lib/ai-models/image-price";
 Before `const generation = await insertGeneration({` add:
 
 ```ts
-  // D534 — the price row this image is reserved and charged with; no row, no image.
+  // D557 — the price row this image is reserved and charged with; no row, no image.
   const price = await priceForNewRun(args.modelId);
   if (!price) throw new Error(NO_PRICE_MESSAGE);
 ```
@@ -1810,7 +1810,7 @@ add `modelPriceId: price.id,` after `modelUsed: args.modelId,`; change the estim
 In `src/lib/generations/complete.ts` `completeImageGeneration`, add the import `import { imageChargeUsd } from "@/lib/ai-models/image-price";` and replace the `const cost = …;` statement with:
 
 ```ts
-  // D534 — priced with the row this run was reserved with: billed images (Seedream) or tokens.
+  // D557 — priced with the row this run was reserved with: billed images (Seedream) or tokens.
   const price = await priceForGeneration(generation);
   const charge = price
     ? imageChargeUsd(price, { tokens: input.tokensUsed ?? null, billedImages: input.billedImages ?? null })
@@ -1833,7 +1833,7 @@ Expected: no output.
 Stage every file this task changed by explicit path (the list under **Files**, plus `maker.ts`, `panel-inputs.ts` and the four avatar/visualise components), then:
 
 ```bash
-git commit -m "feat(credits): image runs reserve and settle with their price row (D534)"
+git commit -m "feat(credits): image runs reserve and settle with their price row (D557)"
 ```
 
 ---
@@ -1882,7 +1882,7 @@ and replace the two functions with:
 ```ts
 /** What a preview costs. A named preview pays for the clip and the voice change over the same
  *  seconds; a native one pays for the clip alone, because the engine's voice arrives with it.
- *  D534 — the clip is priced from its model's price row. Null without a price. */
+ *  D557 — the clip is priced from its model's price row. Null without a price. */
 export function voicePreviewCostUsd(
   price: AiModelPrice | null,
   mode: VoicePreviewMode,
@@ -1944,7 +1944,7 @@ Expected: no output.
 
 ```bash
 git add src/lib/avatars/voice-preview.ts src/lib/avatars/studio-server.ts "src/app/api/clients/[id]/avatars/[avatarId]/voice-preview/route.ts" "src/app/api/clients/[id]/avatars/[avatarId]/voice-preview/route.test.ts" src/lib/avatars/complete-voice-preview.ts src/lib/avatars/__tests__/voice-preview.test.ts src/lib/generations/complete.test.ts
-git commit -m "feat(credits): the voice preview's clip is priced from its price row (D534)"
+git commit -m "feat(credits): the voice preview's clip is priced from its price row (D557)"
 ```
 
 ---

@@ -15,7 +15,7 @@ import type { Edge } from "@xyflow/react";
 // at module scope), so Next.js server rendering can't share one store across
 // requests, and each mounted canvas gets a fresh instance — seeded with the
 // nodes and edges loaded from the DB on the server. It is created with the model lists of the
-// catalog at mount (D544); a later catalog refresh does not move nodes already open.
+// catalog at mount (D567); a later catalog refresh does not move nodes already open.
 const CanvasStoreContext = createContext<CanvasStore | null>(null);
 
 export function CanvasStoreProvider({

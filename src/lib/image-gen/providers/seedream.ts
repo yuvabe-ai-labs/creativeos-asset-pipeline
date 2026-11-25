@@ -55,7 +55,7 @@ export function seedreamSize(sizes: SizeTable, resolution: string, aspectRatio: 
 
 /**
  * A Seedream variant's request settings. `arkModel` is a default for tests and builders; the
- * adapter always passes the catalog row's provider_model_id, and that is what runs (D545).
+ * adapter always passes the catalog row's provider_model_id, and that is what runs (D568).
  */
 export type SeedreamVariant = {
   arkModel: string;

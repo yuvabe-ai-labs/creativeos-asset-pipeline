@@ -141,13 +141,20 @@ describe("POST generations", () => {
     expect((await res.json()).error).toBe("Content blocked");
   });
 
-  it("formats a thrown failure ahead of generation (e.g. resolveCallerContext) as a 500, via withTryCatch", async () => {
-    vi.mocked(resolveCallerContext).mockRejectedValue(new Error("Session expired"));
+  it("formats a thrown failure ahead of generation (e.g. getAvatar) as a 500, via withTryCatch", async () => {
+    vi.mocked(getAvatar).mockRejectedValueOnce(new Error("Session expired"));
     const { POST } = await import("./route");
     const res = await POST(post(body), { params });
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe("Session expired");
     expect(runAvatarGeneration).not.toHaveBeenCalled();
+  });
+
+  // Auth once per request: the chokepoint resolves the caller and hands it on.
+  it("resolves the caller once", async () => {
+    const { POST } = await import("./route");
+    await POST(post(body), { params });
+    expect(resolveCallerContext).toHaveBeenCalledTimes(1);
   });
 });
 

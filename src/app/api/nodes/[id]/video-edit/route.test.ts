@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
-  return { ...actual, withNode: (_r: Request, _p: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", mocks.node, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
+  return { ...actual, withNode: (_r: Request, _p: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", mocks.node, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
 });
 vi.mock("@/lib/db/versions", () => ({ getVersionById: mocks.getVersionById }));
 vi.mock("@/lib/db/generations", () => ({ insertGeneration: mocks.insertGeneration, failGeneration: mocks.failGeneration, hasRunningGeneration: mocks.hasRunning }));
@@ -61,7 +61,7 @@ beforeEach(() => {
 });
 
 describe("POST /api/nodes/[id]/video-edit", () => {
-  it("refuses a retired edit model before anything is recorded (D540)", async () => {
+  it("refuses a retired edit model before anything is recorded (D563)", async () => {
     const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
     cat.value = withModel(seededModelCatalog(), GEMINI_OMNI_11_MODEL_ID, { status: "retired", replacedBy: GEMINI_OMNI_12_MODEL_ID });
     const res = await post({ ...BODY, modelId: GEMINI_OMNI_11_MODEL_ID });
@@ -71,7 +71,7 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     expect(mocks.trigger).not.toHaveBeenCalled();
   });
 
-  // D540 — "the node already uses it" for an edit is the model the base take was last edited with.
+  // D563 — "the node already uses it" for an edit is the model the base take was last edited with.
   describe("a hidden edit model", () => {
     const editedWith = (modelId: string) => ({
       ...BASE,
@@ -106,7 +106,7 @@ describe("POST /api/nodes/[id]/video-edit", () => {
     });
   });
 
-  it("refuses a model with no price before anything is recorded (D534)", async () => {
+  it("refuses a model with no price before anything is recorded (D557)", async () => {
     const { seededModelCatalog, withoutPrice } = await import("@/lib/ai-models/test-catalog");
     cat.value = withoutPrice(seededModelCatalog(), GEMINI_OMNI_12_MODEL_ID);
     const res = await post(BODY);

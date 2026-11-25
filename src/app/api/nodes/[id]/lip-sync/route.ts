@@ -20,7 +20,7 @@ const BodySchema = z.object({ versionId: z.string().min(1), editorSessionId: z.s
 
 // D375 — lip-sync the active dub. Its result overrides that version's lipSynced stage.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, (nodeId, node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, (nodeId, node, caller, clientId, effectiveOrgId) => {
     return withTryCatch("Couldn't start lip sync. Try again.", async () => {
       if (node.type !== "dubbing") return apiError("Node not found.", 404);
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
@@ -29,7 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!process.env.FAL_KEY) return apiError(DUBBING_NOT_SET_UP_MESSAGE, 400);
       if (node.active_version_id !== versionId) return apiError("Lip sync runs on the dub you're viewing. Reopen the node and try again.", 400);
 
-      // D535 - the price row this run is reserved and charged with is read beside the rest (rule 5).
+      // D558 - the price row this run is reserved and charged with is read beside the rest (rule 5).
       const [version, running, locked, { price, catalog }] = await Promise.all([
         getVersionById(versionId),
         hasRunningGeneration(nodeId),

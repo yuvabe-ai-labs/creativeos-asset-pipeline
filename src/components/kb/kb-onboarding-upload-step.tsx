@@ -24,16 +24,22 @@ import {
   KB_DOC_SIZE_LIMIT_BYTES,
   KB_IMG_SIZE_LIMIT_BYTES,
   KB_JOB_NON_TERMINAL,
-  DOC_EXTENSIONS,
-  IMG_EXTENSIONS,
 } from "@/lib/kb/constants";
 import { formatBytes } from "@/lib/kb/utils";
-import { uploadViaSignedUrl } from "@/lib/uploads/client";
+import { checkSourceFile, sourceKindOf, uploadSource, type SourceKind } from "@/lib/kb/upload-source";
 import { startKBBuildJob } from "@/lib/actions/kb";
 import { useKBJobStatus } from "./use-kb-job-status";
 import { brandKitService } from "@/services/brand-kit.service";
 import { useAssetImports, useStartAssetImport } from "@/hooks/queries/asset-imports";
+import { useKbCopilotSaved, useRefreshCopilotThread } from "@/hooks/queries/copilot-thread";
+import { useServerState } from "@/hooks/use-server-state";
 import { KBSocialHandleFields } from "./kb-social-handle-fields";
+import { CopilotTarget } from "@/components/journey/copilot-target";
+import { useFollowCopilot } from "@/hooks/use-follow-copilot";
+import { kbTarget } from "@/lib/journey/kb-copilot/targets";
+
+/** The form is one page with nothing to switch to: every target it tags can be shown. */
+const ON_THIS_PAGE = () => true;
 import { AssetImportStatusList } from "./asset-import-status-list";
 
 const NON_TERMINAL = KB_JOB_NON_TERMINAL;
@@ -100,13 +106,29 @@ export function KBOnboardingUploadStep({
   const job = useKBJobStatus(clientId, initialJob);
   const isRunning = job !== null && NON_TERMINAL.has(job.status);
 
-  const [documents, setDocuments] = useState(initialDocuments);
-  const [images, setImages] = useState(initialImages);
+  // The copilot beside this form saves the same sources. When it does the page is re-read, and each
+  // of these takes the server's value again; whatever else is typed here is left alone.
+  const [documents, setDocuments] = useServerState(initialDocuments, initialDocuments.map((d) => d.id).join("|"));
+  const [images, setImages] = useServerState(initialImages, initialImages.map((i) => i.id).join("|"));
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [uploadingImgs, setUploadingImgs] = useState(false);
-  const [websiteUrl, setWebsiteUrl] = useState(initialWebsiteUrl ?? "");
-  const [instagram, setInstagram] = useState(initialInstagram ?? "");
-  const [facebook, setFacebook] = useState(initialFacebook ?? "");
+  const [websiteUrl, setWebsiteUrl] = useServerState(initialWebsiteUrl ?? "", initialWebsiteUrl ?? "");
+  const [instagram, setInstagram] = useServerState(initialInstagram ?? "", initialInstagram ?? "");
+  const [facebook, setFacebook] = useServerState(initialFacebook ?? "", initialFacebook ?? "");
+  // A website or handle the copilot has just saved is shown at once, before the page is re-read.
+  // Only the fields it saved are touched, and each save is taken once.
+  const copilotSaved = useKbCopilotSaved(clientId);
+  // The form shows the copilot's saves and attached files land (D520).
+  const { stateOf } = useFollowCopilot(clientId, ON_THIS_PAGE);
+  const [shownSave, setShownSave] = useState(copilotSaved?.n ?? 0);
+  if (copilotSaved && copilotSaved.n !== shownSave) {
+    setShownSave(copilotSaved.n);
+    if (copilotSaved.website !== undefined) setWebsiteUrl(copilotSaved.website);
+    if (copilotSaved.instagram !== undefined) setInstagram(copilotSaved.instagram);
+    if (copilotSaved.facebook !== undefined) setFacebook(copilotSaved.facebook);
+  }
+  // What is done here changes what the copilot beside it should say, so it re-reads its thread.
+  const refreshCopilot = useRefreshCopilotThread(clientId);
   const [starting, startStartTransition] = useTransition();
   const startImport = useStartAssetImport(clientId);
   const { data: importData } = useAssetImports(clientId);
@@ -121,71 +143,43 @@ export function KBOnboardingUploadStep({
     }
   }, [job?.status, job?.error, clientSlug, router]);
 
+  // The build moved on (started here or anywhere, a new phase, finished): the copilot shows it too.
+  useEffect(() => {
+    void refreshCopilot();
+  }, [job?.status, refreshCopilot]);
+
   const docTotalBytes = documents.reduce((s, d) => s + (d.size_bytes ?? 0), 0);
   const imgTotalBytes = images.reduce((s, i) => s + (i.size_bytes ?? 0), 0);
 
-  async function uploadFiles(
-    files: File[],
-    endpoint: string,
-    allowedExts: Set<string>,
-    limitBytes: number,
-    currentBytes: number,
-    onAdded: (item: ClientKBDocumentRow | ClientBrandImageRow) => void,
-    setUploading: (v: boolean) => void,
-  ) {
+  // The same check and upload the copilot chat uses (src/lib/kb/upload-source.ts).
+  async function uploadFiles(files: File[], kind: SourceKind, setUploading: (v: boolean) => void) {
     setUploading(true);
+    const used = { document: docTotalBytes, image: imgTotalBytes };
     for (const file of files) {
-      const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-      if (!allowedExts.has(ext)) {
-        toast.error(`Unsupported type: .${ext}`);
-        continue;
-      }
-      if (currentBytes + file.size > limitBytes) {
-        toast.error(`Adding this file would exceed the ${formatBytes(limitBytes)} limit`);
+      const reason = sourceKindOf(file.name) === kind ? checkSourceFile(file, used) : (checkSourceFile(file) ?? `${file.name} is not ${kind === "image" ? "an image" : "a document"}.`);
+      if (reason) {
+        toast.error(reason);
         continue;
       }
       try {
-        const json = await uploadViaSignedUrl<{
-          document?: ClientKBDocumentRow;
-          image?: ClientBrandImageRow;
-        }>(file, {
-          signEndpoint: `${endpoint}/sign`,
-          finalizeEndpoint: `${endpoint}/finalize`,
-        });
-        const item = json.document ?? json.image;
-        if (item) {
-          onAdded(item);
-          currentBytes += file.size;
-        }
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : `Failed to upload ${file.name}`);
+        const uploaded = await uploadSource(clientId, file);
+        if (uploaded.kind === "document") setDocuments((prev) => [...prev, uploaded.row]);
+        else setImages((prev) => [...prev, uploaded.row]);
+        used[kind] += file.size;
+        void refreshCopilot();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : `Failed to upload ${file.name}`);
       }
     }
     setUploading(false);
   }
 
   function handleDocFiles(files: File[]) {
-    uploadFiles(
-      files,
-      `/api/clients/${clientId}/kb/documents`,
-      DOC_EXTENSIONS,
-      DOC_LIMIT_BYTES,
-      docTotalBytes,
-      (item) => setDocuments((prev) => [...prev, item as ClientKBDocumentRow]),
-      setUploadingDocs,
-    );
+    uploadFiles(files, "document", setUploadingDocs);
   }
 
   function handleImgFiles(files: File[]) {
-    uploadFiles(
-      files,
-      `/api/clients/${clientId}/kb/images`,
-      IMG_EXTENSIONS,
-      IMG_LIMIT_BYTES,
-      imgTotalBytes,
-      (item) => setImages((prev) => [...prev, item as ClientBrandImageRow]),
-      setUploadingImgs,
-    );
+    uploadFiles(files, "image", setUploadingImgs);
   }
 
   async function removeDoc(docId: string) {
@@ -195,6 +189,7 @@ export function KBOnboardingUploadStep({
     );
     if (res.ok) {
       setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      void refreshCopilot();
     } else {
       toast.error("Failed to remove document");
     }
@@ -207,6 +202,7 @@ export function KBOnboardingUploadStep({
     );
     if (res.ok) {
       setImages((prev) => prev.filter((i) => i.id !== imageId));
+      void refreshCopilot();
     } else {
       toast.error("Failed to remove image");
     }
@@ -230,6 +226,7 @@ export function KBOnboardingUploadStep({
           onError: () => toast.error("Couldn't start bringing in the brand assets. You can try again from Brand assets."),
         });
         await startKBBuildJob(clientId);
+        void refreshCopilot();
         // Don't redirect here — the useEffect above will redirect when the
         // Realtime event fires with status 'succeeded'.
       } catch (e) {
@@ -249,14 +246,15 @@ export function KBOnboardingUploadStep({
             Brand website
           </Label>
         </div>
+        <CopilotTarget id={kbTarget.form("website")} state={stateOf(kbTarget.form("website"))} className="-mx-2 mt-1 px-2 py-1">
         <Input
           id="website-url"
-          className="mt-2"
           placeholder="https://yourbrand.com"
           value={websiteUrl}
           onChange={(e) => setWebsiteUrl(e.target.value)}
           disabled={isRunning}
         />
+        </CopilotTarget>
         <p className="mt-2 text-xs text-muted-foreground">
           We&apos;ll research the site and add it as a knowledge source.
         </p>
@@ -267,6 +265,7 @@ export function KBOnboardingUploadStep({
             onInstagramChange={setInstagram}
             onFacebookChange={setFacebook}
             disabled={isRunning}
+            stateOf={stateOf}
           />
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
@@ -314,10 +313,9 @@ export function KBOnboardingUploadStep({
             ) : (
               <ul className="space-y-1">
                 {documents.map((doc) => (
-                  <li
-                    key={doc.id}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50 group"
-                  >
+                  <li key={doc.id}>
+                    <CopilotTarget id={kbTarget.source(doc.id)} state={stateOf(kbTarget.source(doc.id))} className="rounded-md">
+                    <div className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50">
                     <FileTextIcon className="size-3.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{doc.filename}</span>
                     {doc.size_bytes && (
@@ -336,6 +334,8 @@ export function KBOnboardingUploadStep({
                         <XIcon className="size-3.5" />
                       </Button>
                     )}
+                                      </div>
+                    </CopilotTarget>
                   </li>
                 ))}
               </ul>
@@ -376,10 +376,9 @@ export function KBOnboardingUploadStep({
             ) : (
               <ul className="space-y-1">
                 {images.map((img) => (
-                  <li
-                    key={img.id}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50 group"
-                  >
+                  <li key={img.id}>
+                    <CopilotTarget id={kbTarget.source(img.id)} state={stateOf(kbTarget.source(img.id))} className="rounded-md">
+                    <div className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50">
                     <ImageIcon className="size-3.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{img.filename}</span>
                     {img.size_bytes && (
@@ -398,6 +397,8 @@ export function KBOnboardingUploadStep({
                         <XIcon className="size-3.5" />
                       </Button>
                     )}
+                                      </div>
+                    </CopilotTarget>
                   </li>
                 ))}
               </ul>

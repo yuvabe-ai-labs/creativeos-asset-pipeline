@@ -1,4 +1,4 @@
-// D534 — an image run's estimate and charge, from its model's price row. Client-safe.
+// D557 — an image run's estimate and charge, from its model's price row. Client-safe.
 import { aspectRatioToOpenAISize } from "@/lib/image-gen/cost";
 import type { ImageTokenUsage } from "@/lib/image-gen/types";
 import { lineFor, priceMeters, type MeterQuantities, type PriceDims } from "./pricing";

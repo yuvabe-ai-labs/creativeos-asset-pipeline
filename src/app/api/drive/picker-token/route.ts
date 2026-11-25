@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { exchangeRefreshToken } from "@/lib/drive/client";
-import { apiError } from "@/lib/api/route-helpers";
+import { apiError, withAccess } from "@/lib/api/route-helpers";
 
-// TODO: tighten this gate when proper auth lands (D14). For now, the access
-// token has a 1h TTL and drive.readonly scope — restrict to same-site callers.
-export async function GET(req: Request) {
+// The token is for the platform-wide Drive account (1h TTL, drive.readonly), so only same-site
+// callers get it.
+async function readDrive(req: Request) {
   const origin = req.headers.get("origin");
   const host = req.headers.get("host");
   if (origin && host && !origin.includes(host.split(":")[0])) {
@@ -21,4 +21,10 @@ export async function GET(req: Request) {
   } catch {
     return apiError("Could not connect to Google Drive. Check server configuration.", 500);
   }
+}
+
+// Every agency reads Drive through ONE platform-wide token (known limitation, plan 1), so the
+// Drive routes need canvas edit, checked through withAccess.
+export async function GET(req: Request) {
+  return withAccess(req, { need: "edit" }, () => readDrive(req));
 }

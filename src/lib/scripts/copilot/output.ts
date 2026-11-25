@@ -76,6 +76,10 @@ export const extractionSchema = z.object({
   cardChange: z.string(),
   ack: z.string(),
   suggestions: z.array(z.string()),
+  /** Market signals the person asked to use or not use for this reel, by name (D531). */
+  signals: z.object({ add: z.array(z.string()), remove: z.array(z.string()) }),
+  /** Only when the person asked to research or search for something: their question (D532). */
+  research: z.string().nullable(),
 });
 export type Extraction = z.infer<typeof extractionSchema>;
 
@@ -136,7 +140,20 @@ export const editOpSchema = z.object({
 });
 export type EditOp = z.infer<typeof editOpSchema>;
 
-export const editTurnSchema = z.object({ ops: z.array(editOpSchema), reply: z.string(), suggestions: z.array(z.string()) });
+export const editTurnSchema = z.object({
+  ops: z.array(editOpSchema), reply: z.string(), suggestions: z.array(z.string()),
+  /** Only when the person asked to research or search for something: their question (D532). */
+  research: z.string().nullable(),
+});
+
+/** Piece 5.1 (D524) — the edit turn at Visualise: Generate's, plus the panel versions to pick
+ *  ("version 2 of S3", numbered from 1 in the order they were drawn) and one button to offer. The
+ *  copilot can only offer drawing, sending and reopening: the person presses them. */
+export const VISUALISE_OFFERS = ["none", "draw", "send", "reopen"] as const;
+export const visualiseTurnSchema = editTurnSchema.extend({
+  picks: z.array(z.object({ shotId: z.string(), version: z.number().int() })),
+  offer: z.enum(VISUALISE_OFFERS),
+});
 export const inlineOutputSchema = z.object({ replacement: z.string(), summary: z.string() });
 
 /** Paste-a-script spec §5.2 — is the message a whole script (import) or anything else (the turn

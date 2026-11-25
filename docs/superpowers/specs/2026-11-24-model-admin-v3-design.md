@@ -5,7 +5,7 @@ Approved 24 Nov 2026 from the clickable prototype
 (critique and screenshots in `ModelPricing\reference\`). The prototype is the source of truth for layout,
 copy and behaviour; this page records what the build must do and the decisions behind it. It replaces the
 phase-1 admin UI built by `docs/superpowers/plans/2026-11-23-model-catalog-4-admin.md` and keeps its
-server checks and write path (D546, D547).
+server checks and write path (D569, D570).
 
 ## Credit settings in the database (plan 5a)
 

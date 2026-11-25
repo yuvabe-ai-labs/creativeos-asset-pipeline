@@ -10,7 +10,7 @@ import { isVideoAudioEnabled } from "@/lib/video-gen/cost";
 import { videoEditEstimateCredits, VIDEO_EDIT_MODEL_IDS, VIDEO_EDIT_RESOLUTIONS } from "@/lib/video-edit/record";
 import type { ParamSpec } from "@/lib/image-gen/types";
 
-// D534 — every price a model can quote in the browser, pinned over the whole grid of its own
+// D557 — every price a model can quote in the browser, pinned over the whole grid of its own
 // settings, on the rows migration 0078 seeded. A price change shows up here as a snapshot diff.
 const AT = new Date("2026-11-22T00:00:00Z");
 const REFERENCES = [0, 1, 3];

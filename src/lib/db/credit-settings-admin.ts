@@ -1,5 +1,5 @@
 import "server-only";
-// D548 — the super admin's view of the credit settings. Unlike the catalog loader it keeps rows that
+// D571 — the super admin's view of the credit settings. Unlike the catalog loader it keeps rows that
 // fail their check, so a broken row can be seen and cancelled.
 import { createServerSupabase } from "@/lib/supabase/server";
 import { CREDIT_SETTINGS_COLUMNS, checkCreditSettingsRow } from "@/lib/ai-models/schema";

@@ -13,7 +13,7 @@ export async function generateStructured<S extends z.ZodType>(args: {
   system: string;
   parts: GeminiPart[];
   schema: S;
-  /** D537 — whom the call's cost is recorded for; without it nothing is recorded. */
+  /** D560 — whom the call's cost is recorded for; without it nothing is recorded. */
   recordFor?: RecordFor;
 }): Promise<z.infer<S>> {
   const ai = createGemini();

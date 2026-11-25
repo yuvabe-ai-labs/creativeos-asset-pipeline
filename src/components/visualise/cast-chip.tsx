@@ -39,7 +39,7 @@ export function CastChip({ clientId, scriptId, member, avatar, faceUrl, takenIds
 }) {
   const [open, setOpen] = useState(false);
   const images = useImageModels();
-  // D543 — the cast default while it is live, else the catalog's.
+  // D566 — the cast default while it is live, else the catalog's.
   const [modelId, setModelId] = useState(() => images.liveOr(VISUALISE_AVATAR_MODEL_ID));
   const maker = useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId });
   const status = castChipStatus(avatar, maker.step);

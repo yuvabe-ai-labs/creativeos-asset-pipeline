@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AiCatalog } from "@/lib/ai-models/types";
 
-// D541 — trigger/image-generate.ts dispatches through the adapter map, with the model's row read
+// D564 — trigger/image-generate.ts dispatches through the adapter map, with the model's row read
 // from the catalog at run time. A missing row or adapter fails for good, before any provider call.
 const m = vi.hoisted(() => ({
   catalog: null as AiCatalog | null,
@@ -57,7 +57,7 @@ beforeEach(() => {
   });
 });
 
-describe("image-generate task (D541)", () => {
+describe("image-generate task (D564)", () => {
   it("generates through the catalog row's adapter, reading the catalog once", async () => {
     await t.run(payload("openai:gpt-image-2"), ctx);
     expect(m.getAiCatalog).toHaveBeenCalledTimes(1);

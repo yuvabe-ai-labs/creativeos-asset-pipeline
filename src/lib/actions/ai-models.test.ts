@@ -173,7 +173,7 @@ describe("guards", () => {
   });
 });
 
-describe("D547 a row the catalog dropped", () => {
+describe("D570 a row the catalog dropped", () => {
   it("can still be patched from its raw row", async () => {
     m.getAdminModel.mockResolvedValue({ raw: raw(model), model: null, problems: ["x"], updatedBy: null });
     expect(await updateAiModelAction(NANO_PRO, { label: "Fixed" })).toEqual({});

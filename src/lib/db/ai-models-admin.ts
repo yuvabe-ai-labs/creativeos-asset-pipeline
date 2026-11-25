@@ -1,5 +1,5 @@
 import "server-only";
-// D547 — the super admin's view of the model catalog. Unlike the app's loader it keeps rows that
+// D570 — the super admin's view of the model catalog. Unlike the app's loader it keeps rows that
 // fail their check, so a broken row can be seen and fixed.
 import { createServerSupabase } from "@/lib/supabase/server";
 import {

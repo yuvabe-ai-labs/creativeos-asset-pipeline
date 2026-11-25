@@ -18,6 +18,7 @@ import { useDriveBrowser } from "@/hooks/use-drive-browser";
 import { useCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useMoodboards } from "@/hooks/use-moodboards";
 import { useMarket } from "@/hooks/use-market";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useGalleryDrawer as useGalleryCommit } from "@/hooks/use-gallery-drawer";
 import { useGalleryDrawer as useDrawerCtx } from "../gallery-drawer-context";
 import { GalleryHeader } from "./gallery-header";
@@ -126,6 +127,7 @@ type Props = {
 export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Props) {
   const { open, options, closeDrawer } = useDrawerCtx();
   const { handleAdd } = useGalleryCommit();
+  const canEdit = useCanvasEditable();
   const reactFlow = useReactFlow();
 
   const [tab, setTab] = useState<GalleryTab>("references");
@@ -323,6 +325,10 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   }
 
   function handleDragStartImage(image: GalleryImage, e: React.DragEvent) {
+    if (!canEdit) {
+      e.preventDefault(); // browsing only: nothing can be dragged onto a canvas that is not editable
+      return;
+    }
     const isMulti = selectedIds.has(image.id) && selectedIds.size > 1;
     const payload = isMulti
       ? Array.from(selectedIds)
@@ -603,7 +609,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
               ))}
           </div>
 
-          {tab !== "avatars" && tab !== "scripts" && (
+          {canEdit && tab !== "avatars" && tab !== "scripts" && (
             <GalleryFooter
               selectedCount={selectedIds.size}
               maxSelection={MAX_SELECTION}

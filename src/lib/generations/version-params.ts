@@ -58,7 +58,7 @@ export function paramsForRestore(
 }
 
 /**
- * D467/D542/D544 — what restoring an image version (Image Gen or a composite) writes onto the
+ * D467/D565/D567 — what restoring an image version (Image Gen or a composite) writes onto the
  * node: its picture, and its model and settings while that model is still offered here
  * (retired, or hidden and not `currentModelId`, brings back the picture alone). A move to
  * another model clears the retired notice, as Video's restore does.

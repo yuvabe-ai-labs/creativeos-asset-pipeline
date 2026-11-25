@@ -231,7 +231,7 @@ export function createCanvasStore(
     return { nodes: nodes.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)), layout };
   };
 
-  // D544 — a node saved on a retired model opens on its replacement, here so that its card, its
+  // D567 — a node saved on a retired model opens on its replacement, here so that its card, its
   // prompt node and its focus view all agree. Saved with the canvas's next change, not on load.
   const startingNodes = initialNodes.map((n) => {
     if (!models) return n;

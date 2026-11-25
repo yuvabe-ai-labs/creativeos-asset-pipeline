@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { seededModelCatalog } from "../test-catalog";
 
-// D545 — 0084 is history: its SQL never changes. A model change is a new migration.
+// D568 — 0084 is history: its SQL never changes. A model change is a new migration.
 const FILE = resolve(process.cwd(), "supabase/migrations/0084_ai_models_adapters.sql");
 const FROZEN_SHA256 = "687a19a76c259cc822bc47b467a8cb99992b675ff99d8dd9a83a5cd2c6aa15fd";
 

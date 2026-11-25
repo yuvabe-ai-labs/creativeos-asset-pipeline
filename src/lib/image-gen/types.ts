@@ -8,7 +8,7 @@ export type ImageTokenUsage = {
   image_input_tokens: number;
   image_output_tokens: number;
   total_tokens: number;
-  /** D528 — Gemini only: the model's text output and its thinking, both billed at the text rate. */
+  /** D551 — Gemini only: the model's text output and its thinking, both billed at the text rate. */
   text_output_tokens?: number;
   thought_tokens?: number;
 };
@@ -26,7 +26,7 @@ export type ImageGenResult = {
   imageBase64: string;       // raw bytes from provider, uploaded to Storage immediately
   mimeType: string;          // "image/png" | "image/jpeg" | "image/webp"
   tokensUsed: ImageTokenUsage;
-  /** D534 — providers billed per image (Seedream) report what they billed; the price row prices it. */
+  /** D557 — providers billed per image (Seedream) report what they billed; the price row prices it. */
   billedImages?: BilledImages;
 };
 
@@ -76,7 +76,7 @@ export type MediaGenModelSpec = {
 // Client-safe alias; the spec carries no server-only members.
 export type ClientModelSpec = MediaGenModelSpec;
 
-/** D538 — what an adapter is given besides the request: the catalog's spec and the provider's
+/** D561 — what an adapter is given besides the request: the catalog's spec and the provider's
  *  own name for the model (the row's provider_model_id). */
 export type ImageAdapterContext = { spec: ClientModelSpec; providerModelId: string };
 export type ImageAdapter = (input: ImageGenInput, ctx: ImageAdapterContext) => Promise<ImageGenResult>;

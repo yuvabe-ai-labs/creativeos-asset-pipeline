@@ -40,7 +40,7 @@ const render = (versions: VideoGenVersionSummary[], nodeModelId: string | null) 
     </QueryClientProvider>,
   );
 
-describe("VideoGenEditVideo model (D540, D543)", () => {
+describe("VideoGenEditVideo model (D563, D566)", () => {
   beforeEach(() => { state.picker = null; });
 
   it("starts on Omni 1.2 while it is live", () => {

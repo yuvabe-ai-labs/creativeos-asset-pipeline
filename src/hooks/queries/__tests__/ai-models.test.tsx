@@ -55,7 +55,7 @@ describe("useImageModels / useVideoModels", () => {
   });
 });
 
-describe("useCreditSettings (D548)", () => {
+describe("useCreditSettings (D571)", () => {
   it("is the row live now, from the cached catalog, without a request", () => {
     const hour = 3_600_000;
     const catalog = withCreditSettings(seededModelCatalog(), [

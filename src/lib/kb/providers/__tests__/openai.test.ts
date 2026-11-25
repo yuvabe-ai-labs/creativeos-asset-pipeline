@@ -13,7 +13,7 @@ import { kbExtractPrompt } from "@/prompts/kb-extract";
 import { websiteResearchPrompt } from "@/prompts/website-research";
 import { openaiKBProvider } from "../openai";
 
-// D537 — the KB build runs in a task: each OpenAI call's cost is awaited there, once.
+// D560 — the KB build runs in a task: each OpenAI call's cost is awaited there, once.
 const usage = { input_tokens: 1200, input_tokens_details: { cached_tokens: 200 }, output_tokens: 300, output_tokens_details: { reasoning_tokens: 50 }, total_tokens: 1500 };
 const recordFor = { orgId: "org-1", clientId: "client-1" };
 const meters = { input_token: 1000, cached_input_token: 200, text_output_token: 300 };

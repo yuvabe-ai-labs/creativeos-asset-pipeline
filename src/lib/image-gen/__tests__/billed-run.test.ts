@@ -83,7 +83,7 @@ describe("runBilledImageGeneration", () => {
     expect(out.generation.meta).toMatchObject({ width: 768, height: 1365 });
   });
 
-  it("refuses a retired model before recording or reserving anything (D540)", async () => {
+  it("refuses a retired model before recording or reserving anything (D563)", async () => {
     const err = await runBilledImageGeneration({ ...args(), modelId: "openai:gpt-image-1" }).catch((e) => e);
     expect(err).toBeInstanceOf(ModelRefusedError);
     expect(err.message).toBe("This model was retired. Pick another.");

@@ -5,7 +5,7 @@ import { browserCatalog } from "@/lib/ai-models/browser-catalog";
 
 export const dynamic = "force-dynamic";
 
-// D529 — the catalog for the browser (browserCatalog). One request per session (useAiCatalog),
+// D552 — the catalog for the browser (browserCatalog). One request per session (useAiCatalog),
 // never one per node.
 export async function GET() {
   try {

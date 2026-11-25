@@ -27,7 +27,7 @@ function starts(images: ImageModels): { front: string; sheet: string } {
   return out;
 }
 
-describe("useAvatarGeneration model defaults (D543)", () => {
+describe("useAvatarGeneration model defaults (D566)", () => {
   it("starts on the Studio's defaults while they are live", () => {
     expect(starts(imageModelsFrom(seededModelCatalog()))).toEqual({
       front: AVATAR_DEFAULT_FRONT_MODEL_ID, sheet: AVATAR_DEFAULT_SHEET_MODEL_ID,

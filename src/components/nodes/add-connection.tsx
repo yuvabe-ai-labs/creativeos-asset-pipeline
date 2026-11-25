@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { useClientId } from "@/components/canvas/client-id-context";
 import { useCachedAvatars } from "@/hooks/queries/avatars";
@@ -48,6 +49,7 @@ export function AddConnection({
   const [open, setOpen] = useState(false);
   const nodes = useCanvasStore((s) => s.nodes);
   const connectNodes = useCanvasStore((s) => s.connectNodes);
+  const canEdit = useCanvasEditable();
   const clientId = useClientId();
   // Avatar faces from the cache the canvas's Avatar nodes already filled — no request per row
   // (performance rule 1).
@@ -58,7 +60,7 @@ export function AddConnection({
   const faces = useCachedAvatars(clientId, avatarIds);
 
   // D374 — a one-input target that already has its input offers no more (and renders nothing).
-  if (!canAcceptIncoming(targetType, connectedIds.length)) return null;
+  if (!canEdit || !canAcceptIncoming(targetType, connectedIds.length)) return null;
 
   const candidates = nodes.filter(
     (n) =>

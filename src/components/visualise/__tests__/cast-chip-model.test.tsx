@@ -31,7 +31,7 @@ const render = () => renderToStaticMarkup(
   </QueryClientProvider>,
 );
 
-describe("CastChip avatar model (D543)", () => {
+describe("CastChip avatar model (D566)", () => {
   beforeEach(() => { state.modelIds = []; });
 
   it("starts on the cast default while it is live", () => {

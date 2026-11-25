@@ -40,17 +40,20 @@ vi.mock("@/components/avatars/avatar-model-select", () => ({
 }));
 
 import { VisualiseView } from "../visualise-view";
+import { VisualiseBoardProvider } from "../visualise-board-context";
 
 const render = () => renderToStaticMarkup(
   <QueryClientProvider client={new QueryClient()}>
-    <VisualiseView
+    <VisualiseBoardProvider
       clientId="c1"
       initial={{ script: makeScript(undefined, "visualise"), board: { avatars: [], takes: [], picks: {}, kits: [] } }}
-    />
+    >
+      <VisualiseView clientId="c1" />
+    </VisualiseBoardProvider>
   </QueryClientProvider>,
 );
 
-describe("VisualiseView panel model (D543)", () => {
+describe("VisualiseView panel model (D566)", () => {
   beforeEach(() => {
     state.drawModelIds = [];
     state.select = null;

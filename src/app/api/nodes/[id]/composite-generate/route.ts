@@ -44,7 +44,7 @@ type EditBody = {
 // never run.
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, async (nodeId, node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, node, caller, clientId, effectiveOrgId) => {
     const body = (await req.json().catch(() => null)) as
       | { instruction?: unknown; modelId?: unknown; params?: unknown; edit?: EditBody }
       | null;
@@ -75,7 +75,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // D312 — the operator's model, Seedream by default. A non-Seedream composite of an avatar
     // works with Gemini Omni, Kling and Veo but not Seedance; the picker says so.
     const modelId = resolveCompositeModelId(typeof body?.modelId === "string" ? body.modelId : undefined);
-    // D540 — live runs; hidden only on the node that already uses it; anything else is refused.
+    // D563 — live runs; hidden only on the node that already uses it; anything else is refused.
     const run = imageRun(catalog, modelId, { existingNodeModelId: nodeModelId(node.data) });
     if (!run.ok) return apiError(run.message, 400);
     const config = run.spec;

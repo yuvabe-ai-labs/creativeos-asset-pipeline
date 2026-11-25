@@ -6,7 +6,7 @@ import type { AiCatalog } from "@/lib/ai-models/types";
 import { imageAdapters } from "./adapters";
 import type { ClientModelSpec, ImageGenInput, ImageGenResult } from "./types";
 
-// D538, D540 — an image model as the server runs it: its data from the catalog row, its generate
+// D561, D563 — an image model as the server runs it: its data from the catalog row, its generate
 // from the adapter map.
 export type ImageRun = {
   ok: true;
@@ -22,7 +22,7 @@ export function imageRun(catalog: AiCatalog, modelId: string, opts: RunOptions =
   return { ok: true, spec, generate: (input) => found.adapter(input, ctx) };
 }
 
-/** D541 — the image task's generate, from the catalog at run time. The status is not checked
+/** D564 — the image task's generate, from the catalog at run time. The status is not checked
  *  again (the route did, when it reserved the run); a missing row or adapter is final. */
 export async function imageGenerateForTask(modelId: string): Promise<ImageRun["generate"]> {
   const run = imageRun(await getAiCatalog(), modelId, { checkStatus: false });

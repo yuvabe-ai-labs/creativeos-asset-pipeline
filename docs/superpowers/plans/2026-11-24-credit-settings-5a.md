@@ -4,7 +4,7 @@
 
 **Goal:** The margin and the rounding step that turn a run's USD cost into credits come from dated `credit_settings` rows a super admin can change, read with the model catalog, and every place that works out credits uses the row live when the run started.
 
-**Architecture:** Migration 0086 adds `credit_settings` (seeded with today's values) with the same "never edited, cancel only before it starts" guard as prices. The catalog loader reads it with models and prices; `AiCatalog` gains `creditSettings`. `src/lib/credits/units.ts` keeps the fixed rate and "round up" in code and exposes `creditsFromUsd(usd, settings)` plus `creditSettingsAt(catalog, at)`. Every caller passes the settings row: estimates and reservations use the row live now, completion uses the row live at the run's `created_at`. Admin actions add or cancel a row through checks like D546's.
+**Architecture:** Migration 0086 adds `credit_settings` (seeded with today's values) with the same "never edited, cancel only before it starts" guard as prices. The catalog loader reads it with models and prices; `AiCatalog` gains `creditSettings`. `src/lib/credits/units.ts` keeps the fixed rate and "round up" in code and exposes `creditsFromUsd(usd, settings)` plus `creditSettingsAt(catalog, at)`. Every caller passes the settings row: estimates and reservations use the row live now, completion uses the row live at the run's `created_at`. Admin actions add or cancel a row through checks like D569's.
 
 **Tech Stack:** Supabase Postgres, TypeScript, TanStack Query (browser catalog), Vitest 4.
 
@@ -12,14 +12,14 @@
 
 ## Global Constraints
 
-- Decision **D548**. Migration **0086**, with its entry in `docs/auth-production-migration.md` (CRLF) in the same commit, verify SQL included.
+- Decision **D571**. Migration **0086**, with its entry in `docs/auth-production-migration.md` (CRLF) in the same commit, verify SQL included.
 - **No behaviour change until an admin adds a row:** the seeded row (effective 2026-01-01, margin 0, step 5) gives exactly today's credits for every run. Every existing credit test keeps its numbers.
 - Credit rate stays `USD_TO_CREDITS = 1000` in code; rounding stays up. Margin 0–200 (a number with up to 2 decimals); step one of 1, 5, 10.
 - `credit_settings` rows: never updated; deleted only while `effective_from > now()` (DB trigger, like `ai_model_prices`); `effective_from` unique.
 - **One function** turns USD into credits: `creditsFromUsd(usd, settings)`. No caller keeps its own margin or rounding. The old `usdToFinalCredits(usd)` is removed (callers must pass settings).
 - Which row: an estimate or reservation uses `creditSettingsAt(catalog, new Date())`; completion and settling use `creditSettingsAt(catalog, new Date(generation.created_at))`. When no row is live (should never happen after 0086), fall back to the code defaults and `console.error` once.
 - The browser gets the rows through the existing catalog (`/api/ai-models`, `useAiCatalog`); no new request. Server code reads them through `getAiCatalog()` already loaded by the route or task (one catalog read per request — never an extra one).
-- Admin writes: `requireSuperAdmin()` first, server-side checks, cache cleared after a write, actions allowlisted in `with-action-coverage.test.ts` like the D546 ones. Copy plain.
+- Admin writes: `requireSuperAdmin()` first, server-side checks, cache cleared after a write, actions allowlisted in `with-action-coverage.test.ts` like the D569 ones. Copy plain.
 - Run vitest from PowerShell. Files keep their line endings; comments UTF-8. No AI attribution in commits; stage by explicit path. No database connections by the implementer. `npx tsc --noEmit -p tsconfig.json`: only `.next/` errors are known. Known flakes: re-run a timed-out route test alone.
 
 ---
@@ -42,7 +42,7 @@
 - [ ] **Step 1: Migration**
 
 ```sql
--- D548: how a run's cost becomes credits, as dated rows the super admin changes like prices.
+-- D571: how a run's cost becomes credits, as dated rows the super admin changes like prices.
 -- The credit rate (1 credit = $0.001) and rounding up stay in code. Apply before the 5a code deploys.
 create table if not exists credit_settings (
   id              uuid primary key default gen_random_uuid(),
@@ -96,7 +96,7 @@ update credit_settings set round_step = 1;
 
 - [ ] **Step 5: Run** `npx vitest run src/lib/ai-models` → PASS; tsc clean apart from `.next/`.
 
-- [ ] **Step 6: Commit** — `git add` the migration, doc, the five lib files and tests; message `feat(credits): credit settings rows load with the model catalog (D548)`.
+- [ ] **Step 6: Commit** — `git add` the migration, doc, the five lib files and tests; message `feat(credits): credit settings rows load with the model catalog (D571)`.
 
 ---
 
@@ -120,7 +120,7 @@ update credit_settings set round_step = 1;
 
 - [ ] **Step 2: Implement** with the same 6-decimal step as today, then `Math.ceil(raw / step) * step`. Keep `usdToFinalCredits` temporarily as `creditsFromUsd(usd, DEFAULT_CREDIT_SETTINGS)` marked `/** @deprecated Task 4 removes it */` so the tree compiles until Tasks 3–4 move the callers.
 
-- [ ] **Step 3: Run** `npx vitest run src/lib/credits` → PASS; tsc clean. **Commit** `feat(credits): one conversion that takes the settings row (D548)`.
+- [ ] **Step 3: Run** `npx vitest run src/lib/credits` → PASS; tsc clean. **Commit** `feat(credits): one conversion that takes the settings row (D571)`.
 
 ---
 
@@ -137,7 +137,7 @@ update credit_settings set round_step = 1;
 
 - [ ] **Step 3: Run** per directory: `npx vitest run src/lib/generations src/lib/image-gen src/lib/transcribe src/lib/dubbing src/lib/editor src/lib/avatars src/lib/voice-change src/lib/video-edit src/lib/ai-models "src/app/api/nodes" "src/app/api/canvases" "src/app/api/clients"` → PASS (re-run timeouts alone). tsc: the browser callers of the changed shared helpers may fail to compile until Task 4 — if so, do Task 4 in the same session before committing, and commit Tasks 3 and 4 together.
 
-- [ ] **Step 4: Commit** `refactor(credits): server runs use the credit settings live when they started (D548)`.
+- [ ] **Step 4: Commit** `refactor(credits): server runs use the credit settings live when they started (D571)`.
 
 ---
 
@@ -148,7 +148,7 @@ update credit_settings set round_step = 1;
 - [ ] **Step 1** — In components, get the row once per component: `const settings = creditSettingsAt(useAiCatalog().data ?? { creditSettings: [] }, new Date())` — or add a tiny hook `useCreditSettings()` in `src/hooks/queries/ai-models.ts` returning the live row from the cached catalog (preferred: one place). Pass it to `creditsFromUsd` and to the shared helpers.
 - [ ] **Step 2** — Delete `usdToFinalCredits`, `MARGIN_PERCENT`, `CREDIT_ROUND_STEP`, `CREDIT_ROUND_DIRECTION`. `grep -rn "usdToFinalCredits\|MARGIN_PERCENT\|CREDIT_ROUND_STEP\|CREDIT_ROUND_DIRECTION" src trigger` → nothing. Update the component tests that mock `useAiCatalog` to include `creditSettings` (the seeded row).
 - [ ] **Step 3: Run** `npx vitest run src/components src/hooks src/lib` (per directory) → PASS; tsc clean.
-- [ ] **Step 4: Commit** `refactor(credits): screens show credits with the live settings; old constants removed (D548)`.
+- [ ] **Step 4: Commit** `refactor(credits): screens show credits with the live settings; old constants removed (D571)`.
 
 ---
 
@@ -156,7 +156,7 @@ update credit_settings set round_step = 1;
 
 **Files:**
 - Create: `src/lib/credits/settings-edit.ts` (pure checks), `src/lib/db/credit-settings-admin.ts` (reads with creator names, insert, delete-if-future scoped by id)
-- Modify: `src/lib/actions/ai-models.ts` or create `src/lib/actions/credit-settings.ts` (`addCreditSettingsAction`, `cancelCreditSettingsAction`); `src/lib/actions/with-action-coverage.test.ts` (ALLOWLIST with the D546 reason)
+- Modify: `src/lib/actions/ai-models.ts` or create `src/lib/actions/credit-settings.ts` (`addCreditSettingsAction`, `cancelCreditSettingsAction`); `src/lib/actions/with-action-coverage.test.ts` (ALLOWLIST with the D569 reason)
 - Test: `src/lib/credits/__tests__/settings-edit.test.ts`, `src/lib/actions/credit-settings.test.ts`, `src/lib/db/__tests__/credit-settings-admin.test.ts`
 
 **Interfaces:**
@@ -169,18 +169,18 @@ update credit_settings set round_step = 1;
 
 - [ ] **Step 1: Failing tests** — checks: margin must be a finite number 0–200 with at most 2 decimals (`"The margin must be between 0% and 200%."`); step one of 1, 5, 10 (`"Pick a rounding step of 1, 5 or 10."`); start now or later with the same 60 s allowance as prices (`"A change can't start in the past."`); a taken start instant (`"There is already a change starting then."`); note trimmed, max 500 chars. Actions: `requireSuperAdmin` first; a refusal writes nothing; a valid add inserts with `created_by` and clears the catalog cache; cancel of a started row returns `"Only a change that hasn't started can be cancelled."`; a database error returns `"Could not save. Try again."` and logs the real one; shape guards on untyped input.
 - [ ] **Step 2: Implement** following `src/lib/actions/ai-models.ts` (Task 3 of plan 4) exactly: fresh reads in one `Promise.all`, refresh (cache clear + `revalidatePath("/admin/credits")`) outside the write's try.
-- [ ] **Step 3: Run** `npx vitest run src/lib/credits src/lib/actions src/lib/db` → PASS; tsc clean. **Commit** `feat(credits): the super admin adds or cancels credit settings through checks (D548)`.
+- [ ] **Step 3: Run** `npx vitest run src/lib/credits src/lib/actions src/lib/db` → PASS; tsc clean. **Commit** `feat(credits): the super admin adds or cancels credit settings through checks (D571)`.
 
 ---
 
-### Task 6: ADR D548
+### Task 6: ADR D571
 
-**Files:** `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7 after D547; keep line endings)
+**Files:** `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7 after D570; keep line endings)
 
 - [ ] Append:
 
 ```markdown
-### D548 — Margin and rounding are dated settings rows *(recorded 2026-11-24; follows D529, D546)*
+### D571 — Margin and rounding are dated settings rows *(recorded 2026-11-24; follows D552, D569)*
 
 **Decision.** How a run's USD cost becomes credits is read from `credit_settings` (migration 0086): dated rows with a margin (0–200%) and a rounding step (1, 5 or 10), never edited, cancellable only before they start, changed by the super admin through checked actions. The credit rate (1 credit = $0.001) and rounding up stay in code: the rate changes what every credit an agency holds is worth, so it changes only with plan prices, and rounding up keeps a run from charging below its cost. The rows load with the model catalog and reach the browser in the same payload. One function, `creditsFromUsd(usd, settings)`, does the sum; an estimate or reservation uses the row live now, completion uses the row live at the run's `created_at`, so a run is charged with the settings live when it started. The seeded first row is today's behaviour (margin 0, step 5).
 
@@ -191,7 +191,7 @@ update credit_settings set round_step = 1;
 **Originated →** [2026-11-24-credit-settings-5a.md](../plans/2026-11-24-credit-settings-5a.md).
 ```
 
-- [ ] Commit `docs: D548 margin and rounding are dated settings rows`.
+- [ ] Commit `docs: D571 margin and rounding are dated settings rows`.
 
 ---
 

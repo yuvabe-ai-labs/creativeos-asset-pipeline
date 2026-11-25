@@ -30,7 +30,7 @@ const BodySchema = z.object({
 // D374 — dub the one connected video's current take. A new `dub` generation; its version is
 // written when the task reports back (D375).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, (nodeId, node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, (nodeId, node, caller, clientId, effectiveOrgId) => {
     return withTryCatch("Couldn't start the dub. Try again.", async () => {
       if (node.type !== "dubbing") return apiError("Node not found.", 404);
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
@@ -41,7 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const pace = voice ? (isDubPace(parsed.data.pace) ? parsed.data.pace : DEFAULT_DUB_PACE) : undefined;
       if (!process.env.SARVAM_API_KEY) return apiError(DUBBING_NOT_SET_UP_MESSAGE, 400);
 
-      // Independent reads run side by side (performance rule 5). D535 - the price row this run is
+      // Independent reads run side by side (performance rule 5). D558 - the price row this run is
       // reserved and charged with is one of them; none, no run.
       const [source, running, locked, { price, catalog }] = await Promise.all([
         resolveDubSource(nodeId, { getUpstreamOutputs, getVersionById }),

@@ -6,7 +6,7 @@ import { useAiCatalog } from "@/hooks/queries/ai-models";
 import { imageModelsFrom, videoModelsFrom } from "@/lib/ai-models/model-lists";
 import type { AiCatalog } from "@/lib/ai-models/types";
 
-// D542 — every client page renders below this, so a picker or focus view can read the model
+// D565 — every client page renders below this, so a picker or focus view can read the model
 // lists (useImageModels / useVideoModels) without a loading state of its own. With the catalog
 // the server read, the children render at once and no request is made.
 function usable(catalog: AiCatalog | undefined): boolean {

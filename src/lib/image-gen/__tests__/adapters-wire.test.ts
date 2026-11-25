@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// D538 — behaviour must not change when the server moves from the registries to the adapter maps.
+// D561 — behaviour must not change when the server moves from the registries to the adapter maps.
 // Each adapter runs against the real provider code (only the SDKs and fetch are fake) with the
 // provider_model_id migration 0084 seeds, and the vendor model name that leaves the process must
 // be the one each model sends today.
@@ -24,7 +24,7 @@ import { imageAdapters } from "../adapters";
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import { toImageClientSpec } from "@/lib/ai-models/to-spec";
 
-// The vendor model each image model sends today (the registries' literals, before D538).
+// The vendor model each image model sends today (the registries' literals, before D561).
 const TODAY: Record<string, string> = {
   "openai:gpt-image-2.5-sunburst": "gpt-image-2.5-sunburst",
   "openai:gpt-image-2.5-flare": "gpt-image-2.5-flare",
@@ -59,7 +59,7 @@ function sentModel(): string | undefined {
 
 const liveImageModels = seededModelCatalog().models.filter((m) => m.kind === "image" && m.status !== "retired");
 
-describe("image adapters send today's vendor model (D538)", () => {
+describe("image adapters send today's vendor model (D561)", () => {
   it("covers every live and hidden image model", () => {
     expect(liveImageModels.map((m) => m.id).sort()).toEqual(Object.keys(TODAY).sort());
   });

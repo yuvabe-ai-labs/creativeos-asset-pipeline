@@ -40,7 +40,7 @@ export type ModelListRow = {
   provider: string;
   group: ListGroup;
   status: string;
-  /** The row fails its check (D547): shown, but with no price or run worked out. */
+  /** The row fails its check (D570): shown, but with no price or run worked out. */
   broken: boolean;
   price: PriceRange | null;
   typical: { credits: number; label: string } | null;

@@ -53,7 +53,7 @@ async function estimateFor(avatar: Avatar): Promise<number | null> {
   const engine = voicePreviewEngine(avatar);
   if (!mode || !engine) return null;
   const modelId = VOICE_PREVIEW_ENGINE[engine].modelId;
-  // D548 — the estimate uses the credit settings live now, from the catalog the price came from.
+  // D571 — the estimate uses the credit settings live now, from the catalog the price came from.
   if (mode === "native") {
     const { price, catalog } = await pricingForNewRun(modelId);
     return estimateVoicePreviewCredits(price, null, "native", engine, 1, creditSettingsAt(catalog, new Date()));

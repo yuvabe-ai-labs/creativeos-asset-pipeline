@@ -42,7 +42,7 @@ export async function transcribeUrl(url: string, deps: { fetch: typeof fetch; ap
     throw new TranscribeError("failed", true, `unreadable response: ${text.slice(0, 200)}`);
   }
   if (parsed.words.length === 0) throw new TranscribeError("no-speech", true, "no words");
-  // D535 — the credits are what is charged (`character-cost`); the fiat header is a list rate,
+  // D558 — the credits are what is charged (`character-cost`); the fiat header is a list rate,
   // kept in the bill's raw only.
   const credits = Number(res.headers.get("character-cost"));
   const fiat = Number(res.headers.get("fiat-cost-before-overages"));

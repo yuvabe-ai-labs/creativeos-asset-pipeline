@@ -63,7 +63,7 @@ export async function pinterestOriginal(
 
 export async function resolveMediaSource(
   item: { image_url: string; kind: ReferenceKind },
-  /** `recordFor` names whom a paid provider run is recorded for (D537); none records nothing. */
+  /** `recordFor` names whom a paid provider run is recorded for (D560); none records nothing. */
   deps: { fetchImpl?: typeof fetch; token?: string; recordFor?: RecordFor } = {},
 ): Promise<MediaSource | null> {
   const fetchImpl = deps.fetchImpl ?? fetch;

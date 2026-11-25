@@ -4,7 +4,7 @@
 
 **Goal:** A super admin can see every model with this month's runs, provider cost and unpriced runs; change a model's status, labels, order and replacement; read its params, rules and capabilities; and add or cancel dated price rows, all under `/admin/models`, with every write going through one guarded path that a later param editor will reuse.
 
-**Architecture:** Reads come from new admin helpers in `src/lib/db/ai-models-admin.ts` (raw rows with their check result, so a row the catalog drops is still visible to the admin) and one grouped SQL function for the month's numbers (migration 0085). Writes are server actions in `src/lib/actions/ai-models.ts`. Each one runs pure checks in `src/lib/ai-models/model-edit.ts` before touching the database: the edited row must pass the catalog's own row check, the param names and their types may not change, every price line's conditions must still match a param option, and a model may only be live with an adapter in this build (D546). After a write the action clears the catalog cache on that server (other servers within 60 s). The UI is two server pages with small client forms, in the existing admin look.
+**Architecture:** Reads come from new admin helpers in `src/lib/db/ai-models-admin.ts` (raw rows with their check result, so a row the catalog drops is still visible to the admin) and one grouped SQL function for the month's numbers (migration 0085). Writes are server actions in `src/lib/actions/ai-models.ts`. Each one runs pure checks in `src/lib/ai-models/model-edit.ts` before touching the database: the edited row must pass the catalog's own row check, the param names and their types may not change, every price line's conditions must still match a param option, and a model may only be live with an adapter in this build (D569). After a write the action clears the catalog cache on that server (other servers within 60 s). The UI is two server pages with small client forms, in the existing admin look.
 
 **Tech Stack:** Next.js 16 App Router (Server Components + server actions), Supabase Postgres (service-role client), Zod 4, Vitest 4, shadcn/Base UI primitives.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Decisions **D546** (one guarded write path) and **D547** (the admin sees rows that fail their check). Migration **0085**. Task 8 writes the ADRs into §7 of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`; Task 1 writes 0085's entry in `docs/auth-production-migration.md` (CRLF), in the format of the 0084 entry, in the same commit as the migration.
+- Decisions **D569** (one guarded write path) and **D570** (the admin sees rows that fail their check). Migration **0085**. Task 8 writes the ADRs into §7 of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`; Task 1 writes 0085's entry in `docs/auth-production-migration.md` (CRLF), in the format of the 0084 entry, in the same commit as the migration.
 - Every admin page calls `requireSuperAdmin()` first; every admin action calls it first and is added to the ALLOWLIST in `src/lib/actions/with-action-coverage.test.ts` with the same reason the `admin.ts` actions give (D85 platform administration, explicit target, not acting as an org).
 - Phase 1 edits only: `label`, `picker_label`, `provider_label`, `description`, `status`, `replaced_by`, `sort_order` on a model; add or cancel a price row. `params`, `rules`, `capabilities`, `adapter_key`, `provider_model_id`, `kind`, `provider`, `id` are shown, never edited, and `updateAiModelAction` refuses a patch that names them. The checks in `model-edit.ts` already cover param edits (names, types, price conditions) so the later editor only adds a form.
 - A price row is never edited (the database refuses it); only a row whose `effective_from` is in the future may be deleted. A new row starts today (now) or later, and `effective_from` is unique per model.
@@ -87,7 +87,7 @@
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- D547: this month's runs, provider cost, credits and unpriced runs per model, in one query for
+-- D570: this month's runs, provider cost, credits and unpriced runs per model, in one query for
 -- the super admin's models page. A run is any generations row (record-only rows included: they
 -- are what a free feature cost us). Unpriced: no price row, or the bill had meters the row did
 -- not price. Apply before the Plan 4 code deploys; harmless before.
@@ -115,7 +115,7 @@ Check the column names against the migrations before writing (`model_used`, `cos
 
 - [ ] **Step 2: Migration doc entry**
 
-In `docs/auth-production-migration.md`, after the 0084 entry (CRLF line endings), add `## Migration 0085 — per-model month stats for the admin (D547, 2026-11-23)`: what it does (one index, one read-only function), apply before Plan 4 deploys (the models page errors without the function; nothing else uses it), safe to re-run (`if not exists`, `create or replace`), and verify SQL:
+In `docs/auth-production-migration.md`, after the 0084 entry (CRLF line endings), add `## Migration 0085 — per-model month stats for the admin (D570, 2026-11-23)`: what it does (one index, one read-only function), apply before Plan 4 deploys (the models page errors without the function; nothing else uses it), safe to re-run (`if not exists`, `create or replace`), and verify SQL:
 
 ```sql
 -- expect 1 row
@@ -149,7 +149,7 @@ Run: `npx vitest run src/lib/db/__tests__/ai-models-admin.test.ts src/lib/ai-mod
 
 ```bash
 git add supabase/migrations/0085_ai_model_month_stats.sql docs/auth-production-migration.md src/lib/db/ai-models-admin.ts src/lib/ai-models/schema.ts src/lib/db/__tests__/ai-models-admin.test.ts
-git commit -m "feat(admin): model rows, prices and month stats for the super admin (D547)"
+git commit -m "feat(admin): model rows, prices and month stats for the super admin (D570)"
 ```
 
 ---
@@ -309,7 +309,7 @@ import "server-only";
 import { imageAdapters } from "@/lib/image-gen/adapters";
 import { videoAdapters } from "@/lib/video-gen/adapters";
 
-/** D546 — the adapter keys this build can run. An image or video model may be live only with one. */
+/** D569 — the adapter keys this build can run. An image or video model may be live only with one. */
 export const RUNNABLE_ADAPTER_KEYS: ReadonlySet<string> = new Set([...Object.keys(imageAdapters), ...Object.keys(videoAdapters)]);
 ```
 
@@ -321,7 +321,7 @@ Run: `npx vitest run src/lib/ai-models` → PASS. tsc clean apart from `.next/`.
 
 ```bash
 git add src/lib/ai-models/model-edit.ts src/lib/ai-models/runnable-keys.ts src/lib/ai-models/__tests__/model-edit.test.ts
-git commit -m "feat(admin): one set of checks for every model and price edit (D546)"
+git commit -m "feat(admin): one set of checks for every model and price edit (D569)"
 ```
 
 ---
@@ -357,9 +357,9 @@ Mock `@/lib/auth/require-super-admin` (returns `{ userId: "u1" }`), `@/lib/db/ai
 
 - [ ] **Step 3: Implement**
 
-`"use server"`. Each action: `const caller = await requireSuperAdmin();` → read what it needs (`getAdminModel(id)` and `getAiCatalog()` in one `Promise.all`; for prices also `listAdminPrices(modelId)`) → the Task 2 check → write → `clearAiCatalogCache()` → `revalidatePath("/admin/models")` and the model's page → `{}`. Wrap the database calls in try/catch: `console.error` the real error, return `"Could not save. Try again."`. Use `getAdminModel(id).raw` (the database row) as the base of `checkModelPatch`, so a row the catalog dropped can still be fixed (D547). `addAiModelPriceAction` parses `effectiveFrom` as a date (`"Could not save. Try again."` when invalid) and uses `new Date()` as `now`.
+`"use server"`. Each action: `const caller = await requireSuperAdmin();` → read what it needs (`getAdminModel(id)` and `getAiCatalog()` in one `Promise.all`; for prices also `listAdminPrices(modelId)`) → the Task 2 check → write → `clearAiCatalogCache()` → `revalidatePath("/admin/models")` and the model's page → `{}`. Wrap the database calls in try/catch: `console.error` the real error, return `"Could not save. Try again."`. Use `getAdminModel(id).raw` (the database row) as the base of `checkModelPatch`, so a row the catalog dropped can still be fixed (D570). `addAiModelPriceAction` parses `effectiveFrom` as a date (`"Could not save. Try again."` when invalid) and uses `new Date()` as `now`.
 
-Add the three names to the ALLOWLIST in `with-action-coverage.test.ts`, each with: `"ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546)."`.
+Add the three names to the ALLOWLIST in `with-action-coverage.test.ts`, each with: `"ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569)."`.
 
 - [ ] **Step 4: Run the tests**
 
@@ -369,7 +369,7 @@ Run: `npx vitest run src/lib/actions` → PASS. tsc clean.
 
 ```bash
 git add src/lib/actions/ai-models.ts src/lib/actions/ai-models.test.ts src/lib/actions/with-action-coverage.test.ts
-git commit -m "feat(admin): save model and price changes through the checks (D546)"
+git commit -m "feat(admin): save model and price changes through the checks (D569)"
 ```
 
 ---
@@ -433,7 +433,7 @@ git commit -m "feat(admin): the models list with this month's runs, cost and unp
 
 - [ ] **Step 3: Implement**
 
-- `[id]/page.tsx`: `requireSuperAdmin()`; `const id = decodeURIComponent((await params).id)`; `Promise.all([getAdminModel(id), listAdminModels(), listAdminPrices(id), modelMonthStats(from, to, id)])`; `notFound()` when absent; names for `updated_by` and every price `created_by` in one `displayNames` call. Breadcrumb Admin › Models › label. Sections, top to bottom: a problems `Card` when the row fails its check (title "This row fails its check", the problem list, and "The app leaves this model out until it is fixed." — D547); `ModelDetailsForm`; `ModelMonthStats`; the prices section (Task 6 fills it; leave a placeholder `div` with an id); `ModelDefinition`. `replacements` = live models of the same kind except this one, in sort order. `canGoLive` = kind not image/video, or `RUNNABLE_ADAPTER_KEYS.has(adapterKey)`.
+- `[id]/page.tsx`: `requireSuperAdmin()`; `const id = decodeURIComponent((await params).id)`; `Promise.all([getAdminModel(id), listAdminModels(), listAdminPrices(id), modelMonthStats(from, to, id)])`; `notFound()` when absent; names for `updated_by` and every price `created_by` in one `displayNames` call. Breadcrumb Admin › Models › label. Sections, top to bottom: a problems `Card` when the row fails its check (title "This row fails its check", the problem list, and "The app leaves this model out until it is fixed." — D570); `ModelDetailsForm`; `ModelMonthStats`; the prices section (Task 6 fills it; leave a placeholder `div` with an id); `ModelDefinition`. `replacements` = live models of the same kind except this one, in sort order. `canGoLive` = kind not image/video, or `RUNNABLE_ADAPTER_KEYS.has(adapterKey)`.
 - `model-details-form.tsx` (client): `Input` for label, picker label, provider label, `Textarea` for description, `Input type="number"` for sort order, `Select` for status (Draft, Live, Hidden, Retired; Live disabled with the note when `!canGoLive`), `Select` for the replacement (only when Retired; "No replacement" option). One "Save changes" primary `Button`, disabled until something changed; sends only changed fields to `updateAiModelAction`; shows the returned error under the button, or "Saved" for 2 s; follows the save/error pattern of `credit-limit-editor.tsx`. Inline-edit styling rules from AGENTS.md do not apply: this is a form.
 - `model-definition.tsx` (server-safe, no client hooks): three sections "Settings", "Rules", "Limits" with `.text-eyebrow` headings, compact rows, monospace only for names (`font-mono text-xs`), plus a line "Changed by a migration. Editing here comes later." under the section header.
 - `model-month-stats.tsx`: four figures (Runs, Provider cost, Credits charged, Unpriced runs) in one `Card`, the unpriced figure in the warning tone when above 0.
@@ -496,15 +496,15 @@ Not an implementer task. After Tasks 1–6: the user applies 0085 on dev and run
 
 ---
 
-### Task 8: ADRs D546–D547
+### Task 8: ADRs D569–D570
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7, after D545; keep line endings)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7, after D568; keep line endings)
 
 - [ ] **Step 1: Append**
 
 ```markdown
-### D546 — One guarded path for every model and price edit *(recorded 2026-11-23; follows D529, D540)*
+### D569 — One guarded path for every model and price edit *(recorded 2026-11-23; follows D552, D563)*
 
 **Decision.** The super admin changes models and prices only through three server actions (`src/lib/actions/ai-models.ts`), and each runs the same pure checks (`src/lib/ai-models/model-edit.ts`) before it writes. Phase 1 edits a model's labels, description, order, status and replacement, and adds or cancels a dated price row. An edited row must pass the catalog's own row check; a model's param names and their types never change through the admin; every price line's condition must name a setting the model has and a value it can take (or a price dimension the estimators add); an image or video model may be live only when this build has an adapter for its key; a replacement must be a live model of the same kind and is kept only while the model is retired. A price row is never edited, starts now or later, and can be cancelled only before it starts. After a write the action clears the catalog cache on its server; others pick the change up within 60 s. A later params editor adds a form on the same path, not new checks.
 
@@ -514,9 +514,9 @@ Not an implementer task. After Tasks 1–6: the user applies 0085 on dev and run
 
 **Originated →** [2026-11-23-model-catalog-4-admin.md](../plans/2026-11-23-model-catalog-4-admin.md).
 
-### D547 — The admin sees rows the catalog leaves out *(recorded 2026-11-23; refines D529)*
+### D570 — The admin sees rows the catalog leaves out *(recorded 2026-11-23; refines D552)*
 
-**Decision.** The admin pages read `ai_models` directly and run the row check themselves, so a row that fails it is listed with "Fails its check" and its problems, and can be fixed through D546's path (the edit starts from the stored row, not the catalog's copy). The models list's month figures come from one SQL function, `ai_model_month_stats` (migration 0085): runs, provider cost, credits charged and unpriced runs per model, where unpriced means no price row or a bill with meters the row did not price.
+**Decision.** The admin pages read `ai_models` directly and run the row check themselves, so a row that fails it is listed with "Fails its check" and its problems, and can be fixed through D569's path (the edit starts from the stored row, not the catalog's copy). The models list's month figures come from one SQL function, `ai_model_month_stats` (migration 0085): runs, provider cost, credits charged and unpriced runs per model, where unpriced means no price row or a bill with meters the row did not price.
 
 **Why.** The catalog drops a broken row with only a log line; without this the admin would see a model disappear and have no way to find out why.
 
@@ -529,7 +529,7 @@ Not an implementer task. After Tasks 1–6: the user applies 0085 on dev and run
 
 ```bash
 git add docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
-git commit -m "docs: D546-D547 the super admin edits models and prices through one guarded path"
+git commit -m "docs: D569-D570 the super admin edits models and prices through one guarded path"
 ```
 
 ---

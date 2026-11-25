@@ -10,7 +10,7 @@ import { recordProviderCost } from "@/lib/generations/record-cost";
 import { geminiMeters } from "@/lib/ai-models/text-usage";
 import { generateStructured } from "./gemini";
 
-// D537 — image analysis runs in a task: each Gemini call's cost is recorded there, once.
+// D560 — image analysis runs in a task: each Gemini call's cost is recorded there, once.
 const usage = { promptTokenCount: 1200, cachedContentTokenCount: 200, candidatesTokenCount: 300, thoughtsTokenCount: 50 };
 const recordFor = { orgId: "org-1", clientId: "client-1", userId: "user-1" };
 const call = { model: "gemini-3.5-flash-lite", system: "SYS", parts: [{ text: "x" }], schema: z.object({ a: z.number() }) };

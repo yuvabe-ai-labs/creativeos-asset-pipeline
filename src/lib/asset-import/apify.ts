@@ -1,7 +1,7 @@
 // The Apify side of an import (D302). Runs are started asynchronously and polled, rather than
 // run-sync, because run-sync is capped at 300 s and a 50-post Facebook page or a 10-page site can
 // legitimately take longer. The market's profile snapshot shares the same flow (runApifyActor),
-// because only a run reports what it cost (D537).
+// because only a run reports what it cost (D560).
 import {
   IMPORT_ACTORS,
   IMPORT_SCRAPE_BUDGET_MS,
@@ -80,7 +80,7 @@ async function readRun(runId: string, fetchImpl: typeof fetch, headers: Record<s
 }
 
 /**
- * D537 — one ended run's cost: what Apify says it charged (`usageTotalUsd`), recorded once per
+ * D560 — one ended run's cost: what Apify says it charged (`usageTotalUsd`), recorded once per
  * run whether it succeeded, failed or was aborted at our deadline, since each can be billed. Only the run's ids
  * and cost go in `raw`, never its dataset. A failure to record is logged, never thrown.
  */
@@ -229,7 +229,7 @@ function apifyHeaders(token: string): Record<string, string> {
  *
  * `resumeRunId` continues a run started by an earlier attempt instead of paying for a new scrape
  * (D483). `onStarted` hears a new run's id, so the caller can record it for that case.
- * `recordFor` names whom the run's cost is recorded for (D537); without it nothing is recorded.
+ * `recordFor` names whom the run's cost is recorded for (D560); without it nothing is recorded.
  * `recordedRunId` / `onRecorded` keep a resumed run from being recorded twice (see runApifyActor).
  */
 export async function runImportActor(

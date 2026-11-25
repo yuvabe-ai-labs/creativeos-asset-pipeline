@@ -15,7 +15,8 @@ export function CopilotConfirmationCard({ card, avatars, disabled, onWrite }: {
   /** The client's avatars, so each linked cast member shows which one (two can share a name). */
   avatars: CopilotAvatar[];
   disabled: boolean;
-  onWrite: () => void;
+  /** Absent after Generate: the card is only shown. */
+  onWrite?: () => void;
 }) {
   return (
     <div className="flex w-full flex-col gap-3 rounded-xl border border-border bg-background p-3 text-sm">
@@ -78,7 +79,7 @@ export function CopilotConfirmationCard({ card, avatars, disabled, onWrite }: {
           <ul className="flex list-disc flex-col gap-0.5 pl-4">{card.toConfirm.map((t) => <li key={t}>{t}</li>)}</ul>
         </div>
       )}
-      <Button size="sm" className="self-start" disabled={disabled} onClick={onWrite}>Write it</Button>
+      {onWrite && <Button size="sm" className="self-start" disabled={disabled} onClick={onWrite}>Write it</Button>}
     </div>
   );
 }

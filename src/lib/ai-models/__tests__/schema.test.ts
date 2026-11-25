@@ -112,7 +112,7 @@ describe("parseAiModelPriceRow", () => {
   });
 });
 
-describe("capabilities by kind (D539)", () => {
+describe("capabilities by kind (D562)", () => {
   const IMAGE = {
     ...ROW,
     id: "openai:gpt-image-2",

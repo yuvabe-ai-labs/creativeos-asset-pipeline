@@ -1,4 +1,4 @@
-// D542 — the image and video models as every screen reads them, built from the catalog. Pure and
+// D565 — the image and video models as every screen reads them, built from the catalog. Pure and
 // client-safe: the browser builds them from the session's one catalog query, the server from
 // getAiCatalog(). Cached per catalog object, so a card asking for its model costs a map lookup.
 import type { ClientModelSpec, ParamSpec } from "@/lib/image-gen/types";
@@ -23,7 +23,7 @@ export type ModelList<S extends Spec> = {
   isOffered: (id: string | null | undefined, ownModelId?: string | null) => boolean;
   /** The offered models grouped by provider label, groups and models in sort order. */
   groups: (ownModelId?: string | null) => ModelGroup<S>[];
-  /** D543 — the code's preferred default while it is live, else the first live model. */
+  /** D566 — the code's preferred default while it is live, else the first live model. */
   defaultId: string;
   /** `preferredId` while it is live, else `defaultId`. */
   liveOr: (preferredId: string) => string;
@@ -123,7 +123,7 @@ export function modelPickerLabel(spec: { label: string; providerLabel: string; p
 }
 
 /**
- * D544 — what a retired model moves to: the replacement the catalog names while it is live, else
+ * D567 — what a retired model moves to: the replacement the catalog names while it is live, else
  * `fallbackId`. The one rule for the browser (withoutRetiredModel) and the server (usableModelId).
  */
 export function replacementFor(
@@ -136,7 +136,7 @@ export function replacementFor(
 }
 
 /**
- * D544 — a node saved on a retired model opens on its replacement (when that is live) or the
+ * D567 — a node saved on a retired model opens on its replacement (when that is live) or the
  * fallback (the default unless given; a composite passes its own), with that model's defaults,
  * and keeps the old id in `retiredModelId` so its focus view can say so. Any other data comes
  * back as the same object, so nothing re-renders or saves.

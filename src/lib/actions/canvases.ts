@@ -8,7 +8,6 @@ import { saveCanvasEdges } from "@/lib/db/edges";
 import { getScript } from "@/lib/db/scripts";
 import { getClientById } from "@/lib/db/clients";
 import type { CanvasRow } from "@/lib/db/types";
-import { resolveOrgId } from "@/lib/dal";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { withAction } from "@/lib/actions/with-action";
 
@@ -56,11 +55,11 @@ export async function createCanvasAction(input: {
   clientSlug: string;
   name: string;
 }) {
-  return withAction("createCanvasAction", async () => {
+  return withAction("createCanvasAction", { need: "edit", on: { clientId: input.clientId } }, async (ctx) => {
     const name = input.name?.trim();
     if (!name) throw new Error("Canvas needs a name");
 
-    const orgId = await resolveOrgId();
+    const orgId = ctx.effectiveOrgId;
     const canvas = await createCanvas({ clientId: input.clientId, orgId, name });
     await seedCanvas(canvas.id, input.clientId, input.clientSlug);
 
@@ -80,12 +79,12 @@ export async function createCanvasFromScriptAction(input: {
   scriptId: string;
   name: string;
 }): Promise<{ canvas: CanvasRow; created: boolean }> {
-  return withAction("createCanvasFromScriptAction", async () => {
+  return withAction("createCanvasFromScriptAction", { need: "edit", on: { clientId: input.clientId } }, async (ctx) => {
     const name = input.name?.trim();
     if (!name) throw new Error("Canvas needs a name");
     // The client id comes from the browser and these reads use the service role (no RLS): a
     // client outside the caller's org is "not found", before anything of it is read or linked.
-    const orgId = await resolveOrgId();
+    const orgId = ctx.effectiveOrgId;
     const client = await getClientById(input.clientId);
     if (!client || client.org_id !== orgId) throw new Error("Client not found.");
     const script = await getScript(input.clientId, input.scriptId);
@@ -113,7 +112,7 @@ export async function renameCanvasAction(input: {
   clientSlug: string;
   name: string;
 }): Promise<void> {
-  return withAction("renameCanvasAction", async () => {
+  return withAction("renameCanvasAction", { need: "edit", on: { canvasId: input.canvasId } }, async () => {
     const name = input.name?.trim();
     if (!name) throw new Error("Canvas needs a name");
     if (name.length > 100) throw new Error("Canvas name is too long (max 100 characters)");
@@ -126,7 +125,7 @@ export async function deleteCanvasAction(input: {
   canvasId: string;
   clientSlug: string;
 }): Promise<void> {
-  return withAction("deleteCanvasAction", async () => {
+  return withAction("deleteCanvasAction", { need: "delete", on: { canvasId: input.canvasId } }, async () => {
     await deleteCanvas(input.canvasId);
     revalidatePath(`/clients/${input.clientSlug}`);
   });

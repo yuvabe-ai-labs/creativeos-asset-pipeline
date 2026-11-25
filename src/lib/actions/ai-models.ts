@@ -28,7 +28,7 @@ import {
 } from "@/lib/db/ai-models-admin";
 import type { AiModel, PriceLine } from "@/lib/ai-models/types";
 
-// D546 — the /admin model actions. Platform administration (requireSuperAdmin()-gated), not an
+// D569 — the /admin model actions. Platform administration (requireSuperAdmin()-gated), not an
 // org's data, so deliberately not wrapped in withAction() (D85). Every write runs its check first
 // and nothing is written when a check refuses.
 
@@ -188,7 +188,7 @@ export async function addAiModelPriceAction(input: PriceInput): Promise<{ error?
   return { id, effectiveFrom: effective };
 }
 
-/** D549 — swaps a price that hasn't started for a new one, in one transaction. */
+/** D572 — swaps a price that hasn't started for a new one, in one transaction. */
 export async function replaceAiModelPriceAction(
   input: PriceInput & { replaceId: string },
 ): Promise<{ error?: string; id?: string; effectiveFrom?: string }> {
@@ -230,7 +230,7 @@ export async function replaceAiModelPriceAction(
   return { id, effectiveFrom: effective };
 }
 
-/** D549 — the order models of one kind are listed and offered in. `orderedIds` is every model of the kind once. */
+/** D572 — the order models of one kind are listed and offered in. `orderedIds` is every model of the kind once. */
 export async function reorderAiModelsAction(kind: string, orderedIds: string[]): Promise<{ error?: string }> {
   const caller = await requireSuperAdmin();
   if (typeof kind !== "string" || !Array.isArray(orderedIds) || orderedIds.length === 0 || !orderedIds.every((id) => typeof id === "string")) {
@@ -256,7 +256,7 @@ export async function reorderAiModelsAction(kind: string, orderedIds: string[]):
 }
 
 /**
- * D549 — takes back the latest started price of a model, if this admin added it in the last 24
+ * D572 — takes back the latest started price of a model, if this admin added it in the last 24
  * hours: a new row, live now, repeats the price before it. A price that hasn't started is cancelled
  * instead (cancelAiModelPriceAction).
  */

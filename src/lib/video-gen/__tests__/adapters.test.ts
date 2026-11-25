@@ -30,7 +30,7 @@ const ctx = (id: string, providerModelId: string) => ({
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("videoAdapters (D538)", () => {
+describe("videoAdapters (D561)", () => {
   it("registers exactly the live and hidden video models' adapter keys, each once", () => {
     const keys = seededModelCatalog().models
       .filter((m) => m.kind === "video" && m.status !== "retired")

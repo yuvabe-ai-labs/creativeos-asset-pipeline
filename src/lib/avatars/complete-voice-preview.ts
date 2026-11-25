@@ -67,7 +67,7 @@ export async function completeAvatarVoicePreview(
   const mode = voicePreviewRowMode(generation);
   const multiplier = Number((generation.inputs_snapshot as { priceMultiplier?: unknown } | null)?.priceMultiplier);
   const priceMultiplier = Number.isFinite(multiplier) && multiplier >= 1 ? multiplier : 1;
-  // D535 - the clip is priced from its own row by its seconds; a named preview's voice change from
+  // D558 - the clip is priced from its own row by its seconds; a named preview's voice change from
   // ElevenLabs' row (valid when the preview started), charged by the credits ElevenLabs reported
   // when it sent them (the last attempt's only), else by seconds x the voice's multiplier. Only the
   // voice part has a provider report, so it alone is the bill.
@@ -90,7 +90,7 @@ export async function completeAvatarVoicePreview(
     usd = voice ? clipUsd + voice.usd : null;
     providerBill = voice?.bill;
   }
-  // D534 — a delivered preview is never charged 0 because its price is missing: settle at what
+  // D557 — a delivered preview is never charged 0 because its price is missing: settle at what
   // was reserved and record no dollar cost.
   const credits = usd === null
     ? await reservedAmountForUnpriced(generation.id, generation, "video")

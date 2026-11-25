@@ -16,7 +16,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; voiceId: string }> },
 ) {
   const { voiceId } = await params;
-  return withClient(req, params, async (clientId) => {
+  return withClient(req, params, { need: "delete" }, async (clientId) => {
     try {
       // Not this client's voice (another client's, a stock voice, or unknown): a 404 either
       // way, never confirming that a foreign voice exists.

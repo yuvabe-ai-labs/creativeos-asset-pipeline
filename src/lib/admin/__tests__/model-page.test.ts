@@ -105,7 +105,7 @@ describe("statusChange", () => {
     expect(c.blocked).toBe(true);
     expect(c.canSave).toBe(false);
     expect(c.text).toBe("Gemini Omni 1.1 Flash is the only live video model. Make another one live first, or agencies lose this step altogether.");
-    // The server only guards image and video (D546); other kinds can go.
+    // The server only guards image and video (D569); other kinds can go.
     expect(statusChange({ ...base, kind: "dub", otherLive: 0 }).blocked).toBe(false);
   });
 
@@ -118,7 +118,7 @@ describe("statusChange", () => {
     expect(noPrice.text).toBe("Add a price first. Runs of a live model with no price are refused.");
     const scheduled = statusChange({ ...base, from: "draft", to: "live", hasPrice: false, priceStarts: "3 Dec 2026" });
     expect(scheduled).toMatchObject({ blocked: true, canSave: false, text: "Its price starts on 3 Dec 2026." });
-    // As on the server (D546): the price guard is for image and video models.
+    // As on the server (D569): the price guard is for image and video models.
     expect(statusChange({ ...base, kind: "dub", from: "draft", to: "live", hasPrice: false }).blocked).toBe(false);
   });
 

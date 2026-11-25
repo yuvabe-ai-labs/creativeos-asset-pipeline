@@ -72,7 +72,7 @@ import { RetiredModelNotice } from "@/components/models/retired-model-notice";
 import { creditsFromUsd } from "@/lib/credits/units";
 import { useCanvasStore, useCanvasStoreApi } from "@/components/canvas/canvas-store-provider";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
-import { useIdentity } from "@/hooks/use-identity";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import {
   useNodeVersions,
@@ -332,7 +332,7 @@ type Props = {
   imageRoles: Record<string, ImageRole>;
   voiceChange?: VoiceChangeNodeState;
   videoEdit?: VideoEditNodeState;
-  /** D544 — the retired model this node was moved off when the canvas opened. */
+  /** D567 — the retired model this node was moved off when the canvas opened. */
   retiredModelId?: string;
   onPatch: (patch: Record<string, unknown>) => void;
 };
@@ -748,7 +748,7 @@ export function VideoGenFocusView({
   const editable = useCanvasEditable(); // D33: false when this session is read-only
   const generationLock = useGenerationLock(nodeId);
   const lockReason = generationLock ? GENERATION_LOCK_COPY[generationLock].short : null;
-  const { identity } = useIdentity();
+  const { approve: canApprove } = useCanvasPermissions();
   const flushAutosave = useFlushAutosave();
 
   // Stable ref for onPatch — breaks the useCallback → useEffect dep cycle
@@ -1271,7 +1271,7 @@ export function VideoGenFocusView({
     const toastId = toast.loading("Restoring version…");
     try {
       const { output, modelUsed, paramsUsed, edited } = await videoGenApi.restoreVersion(nodeId, versionId);
-      // D461/D542 — a version made on a model no longer offered (retired, or hidden and not this
+      // D461/D565 — a version made on a model no longer offered (retired, or hidden and not this
       // node's own) brings back its video, not its model.
       // D483 — so does an edited version: Omni and a defaulted resolution are not the node's settings.
       const restoredParams = !edited && modelUsed && videos.isOffered(modelUsed, modelId)
@@ -1463,8 +1463,8 @@ export function VideoGenFocusView({
   }
   const audioEnabled = isVideoAudioEnabled(effectiveParams.audio);
   const resolution = asResolutionString(effectiveParams.resolution);
-  // D528 — the same estimate the route reserves: Omni's images and thinking included.
-  // D534 — priced from the model's row in the session's catalog; a spinner until it arrives.
+  // D551 — the same estimate the route reserves: Omni's images and thinking included.
+  // D557 — priced from the model's row in the session's catalog; a spinner until it arrives.
   const { price: modelPrice, loading: priceLoading } = useModelPrice(modelId);
   const videoCostEstimateUsd = modelPrice
     ? videoEstimateUsd(modelPrice, { durationSeconds, audioEnabled, resolution, images: Object.keys(effectiveImageRoles).length })
@@ -2052,7 +2052,7 @@ export function VideoGenFocusView({
                     disabled={isGenerating || disableGenerate || !editable || viewing.isViewingOther}
                     disabledReason={disableGenerate ? disableGenerateReason : null}
                     credits={estimatedCredits}
-                    // D528 — Omni's estimate counts the images sent, which are known only once
+                    // D551 — Omni's estimate counts the images sent, which are known only once
                     // the connected inputs have loaded; a number before then reads too low.
                     estimating={loadingConnected || priceLoading}
                     notice={
@@ -2160,7 +2160,7 @@ export function VideoGenFocusView({
                           saving={approvalSaving}
                           // R7.1/D160: not gated on `editable` — approval writes only to
                           // node_versions, outside what the D33 lock serialises.
-                          canApprove={identity?.role === "senior" && !viewing.isViewingOther}
+                          canApprove={canApprove && !viewing.isViewingOther}
                           onSet={saveApproval}
                           annotationCount={reviewDrafts.drafts.length}
                           annotating={reviewAnnotating}

@@ -121,7 +121,7 @@ describe("GET voice-preview", () => {
 });
 
 describe("POST voice-preview", () => {
-  it("refuses a named preview with no voice-change price before anything is recorded (D535)", async () => {
+  it("refuses a named preview with no voice-change price before anything is recorded (D558)", async () => {
     const { seededModelCatalog, withoutPrice } = await import("@/lib/ai-models/test-catalog");
     cat.value = withoutPrice(seededModelCatalog(), VOICE_CHANGE_PRICE_MODEL_ID);
     const { POST } = await import("./route");
@@ -132,7 +132,7 @@ describe("POST voice-preview", () => {
   });
 
   it.each(["hidden", "retired"] as const)(
-    "refuses a preview when the engine's model is %s, before anything is recorded (D542)",
+    "refuses a preview when the engine's model is %s, before anything is recorded (D565)",
     async (status) => {
       const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
       cat.value = withModel(seededModelCatalog(), VOICE_PREVIEW_ENGINE.omni.modelId, { status });
@@ -148,7 +148,7 @@ describe("POST voice-preview", () => {
     },
   );
 
-  it("refuses a preview whose model has no price before anything is recorded (D534)", async () => {
+  it("refuses a preview whose model has no price before anything is recorded (D557)", async () => {
     const { seededModelCatalog, withoutPrice } = await import("@/lib/ai-models/test-catalog");
     cat.value = withoutPrice(seededModelCatalog(), VOICE_PREVIEW_ENGINE.omni.modelId);
     const { POST } = await import("./route");

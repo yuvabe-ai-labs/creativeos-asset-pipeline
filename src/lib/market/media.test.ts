@@ -81,7 +81,7 @@ describe("resolveMediaSource — pinterest", () => {
   });
 });
 
-describe("resolveMediaSource — the paid rungs (D537)", () => {
+describe("resolveMediaSource — the paid rungs (D560)", () => {
   beforeEach(() => vi.resetAllMocks());
   const recordFor = { orgId: "org-1", clientId: "client-1" };
   const fetchImpl = vi.fn() as unknown as typeof fetch;

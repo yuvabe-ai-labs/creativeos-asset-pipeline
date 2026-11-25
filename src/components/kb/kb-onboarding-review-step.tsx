@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import {
@@ -45,19 +45,23 @@ import { useImageAnalysisStatus } from "@/hooks/queries/image-analysis";
 import { mergeImageAnalysis } from "@/lib/image-analysis/merge";
 import { KBImageAnalysisStatus } from "@/components/kb/kb-image-analysis-status";
 import { KBFieldRow } from "@/components/kb/kb-field-row";
+import { CopilotTarget } from "@/components/journey/copilot-target";
+import { useKbReviewFollow } from "@/hooks/use-kb-review-follow";
 import { KBSourcePanel } from "@/components/kb/kb-source-panel";
-import { KBSkeleton } from "@/components/kb/kb-skeleton";
 import { computeReadyStatus } from "@/lib/kb/fill-rate";
 import type { TraceableBrandKB, KBField } from "@/lib/kb/schema";
 import { setNestedField } from "@/lib/kb/utils";
+import { adoptServerKb, changedFields } from "@/lib/kb/review-sync";
+import { usePatchKbFields } from "@/hooks/queries/kb";
 import {
-  saveKBOutputAction,
   markKBReadyAction,
   deleteKBDocumentAction,
   deleteBrandImageAction,
 } from "@/lib/actions/kb";
 import type { ClientKBDocumentRow, ClientBrandImageRow } from "@/lib/db/types";
 import { uploadViaSignedUrl } from "@/lib/uploads/client";
+import { kbService } from "@/services/kb.service";
+import { useRefreshCopilotThread } from "@/hooks/queries/copilot-thread";
 import type { ModuleKey, FieldPath, StagedChanges } from "@/lib/kb/types";
 import {
   MODULES,
@@ -83,6 +87,9 @@ type Props = {
   clientSlug: string;
   versionId: string;
   initialKB: TraceableBrandKB;
+  /** Changes whenever the stored KB's document fields change (kbRevision): the copilot filled a
+   *  field, or a teammate saved. The screen then takes the stored copy in beside its own draft. */
+  kbRevision: string;
   isEditMode: boolean;
   initialDocuments?: ClientKBDocumentRow[];
   initialImages?: ClientBrandImageRow[];
@@ -99,6 +106,7 @@ export function KBOnboardingReviewStep({
   clientSlug,
   versionId,
   initialKB,
+  kbRevision,
   isEditMode,
   initialDocuments = [],
   initialImages = [],
@@ -108,6 +116,8 @@ export function KBOnboardingReviewStep({
   clientLogoUrl,
 }: Props) {
   const router = useRouter();
+  // The copilot beside the page shows what it is reading as soon as Save & re-analyze is pressed.
+  const refreshCopilot = useRefreshCopilotThread(clientId);
 
   // KB review state — reset via key={versionId} at the call site (page.tsx).
   // `kb` is the working draft; `savedKB` is the last persisted baseline. Edits
@@ -115,15 +125,35 @@ export function KBOnboardingReviewStep({
   // instead of auto-saving every field change.
   const [kb, setKB] = useState<TraceableBrandKB>(initialKB);
   const [savedKB, setSavedKB] = useState<TraceableBrandKB>(initialKB);
-  const [saving, setSaving] = useState(false);
-  const [selectedModule, setSelectedModule] = useState<ModuleKey>("brand_voice");
+  // Save sends only the fields the person changed (never the whole KB), and tells the copilot.
+  const saveFields = usePatchKbFields(clientId);
+  const saving = saveFields.isPending;
+  // The copilot's "what is left" links open a tab by name (?section=compliance).
+  const sectionParam = useSearchParams().get("section");
+  const linkedModule = MODULES.find((m) => m.key === sectionParam)?.key ?? null;
+  const [selectedModule, setSelectedModule] = useState<ModuleKey>(linkedModule ?? "brand_voice");
+  const [seenLink, setSeenLink] = useState(linkedModule);
+  if (seenLink !== linkedModule) {
+    setSeenLink(linkedModule);
+    if (linkedModule) setSelectedModule(linkedModule);
+  }
+  // The page follows the copilot (D520): to the field it asks about or writes, on its own tab.
+  const follow = useKbReviewFollow(clientId, setSelectedModule);
+  // The stored KB changed under the screen: take it into both copies, keeping what the person has
+  // changed and not saved yet. Adjusting state during render, on a change of the prop. A field the
+  // copilot just wrote replaces an unsaved edit of it, so Save never writes the old edit back (§3.2).
+  const [seenRevision, setSeenRevision] = useState(kbRevision);
+  if (seenRevision !== kbRevision) {
+    setSeenRevision(kbRevision);
+    const next = adoptServerKb(kb, savedKB, initialKB, follow.takeWritten());
+    setKB(next.draft);
+    setSavedKB(next.saved);
+  }
   // Brand assets (D302) live on their own page; the header links there with a live count.
   const { data: importStatus } = useAssetImports(clientId);
   const importing = (importStatus?.imports ?? []).some(isImportLive);
   const assetTotal = importStatus?.counts.total ?? 0;
-  const [reanalyzingFields, setReanalyzingFields] = useState<Set<string>>(new Set());
   const [markingReady, setMarkingReady] = useState(false);
-  const [reExtracting, setReExtracting] = useState(false);
 
   // Document management state
   const [documents, setDocuments] = useState<ClientKBDocumentRow[]>(initialDocuments);
@@ -144,7 +174,7 @@ export function KBOnboardingReviewStep({
   // Image Analysis is written by a background run (D312). When the stored section changes, take
   // it into the saved baseline, and into the draft over any unsaved reviews (D318), so it shows
   // without a reload. Other unsaved edits are left as they are. Saving never puts back an older
-  // section either: the save action keeps the stored one (see saveKBOutputAction).
+  // section either: a save sends only the fields the person changed (changedFields).
   const { data: imageAnalysisState } = useImageAnalysisStatus(clientId);
   const storedImageAnalysis = imageAnalysisState?.versionId === versionId ? imageAnalysisState.imageAnalysis : null;
   const storedKey = storedImageAnalysis ? JSON.stringify(storedImageAnalysis) : null;
@@ -162,7 +192,8 @@ export function KBOnboardingReviewStep({
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const isReady = computeReadyStatus(kb);
-  const dirty = JSON.stringify(kb) !== JSON.stringify(savedKB);
+  // Field by field, not the two copies as text: they can hold the same fields in a different order.
+  const dirty = changedFields(kb, savedKB).length > 0;
 
   const staged: StagedChanges = {
     pendingDocRemovals,
@@ -234,16 +265,22 @@ export function KBOnboardingReviewStep({
   }
 
   async function handleSave() {
-    setSaving(true);
+    // What is sent is what becomes "saved": an edit made while the save is on its way stays unsaved.
+    const sent = kb;
+    const patches = changedFields(sent, savedKB);
     try {
-      await saveKBOutputAction(versionId, kb);
-      setSavedKB(kb);
+      if (patches.length > 0) await saveFields.mutateAsync({ versionId, patches });
+      setSavedKB(sent);
       toast.success("Changes saved");
-    } catch {
-      toast.error("Failed to save changes");
-    } finally {
-      setSaving(false);
+    } catch (e) {
+      // The route's own words: a rebuilt KB says to reload. The draft is kept.
+      toast.error(e instanceof Error ? e.message : "Failed to save changes");
     }
+  }
+
+  /** Puts the draft back to what was last saved. */
+  function handleDiscard() {
+    setKB(savedKB);
   }
 
   function handleEdit(module: ModuleKey, fieldKey: string, newValue: string | string[]) {
@@ -283,30 +320,6 @@ export function KBOnboardingReviewStep({
     if (next) setSelectedModule(next);
   }
 
-  async function handleReanalyzeField(module: ModuleKey, fieldKey: string, comment: string) {
-    const key = `${module}:${fieldKey}`;
-    setReanalyzingFields((prev) => new Set(prev).add(key));
-    try {
-      const res = await fetch(`/api/clients/${clientId}/kb/re-analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ versionId, module, fieldKey, comment }),
-      });
-      const json = await res.json();
-      if (!res.ok) { toast.error(json.error ?? "Re-analysis failed"); return; }
-      patchField(getFieldPath(module, fieldKey), {
-        value: json.field.value,
-        confidence: json.field.confidence,
-        evidence_type: json.field.evidence_type,
-        status: "needs_review",
-      });
-      toast.success(`${FIELD_LABELS[fieldKey] ?? fieldKey} updated — review the new value`);
-    } catch {
-      toast.error("Re-analysis failed");
-    } finally {
-      setReanalyzingFields((prev) => { const n = new Set(prev); n.delete(key); return n; });
-    }
-  }
 
   // ── Mark KB ready ─────────────────────────────────────────────────────────
 
@@ -326,22 +339,15 @@ export function KBOnboardingReviewStep({
 
   // ── Re-extract ────────────────────────────────────────────────────────────
 
-  async function fireReExtract() {
-    setReExtracting(true);
+  /** The copilot reads what was just added and removed against the brand KB and answers with a
+   *  change card (D517). Nothing is rebuilt and no review is lost. */
+  async function proposeChanges(added: string[], removed: string[]) {
     try {
-      const res = await fetch(`/api/clients/${clientId}/kb/re-extract`, { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json.error ?? "Re-extract failed");
-        setReExtracting(false);
-        return;
-      }
-      // Keep reExtracting=true so the overlay persists during navigation.
-      // The component remounts via key={versionId} in page.tsx once the new version arrives.
-      router.refresh();
-    } catch {
-      toast.error("Re-extract failed");
-      setReExtracting(false);
+      const { started } = await kbService.propose(clientId, { added, removed });
+      if (started) toast.success("Saved. The copilot is reading the changes.");
+      void refreshCopilot();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not read the changes.");
     }
   }
 
@@ -387,6 +393,9 @@ export function KBOnboardingReviewStep({
   async function handleSaveChanges() {
     setSavingChanges(true);
     try {
+      // Named before they go: the copilot is told which documents were removed.
+      const removedNames = documents.filter((d) => pendingDocRemovals.has(d.id)).map((d) => d.filename);
+      const addedIds = documents.filter((d) => newlyAddedDocIds.has(d.id) && !pendingDocRemovals.has(d.id)).map((d) => d.id);
       for (const docId of pendingDocRemovals) await deleteKBDocumentAction(clientId, docId);
       for (const imageId of pendingImageRemovals) await deleteBrandImageAction(clientId, imageId);
       setDocuments((prev) => prev.filter((d) => !pendingDocRemovals.has(d.id)));
@@ -396,7 +405,7 @@ export function KBOnboardingReviewStep({
       setNewlyAddedDocIds(new Set());
       setNewlyAddedImageIds(new Set());
       setShowSaveDialog(false);
-      fireReExtract();
+      void proposeChanges(addedIds, removedNames);
     } catch {
       toast.error("Failed to save changes");
     } finally {
@@ -467,24 +476,24 @@ export function KBOnboardingReviewStep({
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Save & Re-analyze KB?</DialogTitle>
+            <DialogTitle>Save & re-analyze?</DialogTitle>
             <DialogDescription>
-              {buildChangeSummary(staged)}. The documents are read again and the knowledge
-              base is rebuilt from them, so review progress on those sections starts over.
-              Image Analysis keeps your reviews and updates from the images.
+              {buildChangeSummary(staged)}. The copilot reads the changes against the brand KB
+              and shows what they would change, for you to approve. Nothing is rebuilt and no
+              review is lost. Images are studied as usual.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose
-              render={<Button variant="outline" disabled={savingChanges || reExtracting} />}
+              render={<Button variant="outline" disabled={savingChanges} />}
             >
               Cancel
             </DialogClose>
-            <Button onClick={handleSaveChanges} disabled={savingChanges || reExtracting}>
+            <Button onClick={handleSaveChanges} disabled={savingChanges}>
               <RefreshCwIcon
-                className={cn("mr-1.5 size-3.5", (savingChanges || reExtracting) && "animate-spin")}
+                className={cn("mr-1.5 size-3.5", savingChanges && "animate-spin")}
               />
-              {savingChanges || reExtracting ? "Saving…" : "Save & Re-analyze"}
+              {savingChanges ? "Saving…" : "Save & Re-analyze"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -539,8 +548,8 @@ export function KBOnboardingReviewStep({
           <SheetHeader className="shrink-0 border-b border-border p-5 pr-12">
             <SheetTitle className="font-display text-lg">Source Documents & Images</SheetTitle>
             <SheetDescription>
-              Add or remove the documents and images used to build the brand KB, then
-              Save &amp; re-analyze to rebuild it.
+              Add or remove the documents and images the brand KB is built from, then
+              Save &amp; re-analyze. The copilot shows what they would change, for you to approve.
             </SheetDescription>
           </SheetHeader>
           <KBSourcePanel
@@ -555,6 +564,7 @@ export function KBOnboardingReviewStep({
             onUndoDocRemoval={undoDocRemoval}
             onMarkImageForRemoval={markImageForRemoval}
             onUndoImageRemoval={undoImageRemoval}
+            stateOf={follow.stateOf}
             onDocFiles={handleDocFiles}
             onImgFiles={handleImgFiles}
             onCancelChanges={handleCancelChanges}
@@ -568,6 +578,11 @@ export function KBOnboardingReviewStep({
       {/* Fixed header — global actions + module tabs */}
       <div className="shrink-0">
         <div className="mb-2 flex items-center justify-end gap-3">
+          {dirty && (
+            <Button variant="outline" size="sm" onClick={handleDiscard} disabled={saving}>
+              Discard changes
+            </Button>
+          )}
           {/* Single dynamic action: "Save changes" while dirty, otherwise Mark KB Ready
              (or its edit-mode/in-flight variants) — see the footerAction derivation above. */}
           {footerAction.tooltip ? (
@@ -619,14 +634,9 @@ export function KBOnboardingReviewStep({
       {/* Scrolling tab body — fills the viewport below the fixed header. Keyed by
          module so it remounts (resets scroll) and slides in on switch. */}
       <div
-        key={reExtracting ? "re-extracting" : selectedModule}
+        key={selectedModule}
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
       >
-        {reExtracting ? (
-          <div className="pt-5 pb-12">
-            <KBSkeleton showTabs={false} />
-          </div>
-        ) : (
         <motion.div
           initial={{ opacity: 0, x: 8 }}
           animate={{ opacity: 1, x: 0 }}
@@ -689,23 +699,24 @@ export function KBOnboardingReviewStep({
             </div>
           ) : (
             <div className="grid gap-10">
-              {Object.entries(currentFields).map(([fieldKey, field]) => (
-                <KBFieldRow
-                  key={fieldKey}
-                  fieldKey={fieldKey}
-                  label={FIELD_LABELS[fieldKey] ?? fieldKey}
-                  field={field}
-                  isReanalyzing={reanalyzingFields.has(`${selectedModule}:${fieldKey}`)}
-                  onEdit={(val) => handleEdit(selectedModule, fieldKey, val)}
-                  onApprove={() => handleApprove(selectedModule, fieldKey)}
-                  onReject={() => handleReject(selectedModule, fieldKey)}
-                  onReanalyze={(comment) => handleReanalyzeField(selectedModule, fieldKey, comment)}
-                />
-              ))}
+              {Object.entries(currentFields).map(([fieldKey, field]) => {
+                const target = follow.fieldTarget(selectedModule, fieldKey);
+                return (
+                  <CopilotTarget key={fieldKey} id={target} state={follow.stateOf(target)} className="-mx-3 px-3 py-2">
+                    <KBFieldRow
+                      fieldKey={fieldKey}
+                      label={FIELD_LABELS[fieldKey] ?? fieldKey}
+                      field={field}
+                      onEdit={(val) => handleEdit(selectedModule, fieldKey, val)}
+                      onApprove={() => handleApprove(selectedModule, fieldKey)}
+                      onReject={() => handleReject(selectedModule, fieldKey)}
+                    />
+                  </CopilotTarget>
+                );
+              })}
             </div>
           )}
         </motion.div>
-        )}
       </div>
     </div>
   );

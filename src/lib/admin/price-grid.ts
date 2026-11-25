@@ -230,7 +230,7 @@ export function priceRange(model: GridModel, price: AiModelPrice): PriceRange | 
   }
   const request = lineOf(price, "request");
   if (request) {
-    // A flat price per run (prompt runs, D536); an attached image adds its own flat price.
+    // A flat price per run (prompt runs, D559); an attached image adds its own flat price.
     const image = lineOf(price, "input_image");
     return { from: `${formatUsd(request.unit_usd)} a request`, to: image ? `plus ${formatUsd(image.unit_usd)} an attached image` : "flat price", single: true };
   }

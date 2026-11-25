@@ -5,22 +5,26 @@ import type { CopilotContext } from "./context";
 import { newShotId as randomShotId, toScriptDoc } from "./draft";
 import { fieldLabel, parseFieldPath, readField, writeField } from "./fields";
 import { fillToFinal } from "./fill-to-final";
-import { MAX_MESSAGE_CHARS } from "./constants";
+import { MAX_MESSAGE_CHARS, RESEARCH_HANDED } from "./constants";
 import { streamDraftCall } from "./draft-call";
 import { mightBeScript } from "./import";
+import { SCRIPTS_LOCKED_MESSAGE } from "@/lib/journey/stages";
 import { prepareImport } from "./import-turn";
 import { anglesPrompt, cardPrompt, detectPrompt, draftPrompt, editPrompt, extractPrompt, inlinePrompt, type CopilotBase } from "./messages";
 import type { StreamingCall, StructuredCall } from "./model";
 import type { PartialDraft } from "./partial-draft";
 import { applyOps, beforeAfter, staleTargets, type OpsGen } from "./ops";
 import { anglesOutputSchema, cardOutputSchema, detectOutputSchema, draftOutputSchema, editTurnSchema, extractionSchema, inlineOutputSchema } from "./output";
-import { nextReelNumber, renderAvatars, renderLibrary } from "./prompt-context";
+import { nextReelNumber, renderAvatars, renderLibrary, renderSignalBrief } from "./prompt-context";
 import { renderFormatMenu, SCRIPT_FORMATS } from "./formats";
 import { cleanSuggestions } from "./suggestions";
-import type { Brief, GenerateScript, MessageCard, ProposalCard, ScriptMessage, ScriptNotes } from "./schema";
+import type { Brief, GenerateScript, MessageCard, OfferCard, ProposalCard, ScriptMessage, ScriptNotes } from "./schema";
+import { visualiseTurnSchema, type EditOp } from "./output";
+import { boardText, type BoardFacts } from "./board-text";
+import { routeVisualiseOps, VISUALISE_REFUSALS } from "./visualise-edits";
 import { renderConversation } from "./conversation";
 import {
-  angleText, applyAngle, cardToNotes, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
+  anglesSignals, angleText, applyAngle, builtFromSignals, cardToNotes, mergeExtraction, nextStep, normalizeAngles, normalizeCard,
   openItemsLine, questionFor, type Step,
 } from "./brief";
 
@@ -28,7 +32,12 @@ import {
 // changeGenerateScript runs against the script as it is now and compare-and-sets (D332, D337).
 
 /** `suggestions`: the brand-aware chips the model wrote with this reply (brand-neutral spec §3.1). */
-export type Reply = { content: string; card: MessageCard | null; suggestions?: string[] };
+export type Reply = {
+  content: string; card: MessageCard | null; suggestions?: string[];
+  /** Piece 5.1 — panel versions to pick, at Visualise only. The route sets them and drops them
+   *  before the reply is saved. */
+  picks?: { shotId: string; version: number }[];
+};
 export type TurnDeps = {
   /** The writing model (SCRIPT_WRITER_MODEL): the draft and chat edits. */
   call: StructuredCall;
@@ -39,10 +48,30 @@ export type TurnDeps = {
   stream?: StreamingCall;
   onDraft?: (draft: PartialDraft) => void;
   newShotId?: (taken: Set<string>) => string;
+  /** D532 — research the person asked for goes to the market research agent; the route runs it
+   *  after the reply. Absent: nothing is handed over. */
+  onResearch?: (question: string) => void;
 };
+
+/** Hands a research question to market research (D532) and returns the line that says so, or null
+ *  when the person asked for none. The script copilot never searches itself. */
+function handOff(deps: TurnDeps, research: string | null | undefined): string | null {
+  const question = research?.trim();
+  if (!question) return null;
+  deps.onResearch?.(question);
+  return RESEARCH_HANDED;
+}
 /** `leadAvatarId` comes with a lead chip: the avatar the person picked, linked as is (D362).
  *  `history`: the messages before this one; the copilot reads the last 10 of them (conversation.ts). */
-export type TurnInput = { script: GenerateScript; ctx: CopilotContext; text: string; history: ScriptMessage[]; leadAvatarId?: string | null };
+export type TurnInput = {
+  script: GenerateScript; ctx: CopilotContext; text: string; history: ScriptMessage[]; leadAvatarId?: string | null;
+  /** New scripts wait for market research approval (copilot journey spec §5.3): only a whole pasted
+   *  script goes on for a script that is not written yet. */
+  locked?: boolean;
+  /** Piece 5.1 (D524) — the stage the turn is for, and at Visualise the storyboard as it stands. */
+  stage?: "generate" | "visualise";
+  board?: BoardFacts;
+};
 export type Apply = (current: GenerateScript) => Change<Reply[]>;
 
 function baseFor(ctx: CopilotContext, format: string): CopilotBase {
@@ -60,11 +89,31 @@ export async function prepareTurn(input: TurnInput, deps: TurnDeps): Promise<App
   if (mightBeScript(input.text)) {
     const quick = deps.quick ?? deps.call;
     const seen = await quick({ name: "script_detect", ...detectPrompt(base, { hasDraft: input.script.doc !== null, text: input.text }), schema: detectOutputSchema });
-    if (seen.wholeScript) return prepareImport(input, deps, base);
+    if (seen.wholeScript) {
+      // Piece 5.1 §3.3 — at Visualise a new script would replace every shot, and every panel with it.
+      if (input.stage === "visualise") return () => ({ patch: null, result: [{ content: VISUALISE_REFUSALS.replace, card: REOPEN_OFFER }] });
+      return prepareImport(input, deps, base);
+    }
+  }
+  if (input.stage === "visualise") {
+    if (input.text.length > MAX_MESSAGE_CHARS) return () => ({ patch: null, result: [{ content: TOO_LONG, card: null }] });
+    if (!input.script.doc || !input.board) return () => ({ error: "There's no storyboard to change.", status: 409 });
+    return prepareVisualiseEdit(input, deps, base, input.script.doc, input.board);
+  }
+  // The route refuses short messages up front; a long one that is not a whole script stops here,
+  // before any brief is read, so the gate cannot be walked around with a padded message.
+  if (input.locked && input.script.doc === null) {
+    return () => ({ patch: null, result: [{ content: SCRIPTS_LOCKED_MESSAGE, card: null }] });
   }
   // Up to MAX_PASTE_CHARS is let in for a pasted script; anything else keeps the message limit.
   if (input.text.length > MAX_MESSAGE_CHARS) return () => ({ patch: null, result: [{ content: TOO_LONG, card: null }] });
   return input.script.doc ? prepareEdit(input, deps, base, input.script.doc) : prepareBrief(input, deps, base);
+}
+
+/** The script's "Built from" signals in full, for an edit (D531): "Rewrite with these signals" is an
+ *  ordinary edit that can read them. "" when none are set or loaded. */
+function builtFromText(input: TurnInput): string {
+  return renderSignalBrief(builtFromSignals(input.ctx.signals.all, input.script.brief.signalIds));
 }
 
 const TOO_LONG = `That's longer than a chat message can be (${MAX_MESSAGE_CHARS.toLocaleString("en")} characters), and it doesn't read as a whole script. If it is one, paste the whole script, shot table included.`;
@@ -78,7 +127,16 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
   const quick = deps.quick ?? deps.call;
 
   const ex = await quick({ name: "script_brief_read", ...extractPrompt(base, { brief: script.brief, conversation, text }), schema: extractionSchema });
-  const merged = mergeExtraction(script.brief, ex, avatarIds);
+  const merged = mergeExtraction(script.brief, ex, avatarIds, ctx.signals.list);
+  // Asked to research: it goes to market research, and this turn only keeps what the message settled.
+  const handed = handOff(deps, ex.research);
+  if (handed) {
+    const reply = [ex.ack.trim(), handed].filter(Boolean).join("\n\n");
+    const kept = JSON.stringify(merged.brief) === JSON.stringify(script.brief) ? null : { brief: merged.brief };
+    return (current) => (current.docVersion !== script.docVersion || current.doc
+      ? { error: "The script changed while I was working. Send that again.", status: 409 }
+      : { patch: kept, result: [{ content: reply, card: null }] });
+  }
   let brief: Brief = merged.brief;
   let changed = merged.changed;
   // A picked lead chip is the lead, whatever the model made of the name (two avatars can share one).
@@ -113,19 +171,16 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
       break;
     }
     if (step.kind === "angles") {
-      const research = ctx.signals;
+      // Signals set before the angles limit them; otherwise they read every signal (D531, D335).
+      const read = anglesSignals(ctx.signals.all, brief.signalIds);
+      const research = read === ctx.signals.all ? ctx.signals : { brief: renderSignalBrief(read), list: read.map((s) => ({ id: s.id, name: s.name })) };
       const out = await quick({ name: "script_angles", ...anglesPrompt(base, { brief, signalBrief: research.brief, conversation, text }), schema: anglesOutputSchema });
       chips = out.suggestions ?? [];
       const angles = normalizeAngles(out.angles, research.list, avatarIds);
       if (angles.length === 0) throw new Error("The copilot proposed no angles.");
       brief = { ...brief, angles };
-      // The card is the message: which signals each angle used, nothing explaining it.
-      say(withAck(""), {
-        kind: "research",
-        signals: research.list,
-        perAngle: angles.map((a) => ({ angleId: a.id, signalIds: a.signalIds })),
-      });
-      say("Here are three angles. Pick one, blend two, or write your own.", { kind: "angles", angles });
+      // Each angle names its signal on the angles card itself (D531): no separate research card.
+      say(withAck("Here are three angles. Pick one, blend two, or write your own."), { kind: "angles", angles, signals: research.list });
       if (brief.narrative.status !== "skipped") break;
       brief = applyAngle(brief, angles[0], "proposed");
       say(`You left the angle to me, so I'll go with ${angles[0].id}: ${angles[0].hook}`);
@@ -148,7 +203,8 @@ async function prepareBrief(input: TurnInput, deps: TurnDeps, base: CopilotBase)
         break;
       }
       const card = brief.card;
-      const draftArgs = { name: "script_draft", ...draftPrompt(base, { brief, card, conversation }), schema: draftOutputSchema };
+      const builtFrom = renderSignalBrief(builtFromSignals(ctx.signals.all, brief.signalIds));
+      const draftArgs = { name: "script_draft", ...draftPrompt(base, { brief, card, conversation, builtFrom }), schema: draftOutputSchema };
       const out = await streamDraftCall(deps, draftArgs);
       doc = toScriptDoc(out, { reelNumber: card.reelNumber, avatarIds, leadAvatarId: lead?.avatarId ?? null });
       notes = cardToNotes(card);
@@ -179,11 +235,12 @@ async function prepareEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, 
   const conversation = renderConversation(input.history);
   const out = await deps.call({
     name: "script_edit",
-    ...editPrompt(base, { doc, notes: script.notes, openItems: fillToFinal(doc, script.notes), conversation, text }),
+    ...editPrompt(base, { doc, notes: script.notes, openItems: fillToFinal(doc, script.notes), conversation, text, builtFrom: builtFromText(input) }),
     schema: editTurnSchema,
   });
   const gen: OpsGen = { newShotId: deps.newShotId ?? randomShotId, avatarIds: new Set(ctx.avatars.map((a) => a.id)) };
-  const reply = out.reply.trim() || "Done.";
+  const handed = handOff(deps, out.research);
+  const reply = [out.reply.trim() || (handed ? "" : "Done."), handed].filter(Boolean).join("\n\n");
   const suggestions = cleanSuggestions(out.suggestions ?? []);
   const answer = (content: string, card: MessageCard | null = null): Reply[] => [{ content, card, suggestions }];
   return (current) => {
@@ -204,9 +261,79 @@ async function prepareEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, 
   };
 }
 
+const REOPEN_OFFER: OfferCard = { kind: "offer", action: "reopen" };
+
+/** The character who already had an avatar that the edit also gave someone else, or null. */
+function sharedAvatar(before: ScriptDoc, after: ScriptDoc): string | null {
+  for (const c of after.cast) {
+    if (!c.avatarId || before.cast.find((b) => b.id === c.id)?.avatarId === c.avatarId) continue;
+    const other = after.cast.find((o) => o.id !== c.id && o.avatarId === c.avatarId);
+    if (other) return other.name;
+  }
+  return null;
+}
+
+/** The shots a card shows: the ones the edit touches, and for a character's change, every shot that
+ *  character is in, since their name and description are drawn there. */
+function shownShots(ops: EditOp[], doc: ScriptDoc, touched: string[]): string[] {
+  const castIds = new Set(ops.flatMap((o) => (o.op === "update_cast" || o.op === "remove_cast") && o.cast?.castId ? [o.cast.castId] : []));
+  const ids = new Set(touched);
+  for (const s of doc.shots) if (s.onScreen.some((id) => castIds.has(id))) ids.add(s.id);
+  return [...ids];
+}
+
+/** Piece 5.1 §3.3 (D524, D525) — a message at Visualise. The same edits as at Generate, routed by
+ *  routeVisualiseOps: at once, on a card, or refused with a Reopen button. The model may also pick
+ *  panel versions and offer one button (draw, send, reopen) that the person presses. */
+async function prepareVisualiseEdit(input: TurnInput, deps: TurnDeps, base: CopilotBase, doc: ScriptDoc, board: BoardFacts): Promise<Apply> {
+  const { script, ctx, text } = input;
+  const out = await deps.call({
+    name: "script_visualise_edit",
+    ...editPrompt(base, {
+      doc, notes: script.notes, openItems: fillToFinal(doc, script.notes), conversation: renderConversation(input.history), text,
+      board: boardText(board), builtFrom: builtFromText(input),
+    }),
+    schema: visualiseTurnSchema,
+  });
+  const gen: OpsGen = { newShotId: deps.newShotId ?? randomShotId, avatarIds: new Set(ctx.avatars.map((a) => a.id)) };
+  const handed = handOff(deps, out.research);
+  const reply = [out.reply.trim() || (handed ? "" : "Done."), handed].filter(Boolean).join("\n\n");
+  const suggestions = cleanSuggestions(out.suggestions ?? []);
+  const offer: OfferCard | null = out.offer === "none" ? null : { kind: "offer", action: out.offer };
+  const picks = out.picks.length > 0 ? out.picks : undefined;
+  const answer = (content: string, card: MessageCard | null, withPicks = true): Reply[] =>
+    [{ content, card, suggestions, ...(withPicks && picks ? { picks } : {}) }];
+  return (current) => {
+    if (out.ops.length === 0) return { patch: null, result: answer(reply, offer) };
+    if (!current.doc) return { error: "There's no storyboard to change.", status: 409 };
+    // The notes are refused whatever else is asked, before anything is applied.
+    const refused = routeVisualiseOps(out.ops, []);
+    if (refused.kind === "refuse") return { patch: null, result: answer(refused.reason, REOPEN_OFFER, false) };
+    const stale = staleTargets(out.ops, doc.shots, current.doc);
+    if (stale.length > 0) {
+      return { patch: null, result: answer(`You changed ${stale.join(", ")} while I was working, so I left it as you wrote it. Ask me again if you still want the change.`, null, false) };
+    }
+    const r = applyOps(current.doc, current.notes, out.ops, gen);
+    if (!r.ok) return { patch: null, result: answer(`I couldn't make that change: ${r.error} Nothing was changed.`, null, false) };
+    // Final review, Important 4 — the board's rule for casting (withCastAvatar): one avatar, one character.
+    const twice = sharedAvatar(current.doc, r.doc);
+    if (twice) return { patch: null, result: answer(`${twice} already has this avatar in this script.`, null, false) };
+    if (routeVisualiseOps(out.ops, r.touchedShotIds).kind === "card") {
+      const shown = shownShots(out.ops, current.doc, r.touchedShotIds);
+      const card: ProposalCard = { kind: "proposal", status: "pending", summary: reply, ops: out.ops, ...beforeAfter(current.doc, r.doc, shown) };
+      return { patch: null, result: answer(`${reply} Here it is before and after; nothing changes until you accept it.`, card, false) };
+    }
+    return { patch: { doc: r.doc }, result: answer(reply, offer) };
+  };
+}
+
 export function acceptProposal(current: GenerateScript, card: ProposalCard, gen: OpsGen): Change<{ card: ProposalCard; reply: string }> {
   if (card.status !== "pending") return { error: "That change was already settled.", status: 409 };
   if (!current.doc) return { error: "There's no draft to change.", status: 409 };
+  // A card left pending from Generate keeps the Visualise rules: the notes stay behind a reopen.
+  if (current.stage === "visualise" && routeVisualiseOps(card.ops, []).kind === "refuse") {
+    return { patch: null, result: { card: { ...card, status: "stale" }, reply: VISUALISE_REFUSALS.notes } };
+  }
   // card.before is the shots as they were when proposed: a shot changed since then is not overwritten.
   const stale = staleTargets(card.ops, card.before, current.doc);
   if (stale.length > 0) {
@@ -218,7 +345,11 @@ export function acceptProposal(current: GenerateScript, card: ProposalCard, gen:
   }
   return {
     patch: { doc: r.doc, notes: r.notes },
-    result: { card: { ...card, status: "accepted" }, reply: `Applied: ${card.summary}\n\n${openItemsLine(fillToFinal(r.doc, r.notes))}` },
+    // At Visualise the script is final: there are no open items to point at (piece 5.1).
+    result: {
+      card: { ...card, status: "accepted" },
+      reply: current.stage === "visualise" ? `Applied: ${card.summary}` : `Applied: ${card.summary}\n\n${openItemsLine(fillToFinal(r.doc, r.notes))}`,
+    },
   };
 }
 

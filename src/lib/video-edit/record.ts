@@ -35,7 +35,7 @@ export function isVideoEditModelId(v: unknown): v is VideoEditModelId {
 }
 
 /**
- * D540 — the model an edit of this take counts as its own (a hidden edit model keeps running
+ * D563 — the model an edit of this take counts as its own (a hidden edit model keeps running
  * there): the model the take was last edited with, else the node's. The route and the panel
  * both read it, so they agree on what is offered.
  */
@@ -44,7 +44,7 @@ export function editOwnModelId(baseInputsUsed: unknown, nodeModelId: string | nu
   return readVideoEdit(inputs?.videoEdit)?.modelId ?? nodeModelId;
 }
 
-/** D543 — the edit model to start on: the newest one offered on this take, else the default. */
+/** D566 — the edit model to start on: the newest one offered on this take, else the default. */
 export function firstOfferedEditModel(videos: VideoModels, ownModelId: string | null): VideoEditModelId {
   return VIDEO_EDIT_MODEL_IDS.find((id) => videos.isOffered(id, ownModelId)) ?? VIDEO_EDIT_DEFAULT_MODEL_ID;
 }
@@ -126,9 +126,9 @@ export function readVideoEdit(value: unknown): VideoEditRecord | null {
 }
 
 /**
- * The one price both the panel's estimate and the route's reservation use. D528 — Omni also
+ * The one price both the panel's estimate and the route's reservation use. D551 — Omni also
  * bills the take itself as input (as many tokens as the output) and any reference images.
- * D534 — priced from the model's price row; null until it is known or when it has no price.
+ * D557 — priced from the model's price row; null until it is known or when it has no price.
  */
 export function videoEditEstimateCredits(
   price: AiModelPrice | null,

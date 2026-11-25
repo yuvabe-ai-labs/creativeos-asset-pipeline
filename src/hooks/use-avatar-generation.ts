@@ -40,7 +40,7 @@ export function useAvatarGeneration({
   const [picking, setPicking] = useState<string | null>(null);
   // One sheet makes all four views at once (D395), so it is busy or it is not.
   const [generatingSheet, setGeneratingSheet] = useState(false);
-  // D543 — the Studio's defaults while they are live, else the catalog's.
+  // D566 — the Studio's defaults while they are live, else the catalog's.
   const images = useImageModels();
   const [composer, setComposerState] = useState<GenerateFrontInput>(
     () => ({ ...DEFAULT_COMPOSER, modelId: images.liveOr(AVATAR_DEFAULT_FRONT_MODEL_ID) }),

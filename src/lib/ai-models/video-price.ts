@@ -1,4 +1,4 @@
-// D534 — a video run's estimate and charge, from its model's price row. Client-safe.
+// D557 — a video run's estimate and charge, from its model's price row. Client-safe.
 import type { VideoProviderUsage } from "@/lib/video-gen/provider-usage";
 import { lineFor, priceMeters, type MeterQuantities, type PriceDims } from "./pricing";
 import type { AiModelPrice, Meter } from "./types";

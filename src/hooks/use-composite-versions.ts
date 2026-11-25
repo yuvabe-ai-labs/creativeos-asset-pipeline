@@ -92,9 +92,9 @@ export function useCompositeVersions(nodeId: string, open: boolean, onPatch: Pat
     const toastId = toast.loading("Restoring version…");
     try {
       const json = await restoreVersion.mutateAsync(versionId);
-      // D467/D542 — a version made on a model no longer offered (retired, or hidden and not the
+      // D467/D565 — a version made on a model no longer offered (retired, or hidden and not the
       // composite's own) brings back its picture, not its model. A move to another model clears
-      // the retired notice (D544).
+      // the retired notice (D567).
       const restored = imageVersionRestore(images, json, modelId);
       const restoredParams = restored.params;
       onPatch(restored.patch);

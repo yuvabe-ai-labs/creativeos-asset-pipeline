@@ -1,4 +1,4 @@
-// D548 — the checks every admin write to the credit settings runs. Pure and client-safe.
+// D571 — the checks every admin write to the credit settings runs. Pure and client-safe.
 import { CATALOG_CHANGE_LEAD_MS } from "@/lib/ai-models/pricing";
 import type { CreditSettings } from "@/lib/ai-models/types";
 

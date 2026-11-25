@@ -25,7 +25,7 @@ type RecordCostDeps = {
 };
 
 /**
- * D537 - log what a free feature's provider call cost us. Never throws, never charges.
+ * D560 - log what a free feature's provider call cost us. Never throws, never charges.
  * A failed price lookup still records the call (unpriced); only a failed insert records nothing.
  */
 export async function recordProviderCost(input: RecordCostInput, deps: RecordCostDeps = {}): Promise<void> {

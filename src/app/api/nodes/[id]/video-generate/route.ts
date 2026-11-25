@@ -58,7 +58,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, node, caller, clientId, effectiveOrgId) => {
     const raw = await req.json().catch(() => null);
     const parsed = GenerateBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -71,7 +71,7 @@ export async function POST(
     if (locked) return locked;
 
     const modelId = body.modelId ?? videoModelsFrom(catalog).defaultId;
-    // D540 — live runs; hidden only on the node that already uses it; anything else is refused.
+    // D563 — live runs; hidden only on the node that already uses it; anything else is refused.
     // The spec (params, rules, image inputs, label, provider) is the catalog row's.
     const run = videoRun(catalog, modelId, { existingNodeModelId: nodeModelId(node.data) });
     if (!run.ok) return apiError(run.message, 400);
@@ -339,7 +339,7 @@ export async function POST(
     const requestPrompt = presenterVoice?.text ? `${prompt}\n\n${presenterVoice.text}` : prompt;
     const referenceAudioUrl = presenterVoice?.referenceAudioUrl ?? undefined;
 
-    // D534 — the price row this run is reserved and charged with; no row, no run.
+    // D557 — the price row this run is reserved and charged with; no row, no run.
     const price = currentPrice(catalog, modelId, new Date());
     if (!price) return apiError(NO_PRICE_MESSAGE, 409);
 
@@ -373,14 +373,14 @@ export async function POST(
       const durationSeconds = Number(resolvedParams.seconds ?? resolvedParams.duration ?? 0);
       const audioEnabled = isVideoAudioEnabled(resolvedParams.audio);
       const resolution = asResolutionString(resolvedParams.resolution);
-      // D528 — Omni also bills every image it is sent, and its thinking.
+      // D551 — Omni also bills every image it is sent, and its thinking.
       const images = (startFrameUrl ? 1 : 0) + (endFrameUrl ? 1 : 0) + referenceUrls.length;
       const estimateUsd = videoEstimateUsd(price, { durationSeconds, audioEnabled, resolution, images });
       if (estimateUsd === null) {
         console.error(`[video-generate] no cost estimate for ${modelId}`, { durationSeconds, audioEnabled, resolution, images });
         throw new Error(NO_ESTIMATE_MESSAGE);
       }
-      // D548 — reserved with the credit settings live now, from the catalog read above.
+      // D571 — reserved with the credit settings live now, from the catalog read above.
       const estimatedCredits = creditsFromUsd(estimateUsd, creditSettingsAt(catalog, new Date(generation.created_at)));
       const reservation = await reserveCredits(effectiveOrgId, generation.id, estimatedCredits);
       if (!reservation.ok) {

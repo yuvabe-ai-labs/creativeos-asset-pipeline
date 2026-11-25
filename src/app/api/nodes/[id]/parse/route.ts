@@ -21,7 +21,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, _node, caller, clientId, orgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, _node, caller, clientId, orgId) => {
     const body = (await req.json().catch(() => null)) as
       | { source?: unknown; slices?: unknown; signalIds?: unknown; signalMode?: unknown }
       | null;
@@ -69,7 +69,7 @@ export async function POST(
           { role: "user", content: user },
         ],
       });
-      // D537 — paid once it answered, whatever the answer turns out to be.
+      // D560 — paid once it answered, whatever the answer turns out to be.
       recordAfterResponse(openAiCost(
         { orgId, clientId, userId: caller.userId, userEmail: caller.email, nodeId },
         "parse", scriptParsePrompt.model, completion.usage, "chat",

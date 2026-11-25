@@ -22,7 +22,7 @@ export function pieceSound(doc: EditDoc, sources: SourceView[], pieceId: string)
 }
 
 /** What the button shows: credits for each file not yet transcribed, once each, from the model's
- *  price row (D535). `credits` is null while there is work to price but no row to price it with. */
+ *  price row (D558). `credits` is null while there is work to price but no row to price it with. */
 export function autoCaptionCost(price: AiModelPrice | null, doc: EditDoc, sources: SourceView[], transcribed: ReadonlySet<string>, settings: CreditSettings | null, pieceIds?: string[]): { credits: number | null; free: boolean } {
   const ids = pieceIds ?? doc.pieces.map((p) => p.id);
   const fresh = new Map<string, number>();

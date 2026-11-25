@@ -175,7 +175,7 @@ describe("archiveItem", () => {
     expect(init?.headers ?? {}).toEqual({});
   });
 
-  // D537 — the paid provider call is recorded for the item's own client and org, read with
+  // D560 — the paid provider call is recorded for the item's own client and org, read with
   // the item, never for the client id the task was handed.
   it("names the item's org and client for the provider call's cost", async () => {
     vi.mocked(getArchiveItem).mockResolvedValue(row({ kind: "instagram" }) as never);

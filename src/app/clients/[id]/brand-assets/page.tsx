@@ -1,16 +1,5 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getClientBySlug } from "@/lib/db/clients";
-import { resolveOrgId } from "@/lib/dal";
+import { loadClientPage } from "@/lib/permissions/page";
 import { BrandAssetsLibrary } from "@/components/brand-assets/brand-assets-library";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 
 export const dynamic = "force-dynamic";
 
@@ -19,33 +8,10 @@ export const dynamic = "force-dynamic";
 // width and its own scroll, and it is not a KB module to review.
 export default async function BrandAssetsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; // the client slug
-  const client = await getClientBySlug(id);
-  const effectiveOrgId = await resolveOrgId();
-
-  // Org isolation: a client outside the caller's org redirects the same as a nonexistent one.
-  if (!client || client.org_id !== effectiveOrgId) redirect("/");
+  const { client } = await loadClientPage(id, "view");
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">
-      <Breadcrumb className="animate-rise mb-5">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink render={<Link href="/">Clients</Link>} />
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink render={<Link href={`/clients/${client.slug}`}>{client.name}</Link>} />
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink render={<Link href={`/clients/${client.slug}/kb`}>Brand KB</Link>} />
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>Brand assets</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+    <main className="mx-auto w-full max-w-6xl flex-1 px-6 pb-6 pt-8">
 
       <div className="animate-rise">
         <BrandAssetsLibrary clientId={client.id} />

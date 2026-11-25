@@ -15,7 +15,7 @@
 - One catalog request per session (`useAiCatalog`); nothing fetches per node, card or tile (performance rule 1).
 - While the catalog loads, an estimate shows the loading treatment, never a number and never 0. If the catalog fails to load, the estimate shows nothing and the server still refuses an unpriced run.
 - Loading treatment: `GenerateFooter estimating` (spinner, no number) where a footer exists; elsewhere `AvatarCreditCost` shows a spinner. Lucide `Loader2`, `strokeWidth={1.5}`, `animate-spin`, no new components.
-- Decision number for comments: **D534**.
+- Decision number for comments: **D557**.
 - Stage only named files by explicit path; no AI attribution; vitest from Git Bash needs `cd "C:/Users/yuvab/OneDrive/Desktop/codes/creativeos-asset-pipeline"` (uppercase C).
 
 ---
@@ -60,7 +60,7 @@ vi.mock("@/hooks/queries/ai-models", () => ({ useAiCatalog: () => catalog }));
 
 import { AvatarCreditCost } from "../avatar-credit-cost";
 
-describe("AvatarCreditCost (D534)", () => {
+describe("AvatarCreditCost (D557)", () => {
   it("shows the credits", () => {
     expect(renderToStaticMarkup(<AvatarCreditCost credits={1250} />)).toContain("1,250");
   });
@@ -87,7 +87,7 @@ Expected: FAIL — the spinner test (no spinner yet).
 Append to `src/hooks/queries/ai-models.ts`:
 
 ```ts
-/** D534 — a model's price row valid now, selected from the session's one catalog query. */
+/** D557 — a model's price row valid now, selected from the session's one catalog query. */
 export function useModelPrice(modelId: string): { price: AiModelPrice | null; loading: boolean } {
   const catalog = useAiCatalog();
   return {
@@ -110,7 +110,7 @@ import { Loader2, Sparkles } from "lucide-react";
 import { useAiCatalog } from "@/hooks/queries/ai-models";
 
 // The credit cost shown on a generate control — the same number the route will reserve.
-// D534 — while the prices load it shows a spinner; with no priced estimate it shows nothing.
+// D557 — while the prices load it shows a spinner; with no priced estimate it shows nothing.
 export function AvatarCreditCost({ credits }: { credits: number | null }) {
   const catalog = useAiCatalog();
   if (credits === null) {
@@ -136,7 +136,7 @@ Expected: PASS. A test elsewhere that renders `AvatarCreditCost` without a Query
 
 ```bash
 git add src/hooks/queries/ai-models.ts src/components/avatars/avatar-credit-cost.tsx src/components/avatars/__tests__/avatar-credit-cost.test.tsx
-git commit -m "feat(credits): a model's price from the catalog, and a loading credit label (D534)"
+git commit -m "feat(credits): a model's price from the catalog, and a loading credit label (D557)"
 ```
 
 (Add any test file Step 5 had to change to the same commit.)
@@ -172,7 +172,7 @@ Replace
 with
 
 ```ts
-  // D534 — priced from the model's row in the session's catalog; a spinner until it arrives.
+  // D557 — priced from the model's row in the session's catalog; a spinner until it arrives.
   const { price: modelPrice, loading: priceLoading } = useModelPrice(modelId);
   const videoCostEstimateUsd = modelPrice
     ? videoEstimateUsd(modelPrice, { durationSeconds, audioEnabled, resolution, images: Object.keys(effectiveImageRoles).length })
@@ -212,7 +212,7 @@ In the browser (dev server on 3001, signed in): open a Video Gen focus view. The
 
 ```bash
 git add src/components/nodes/video-gen-focus-view.tsx src/components/nodes/video-gen-edit-video.tsx
-git commit -m "feat(credits): Video Gen and Edit video price their estimate from the catalog (D534)"
+git commit -m "feat(credits): Video Gen and Edit video price their estimate from the catalog (D557)"
 ```
 
 ---
@@ -238,7 +238,7 @@ import { useModelPrice } from "@/hooks/queries/ai-models";
 Directly above `const hasPromptUpstream = Boolean(promptUpstream);` add:
 
 ```ts
-  // D534 — priced from the model's row in the session's catalog.
+  // D557 — priced from the model's row in the session's catalog.
   const { price: modelPrice, loading: priceLoading } = useModelPrice(model.id);
   const modelPriceId = modelPrice?.id ?? null;
 ```
@@ -272,7 +272,7 @@ to
 In the Edit estimate memo, change its guard to end `|| !modelPrice) return null;`, replace its `estimateImageGenerationCostUsd({ … referenceUrls })` with the same `imageEstimateUsd(modelPrice, { … referenceCount: referenceUrls.length })`, add `modelPriceId` to its dependencies, and change `const editEstimating = false;` (and the comment above it) to:
 
 ```ts
-  // D534 — the only thing the Edit estimate waits for is the price.
+  // D557 — the only thing the Edit estimate waits for is the price.
   const editEstimating = priceLoading;
 ```
 
@@ -328,7 +328,7 @@ In the browser: open an Image Gen and a Composite focus view; the button shows t
 
 ```bash
 git add src/components/nodes/image-gen-focus-view.tsx src/components/nodes/composite-focus-view.tsx
-git commit -m "feat(credits): Image Gen and Composite price their estimate from the catalog (D534)"
+git commit -m "feat(credits): Image Gen and Composite price their estimate from the catalog (D557)"
 ```
 
 ---
@@ -365,7 +365,7 @@ Expected: FAIL (old signatures).
 In `src/lib/scripts/visualise/maker.ts`:
 
 ```ts
-/** What Make avatar costs: one face, then one sheet. D534 — null until the price is known. */
+/** What Make avatar costs: one face, then one sheet. D557 — null until the price is known. */
 export function estimateMakeCredits(price: AiModelPrice | null, modelId: string = VISUALISE_AVATAR_MODEL_ID): number | null {
   const face = estimateAvatarImageCredits(price, { modelId, aspect: AVATAR_FRONT_ASPECT, referenceCount: 0 });
   const sheet = estimateSheetCredits(price, modelId);
@@ -435,7 +435,7 @@ In the browser: open an avatar's Studio (Look and Views steps) and a script's Vi
 Stage the files under **Files** by explicit path, then:
 
 ```bash
-git commit -m "feat(credits): avatar and Visualise estimates priced from the catalog (D534)"
+git commit -m "feat(credits): avatar and Visualise estimates priced from the catalog (D557)"
 ```
 
 ---
@@ -463,7 +463,7 @@ import { seededPrice, seededCatalog } from "../test-prices";
 import { videoSecondsUsd, videoChargeUsd } from "../video-price";
 import { imageEstimateUsd } from "../image-price";
 
-// D534 — migration 0078 is frozen history: these are the prices it seeded, pinned.
+// D557 — migration 0078 is frozen history: these are the prices it seeded, pinned.
 describe("migration 0078's prices", () => {
   it("parses every row", () => {
     expect(seededCatalog().prices).toHaveLength(21);
@@ -497,7 +497,7 @@ describe("migration 0078's prices", () => {
 Change `src/lib/ai-models/test-prices.ts` to read the rows from the migration instead of the builder:
 
 ```ts
-// D534 — the price rows migration 0078 seeded (frozen history), for tests anywhere in the app.
+// D557 — the price rows migration 0078 seeded (frozen history), for tests anywhere in the app.
 // Not imported by app code.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -535,10 +535,10 @@ Expected: PASS (it pins what 2a-i seeded; it is the guard for the deletions belo
 - [ ] **Step 2: Delete the tables and what was built on them**
 
 1. `git rm src/lib/image-gen/estimate.ts src/lib/ai-models/price-seed.ts src/lib/image-gen/__tests__/estimate.test.ts src/lib/video-gen/__tests__/cost.test.ts src/lib/image-gen/__tests__/cost.test.ts src/lib/ai-models/__tests__/price-seed.test.ts src/lib/ai-models/__tests__/price-seed-migration.test.ts src/lib/ai-models/__tests__/price-equivalence.test.ts`
-2. `src/lib/video-gen/cost.ts`: keep only `isVideoAudioEnabled` and `asResolutionString` (with their comments). Delete `VIDEO_MODEL_PRICING`, `OMNI_OUTPUT_TOKENS_PER_SECOND`, `OMNI_11_VIDEO_OUT_PER_M`, `OMNI_12_VIDEO_OUT_PER_M`, `omniRates`, `OMNI_11_REROUTE_AT`, `pricedVideoModelId`, `RESOLUTION_ONLY_PRICING`, `KLING_RESOLUTION_PRICING`, `computeVideoCost`, and the `USD_TO_INR` import. Add at the top: `// D534 — video prices live in ai_model_prices; this file keeps the two param readers.`
-3. `src/lib/image-gen/cost.ts`: keep only `ASPECT_RATIO_TO_OPENAI_SIZE` and `aspectRatioToOpenAISize`. Delete every pricing table and function, and the `USD_TO_INR` / `ImageTokenUsage` imports. Add at the top: `// D534 — image prices live in ai_model_prices; this file keeps the OpenAI size mapping.`
+2. `src/lib/video-gen/cost.ts`: keep only `isVideoAudioEnabled` and `asResolutionString` (with their comments). Delete `VIDEO_MODEL_PRICING`, `OMNI_OUTPUT_TOKENS_PER_SECOND`, `OMNI_11_VIDEO_OUT_PER_M`, `OMNI_12_VIDEO_OUT_PER_M`, `omniRates`, `OMNI_11_REROUTE_AT`, `pricedVideoModelId`, `RESOLUTION_ONLY_PRICING`, `KLING_RESOLUTION_PRICING`, `computeVideoCost`, and the `USD_TO_INR` import. Add at the top: `// D557 — video prices live in ai_model_prices; this file keeps the two param readers.`
+3. `src/lib/image-gen/cost.ts`: keep only `ASPECT_RATIO_TO_OPENAI_SIZE` and `aspectRatioToOpenAISize`. Delete every pricing table and function, and the `USD_TO_INR` / `ImageTokenUsage` imports. Add at the top: `// D557 — image prices live in ai_model_prices; this file keeps the OpenAI size mapping.`
 4. `src/lib/video-gen/provider-usage.ts`: keep the types, `isCount`, `normalizeOmniUsage`, `normalizeSeedanceUsage`, `readVideoUsage`. Delete `OMNI_INPUT_PER_M`, `OMNI_TEXT_AND_THINKING_OUT_PER_M`, `OMNI_VIDEO_OUT_PER_M`, `SEEDANCE_PER_M`, `OMNI_TOKENS_PER_INPUT_IMAGE`, `OMNI_THINKING_ALLOWANCE_TOKENS`, `computeVideoCostFromUsage`, `omniEstimateExtrasUsd`, `estimateVideoCostUsd`, and the imports from `./cost` and `@/lib/pricing`. In `src/lib/video-gen/__tests__/provider-usage.test.ts` delete the `computeVideoCostFromUsage`, `estimateVideoCostUsd` and `omniEstimateExtrasUsd` describe blocks and their imports; keep the normaliser and `readVideoUsage` tests.
-5. In `supabase/migrations/0078_ai_model_prices_seed.sql`, replace the two comment lines after the first with `-- Frozen history (D534): the code tables it was generated from were deleted in Plan 2a-ii.`
+5. In `supabase/migrations/0078_ai_model_prices_seed.sql`, replace the two comment lines after the first with `-- Frozen history (D557): the code tables it was generated from were deleted in Plan 2a-ii.`
 
 - [ ] **Step 3: Move the remaining tests onto the seeded rows**
 
@@ -571,7 +571,7 @@ Expected: PASS, except the two pre-existing "refuses a deprecated model before a
 Stage the deletions (`git rm` already staged them) and every modified file by explicit path, then:
 
 ```bash
-git commit -m "refactor(credits): delete the code price tables; prices come only from ai_model_prices (D534)"
+git commit -m "refactor(credits): delete the code price tables; prices come only from ai_model_prices (D557)"
 ```
 
 ---

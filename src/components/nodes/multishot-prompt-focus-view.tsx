@@ -297,7 +297,7 @@ export function MultishotPromptFocusView({
     [planDraft, cap, refIds],
   );
 
-  // D536 - the flat price comes from the catalog row; the button waits for it.
+  // D559 - the flat price comes from the catalog row; the button waits for it.
   const { price: promptPrice, loading: promptPriceLoading, error: promptPriceError } = useModelPrice(PROMPT_MODEL_ID);
   const estimatedCredits = promptPrice ? promptFlatCredits(promptPrice, upstream.filter(isVisionAttachment).length) : null;
   const noPriceReason = priceUnavailableReason({ loading: promptPriceLoading, error: promptPriceError }, estimatedCredits !== null);

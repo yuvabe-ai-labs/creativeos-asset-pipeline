@@ -42,12 +42,44 @@ export function applyAngle(brief: Brief, a: Angle, status: "given" | "proposed")
     postDate: brief.postDate.trim() || a.postDate.trim(),
     lead: fill(brief.lead, a.lead),
     leadAvatarId: leadFilled ? a.leadAvatarId : brief.leadAvatarId,
+    // "Built from" follows the picked angle (D531, option A): the script's own set from here on.
+    signalIds: a.signalIds,
   };
+}
+
+/** The signals the angles read (D531): the chosen ones that still exist when some are set, else
+ *  every signal, as before "Built from" existed (D335). A chosen signal deleted since is dropped. */
+export function anglesSignals<S extends { id: string }>(all: S[], chosen: string[] | null): S[] {
+  const picked = builtFromSignals(all, chosen);
+  return picked.length > 0 ? picked : all;
+}
+
+/** The signals the script is built from that still exist, in the client's order; none when unset. */
+export function builtFromSignals<S extends { id: string }>(all: S[], chosen: string[] | null): S[] {
+  if (!chosen || chosen.length === 0) return [];
+  const set = new Set(chosen);
+  return all.filter((s) => set.has(s.id));
+}
+
+/** "Use the office dry skin signal" (D531): names the person gave, matched to the client's signals
+ *  without regard to case. Removing from an unset list starts from every signal. */
+function steerSignals(current: string[] | null, ask: Extraction["signals"], signals: readonly { id: string; name: string }[]): string[] | null {
+  const byName = (name: string) => signals.find((s) => s.name.trim().toLowerCase() === name.trim().toLowerCase())?.id;
+  const add = ask.add.map(byName).filter((id): id is string => id !== undefined);
+  const remove = new Set(ask.remove.map(byName).filter((id): id is string => id !== undefined));
+  if (add.length === 0 && remove.size === 0) return current;
+  const start = current ?? (remove.size > 0 ? signals.map((s) => s.id) : []);
+  const next = [...new Set([...start, ...add])].filter((id) => !remove.has(id));
+  return next;
 }
 
 export type Merge = { brief: Brief; changed: boolean; cardChange: string };
 
-export function mergeExtraction(brief: Brief, ex: Extraction, avatarIds: ReadonlySet<string>): Merge {
+export function mergeExtraction(
+  brief: Brief, ex: Extraction, avatarIds: ReadonlySet<string>,
+  /** The client's signals, to read "use the X signal" against (D531). */
+  signals: readonly { id: string; name: string }[] = [],
+): Merge {
   let changed = false;
   const take = (piece: Piece, a: { action: "given" | "skip" | "none"; value: string }): Piece => {
     if (a.action === "given" && a.value.trim()) {
@@ -76,7 +108,13 @@ export function mergeExtraction(brief: Brief, ex: Extraction, avatarIds: Readonl
     }
   } else {
     next = { ...next, narrative: take(next.narrative, ex.narrative) };
+    // A blend or the person's own angle takes the signals the copilot used for it: none, unless the
+    // person had already set some (D531).
+    if (next.narrative.status === "given" && next.narrative.value !== brief.narrative.value) {
+      next = { ...next, signalIds: next.signalIds ?? [] };
+    }
   }
+  next = { ...next, signalIds: steerSignals(next.signalIds, ex.signals ?? { add: [], remove: [] }, signals) };
 
   if (ex.skipAll) {
     for (const key of ["format", "occasion", "lead", "narrative"] as const) {
@@ -145,7 +183,15 @@ export function questionFor(piece: "format" | "occasion" | "lead", ctx: { format
   }
 }
 
-export function openingMessage(ctx: { clientName: string; formats: string[]; hasKb: boolean }): string {
+export function openingMessage(ctx: { clientName: string; formats: string[]; hasKb: boolean; locked?: boolean }): string {
+  // Copilot journey spec §5.3: while new scripts wait for market research approval, only a pasted
+  // script is taken, so the opening asks for that and not for a format the gate would refuse.
+  if (ctx.locked) {
+    return [
+      `New scripts for ${ctx.clientName} open once market research is approved.`,
+      "If you already have a script, paste the whole of it here, shot table included, and I will bring it in as written.",
+    ].join("\n\n");
+  }
   const source = ctx.hasKb
     ? `Working from ${ctx.clientName}'s brand KB, house rules included.`
     : `${ctx.clientName} has no brand KB yet, so I'm working from what you tell me.`;

@@ -1403,7 +1403,7 @@ describe("fanOutShots with script products and locations (D450)", () => {
   });
 });
 
-describe("D544 — nodes on a retired model", () => {
+describe("D567 — nodes on a retired model", () => {
   const catalog = seededModelCatalog();
   const models = { images: imageModelsFrom(catalog), videos: videoModelsFrom(catalog) };
   const node = (type: string, data: Record<string, unknown>) =>

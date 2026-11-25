@@ -36,7 +36,7 @@ export function EditorLipTask({
   const sources = useEditorStore((s) => s.sources);
   const apply = useEditorStore((s) => s.apply);
   const ui = useEditorUi();
-  // D535 - the cost comes from the price row; Lip sync waits until it is known.
+  // D558 - the cost comes from the price row; Lip sync waits until it is known.
   const { price, loading: priceLoading, error: priceError } = useModelPrice(LIP_SYNC_MODEL_ID);
   const usd = price && seconds > 0 ? lipSyncUsd(price, seconds) : null;
   const settings = useCreditSettings();

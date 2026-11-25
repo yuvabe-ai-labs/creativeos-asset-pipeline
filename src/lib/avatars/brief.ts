@@ -16,7 +16,7 @@ import type { AvatarAttributes } from "./constants";
  */
 export async function briefFront(
   input: AvatarBriefInput,
-  // D537 — the call's cost is recorded for `recordFor`, as an avatar brief.
+  // D560 — the call's cost is recorded for `recordFor`, as an avatar brief.
   { recordFor, call }: { recordFor?: RecordFor; call?: StructuredCall } = {},
 ): Promise<{ description: string; attributes: AvatarAttributes; family: AvatarBrief["family"] }> {
   try {

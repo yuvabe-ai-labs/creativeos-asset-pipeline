@@ -28,7 +28,7 @@ beforeEach(() => {
 
 const recordOnlyFilter = ["eq", "record_only", false];
 
-describe("generations readers and record-only rows (D537)", () => {
+describe("generations readers and record-only rows (D560)", () => {
   it("the admin org count leaves record-only rows out", async () => {
     await countGenerationsForOrg("o");
     expect(calls).toContainEqual(recordOnlyFilter);

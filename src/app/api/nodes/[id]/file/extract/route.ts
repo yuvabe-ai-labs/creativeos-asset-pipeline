@@ -12,7 +12,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, _node, caller, clientId, orgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, _node, caller, clientId, orgId) => {
     const body = await req.json().catch(() => null);
     const llmPrompt = typeof body?.llmPrompt === "string" ? body.llmPrompt.trim() : "";
     if (!llmPrompt) return apiError("llmPrompt is required.", 400);
@@ -56,7 +56,7 @@ export async function POST(
           },
         ],
       });
-      // D537 — paid once it answered.
+      // D560 — paid once it answered.
       recordAfterResponse(openAiCost(
         { orgId, clientId, userId: caller.userId, userEmail: caller.email, nodeId },
         "file_extract", fileNodeExtractPrompt.model, response.usage, "responses",

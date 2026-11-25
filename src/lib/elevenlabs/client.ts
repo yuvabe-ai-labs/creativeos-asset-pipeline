@@ -25,7 +25,7 @@ export function elevenLabsKey(): string {
   return key;
 }
 
-/** D535 — ElevenLabs' `character-cost` header: the credits this request deducted. */
+/** D558 — ElevenLabs' `character-cost` header: the credits this request deducted. */
 function readCharacterCost(res: Response): number | null {
   const n = Number(res.headers.get("character-cost"));
   return Number.isFinite(n) && n > 0 ? n : null;

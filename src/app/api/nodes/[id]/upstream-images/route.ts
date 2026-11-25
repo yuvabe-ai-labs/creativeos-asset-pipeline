@@ -22,7 +22,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, node) => {
+  return withNode(req, params, { need: "view" }, async (nodeId, node) => {
     try {
       // The catalog read doesn't depend on the graph: side by side.
       const [{ direct, promptNodes, promptUpstreamBatches, images }, catalog] = await Promise.all([
@@ -52,7 +52,7 @@ export async function GET(
       if (connectedPromptNode?.type === "video-prompt") {
         const stored =
           typeof connectedPromptNode.activeOutput === "string" ? connectedPromptNode.activeOutput : null;
-        // D540 — the stored row can still name a model that may no longer run on it.
+        // D563 — the stored row can still name a model that may no longer run on it.
         const modelId = usableModelId(catalog, typeof node.data?.modelId === "string" ? node.data.modelId : "", {
           kind: "video",
           fallbackId: videoModelsFrom(catalog).defaultId,

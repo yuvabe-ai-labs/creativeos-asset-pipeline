@@ -10,8 +10,10 @@ import { pricingForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
 import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
 import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { VoiceChangeSettingsSchema } from "@/lib/elevenlabs/voice-settings";
-import { VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
+import { VOICE_CHECK_FAILED_MESSAGE, VOICE_GONE_MESSAGE, VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
+import { isVoiceAvailableToClient } from "@/lib/elevenlabs/client-voices";
+import { listClientVoiceIds } from "@/lib/db/client-voices";
 import { resolveVoiceChangeSource } from "@/lib/voice-change/source";
 import { signRevoicedVideoUrl } from "@/lib/storage";
 import type { VoiceChangeRecord } from "@/lib/voice-change/types";
@@ -24,7 +26,7 @@ const BodySchema = z.object({
 
 // D284 — Change voice on an existing version: a new `voice` generation that appends a version.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return apiError("Invalid voice change settings.", 400);
     const { baseVersionId, voiceId, settings } = parsed.data;
@@ -33,17 +35,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (locked) return locked;
     if (!process.env.ELEVEN_LABS_API_KEY) return apiError(VOICE_NOT_SET_UP_MESSAGE, 400);
 
-    // Independent reads run side by side (performance rule 5). D535 - ElevenLabs' row prices the
+    // Independent reads run side by side (performance rule 5). D558 - ElevenLabs' row prices the
     // voice change; the generation still records the video's model.
-    const [source, voiceRead, { price, catalog }] = await Promise.all([
+    const [source, voiceRead, clientVoiceIds, { price, catalog }] = await Promise.all([
       resolveVoiceChangeSource(nodeId, baseVersionId, getVersionById),
       getVoiceCached(voiceId).then((voice) => ({ ok: true as const, voice }), () => ({ ok: false as const })),
+      listClientVoiceIds(clientId),
       pricingForNewRun(VOICE_CHANGE_PRICE_MODEL_ID),
     ]);
     if (!source.ok) return apiError(source.reason, 400);
-    if (!voiceRead.ok) return apiError("Could not reach ElevenLabs to check the voice. Try again.", 400);
+    if (!voiceRead.ok) return apiError(VOICE_CHECK_FAILED_MESSAGE, 400);
     const voice = voiceRead.voice;
-    if (!voice) return apiError("That voice is no longer on the ElevenLabs account. Pick another voice.", 400);
+    if (!voice) return apiError(VOICE_GONE_MESSAGE, 400);
+    // The voice id comes from the body: a stock voice or one of this client's own, never another
+    // client's clone (any agency). A 404, as for the avatar voice, never confirming a foreign voice.
+    if (!isVoiceAvailableToClient(voice, clientVoiceIds)) {
+      return apiError("Voice not found.", 404);
+    }
 
     const voiceChange: VoiceChangeRecord = {
       baseVersionId,

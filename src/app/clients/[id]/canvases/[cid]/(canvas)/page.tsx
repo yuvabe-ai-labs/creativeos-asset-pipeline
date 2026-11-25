@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { getClientBySlug } from "@/lib/db/clients";
+import { loadClientPage } from "@/lib/permissions/page";
 import { getCanvasBySlug } from "@/lib/db/canvases";
-import { resolveOrgId } from "@/lib/dal";
+import { accessOf } from "@/lib/permissions/server";
+import { clientIdsWith } from "@/lib/permissions/check";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -49,13 +50,12 @@ export default async function CanvasPage({
   // takes the lock again however you arrived.
   const { review } = await searchParams;
   const reviewMode = review === "1";
-  const client = await getClientBySlug(id);
-  const canvas = client ? await getCanvasBySlug(client.id, cid) : null;
-  const effectiveOrgId = await resolveOrgId();
+  const { client, caller, effectiveOrgId } = await loadClientPage(id, "view");
+  const canvas = await getCanvasBySlug(client.id, cid);
 
   // Org isolation: a canvas outside the caller's org renders as not-found, never
   // confirming a foreign org's canvas exists — see the note in ../../page.tsx.
-  if (!client || !canvas || client.org_id !== effectiveOrgId) {
+  if (!canvas) {
     return (
       <main className="mx-auto flex w-full max-w-4xl flex-1 items-center justify-center px-6 py-12">
         <Card className="flex min-w-[26rem] flex-col items-center gap-3 border-dashed p-16 text-center">
@@ -78,7 +78,7 @@ export default async function CanvasPage({
       getLatestKBJob(client.id),
       getActiveKBVersion(client.id),
       // R5.3: seeds the Review control's count so it is right on first paint.
-      getOrgReviewCounts(effectiveOrgId),
+      getOrgReviewCounts(effectiveOrgId, clientIdsWith(accessOf(caller), effectiveOrgId, "approve")),
     ]);
 
   let initialDriveRootFolder: { id: string; name: string } | null = null;

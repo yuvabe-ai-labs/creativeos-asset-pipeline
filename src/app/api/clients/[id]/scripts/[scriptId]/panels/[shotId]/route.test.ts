@@ -172,7 +172,7 @@ describe("POST …/panels/:shotId", () => {
     expect((await POST(post({ kind: "draw", modelId: "seedream:seedream-5-0-lite" }), ctx("s06"))).status).toBe(400);
   });
 
-  // D540 — a refused model is a 400 before the take is stored, so no failed take is left behind.
+  // D563 — a refused model is a 400 before the take is stored, so no failed take is left behind.
   it("refuses a model the catalog won't run before storing a take or reserving anything", async () => {
     const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
     const { PANEL_MODEL_ID } = await import("@/lib/scripts/visualise/constants");

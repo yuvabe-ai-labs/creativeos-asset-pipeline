@@ -14,7 +14,6 @@ vi.mock("@/lib/dal", () => ({
     userId: "user-1",
     platformRole: "member",
     orgId: "org-1",
-    orgRole: "owner",
     mustChangePassword: false,
   })),
   resolveOrgId: vi.fn(async () => "org-1"),
@@ -167,7 +166,7 @@ describe("GET /api/nodes/[id]/upstream-images", () => {
     expect((await res.json()).promptNode.text).toBe("She lifts <IMAGE_REF_0>.");
   });
 
-  // D544 — a node on a retired model reads as the browser opens it: on the replacement, while live.
+  // D567 — a node on a retired model reads as the browser opens it: on the replacement, while live.
   it("renders the prompt in a retired model's live replacement's dialect", async () => {
     const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
     const { renderRefs } = await import("@/lib/nodes/ref-binding");

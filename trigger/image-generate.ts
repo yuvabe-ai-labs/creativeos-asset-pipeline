@@ -31,7 +31,7 @@ export const imageGenerateTask = task({
     const { generationId, modelId } = payload;
 
     try {
-      // D541 — the model's row and adapter, from the catalog at run time.
+      // D564 — the model's row and adapter, from the catalog at run time.
       const { imageGenerateForTask } = await import("@/lib/image-gen/image-run");
       const generate = await imageGenerateForTask(modelId);
       const { runImageGenerateTask } = await import("@/lib/image-gen/run-task");

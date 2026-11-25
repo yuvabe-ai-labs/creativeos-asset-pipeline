@@ -1,4 +1,4 @@
-// D535 — migration 0080 is frozen history: the service prices as seeded. This pins what each row
+// D558 — migration 0080 is frozen history: the service prices as seeded. This pins what each row
 // charges, so editing a seeded row (rather than adding a dated one) fails here.
 import { describe, it, expect } from "vitest";
 import {

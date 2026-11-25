@@ -1,4 +1,4 @@
-// D545 — ids of models whose behaviour is written in code (multishot ladders, prompt templates,
+// D568 — ids of models whose behaviour is written in code (multishot ladders, prompt templates,
 // voice preview engines, edit models). The models' data lives in the catalog; only these names
 // stay here. Client-safe.
 /** Gemini Omni 1.1 — still selectable, being retired (D484). Saved nodes keep this id. */

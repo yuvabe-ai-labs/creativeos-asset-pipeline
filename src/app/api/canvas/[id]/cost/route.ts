@@ -13,7 +13,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withCanvas(req, params, async (canvasId) => {
+  return withCanvas(req, params, { need: "view" }, async (canvasId) => {
     const supabase = createServerSupabase();
 
     const { data: nodes, error: nodesErr } = await supabase
@@ -31,7 +31,7 @@ export async function GET(
       .select("node_id, credits_charged")
       .in("node_id", nodeIds)
       .eq("status", "succeeded")
-      // D537: record-only rows charge nothing and are not the node's jobs.
+      // D560: record-only rows charge nothing and are not the node's jobs.
       .eq("record_only", false);
 
     if (error) return apiError(error.message, 500);

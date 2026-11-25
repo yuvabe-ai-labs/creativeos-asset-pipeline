@@ -36,7 +36,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
     const body = (await req.json().catch(() => null)) as
       | { instruction?: unknown; slices?: unknown; controls?: unknown }
       | null;
@@ -63,7 +63,7 @@ export async function POST(
     });
 
     const model = `openai:${promptGeneratePrompt.model}`;
-    // D536 — the row is looked up before anything is recorded: no row, no run.
+    // D559 — the row is looked up before anything is recorded: no row, no run.
     const attachmentCount = resolved.upstream.filter(isVisionAttachment).length;
     const price = await priceForNewRun(PROMPT_MODEL_ID);
     const estimatedCredits = price ? promptFlatCredits(price, attachmentCount) : null;
@@ -121,7 +121,7 @@ export async function POST(
       await setActiveVersion(nodeId, version.id);
 
       const usage = completion.usage ?? null;
-      // D536 — a prompt run keeps its flat price, set in the database, for reserve and settle. The
+      // D559 — a prompt run keeps its flat price, set in the database, for reserve and settle. The
       // token cost OpenAI billed is recorded for comparison and never drives credits_charged.
       const record = promptRunRecord(price, usage, attachmentCount);
       const credits = record?.credits ?? estimatedCredits;

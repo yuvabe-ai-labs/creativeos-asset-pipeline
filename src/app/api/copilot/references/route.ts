@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   if (typeof canvasId !== "string" || !canvasId) return apiError("Open a canvas to use the copilot.", 400);
 
   // The canvas must be in the caller's org before anything of it is read (withBodyCanvas).
-  return withBodyCanvas(canvasId, async (canvas, caller) => {
+  return withBodyCanvas(req, canvasId, { need: "generate" }, async (canvas, caller) => {
     const recordFor = copilotRecordFor(canvas, caller);
     const model = "gpt-4o-mini";
 
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
           },
         ],
       });
-      // D537 — paid once it answered, whatever the answer turns out to be.
+      // D560 — paid once it answered, whatever the answer turns out to be.
       recordAfterResponse(openAiCost(recordFor, "copilot", model, completion.usage, "chat"));
 
       const content = completion.choices[0]?.message?.content ?? '{"referencedNodes":[]}';

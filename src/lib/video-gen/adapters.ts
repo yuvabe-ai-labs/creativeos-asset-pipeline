@@ -8,7 +8,7 @@ import { generateWithSeedance } from "./providers/seedance";
 import { generateWithOmni, OMNI_11, OMNI_12, type OmniVersion } from "./providers/gemini-omni";
 import type { VideoAdapter } from "./types";
 
-// D538 — the code that calls each video model's provider, by its catalog row's adapter_key. The
+// D561 — the code that calls each video model's provider, by its catalog row's adapter_key. The
 // model's data (params, rules, image inputs, duration) comes from the row; the provider's model
 // name is the row's provider_model_id. Retired models (Veo) have no adapter: they cannot run.
 

@@ -9,7 +9,6 @@ vi.mock("@/lib/dal", () => ({
     userId: "user-1",
     platformRole: "member",
     orgId: "org-1",
-    orgRole: "owner",
     mustChangePassword: false,
   })),
   resolveOrgId: vi.fn(async () => "org-1"),
@@ -34,7 +33,7 @@ describe("GET /api/moodboards", () => {
       { slug: "beta", name: "Beta", boards: [] },
     ]);
     const { GET } = await import("./route");
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/moodboards"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.clients).toHaveLength(2);
@@ -44,7 +43,7 @@ describe("GET /api/moodboards", () => {
   it("scopes the listing to the caller's org", async () => {
     vi.mocked(listClientsWithMoodboards).mockResolvedValue([]);
     const { GET } = await import("./route");
-    await GET();
-    expect(vi.mocked(listClientsWithMoodboards)).toHaveBeenCalledWith("org-1");
+    await GET(new Request("http://localhost/api/moodboards"));
+    expect(vi.mocked(listClientsWithMoodboards)).toHaveBeenCalledWith("org-1", null);
   });
 });

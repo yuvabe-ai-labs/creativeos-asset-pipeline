@@ -52,7 +52,7 @@ export function EditorDubTask({ piece, source }: { piece: Piece; source: SourceV
   const { switchSound } = useAutoCaptionsContext();
   const [language, setLanguage] = useState<DubLanguage>(DEFAULT_DUB_LANGUAGE);
   const [style, setStyle] = useState<DubStyle>(DEFAULT_DUB_STYLE);
-  // D535 - the cost comes from the price row; Dub waits until it is known.
+  // D558 - the cost comes from the price row; Dub waits until it is known.
   const { price, loading: priceLoading, error: priceError } = useModelPrice(DUB_MODEL_ID);
   const usd = price && seconds > 0 ? dubUsd(price, seconds) : null;
   const settings = useCreditSettings();

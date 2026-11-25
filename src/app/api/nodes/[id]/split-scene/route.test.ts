@@ -11,7 +11,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
   );
   return {
     ...actual,
-    withNode: (_req: Request, _params: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
+    withNode: (_req: Request, _params: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
       fn("node-1", {}, { userId: "u1", email: "u@x.com" }, "client-1", "org-1"),
   };
 });
@@ -84,7 +84,7 @@ describe("POST /api/nodes/:id/split-scene", () => {
   });
 });
 
-// D537 — the split records what it cost us, once.
+// D560 — the split records what it cost us, once.
 describe("POST /api/nodes/:id/split-scene cost record", () => {
   const usage = { prompt_tokens: 1200, completion_tokens: 300, total_tokens: 1500, prompt_tokens_details: { cached_tokens: 200 } };
 

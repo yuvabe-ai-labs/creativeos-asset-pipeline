@@ -5,7 +5,6 @@ import { NO_PRICE_MESSAGE, pricingForNewRun } from "@/lib/ai-models/run-price";
 import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { transcribeFilesEstimateUsd } from "@/lib/ai-models/service-price";
 import { CREDIT_LIMIT_TOAST_MESSAGE, creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
-import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { CreditLimitError, refundReservation, reserveCredits } from "@/lib/db/credit-transactions";
 import { failGeneration, insertGeneration } from "@/lib/db/generations";
 import { listTranscribedUrls } from "@/lib/db/media-transcripts";
@@ -25,15 +24,15 @@ const BodySchema = z.object({ nodeId: z.uuid(), pieceIds: z.array(z.string().min
 
 export async function POST(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId, canvas) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "generate" }, async (canvasId, canvas, caller, orgId) =>
     withTryCatch(START_FAILED, async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Say which clips to caption.", 400);
       const { nodeId, pieceIds } = parsed.data;
       if (!process.env.ELEVEN_LABS_API_KEY) return apiError("Captions aren't set up yet.", 400);
 
-      // D535 - the row prices the run: its estimate is the reservation, and the run records it.
-      const [state, orgId, caller, { price, catalog }] = await Promise.all([loadEditorState(canvasId), resolveOrgId(), resolveCallerContext(), pricingForNewRun(TRANSCRIBE_MODEL_ID)]);
+      // D558 - the row prices the run: its estimate is the reservation, and the run records it.
+      const [state, { price, catalog }] = await Promise.all([loadEditorState(canvasId), pricingForNewRun(TRANSCRIBE_MODEL_ID)]);
       if (!state || state.editorNodeId !== nodeId) return apiError("Editor not found.", 404);
 
       const { files, noSound } = planTranscription(state.doc, state.sources, pieceIds);

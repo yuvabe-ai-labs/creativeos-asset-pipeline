@@ -7,7 +7,7 @@ const NANO_PRO = "gemini:gemini-3-pro-image";
 const SUNBURST = "openai:gpt-image-2.5-sunburst";
 const GPT1 = "openai:gpt-image-1"; // retired in the seed
 
-describe("imageVersionRestore (D467, D542, D544)", () => {
+describe("imageVersionRestore (D467, D565, D567)", () => {
   const images = imageModelsFrom(seededModelCatalog());
 
   it("puts back an offered model and its settings, and clears the retired notice when the model changes", () => {

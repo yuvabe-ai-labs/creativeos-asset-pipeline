@@ -119,7 +119,7 @@ export async function markKBJobStuckIfRunning(jobId: string): Promise<void> {
     .from("client_kb_jobs")
     .update({
       status: "failed",
-      error: "Stuck — manually cleared",
+      error: "Cleared by hand after it got stuck.",
       updated_at: new Date().toISOString(),
     })
     .eq("id", jobId)

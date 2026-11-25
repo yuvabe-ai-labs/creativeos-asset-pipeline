@@ -76,7 +76,7 @@ describe("structuredCaller", () => {
   });
 });
 
-// D537 — each Gemini call records what it cost us, once, after the response.
+// D560 — each Gemini call records what it cost us, once, after the response.
 describe("cost record", () => {
   const usage = { promptTokenCount: 1200, cachedContentTokenCount: 200, candidatesTokenCount: 300, thoughtsTokenCount: 50 };
   const recordFor = { orgId: "org-1", clientId: "client-1", userId: "user-1", scriptId: "script-1" };
@@ -149,7 +149,7 @@ describe("cost record", () => {
   });
 });
 
-// D537 — the OpenAI branch (the quick model, the avatar brief) records its cost the same way.
+// D560 — the OpenAI branch (the quick model, the avatar brief) records its cost the same way.
 describe("OpenAI cost record", () => {
   const usage = { input_tokens: 1200, input_tokens_details: { cached_tokens: 200 }, output_tokens: 300, output_tokens_details: { reasoning_tokens: 50 }, total_tokens: 1500 };
   const recordFor = { orgId: "org-1", clientId: "client-1", scriptId: "script-1" };

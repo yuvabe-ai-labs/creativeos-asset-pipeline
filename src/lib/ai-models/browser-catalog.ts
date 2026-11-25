@@ -1,4 +1,4 @@
-// D529 — the catalog the browser gets: every model but drafts (the super admin's alone), with
+// D552 — the catalog the browser gets: every model but drafts (the super admin's alone), with
 // their prices. Shared by GET /api/ai-models and the client layout that seeds the browser cache.
 // Pure and client-safe.
 import type { AiCatalog } from "./types";

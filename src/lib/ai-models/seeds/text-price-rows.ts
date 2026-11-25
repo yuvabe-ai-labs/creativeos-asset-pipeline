@@ -1,4 +1,4 @@
-// D537 — the published prices of the text models (migration 0083) and Apify's per-run USD.
+// D560 — the published prices of the text models (migration 0083) and Apify's per-run USD.
 // This builder holds the numbers itself: 0083 has no code constant to derive from.
 import type { AiModelPriceSeedRow } from "../price-sql";
 import { APIFY_MODEL_ID } from "../text-models";

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// D541 — trigger/video-generate.ts dispatches through the adapter map, with the model's row read
+// D564 — trigger/video-generate.ts dispatches through the adapter map, with the model's row read
 // from the catalog at run time. A missing row or adapter is reported as final (one attempt).
 const m = vi.hoisted(() => ({
   getAiCatalog: vi.fn(),
@@ -45,7 +45,7 @@ beforeEach(() => {
   m.getAiCatalog.mockImplementation(async () => seededModelCatalog());
 });
 
-describe("video-generate task (D541)", () => {
+describe("video-generate task (D564)", () => {
   it("generates through the catalog row's adapter, reading the catalog once", async () => {
     await run(payload("kling:kling-3-0"), ctx);
     expect(m.getAiCatalog).toHaveBeenCalledTimes(1);

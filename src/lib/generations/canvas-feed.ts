@@ -20,7 +20,7 @@ export const GENERATION_FEED_ROWS_PER_CHUNK = 300;
 export type GenerationFeedClient = Pick<ReturnType<typeof createBrowserSupabase>, "from">;
 
 /** Whether a Realtime row belongs in the feed: a job of a node on this canvas. A record-only row
- *  (D537) records what a free feature cost us; it is not a job, so the tray and the node's status
+ *  (D560) records what a free feature cost us; it is not a job, so the tray and the node's status
  *  never see it. */
 export function isLiveFeedRow(
   row: Pick<GenerationRow, "id" | "node_id" | "record_only"> | null | undefined,
@@ -43,7 +43,7 @@ export async function loadGenerationFeed(
         .from("generations")
         .select(GENERATION_FEED_COLUMNS)
         .in("node_id", ids)
-        // D537: a record-only row is a cost record, not a job; it never shows in the tray or a status.
+        // D560: a record-only row is a cost record, not a job; it never shows in the tray or a status.
         .eq("record_only", false)
         .order("created_at", { ascending: false })
         .limit(GENERATION_FEED_ROWS_PER_CHUNK);

@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { getScript } from "@/lib/db/scripts";
 import { failPanelTake, insertPanelTake, setPanelPick, succeedPanelTake } from "@/lib/db/script-panels";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
@@ -39,7 +38,7 @@ const DrawSchema = KindSchema.and(z.object({ modelId: z.string().optional() }));
 // once. A drawn take becomes the pick; the operator can pick an earlier one back.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId, shotId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("Could not draw the panel.", async () => {
       const body = DrawSchema.safeParse(await req.json().catch(() => null));
       if (!body.success) return apiError("Invalid request body.", 400);
@@ -87,9 +86,8 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!chosen.ok) return apiError(chosen.error, 400);
       const referenceUrls = references.map((r) => r.url);
 
-      // D540 — refuse a model the catalog won't run before the take is stored (a panel has no
+      // D563 — refuse a model the catalog won't run before the take is stored (a panel has no
       // node, so hidden is refused too). The billed run checks again; this keeps no failed take.
-      const caller = await resolveCallerContext();
       const run = imageRun(catalog, body.data.modelId ?? PANEL_MODEL_ID);
       if (!run.ok) return apiError(run.message, 400);
       const take = await insertPanelTake({

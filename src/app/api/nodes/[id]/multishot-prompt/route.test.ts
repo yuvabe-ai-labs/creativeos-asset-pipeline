@@ -28,6 +28,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
     withNode: (
       req: Request,
       _params: unknown,
+      _guard: unknown,
       fn: (
         nodeId: string,
         node: unknown,
@@ -550,7 +551,7 @@ describe("POST multishot-prompt — Direction references (D281)", () => {
   });
 });
 
-describe("POST multishot-prompt - no price row (D535)", () => {
+describe("POST multishot-prompt - no price row (D558)", () => {
   it("409s with the no-price message when the run is refused for it", async () => {
     const { NoPriceError, NO_PRICE_MESSAGE } = await import("@/lib/ai-models/run-price");
     runPromptGeneration.mockRejectedValueOnce(new NoPriceError(NO_PRICE_MESSAGE));

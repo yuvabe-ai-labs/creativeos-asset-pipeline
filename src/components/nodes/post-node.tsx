@@ -12,6 +12,8 @@ import type { PostNodeData } from "@/lib/canvas-nodes";
 import { renderState, RENDER_STATE_LABELS } from "@/lib/post/render-state";
 import { POST_FORMATS, resolveFormat } from "@/lib/post/formats";
 import { Button } from "@/components/ui/button";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
+import { postPatchForStore } from "@/lib/post/node-patch";
 import { PostFocusView } from "./post-focus-view";
 import { PostLayersPreview } from "./post-layers-preview";
 import { useNodeConnectionState } from "./use-node-connection-state";
@@ -21,6 +23,7 @@ import { isGeneratedImageType, isImageSourceType } from "@/lib/nodes/image-node-
 
 export function PostNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const canEdit = useCanvasEditable();
   const deleteNode = useDeleteNode();
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
@@ -206,10 +209,9 @@ export function PostNode({ id, data, selected }: NodeProps) {
         // onPatch, so one rule covers them all and none can forget. Patches that carry no
         // layers (a title rename, the auto-place bookkeeping) are not design edits and must
         // not mark the render stale.
-        const stamped = "layers" in patch
-          ? { ...patch, layersUpdatedAt: new Date().toISOString() }
-          : patch;
-        updateNodeData(id, stamped);
+        // Not editable: the post stays a read-only preview and nothing is written.
+        const stamped = postPatchForStore(patch, canEdit);
+        if (stamped) updateNodeData(id, stamped);
       }}
     />
     </>

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// D528 — the Omni provider hands back what Google billed, read off the interaction's `usage`.
+// D551 — the Omni provider hands back what Google billed, read off the interaction's `usage`.
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 

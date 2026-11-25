@@ -129,7 +129,7 @@ describe("checkModelPatch: a retired row whose replacement left live", () => {
     expect(checkModelPatch(stale, { replaced_by: GPT1 }, ctx)).toEqual(err);
     expect(checkModelPatch(stale, { status: "retired" }, ctx)).toEqual(err);
     expect(checkModelPatch(stale, { replaced_by: SUNBURST }, ctx).ok).toBe(true);
-    // An image or video model can't be retired with no replacement (D546, amended).
+    // An image or video model can't be retired with no replacement (D569, amended).
     expect(checkModelPatch(stale, { replaced_by: null }, ctx)).toEqual(err);
   });
 });

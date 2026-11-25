@@ -12,11 +12,11 @@ import { geminiCost, openAiCost, recordAfterResponse, type GeminiUsage, type Rec
 
 export type StructuredCall = <S extends z.ZodType>(args: { name: string; system: string; user: string; schema: S }) => Promise<z.infer<S>>;
 
-/** D537 — whom a call's cost is recorded for, and as what. Without it nothing is recorded. */
+/** D560 — whom a call's cost is recorded for, and as what. Without it nothing is recorded. */
 export type Recording = { recordFor?: undefined; recordType?: undefined } | { recordFor: RecordFor; recordType: RecordOnlyType };
 
 /** `thinking: "low"` asks a Gemini model to reason less, which is much faster; ignored for OpenAI.
- *  Each call's cost, Gemini or OpenAI, is recorded once, after the response (D537).
+ *  Each call's cost, Gemini or OpenAI, is recorded once, after the response (D560).
  *
  *  Request-only: with a `recordType`, the record is written through `after()` (recordAfterResponse),
  *  which needs a request to attach to. A Trigger task must not call it; a task awaits
@@ -77,7 +77,7 @@ export function streamingCaller(model: string, opts: Recording = {}): StreamingC
     });
     let text = "";
     // The last chunk that carries usage holds the call's totals. Recorded once when the stream ends,
-    // also when it breaks or the reader goes away, from whatever usage had arrived (D537).
+    // also when it breaks or the reader goes away, from whatever usage had arrived (D560).
     let usage: GeminiUsage | undefined;
     try {
       for await (const chunk of stream) {

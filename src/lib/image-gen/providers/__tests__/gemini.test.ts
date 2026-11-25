@@ -37,7 +37,7 @@ describe("Gemini image token usage", () => {
     expect(result.tokensUsed?.text_input_tokens).toBe(14);
   });
 
-  // D528 — Google bills the model's text and thinking at the text output rate.
+  // D551 — Google bills the model's text and thinking at the text output rate.
   it("records the text and thinking a generateContent model produced", async () => {
     generateContent.mockResolvedValue({
       candidates: [{ content: { parts: [{ inlineData: { data: "aW1n", mimeType: "image/png" } }] } }],

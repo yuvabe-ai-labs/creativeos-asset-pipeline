@@ -1,4 +1,4 @@
-// D528 — bill a video from what the provider says it used, not only from its length.
+// D551 — bill a video from what the provider says it used, not only from its length.
 //
 // Probed 2026-11-19 (real Omni 1.2 generations, 3s 360p): Google's `usage` block reports input
 // tokens (a reference image ~1,100; an edit's source video as many tokens as the output),
@@ -60,7 +60,7 @@ export function normalizeSeedanceUsage(raw: unknown): SeedanceUsage | null {
   return isCount(tokens) ? { kind: "seedance", completionTokens: tokens } : null;
 }
 
-/** D535 — Kling's task `billing` list: the units deducted for this task. */
+/** D558 — Kling's task `billing` list: the units deducted for this task. */
 export function normalizeKlingBilling(raw: unknown): KlingUsage | null {
   if (!Array.isArray(raw)) return null;
   let units = 0;

@@ -17,7 +17,7 @@ import { settleTranscribe } from "../settle";
 const row = seededPrice(TRANSCRIBE_MODEL_ID);
 const generation = { id: "g1", model_used: TRANSCRIBE_MODEL_ID, created_at: "2026-11-22T00:00:00Z", org_id: "o1", model_price_id: row.id };
 
-describe("settleTranscribe (D535)", () => {
+describe("settleTranscribe (D558)", () => {
   it("charges the credits ElevenLabs reported, at the plan's credit price; the fiat header goes in raw", async () => {
     const r = await settleTranscribe(
       { generation, secondsDone: 60, providerCredits: 17, providerUsd: 0.2992 },

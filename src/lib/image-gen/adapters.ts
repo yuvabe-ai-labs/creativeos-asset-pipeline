@@ -4,7 +4,7 @@ import { generateWithGemini, generateWithGeminiInteractions } from "./providers/
 import { generateWithSeedream, SEEDREAM_LITE, SEEDREAM_PRO, type SeedreamVariant } from "./providers/seedream";
 import type { ImageAdapter } from "./types";
 
-// D538 — the code that calls each image model's provider, by its catalog row's adapter_key. The
+// D561 — the code that calls each image model's provider, by its catalog row's adapter_key. The
 // model's data (params, limits, mask support) comes from the row; the provider's model name is
 // the row's provider_model_id. Retired models (gpt-image-1) have no adapter: they cannot run.
 

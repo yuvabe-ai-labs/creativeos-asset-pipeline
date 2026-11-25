@@ -17,7 +17,7 @@ const POLL_INTERVAL_MS = 5_000;
 class RetryablePollError extends Error {}
 
 // A default model name for tests and builders. The adapter always passes the catalog row's
-// provider_model_id, and that is what runs (D545); a vendor rename is a migration on the row.
+// provider_model_id, and that is what runs (D568); a vendor rename is a migration on the row.
 export const SEEDANCE_VENDOR_MODEL = "dreamina-seedance-2-5-260628";
 
 function getApiKey(): string {
@@ -204,7 +204,7 @@ type SeedanceTask = {
   // not nested under `content` — the vendor doc's own response-parameters list has `duration`
   // as a sibling of `content`, not a field inside it.
   duration?: number;
-  /** D528 — `completion_tokens` is what BytePlus bills, its minimum included. */
+  /** D551 — `completion_tokens` is what BytePlus bills, its minimum included. */
   usage?: { completion_tokens?: number; total_tokens?: number };
   error?: { code?: string; message?: string } | null;
 };
@@ -306,7 +306,7 @@ async function pollSeedanceTask(taskId: string): Promise<VideoGenResult> {
   }
 }
 
-/** D538 — one Seedance clip. `vendorModel` is BytePlus's dated name (the row's provider_model_id).
+/** D561 — one Seedance clip. `vendorModel` is BytePlus's dated name (the row's provider_model_id).
  *  Images are brought inside the vendor's limits BEFORE the body is built (seedance-images.ts):
  *  an out-of-range image otherwise fails the whole paid request at task creation. */
 export function generateWithSeedance(input: VideoGenInput, maxRefs: number, vendorModel: string): Promise<VideoGenResult> {

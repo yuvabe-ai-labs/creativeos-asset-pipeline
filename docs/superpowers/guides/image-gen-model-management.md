@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-An image or video model is a row in the `ai_models` table (decision D545). The row holds everything about the model that is data: its id, labels, status, sort order, params, rules, limits and capabilities, the `adapter_key` that names the code that calls its provider, and `provider_model_id`, the provider's own name for the model. Its price is a row in `ai_model_prices`.
+An image or video model is a row in the `ai_models` table (decision D568). The row holds everything about the model that is data: its id, labels, status, sort order, params, rules, limits and capabilities, the `adapter_key` that names the code that calls its provider, and `provider_model_id`, the provider's own name for the model. Its price is a row in `ai_model_prices`.
 
 Code holds only two things:
 

@@ -7,7 +7,7 @@ import { checkNewCreditSettings, CREDIT_SETTINGS_LEAD_MINUTES, CREDIT_SETTINGS_L
 import { requestedStart, undoNote, undoTarget, type StartInput } from "@/lib/ai-models/model-edit";
 import { listAdminCreditSettings, insertCreditSettings, deleteCreditSettings, replaceCreditSettings } from "@/lib/db/credit-settings-admin";
 
-// D548 — the /admin credit settings actions. Platform administration (requireSuperAdmin()-gated), not
+// D571 — the /admin credit settings actions. Platform administration (requireSuperAdmin()-gated), not
 // an org's data, so deliberately not wrapped in withAction() (D85). Every write runs its check first
 // and nothing is written when a check refuses.
 
@@ -67,7 +67,7 @@ export async function addCreditSettingsAction(input: StartInput & {
 }
 
 /**
- * D549 — saves new settings in place of a change that hasn't started (the Credits page, when the new
+ * D572 — saves new settings in place of a change that hasn't started (the Credits page, when the new
  * start falls on that change's IST day), in one transaction. The replaced row is left out of the clash
  * check, so the new settings may take its exact start.
  */
@@ -130,7 +130,7 @@ export async function cancelCreditSettingsAction(id: string): Promise<{ error?: 
 }
 
 /**
- * D549 — takes back the latest started settings, if this admin added them in the last 24 hours: a
+ * D572 — takes back the latest started settings, if this admin added them in the last 24 hours: a
  * new row repeats the settings before it. Like any change it starts CREDIT_SETTINGS_LEAD_MS out, not
  * now, so the start it got is returned for the screen to say so. A change that hasn't started is
  * cancelled instead (cancelCreditSettingsAction).

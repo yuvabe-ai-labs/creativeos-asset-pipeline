@@ -67,7 +67,7 @@ export async function generateWithGemini(
   const outputTokens =
     usage?.candidatesTokensDetails?.find((d: { modality?: string }) => d.modality === "IMAGE")?.tokenCount ??
     usage?.candidatesTokenCount ?? 0;
-  // D528 — the rest of the output is text, and thinking is counted apart; both bill at the text rate.
+  // D551 — the rest of the output is text, and thinking is counted apart; both bill at the text rate.
   const textOutputTokens = Math.max(0, (usage?.candidatesTokenCount ?? outputTokens) - outputTokens);
   return {
     imageBase64: imagePart.inlineData.data,
@@ -134,7 +134,7 @@ export async function generateWithGeminiInteractions(
       image_input_tokens:  0,
       image_output_tokens: outputTokens,
       total_tokens:        usage?.total_tokens ?? (inputTokens + outputTokens),
-      // D528 — billed at the text rate, like the generateContent path above.
+      // D551 — billed at the text rate, like the generateContent path above.
       text_output_tokens:  Math.max(0, (usage?.total_output_tokens ?? outputTokens) - outputTokens),
       thought_tokens:      usage?.total_thought_tokens ?? 0,
     },

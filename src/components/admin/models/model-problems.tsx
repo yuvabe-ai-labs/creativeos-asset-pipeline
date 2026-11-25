@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-react";
 
-/** D547: why the catalog drops this row, and where each kind of problem is fixed. Shown in place of the price sheet. */
+/** D570: why the catalog drops this row, and where each kind of problem is fixed. Shown in place of the price sheet. */
 export function ModelProblems({ problems }: { problems: string[] }) {
   return (
     <section aria-labelledby="problems-title" className="rounded-2xl border border-destructive/30 bg-card px-5 py-5 shadow-card md:px-[22px]">

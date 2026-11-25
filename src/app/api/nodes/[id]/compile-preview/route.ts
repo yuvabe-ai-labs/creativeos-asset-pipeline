@@ -28,7 +28,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, node) => {
+  return withNode(req, params, { need: "view" }, async (nodeId, node) => {
     // D436 — Image Gen has no ambient KB; its rail reads the rows image-generate sends, a wired
     // Avatar as its front and fresh sheet (resolveImageGenInputs). It takes no slices.
     if (node.type === "image-gen") {

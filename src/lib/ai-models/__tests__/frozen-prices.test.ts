@@ -3,7 +3,7 @@ import { seededPrice, seededCatalog } from "../test-prices";
 import { videoSecondsUsd, videoChargeUsd } from "../video-price";
 import { imageEstimateUsd } from "../image-price";
 
-// D534 — migration 0078 is frozen history: these are the prices it seeded, pinned.
+// D557 — migration 0078 is frozen history: these are the prices it seeded, pinned.
 describe("migration 0078's prices", () => {
   it("parses every row", () => {
     // 21 rows from 0078, plus the 8 from 0080 (service prices and Kling unit rows), and the 7 from 0083 (text prices, including Gemini 3.8 Flash's rate from 2027).

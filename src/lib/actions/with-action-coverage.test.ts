@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { ACTIONS, isAction } from "@/lib/permissions/model";
+
+// D539/D542: the second argument is a guard — { need, on } or { custom: "<reason>" }.
+const GUARD_RE = /withAction\(\s*"[^"]+"\s*,\s*\{\s*(need:\s*"([a-z_.]+)"|custom:\s*")/;
+const LOCK_ACTIONS = ["getCanvasLockAction", "acquireCanvasLockAction", "heartbeatCanvasLockAction", "releaseCanvasLockAction"];
 
 // Enumerates every exported `*Action` function across src/lib/actions/*.ts and asserts
 // each is either wrapped in withAction(...) or explicitly allowlisted below with a
@@ -18,6 +23,7 @@ const ALLOWLIST: Record<string, string> = {
   heartbeatCanvasLockAction: "per-editor-session bookkeeping, not tenant data (D101 amendment)",
   releaseCanvasLockAction: "per-editor-session bookkeeping, not tenant data (D101 amendment)",
   loginAction: "runs before any session/impersonation state exists",
+  acceptInviteAction: "runs before any account exists; the invite token is the capability (spec 6.3)",
   logoutAction: "runs after signOut(); also directly calls endImpersonation() itself",
   enterImpersonationAction: "impersonation session-control, not tenant data",
   enterElevatedModeAction: "impersonation session-control, not tenant data",
@@ -27,53 +33,45 @@ const ALLOWLIST: Record<string, string> = {
     "category as loginAction/logoutAction. Also unreachable while impersonating: " +
     "proxy.ts forces every route except /account/password to redirect there whenever " +
     "must_change_password is set, before any impersonation-related routing can happen.",
-  createOrgAction:
+  createAgencyAction:
     "admin.ts: /admin platform-administration (requireSuperAdmin()-gated), not " +
     "acting-as-an-org (D85 draws this line explicitly). No target org exists yet. " +
     "Tried gating this in review round 2 and reverted: withAction() has no way to know " +
     "this action's target org differs from whatever org is currently impersonated, so " +
     "gating it both spuriously blocks unrelated /admin work and misattributes the " +
     "audit-log's target_org_id to the wrong org.",
+  resendOwnerInviteAction:
+    "admin.ts: same D85 platform-administration category and same revert rationale as createAgencyAction — orgId is an explicit caller-supplied parameter.",
+  inviteOwnerAction:
+    "admin.ts: same D85 platform-administration category and same revert rationale as createAgencyAction — orgId is an explicit caller-supplied parameter.",
   updateOrgCreditLimitAction:
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
-    "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
+    "createAgencyAction — orgId is an explicit caller-supplied parameter, never correlated " +
     "with the impersonation session's target org.",
   resetMemberPasswordAction:
     "admin.ts: same D85 platform-administration category and same revert rationale as " +
-    "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
-    "with the impersonation session's target org.",
-  addOrgMemberAction:
-    "admin.ts: same D85 platform-administration category and same revert rationale as " +
-    "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
-    "with the impersonation session's target org.",
-  updateMemberRoleAction:
-    "admin.ts: same D85 platform-administration category and same revert rationale as " +
-    "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
-    "with the impersonation session's target org.",
-  removeOrgMemberAction:
-    "admin.ts: same D85 platform-administration category and same revert rationale as " +
-    "createOrgAction — orgId is an explicit caller-supplied parameter, never correlated " +
+    "createAgencyAction — orgId is an explicit caller-supplied parameter, never correlated " +
     "with the impersonation session's target org.",
   updateAiModelAction:
-    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546).",
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
   addAiModelPriceAction:
-    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546).",
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
   cancelAiModelPriceAction:
-    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546).",
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
   replaceAiModelPriceAction:
-    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546).",
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
   reorderAiModelsAction:
-    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546).",
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
   undoAiModelPriceAction:
-    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D546).",
+    "ai-models.ts: /admin platform-administration (requireSuperAdmin()-gated); the catalog is platform-wide, not an org's data (D85, D569).",
   addCreditSettingsAction:
-    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D546, D548).",
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
   cancelCreditSettingsAction:
-    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D546, D548).",
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
   undoCreditSettingsAction:
-    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D546, D548).",
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
   replaceCreditSettingsAction:
-    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D546, D548).",
+    "credit-settings.ts: /admin platform-administration (requireSuperAdmin()-gated); the credit settings are platform-wide, not an org's data (D85, D569, D571).",
 };
 
 function findActionFiles(dir: string): string[] {
@@ -120,6 +118,48 @@ describe("every mutating server action is gated by withAction() or explicitly al
             `either wrap it, or add it to ALLOWLIST with a one-line reason.`,
         ).toBe(true);
       });
+
+      if (!(name in ALLOWLIST)) {
+        it(`${name} (${file.split(/[\\/]/).pop()}) declares a permission guard`, () => {
+          const match = GUARD_RE.exec(body);
+          expect(match, `${name} must pass { need, on } or { custom } as withAction's second argument`).not.toBeNull();
+          if (match && match[2]) expect(isAction(match[2]), `"${match[2]}" is one of the ten actions`).toBe(true);
+        });
+      }
     }
   }
+});
+
+describe("canvas lock actions check permission themselves", () => {
+  const source = readFileSync(join(ACTIONS_DIR, "canvas-lock.ts"), "utf8");
+  const actions = extractExportedActionFunctions(source);
+  for (const name of LOCK_ACTIONS) {
+    it(`${name} calls checkActionAccess(`, () => {
+      const action = actions.find((a) => a.name === name);
+      expect(action, `${name} not found`).toBeDefined();
+      expect(action!.body).toContain("checkActionAccess(");
+    });
+  }
+});
+
+function collect(dir: string, suffix: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) return collect(p, suffix);
+    return name.endsWith(suffix) && !name.endsWith(".test.ts") ? [p] : [];
+  });
+}
+
+it("every action is checked by a route, an action or a page", () => {
+  const sources = [
+    ...collect("src/app/api", "route.ts"),
+    ...collect("src/lib/actions", ".ts"),
+    ...collect("src/app/clients", "page.tsx"),
+    // view_credits decides whether /api/me and the first render carry credit figures at all.
+    "src/lib/me/payload.ts",
+  ].map((f) => readFileSync(f, "utf8"));
+  const pattern = new RegExp(`"(${ACTIONS.join("|")})"`, "g");
+  const used = new Set(sources.flatMap((s) => [...s.matchAll(pattern)].map((m) => m[1])));
+  const missing = ACTIONS.filter((a) => !used.has(a));
+  expect(missing).toEqual([]);
 });

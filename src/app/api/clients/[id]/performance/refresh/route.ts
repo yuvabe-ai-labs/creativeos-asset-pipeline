@@ -13,7 +13,7 @@ const MIN_INTERVAL_MS = 60 * 60 * 1000;
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client) =>
     withTryCatch("Could not refresh performance data.", async () => {
       const body = (await req.json().catch(() => null)) as { handle?: unknown } | null;
       const handle = parseInstagramHandle(typeof body?.handle === "string" ? body.handle : null);
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return apiError("A snapshot was taken within the last hour — try again later.", 429);
       }
 
-      // D537 — the Apify run's cost is recorded for the client withClient already resolved.
+      // D560 — the Apify run's cost is recorded for the client withClient already resolved.
       const result = await snapshotHandle(clientId, handle, {
         recordFor: { orgId: client.org_id, clientId },
         record: recordAfterResponse,

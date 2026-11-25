@@ -25,7 +25,7 @@ const ctx = (id: string, providerModelId: string) => ({
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("imageAdapters (D538)", () => {
+describe("imageAdapters (D561)", () => {
   it("registers exactly the live and hidden image models' adapter keys, each once", () => {
     const keys = seededModelCatalog().models
       .filter((m) => m.kind === "image" && m.status !== "retired")

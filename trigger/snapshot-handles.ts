@@ -22,7 +22,7 @@ export const snapshotHandlesTask = schedules.task({
 
     for (const row of tracked) {
       try {
-        // D537 — each run's cost is recorded for the handle's client, awaited (a task has no request).
+        // D560 — each run's cost is recorded for the handle's client, awaited (a task has no request).
         const recordFor = row.orgId ? { orgId: row.orgId, clientId: row.clientId } : undefined;
         const result = await snapshotHandle(row.clientId, row.handle, { recordFor });
         logger.info("Snapshot done", { clientId: row.clientId, handle: row.handle, ...result });

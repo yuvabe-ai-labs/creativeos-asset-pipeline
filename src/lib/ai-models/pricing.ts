@@ -1,8 +1,8 @@
-// D534 — one engine prices every estimate and every charge: quantity × the matching line.
+// D557 — one engine prices every estimate and every charge: quantity × the matching line.
 // Client-safe: the focus views price their estimate with it too.
 import type { AiCatalog, AiModelPrice, Meter, PriceLine } from "./types";
 
-// How long each server instance keeps the catalog (D529). Pure, so client-safe code can use it.
+// How long each server instance keeps the catalog (D552). Pure, so client-safe code can use it.
 export const CATALOG_CACHE_MS = 60_000;
 // A dated catalog row (price or credit settings) that starts in the future starts at least this long
 // after it is saved, and can't be cancelled or replaced in its last stretch of it. Two cache lifetimes
@@ -41,7 +41,7 @@ export function priceMeters(
   return { usd, unpriced };
 }
 
-/** D530 — the price row a run starting at `at` uses: the latest one at or before it. */
+/** D553 — the price row a run starting at `at` uses: the latest one at or before it. */
 export function currentPrice(catalog: Pick<AiCatalog, "prices">, modelId: string, at: Date): AiModelPrice | null {
   let best: AiModelPrice | null = null;
   for (const p of catalog.prices) {

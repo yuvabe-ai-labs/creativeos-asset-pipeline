@@ -29,7 +29,7 @@ beforeEach(() => {
   adapter.mockClear();
 });
 
-describe("imageRun (D538, D540)", () => {
+describe("imageRun (D561, D563)", () => {
   it("gives the catalog's spec, and a generate that hands the adapter that spec and the row's model name", async () => {
     const r = imageRun(seededModelCatalog(), "openai:gpt-image-2");
     if (!r.ok) throw new Error("expected a run");
@@ -44,7 +44,7 @@ describe("imageRun (D538, D540)", () => {
   });
 });
 
-describe("imageGenerateForTask (D541)", () => {
+describe("imageGenerateForTask (D564)", () => {
   it("runs a model the route accepted, even if it was hidden since", async () => {
     state.catalog = withModel(seededModelCatalog(), "openai:gpt-image-2", { status: "hidden" });
     await (await imageGenerateForTask("openai:gpt-image-2"))(INPUT);

@@ -1,6 +1,6 @@
 // The admin model page's header strip (prototype v3, "Model"): where the model sits in its picker,
 // what a status change does before it is saved, and the settings people pick; plus the side
-// column's "This month". The server checks every write again (D546). Client-safe.
+// column's "This month". The server checks every write again (D569). Client-safe.
 import { formatUsd } from "@/lib/ai-models/price-format";
 import type { ParamSpec } from "@/lib/image-gen/types";
 
@@ -36,7 +36,7 @@ export function ordinal(n: number): string {
   return `${n}${s}`;
 }
 
-/** A model as the order popover lists it. `broken`: the row fails its check (D547) but still holds a place. */
+/** A model as the order popover lists it. `broken`: the row fails its check (D570) but still holds a place. */
 export type PickerModel = { id: string; label: string; kind: string; status: string; broken: boolean };
 
 export type PickerOrder = {
@@ -113,7 +113,7 @@ export type StatusChange = {
 const isMedia = (kind: string) => kind === "image" || kind === "video";
 const runs = (n: number) => (n === 1 ? "1 run" : `${n.toLocaleString("en-US")} runs`);
 
-/** What a pending status change does, in plain words, and whether it can be saved (the server's D546 guards, ahead of time). */
+/** What a pending status change does, in plain words, and whether it can be saved (the server's D569 guards, ahead of time). */
 export function statusChange(c: StatusChangeInput): StatusChange {
   let guard: string | null = null;
   if (c.from === "live" && c.to !== "live" && isMedia(c.kind) && c.otherLive === 0) {
@@ -121,10 +121,10 @@ export function statusChange(c: StatusChangeInput): StatusChange {
   } else if (c.to === "live" && c.from !== "live" && !c.canGoLive) {
     guard = "This build has no code to run this model, so it can't go live.";
   } else if (c.to === "live" && c.from !== "live" && isMedia(c.kind) && !c.hasPrice) {
-    // The server refuses it too (D546, amended).
+    // The server refuses it too (D569, amended).
     guard = c.priceStarts ? `Its price starts on ${c.priceStarts}.` : "Add a price first. Runs of a live model with no price are refused.";
   }
-  // The server asks a retired image or video model to name where its nodes go (D546, amended); other kinds need none.
+  // The server asks a retired image or video model to name where its nodes go (D569, amended); other kinds need none.
   const needsReplacement = c.to === "retired" && isMedia(c.kind);
   let text: string;
   if (guard) text = guard;

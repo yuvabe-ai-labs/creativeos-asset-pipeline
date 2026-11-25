@@ -1,4 +1,4 @@
-// D540 — whether a model may run, decided in one place for every route, the billed image run and
+// D563 — whether a model may run, decided in one place for every route, the billed image run and
 // the Trigger tasks. Pure and client-safe: the adapter maps are passed in.
 //   live    — runs
 //   hidden  — runs only on the node that already uses it
@@ -26,7 +26,7 @@ export type ModelRefusal = {
 export type RunOptions = {
   /** The model the node already uses (its stored data.modelId): a hidden model keeps running there. */
   existingNodeModelId?: string | null;
-  /** False in a Trigger task: the route checked the status when it reserved the run (D541). */
+  /** False in a Trigger task: the route checked the status when it reserved the run (D564). */
   checkStatus?: boolean;
 };
 
@@ -75,7 +75,7 @@ export function runnableModel<A>(
 
 /**
  * The model a node's preview reads: its stored model while it may still run there; a retired one's
- * live replacement, as the browser opens the node (D544); else the fallback.
+ * live replacement, as the browser opens the node (D567); else the fallback.
  */
 export function usableModelId(
   catalog: AiCatalog,

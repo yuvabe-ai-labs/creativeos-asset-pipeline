@@ -6,7 +6,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
   return {
     ...actual,
-    withNode: (_req: Request, _params: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
+    withNode: (_req: Request, _params: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
       fn("ig", { data: m.nodeData }, { userId: "u1", email: "u@x.com" }, "client-1", "org-1"),
   };
 });
@@ -59,14 +59,14 @@ beforeEach(() => {
 });
 
 describe("POST image-generate (D366)", () => {
-  it("refuses a retired model before anything starts (D540)", async () => {
+  it("refuses a retired model before anything starts (D563)", async () => {
     const res = await post({ modelId: "openai:gpt-image-1", params: {} });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("This model was retired. Pick another.");
     expect(m.start).not.toHaveBeenCalled();
   });
 
-  it("runs a hidden model only on the node that already uses it (D540)", async () => {
+  it("runs a hidden model only on the node that already uses it (D563)", async () => {
     const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
     cat.value = withModel(seededModelCatalog(), "openai:gpt-image-2", { status: "hidden" });
     const refused = await post({ modelId: "openai:gpt-image-2", params: {} });
@@ -87,7 +87,7 @@ describe("POST image-generate (D366)", () => {
     err.mockRestore();
   });
 
-  it("with no modelId runs the catalog's default, the first live model (D542)", async () => {
+  it("with no modelId runs the catalog's default, the first live model (D565)", async () => {
     const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
     const { imageModelsFrom } = await import("@/lib/ai-models/model-lists");
     const seeded = seededModelCatalog();

@@ -1,4 +1,4 @@
-// D534 — the price rows migration 0078 seeded (frozen history), for tests anywhere in the app.
+// D557 — the price rows migration 0078 seeded (frozen history), for tests anywhere in the app.
 // Not imported by app code.
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";

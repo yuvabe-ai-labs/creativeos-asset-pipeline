@@ -4,7 +4,7 @@
 
 **Goal:** Every browser screen that lists, labels, configures or defaults an image or video model (pickers, focus views, version history, the canvas store, the avatar Studio, Visualise) reads the model from the session's one cached catalog, and the helpers the browser and the server share take the model list as an argument, so a status or label set in the database is what every screen shows.
 
-**Architecture:** One pure module, `src/lib/ai-models/model-lists.ts`, turns an `AiCatalog` into two lists (`ImageModels`, `VideoModels`): every non-draft model in sort order, lookup by id, status and replacement, the offered models grouped for a picker, and the default. The lists are cached per catalog object, so a per-card lookup is O(1). In the browser, a `ModelCatalogGate` in a new `src/app/clients/[id]/layout.tsx` seeds the TanStack cache with the catalog the server read, and the hooks `useImageModels()` / `useVideoModels()` return the lists below it. The server builds the same lists from `getAiCatalog()` and hands them to the shared helpers (D542). A node on a retired model opens on its replacement with a notice (D544). Defaults stay code preferences, used only while live (D543).
+**Architecture:** One pure module, `src/lib/ai-models/model-lists.ts`, turns an `AiCatalog` into two lists (`ImageModels`, `VideoModels`): every non-draft model in sort order, lookup by id, status and replacement, the offered models grouped for a picker, and the default. The lists are cached per catalog object, so a per-card lookup is O(1). In the browser, a `ModelCatalogGate` in a new `src/app/clients/[id]/layout.tsx` seeds the TanStack cache with the catalog the server read, and the hooks `useImageModels()` / `useVideoModels()` return the lists below it. The server builds the same lists from `getAiCatalog()` and hands them to the shared helpers (D565). A node on a retired model opens on its replacement with a notice (D567). Defaults stay code preferences, used only while live (D566).
 
 **Tech Stack:** Next.js 16 App Router (Server Component layout, client gate), TanStack Query v5, Zustand canvas store, Zod 4, Vitest 4 + Testing Library.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Decisions **D542–D544** (Task 9 writes them into the ADR log, §7 of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`). No migration in this plan.
+- Decisions **D565–D567** (Task 9 writes them into the ADR log, §7 of `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md`). No migration in this plan.
 - Status meaning in the browser, exactly: `live` is offered in pickers; `hidden` is offered only on the node, avatar or panel whose stored model it already is; `retired` is never offered, and a node on it opens on its `replacedBy` (if that is live) or the default; `draft` never reaches the browser (the route filters it).
 - Copy, exactly: the retired notice reads `"This model was retired. Pick another."` (import `MODEL_RETIRED_MESSAGE` from `src/lib/ai-models/runnable.ts`, never retype it). The gate's failure reads `"Could not load the models."` with a `Try again` button. Never show a model id, vendor or raw error in the UI.
 - **Performance (AGENTS.md rules 1–2):** the catalog is one request per session (`useAiCatalog`), never one per node. A per-node or per-card hook does no work that grows with the catalog: `imageModelsFrom` / `videoModelsFrom` are cached by catalog object (`WeakMap`), and `get` / `status` are map lookups.
@@ -33,8 +33,8 @@
 
 | File | Responsibility |
 |---|---|
-| `src/lib/ai-models/default-models.ts` | the code-preferred default ids (D543) |
-| `src/lib/ai-models/model-lists.ts` | `ImageModels` / `VideoModels` from a catalog, cached; `paramDefaults`; `modelPickerLabel`; `withoutRetiredModel` (D542, D544) |
+| `src/lib/ai-models/default-models.ts` | the code-preferred default ids (D566) |
+| `src/lib/ai-models/model-lists.ts` | `ImageModels` / `VideoModels` from a catalog, cached; `paramDefaults`; `modelPickerLabel`; `withoutRetiredModel` (D565, D567) |
 | `src/lib/ai-models/browser-catalog.ts` | `browserCatalog(catalog)`: drops draft models and their prices (shared by the route and the layout) |
 | `src/hooks/queries/ai-models.ts` | `useAiCatalog(initialData?)`, `useImageModels()`, `useVideoModels()` |
 | `src/components/models/model-catalog-gate.tsx` | renders children once the catalog is cached; loading and failure states |
@@ -225,7 +225,7 @@ Expected: FAIL, "Failed to resolve import" for the new modules.
 `src/lib/ai-models/default-models.ts`:
 
 ```ts
-// D543 — the models the app starts new work on. A preference, not a rule: the lists use it only
+// D566 — the models the app starts new work on. A preference, not a rule: the lists use it only
 // while the catalog has it live, and otherwise start on the first live model in sort order.
 // Client-safe.
 export const DEFAULT_IMAGE_MODEL_ID = "gemini:gemini-3-pro-image";
@@ -235,7 +235,7 @@ export const DEFAULT_VIDEO_MODEL_ID = "gemini:gemini-omni-1.2-flash";
 `src/lib/ai-models/model-lists.ts`:
 
 ```ts
-// D542 — the image and video models as every screen reads them, built from the catalog. Pure and
+// D565 — the image and video models as every screen reads them, built from the catalog. Pure and
 // client-safe: the browser builds them from the session's one catalog query, the server from
 // getAiCatalog(). Cached per catalog object, so a card asking for its model costs a map lookup.
 import type { ClientModelSpec, ParamSpec } from "@/lib/image-gen/types";
@@ -260,7 +260,7 @@ export type ModelList<S extends Spec> = {
   isOffered: (id: string | null | undefined, ownModelId?: string | null) => boolean;
   /** The offered models grouped by provider label, groups and models in sort order. */
   groups: (ownModelId?: string | null) => ModelGroup<S>[];
-  /** D543 — the code's preferred default while it is live, else the first live model. */
+  /** D566 — the code's preferred default while it is live, else the first live model. */
   defaultId: string;
   /** `preferredId` while it is live, else `defaultId`. */
   liveOr: (preferredId: string) => string;
@@ -354,7 +354,7 @@ export function modelPickerLabel(spec: { label: string; providerLabel: string; p
 }
 
 /**
- * D544 — a node saved on a retired model opens on its replacement (when that is live) or the
+ * D567 — a node saved on a retired model opens on its replacement (when that is live) or the
  * default, with that model's defaults, and keeps the old id in `retiredModelId` so its focus view
  * can say so. Any other data comes back as the same object, so nothing re-renders or saves.
  */
@@ -377,7 +377,7 @@ export function withoutRetiredModel<
 `src/lib/ai-models/browser-catalog.ts`:
 
 ```ts
-// D529 — the catalog the browser gets: every model but drafts (the super admin's alone), with
+// D552 — the catalog the browser gets: every model but drafts (the super admin's alone), with
 // their prices. Shared by GET /api/ai-models and the client layout that seeds the browser cache.
 // Pure and client-safe.
 import type { AiCatalog } from "./types";
@@ -399,7 +399,7 @@ import { browserCatalog } from "@/lib/ai-models/browser-catalog";
 
 export const dynamic = "force-dynamic";
 
-// D529 — the catalog for the browser (browserCatalog). One request per session (useAiCatalog),
+// D552 — the catalog for the browser (browserCatalog). One request per session (useAiCatalog),
 // never one per node.
 export async function GET() {
   try {
@@ -422,7 +422,7 @@ Expected: PASS. If the seed's image group order is not `["OpenAI", "Gemini", "Se
 
 ```bash
 git add src/lib/ai-models/default-models.ts src/lib/ai-models/model-lists.ts src/lib/ai-models/browser-catalog.ts src/app/api/ai-models/route.ts src/lib/ai-models/__tests__/model-lists.test.ts src/lib/ai-models/__tests__/browser-catalog.test.ts
-git commit -m "feat(models): image and video model lists built from the catalog (D542)"
+git commit -m "feat(models): image and video model lists built from the catalog (D565)"
 ```
 
 ---
@@ -558,7 +558,7 @@ import { currentPrice } from "@/lib/ai-models/pricing";
 import { imageModelsFrom, videoModelsFrom, type ImageModels, type VideoModels } from "@/lib/ai-models/model-lists";
 import type { AiCatalog, AiModelPrice } from "@/lib/ai-models/types";
 
-// D529 — the model catalog, through TanStack Query. One request per session: pickers and focus
+// D552 — the model catalog, through TanStack Query. One request per session: pickers and focus
 // views select from this cache, never fetch per node (performance rule 1).
 export const aiModelKeys = {
   all: ["ai-models"] as const,
@@ -583,17 +583,17 @@ function useCachedCatalog(): AiCatalog {
   return data;
 }
 
-/** D542 — the image models, below <ModelCatalogGate>. The same object for the same catalog. */
+/** D565 — the image models, below <ModelCatalogGate>. The same object for the same catalog. */
 export function useImageModels(): ImageModels {
   return imageModelsFrom(useCachedCatalog());
 }
 
-/** D542 — the video models, below <ModelCatalogGate>. */
+/** D565 — the video models, below <ModelCatalogGate>. */
 export function useVideoModels(): VideoModels {
   return videoModelsFrom(useCachedCatalog());
 }
 
-/** D534 — a model's price row valid now, selected from the session's one catalog query. `error`
+/** D557 — a model's price row valid now, selected from the session's one catalog query. `error`
  *  is a failed read with nothing cached, so a paid button can say so rather than "no price". */
 export function useModelPrice(modelId: string): { price: AiModelPrice | null; loading: boolean; error: boolean } {
   const catalog = useAiCatalog();
@@ -616,7 +616,7 @@ import { useAiCatalog } from "@/hooks/queries/ai-models";
 import { imageModelsFrom, videoModelsFrom } from "@/lib/ai-models/model-lists";
 import type { AiCatalog } from "@/lib/ai-models/types";
 
-// D542 — every client page renders below this, so a picker or focus view can read the model
+// D565 — every client page renders below this, so a picker or focus view can read the model
 // lists (useImageModels / useVideoModels) without a loading state of its own. With the catalog
 // the server read, the children render at once and no request is made.
 function usable(catalog: AiCatalog | undefined): boolean {
@@ -651,7 +651,7 @@ import { browserCatalog } from "@/lib/ai-models/browser-catalog";
 import { resolveCallerContextOrNull } from "@/lib/dal";
 import { ModelCatalogGate } from "@/components/models/model-catalog-gate";
 
-// D542 — every client page (canvas, avatars, scripts) shows models, so the catalog is read here
+// D565 — every client page (canvas, avatars, scripts) shows models, so the catalog is read here
 // once (cached 60 s on the server) and seeds the browser's cache: no page waits on its own
 // request. Signed out, the pages handle the redirect themselves, so nothing is read.
 export default async function ClientLayout({ children }: { children: ReactNode }) {
@@ -689,7 +689,7 @@ Run: `npx tsc --noEmit -p tsconfig.json` — only the known `.next/` errors.
 
 ```bash
 git add src/hooks/queries/ai-models.ts src/components/models/model-catalog-gate.tsx "src/app/clients/[id]/layout.tsx" src/hooks/queries/__tests__/ai-models.test.tsx src/components/models/__tests__/model-catalog-gate.test.tsx
-git commit -m "feat(models): client pages read the model lists below one catalog gate (D542)"
+git commit -m "feat(models): client pages read the model lists below one catalog gate (D565)"
 ```
 
 ---
@@ -921,7 +921,7 @@ Run: `npx tsc --noEmit -p tsconfig.json` — only the known `.next/` errors.
 
 ```bash
 git add src/lib/avatars/generation.ts src/lib/composite/model.ts src/lib/scripts/visualise/constants.ts src/lib/scripts/visualise/panel-inputs.ts src/lib/scripts/visualise/maker.ts src/lib/image-gen/params/merge.ts src/lib/image-gen/billed-run.ts "src/app/api/clients/[id]/scripts/[scriptId]/panels/[shotId]/route.ts" src/hooks/use-visualise-model.ts src/components/avatars/avatar-describe-panel.tsx src/components/avatars/avatar-sheet-generate.tsx src/components/visualise/cast-slot-ai-maker.tsx src/components/visualise/cast-slot-photo-maker.tsx src/components/visualise/visualise-view.tsx src/components/nodes/composite-focus-view.tsx <each test file you changed>
-git commit -m "refactor(models): image helpers take the catalog's image list (D542)"
+git commit -m "refactor(models): image helpers take the catalog's image list (D565)"
 ```
 
 ---
@@ -1096,7 +1096,7 @@ Run: `npx tsc --noEmit -p tsconfig.json` — only the known `.next/` errors.
 
 ```bash
 git add src/lib/avatars/presenter.ts src/lib/video-edit/record.ts src/lib/video-edit/describe.ts src/lib/video-gen/params/merge.ts src/components/nodes/video-gen-params-panel.tsx "src/app/api/nodes/[id]/video-edit/route.ts" src/components/nodes/video-gen-edit-video.tsx src/components/nodes/video-gen-focus-view.tsx <each test file you changed>
-git commit -m "refactor(models): video helpers take the catalog's video list (D542)"
+git commit -m "refactor(models): video helpers take the catalog's video list (D565)"
 ```
 
 ---
@@ -1124,7 +1124,7 @@ Replace the existing D461/D467 deprecated-fallback tests in `src/lib/canvas-stor
 import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
 import { imageModelsFrom, videoModelsFrom, paramDefaults } from "@/lib/ai-models/model-lists";
 
-describe("D544 — nodes on a retired model", () => {
+describe("D567 — nodes on a retired model", () => {
   const catalog = seededModelCatalog();
   const models = { images: imageModelsFrom(catalog), videos: videoModelsFrom(catalog) };
   const node = (type: string, data: Record<string, unknown>) =>
@@ -1176,7 +1176,7 @@ Expected: FAIL (`createCanvasStore` ignores the fourth argument).
 `src/lib/canvas-nodes.ts`: add to each of `ImageGenNodeData`, `CompositeNodeData` and `VideoGenNodeData`, beside `modelId`:
 
 ```ts
-  /** D544 — the retired model this node was moved off when it opened; cleared once a model is picked. */
+  /** D567 — the retired model this node was moved off when it opened; cleared once a model is picked. */
   retiredModelId?: string;
 ```
 
@@ -1204,7 +1204,7 @@ export type CanvasModels = { images: ImageModels; videos: VideoModels };
 - `createCanvasStore(initialNodes = [], initialEdges = [], initialCanvasName = "", models?: CanvasModels)`. Replace the `startingNodes` block with:
 
 ```ts
-  // D544 — a node saved on a retired model opens on its replacement, here so that its card, its
+  // D567 — a node saved on a retired model opens on its replacement, here so that its card, its
   // prompt node and its focus view all agree. Saved with the canvas's next change, not on load.
   const startingNodes = initialNodes.map((n) => {
     if (!models) return n;
@@ -1231,7 +1231,7 @@ export type CanvasModels = { images: ImageModels; videos: VideoModels };
   }
 ```
 
-with `import { useImageModels, useVideoModels } from "@/hooks/queries/ai-models";`. Add one line to the file's top comment: the store is created with the model lists of the catalog at mount (D544); a later catalog refresh does not move nodes already open.
+with `import { useImageModels, useVideoModels } from "@/hooks/queries/ai-models";`. Add one line to the file's top comment: the store is created with the model lists of the catalog at mount (D567); a later catalog refresh does not move nodes already open.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -1243,7 +1243,7 @@ Run: `npx tsc --noEmit -p tsconfig.json` — only the known `.next/` errors.
 
 ```bash
 git add src/lib/canvas-nodes.ts src/lib/canvas-store.ts src/components/canvas/canvas-store-provider.tsx src/lib/canvas-store.test.ts <any canvas test you changed>
-git commit -m "feat(models): the canvas opens retired nodes on their replacement (D544)"
+git commit -m "feat(models): the canvas opens retired nodes on their replacement (D567)"
 ```
 
 ---
@@ -1335,7 +1335,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MODEL_RETIRED_MESSAGE } from "@/lib/ai-models/runnable";
 
-/** D544 — shown in a focus view whose node was moved off a retired model when the canvas opened. */
+/** D567 — shown in a focus view whose node was moved off a retired model when the canvas opened. */
 export function RetiredModelNotice({ retiredModelId, onDismiss }: { retiredModelId: string | undefined; onDismiss: () => void }) {
   if (!retiredModelId) return null;
   return (
@@ -1390,7 +1390,7 @@ Expected: only `import type` lines, if any.
 
 ```bash
 git add src/components/models/retired-model-notice.tsx src/components/models/__tests__/retired-model-notice.test.tsx src/components/nodes/image-gen-focus-view.tsx src/components/nodes/image-gen-output-settings.tsx src/components/nodes/image-gen-version-history.tsx src/components/nodes/composite-focus-view.tsx src/hooks/use-composite-versions.ts src/components/avatars/avatar-model-select.tsx src/components/avatars/avatar-candidate-grid.tsx <each test file you added or changed>
-git commit -m "feat(models): image pickers and focus views read the catalog (D542, D544)"
+git commit -m "feat(models): image pickers and focus views read the catalog (D565, D567)"
 ```
 
 ---
@@ -1476,7 +1476,7 @@ Expected: nothing, or `import type` / id-constant imports only (`GEMINI_OMNI_*`,
 
 ```bash
 git add src/components/nodes/video-gen-focus-view.tsx src/components/nodes/video-gen-model-picker.tsx src/components/nodes/video-gen-params-panel.tsx src/components/nodes/video-gen-request-panel.tsx src/components/nodes/video-gen-version-history.tsx src/components/nodes/video-prompt-focus-view.tsx <each test file you added or changed>
-git commit -m "feat(models): video pickers and focus views read the catalog (D542, D544)"
+git commit -m "feat(models): video pickers and focus views read the catalog (D565, D567)"
 ```
 
 ---
@@ -1503,7 +1503,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// D542 — browser code reads image and video models from the catalog. Only type imports and the
+// D565 — browser code reads image and video models from the catalog. Only type imports and the
 // id constants that name model-specific behaviour may still come from the code registries.
 const ROOTS = ["src/components", "src/hooks", "src/lib/canvas-store.ts"];
 const ALLOWED = new Set([
@@ -1566,7 +1566,7 @@ Expected: FAIL. If the guard already passes because Tasks 3–7 removed every im
 
 with `const VOICE_PREVIEW_UNAVAILABLE_MESSAGE = "Voice previews can't run right now. Try again later.";` declared in `src/lib/avatars/voice-preview.ts` and exported (no existing-node exception: a preview belongs to no node, so a hidden engine model refuses).
 
-- `src/lib/image-gen/client-models.ts`: delete `imageGenClientModelGroups`, `isImageModelDeprecated`, `withoutDeprecatedImageModel`, `defaultsForSchema` and `DEFAULT_CLIENT_MODEL_ID`, unless grep finds a non-test reader left (`seed.ts` and `adapter-sync.ts` may read `imageGenClientModels`, `defaultsForModel` and `DEPRECATED_IMAGE_MODEL_FALLBACK_ID`; keep those). Add at the top: `// Plan 1b-iii deletes this file. Browser and server code read models from the catalog (D542).`
+- `src/lib/image-gen/client-models.ts`: delete `imageGenClientModelGroups`, `isImageModelDeprecated`, `withoutDeprecatedImageModel`, `defaultsForSchema` and `DEFAULT_CLIENT_MODEL_ID`, unless grep finds a non-test reader left (`seed.ts` and `adapter-sync.ts` may read `imageGenClientModels`, `defaultsForModel` and `DEPRECATED_IMAGE_MODEL_FALLBACK_ID`; keep those). Add at the top: `// Plan 1b-iii deletes this file. Browser and server code read models from the catalog (D565).`
 - `src/lib/video-gen/client-models.ts`: delete `videoGenClientModelGroups`, `modelPickerLabel`, `isVideoModelDeprecated`, `resolveVideoModelId`, `usableVideoModelId`, `withoutDeprecatedVideoModel`, keeping what `seed.ts`, `adapter-sync.ts`, `registry.ts`, the providers and tests still read (`videoGenClientModelMap`, `defaultsForVideoModel`, `DEFAULT_VIDEO_CLIENT_MODEL_ID`, the id constants). Same header line.
 - Fix every test that imported a deleted helper: swap in the model-lists equivalent (`paramDefaults`, `modelPickerLabel`, `videoModelsFrom(seededModelCatalog())`).
 
@@ -1587,27 +1587,27 @@ git commit -m "fix(models): server defaults and the voice preview engine come fr
 
 ---
 
-### Task 9: ADR entries D542–D544
+### Task 9: ADR entries D565–D567
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7, after D541; keep the file's line endings)
+- Modify: `docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (§7, after D564; keep the file's line endings)
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Append the three entries after D541, in the log's format**
+- [ ] **Step 1: Append the three entries after D564, in the log's format**
 
 ```markdown
-### D542 — The browser reads image and video models from the catalog *(recorded 2026-11-23; follows D529, D538)*
+### D565 — The browser reads image and video models from the catalog *(recorded 2026-11-23; follows D552, D561)*
 
 **Decision.** Every screen that lists, labels, configures or defaults an image or video model reads it from the session's one catalog query, through two lists built from it (`imageModelsFrom`, `videoModelsFrom` in `src/lib/ai-models/model-lists.ts`): every non-draft model in sort order, lookup by id, status and replacement, the offered models grouped by provider for a picker, and the default. A picker offers live models, plus a hidden model on the node, avatar or panel that already uses it; a retired model is never offered. The lists are cached per catalog object, so a card's lookup is a map read. `src/app/clients/[id]/layout.tsx` reads the catalog on the server and seeds the browser cache through `ModelCatalogGate`, so no client page waits on its own request; below the gate, `useImageModels()` and `useVideoModels()` always have data. The helpers the server and the browser share (avatar params and estimates, panel caps, composite picker, edit limits, presenter rules, param merges) take the list as their first argument; the server builds it from `getAiCatalog()` once per request. Model-specific behaviour keyed by id (`MULTISHOT_MODELS`, `VOICE_PREVIEW_ENGINE`, `VIDEO_EDIT_MODEL_IDS`, the prompt templates) stays in code.
 
-**Why.** A status or label the super admin sets has to show on every screen, and the server already refuses by the catalog (D540): a picker that offered from code could offer what the server refuses.
+**Why.** A status or label the super admin sets has to show on every screen, and the server already refuses by the catalog (D563): a picker that offered from code could offer what the server refuses.
 
 **Rejected.** A loading state in each picker and focus view: dozens of call sites, each able to get it wrong. A context that loads the list: TanStack Query already owns the catalog. Moving the multishot capabilities into `capabilities`: they describe how our prompts are written for a model, not the model.
 
 **Originated →** [2026-11-23-model-catalog-1b-browser.md](../plans/2026-11-23-model-catalog-1b-browser.md).
 
-### D543 — Defaults are code preferences used while live *(recorded 2026-11-23; refines D542)*
+### D566 — Defaults are code preferences used while live *(recorded 2026-11-23; refines D565)*
 
 **Decision.** The models new work starts on (`DEFAULT_IMAGE_MODEL_ID`, `DEFAULT_VIDEO_MODEL_ID` in `src/lib/ai-models/default-models.ts`, and the composite, panel and Visualise avatar defaults) stay in code. Each is used only while the catalog has it live; otherwise the first live model in sort order is used. The routes' fallback for a request with no model uses the same rule.
 
@@ -1617,9 +1617,9 @@ git commit -m "fix(models): server defaults and the voice preview engine come fr
 
 **Originated →** [2026-11-23-model-catalog-1b-browser.md](../plans/2026-11-23-model-catalog-1b-browser.md).
 
-### D544 — A node on a retired model opens on its replacement, with a notice *(recorded 2026-11-23; replaces D461/D467's browser fallback)*
+### D567 — A node on a retired model opens on its replacement, with a notice *(recorded 2026-11-23; replaces D461/D467's browser fallback)*
 
-**Decision.** When the canvas opens, an Image Gen, Composite or Video Gen node saved on a retired model is moved to the model's `replaced_by` when that is live, else to the default, with that model's default settings, and its old model id is kept in `retiredModelId`. Its focus view shows "This model was retired. Pick another." until a model is picked or the notice is dismissed. The move is saved with the canvas's next change, not on load. A hidden model is left as it is: it still runs on that node (D540). The store is built with the catalog of the moment the canvas mounts; a later catalog refresh does not move nodes already open.
+**Decision.** When the canvas opens, an Image Gen, Composite or Video Gen node saved on a retired model is moved to the model's `replaced_by` when that is live, else to the default, with that model's default settings, and its old model id is kept in `retiredModelId`. Its focus view shows "This model was retired. Pick another." until a model is picked or the notice is dismissed. The move is saved with the canvas's next change, not on load. A hidden model is left as it is: it still runs on that node (D563). The store is built with the catalog of the moment the canvas mounts; a later catalog refresh does not move nodes already open.
 
 **Why.** The spec's edge case: the node keeps its history and is offered the replacement the catalog names, instead of a fixed fallback in code.
 
@@ -1636,7 +1636,7 @@ Run: `file docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md` (unc
 
 ```bash
 git add docs/superpowers/specs/2026-05-30-creativeos-staging-roadmap.md
-git commit -m "docs: D542-D544 the browser reads image and video models from the catalog"
+git commit -m "docs: D565-D567 the browser reads image and video models from the catalog"
 ```
 
 ---

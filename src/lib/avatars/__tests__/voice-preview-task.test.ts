@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// D541 — trigger/avatar-voice-preview.ts generates its clip through the adapter map, with the
+// D564 — trigger/avatar-voice-preview.ts generates its clip through the adapter map, with the
 // engine's row read from the catalog at run time. A missing row or adapter reports the failure
 // (which refunds) and does not retry.
 const m = vi.hoisted(() => ({
@@ -61,7 +61,7 @@ beforeEach(() => {
   });
 });
 
-describe("avatar-voice-preview task (D541)", () => {
+describe("avatar-voice-preview task (D564)", () => {
   it("generates the clip through the engine row's adapter, reading the catalog once", async () => {
     await run(NAMED);
     expect(m.getAiCatalog).toHaveBeenCalledTimes(1);

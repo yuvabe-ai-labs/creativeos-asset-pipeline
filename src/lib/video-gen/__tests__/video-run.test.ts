@@ -24,7 +24,7 @@ beforeEach(() => {
   adapter.mockClear();
 });
 
-describe("videoRun (D538, D540)", () => {
+describe("videoRun (D561, D563)", () => {
   it("gives the catalog's spec, with Kling's rules, and generates through the adapter", async () => {
     const r = videoRun(seededModelCatalog(), "kling:kling-3-0");
     if (!r.ok) throw new Error("expected a run");
@@ -39,7 +39,7 @@ describe("videoRun (D538, D540)", () => {
   });
 });
 
-describe("videoGenerateForTask (D541)", () => {
+describe("videoGenerateForTask (D564)", () => {
   it("runs a hidden model, and fails for good on a missing one", async () => {
     state.catalog = withModel(seededModelCatalog(), "kling:kling-o1", { status: "hidden" });
     await (await videoGenerateForTask("kling:kling-o1"))(INPUT);

@@ -15,7 +15,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId) => {
+  return withNode(req, params, { need: "view" }, async (nodeId) => {
     const rows = await listVersions(nodeId); // newest first (created_at desc)
     const latest = rows.find(
       (v) =>
@@ -45,7 +45,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, _node, caller, clientId, orgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, _node, caller, clientId, orgId) => {
     const body = (await req.json().catch(() => null)) as { role?: unknown; slices?: unknown } | null;
     const roleKey = typeof body?.role === "string" ? body.role : "";
 
@@ -79,7 +79,7 @@ export async function POST(
           { role: "user", content: userContent },
         ],
       });
-      // D537 — paid once it answered, whatever the answer turns out to be.
+      // D560 — paid once it answered, whatever the answer turns out to be.
       recordAfterResponse(openAiCost(
         { orgId, clientId, userId: caller.userId, userEmail: caller.email, nodeId },
         "compose", spec.model, completion.usage, "chat",

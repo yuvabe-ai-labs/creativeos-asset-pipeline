@@ -25,7 +25,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, node) => {
+  return withNode(req, params, { need: "edit" }, async (nodeId, node) => {
     const fileResult = await parseFormFile(req);
     if (isApiError(fileResult)) return fileResult;
     const { file } = fileResult;
@@ -116,7 +116,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withNode(req, params, async (nodeId, node) => {
+  return withNode(req, params, { need: "edit" }, async (nodeId, node) => {
     const fileUrl = (node.data as Record<string, unknown>)?.fileUrl as
       | string
       | undefined;

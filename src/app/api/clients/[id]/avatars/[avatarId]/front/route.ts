@@ -16,7 +16,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string; avatarId: string }> },
 ) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "edit" }, async (clientId) =>
     withTryCatch("Could not set the front image.", async () => {
       const parsed = PickSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Invalid request body.", 400);

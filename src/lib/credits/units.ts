@@ -1,7 +1,7 @@
 // See docs/superpowers/specs/2026-07-24-credit-system-design.md §2a.
 //
 // 1 credit = $0.001 USD. USD_TO_CREDITS is fixed (it changes only with plan prices); margin and
-// rounding step come from the credit_settings rows (D548), applied by creditsFromUsd.
+// rounding step come from the credit_settings rows (D571), applied by creditsFromUsd.
 import type { AiCatalog, CreditSettings } from "@/lib/ai-models/types";
 
 export const USD_TO_CREDITS = 1000;

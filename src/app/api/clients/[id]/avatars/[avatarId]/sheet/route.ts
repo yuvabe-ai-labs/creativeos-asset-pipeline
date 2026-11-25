@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar, updateAvatar } from "@/lib/db/avatars";
 import { sumAvatarCredits } from "@/lib/db/generations";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
@@ -36,11 +35,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string; avatarId: string }> },
 ) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("Could not generate the profile sheet.", async () => {
       const parsed = SheetSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Choose a model.", 400);
-      // D540 — an avatar has no node, so a hidden model is refused here like a retired one.
+      // D563 — an avatar has no node, so a hidden model is refused here like a retired one.
       const [catalog, current] = await Promise.all([getAiCatalog(), getAvatar(clientId, avatarId)]);
       const run = imageRun(catalog, parsed.data.modelId);
       if (!run.ok) return apiError(run.message, 400);
@@ -49,7 +48,6 @@ export async function POST(
       const frontUrl = current.front.url;
       const frontPrompt = current.front.source.kind === "generated" ? current.front.source.prompt : undefined;
 
-      const caller = await resolveCallerContext();
       let made: Awaited<ReturnType<typeof runAvatarGeneration>>;
       try {
         made = await runAvatarGeneration({

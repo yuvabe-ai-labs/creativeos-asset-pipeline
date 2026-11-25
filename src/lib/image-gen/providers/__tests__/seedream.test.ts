@@ -72,7 +72,7 @@ describe("generateWithSeedream", () => {
     expect(result.imageBase64).toBe("AAAA");
     expect(result.mimeType).toBe("image/png");
     expect(result.tokensUsed.image_output_tokens).toBe(16000);
-    // D534 — the images billed (2 references after the first); the price row turns them into $0.096.
+    // D557 — the images billed (2 references after the first); the price row turns them into $0.096.
     expect(result.billedImages).toEqual({ output_image: 1, input_image: 2, size: "2K" });
     expect("costUsd" in result).toBe(false);
 

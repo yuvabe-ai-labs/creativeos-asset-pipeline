@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   keepAutoVoice: vi.fn(async (): Promise<string | null> => "auto1"),
 }));
 
-// The catalog the pricing helpers hand back with a price (D548: the credit settings come from it).
+// The catalog the pricing helpers hand back with a price (D571: the credit settings come from it).
 const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
 vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock(() => cat.value));
 vi.mock("@/lib/db/versions", () => ({
@@ -166,7 +166,7 @@ describe("completeGeneration — non-stored video (no voice)", () => {
   });
 });
 
-describe("completeGeneration — billed from the provider's usage (D528)", () => {
+describe("completeGeneration — billed from the provider's usage (D551)", () => {
   const usage = { kind: "omni", inputTokens: 5798, videoOutputTokens: 5793, textOutputTokens: 0, thoughtTokens: 334 } as const;
 
   it("settles at what the provider reported and records that usage on the row", async () => {
@@ -208,7 +208,7 @@ describe("completeGeneration — billed from the provider's usage (D528)", () =>
   });
 });
 
-describe("completeGeneration — Kling billed by its units (D535)", () => {
+describe("completeGeneration — Kling billed by its units (D558)", () => {
   const kling = (created_at: string) => {
     mocks.generation = {
       ...mocks.generation,
@@ -263,7 +263,7 @@ describe("completeGeneration — Kling billed by its units (D535)", () => {
   });
 });
 
-describe("completeGeneration — a price that cannot be found (D534)", () => {
+describe("completeGeneration — a price that cannot be found (D557)", () => {
   it("settles at the reserved amount, never 0, and still succeeds", async () => {
     const { priceForGeneration } = await import("@/lib/ai-models/run-price");
     vi.mocked(priceForGeneration).mockResolvedValueOnce(null);
@@ -435,7 +435,7 @@ describe("completeGeneration — an avatar's voice preview (D294)", () => {
     spy.mockRestore();
   });
 
-  it("settles at the reserved amount, never 0, when the clip's price cannot be found (D534)", async () => {
+  it("settles at the reserved amount, never 0, when the clip's price cannot be found (D557)", async () => {
     const { priceForGeneration } = await import("@/lib/ai-models/run-price");
     vi.mocked(priceForGeneration).mockResolvedValueOnce(null);
     const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -649,13 +649,13 @@ describe("completeGeneration — image (D366)", () => {
     expect(mocks.succeedGeneration).toHaveBeenCalledWith(expect.objectContaining({ costUsd: usd, creditsCharged: credits }));
   });
 
-  it("prices the images Seedream billed with its row (D534)", async () => {
+  it("prices the images Seedream billed with its row (D557)", async () => {
     mocks.generation = { ...mocks.generation, model_used: "seedream:seedream-5-0-pro", params_snapshot: { image_size: "2K" } };
     await completeGeneration({ ...succeeded, tokensUsed: null, billedImages: { output_image: 1, input_image: 2, size: "2K" } });
     expect(mocks.settleGeneration).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: seededCredits(0.096) }));
   });
 
-  it("settles a finished image at its reserved amount when its price is missing (D534)", async () => {
+  it("settles a finished image at its reserved amount when its price is missing (D557)", async () => {
     const { priceForGeneration } = await import("@/lib/ai-models/run-price");
     vi.mocked(priceForGeneration).mockResolvedValueOnce(null);
     const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -748,8 +748,8 @@ describe("isVideoSucceeded", () => {
   });
 });
 
-// D548 — a run is settled with the credit settings live when it started, not the ones live now.
-describe("completeGeneration — credit settings of the run (D548)", () => {
+// D571 — a run is settled with the credit settings live when it started, not the ones live now.
+describe("completeGeneration — credit settings of the run (D571)", () => {
   const OLD = { marginPercent: 0, roundStep: 5 } as const;
   const NEW = { marginPercent: 10, roundStep: 1 } as const;
   // A row from the day before, and a change an hour before "now" (12:00 on 22 Nov).

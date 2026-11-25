@@ -99,3 +99,41 @@ describe("toImageAnalysis", () => {
     expect(ia.aesthetic.value).toBeNull();
   });
 });
+
+// ── Piece 2b follow-up: the model is shown what the team approved ────────────
+
+import { approvedWords } from "./summarize";
+import { imageAnalysisSummaryPrompt } from "@/prompts/image-analysis-summary";
+import { defaultEmptyImageAnalysis, type KBField } from "@/lib/kb/schema";
+
+describe("approvedWords", () => {
+  const f = <T,>(value: T, status: KBField<T>["status"]): KBField<T> => ({ value, confidence: "high", evidence_type: "inferred", status });
+  const section = { ...defaultEmptyImageAnalysis(),
+    aesthetic: f("Earthy and calm", "approved"), visual_mood: f("Quiet", "needs_review"), subjects: f("Packs", "rejected"),
+    lighting_character: f("Our own words", "edited"), dominant_colors: f(["green #2F5D3A"], "approved"), recurring_motifs: f(["leaf", "linen"], "approved"),
+  } as ReturnType<typeof defaultEmptyImageAnalysis>;
+
+  it("gives the written fields the team approved, never a counted, rejected, hand-written or unreviewed one", () => {
+    expect(approvedWords(section)).toEqual([
+      { key: "aesthetic", value: "Earthy and calm" },
+      { key: "recurring_motifs", value: ["leaf", "linen"] },
+    ]);
+    expect(approvedWords(null)).toEqual([]);
+  });
+
+  it("puts them in the model's input, and says nothing when there are none", () => {
+    const entries: CardEntry[] = [{ source: "upload", card: card({ summary: "Hero packshot" }) }];
+    const stats = aggregateCards(entries);
+    const withApproved = buildSummaryInput(stats, entries, approvedWords(section));
+    expect(withApproved).toContain("Approved by the brand's team");
+    expect(withApproved).toContain("aesthetic: Earthy and calm");
+    expect(withApproved).toContain("recurring_motifs: leaf; linen");
+    expect(buildSummaryInput(stats, entries)).not.toContain("Approved by the brand's team");
+  });
+
+  it("tells the model to keep approved words unless the images now show something different", () => {
+    expect(imageAnalysisSummaryPrompt.system).toContain("Approved by the brand's team");
+    expect(imageAnalysisSummaryPrompt.system).toMatch(/return it exactly as\s+it is written, word for word/);
+    expect(imageAnalysisSummaryPrompt.version).toBe("1.2.0");
+  });
+});

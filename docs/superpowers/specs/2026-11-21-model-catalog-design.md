@@ -1,6 +1,6 @@
 # AI model catalog and provider-cost billing — design
 
-Recorded 2026-11-21. Decisions D528–D533 in the ADR log (roadmap §7).
+Recorded 2026-11-21. Decisions D551–D556 in the ADR log (roadmap §7).
 
 ## Goal
 

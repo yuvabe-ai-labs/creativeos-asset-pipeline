@@ -356,7 +356,11 @@ export function ScriptFocusView({
               <ScriptDocumentSkeleton shots={shotCount || 4} reextracting={hasParsed} />
             )}
 
-            {mode === "empty" && (
+            {mode === "empty" && !editable && (
+              <p className="py-24 text-center text-sm text-muted-foreground">No script yet.</p>
+            )}
+
+            {mode === "empty" && editable && (
               <ScriptEmptyState
                 title={title}
                 slices={slices}

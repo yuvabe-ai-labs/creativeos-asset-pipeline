@@ -1,4 +1,4 @@
-// D529 — the AI model catalog, as the app reads it. Rows live in ai_models / ai_model_prices
+// D552 — the AI model catalog, as the app reads it. Rows live in ai_models / ai_model_prices
 // (migration 0076); src/lib/ai-models/schema.ts checks them on load. Client-safe.
 import type { ParamSpec } from "@/lib/image-gen/types";
 import type { ConstraintRule } from "@/lib/video-gen/types";
@@ -11,7 +11,7 @@ export type AiModelKind = (typeof AI_MODEL_KINDS)[number];
 export const AI_MODEL_STATUSES = ["draft", "live", "hidden", "retired"] as const;
 export type AiModelStatus = (typeof AI_MODEL_STATUSES)[number];
 
-// D531 — what a provider bill and a price line are counted in.
+// D554 — what a provider bill and a price line are counted in.
 export const METERS = [
   "input_token", "text_input_token", "image_input_token", "cached_input_token",
   "text_output_token", "thought_token", "image_output_token", "video_output_token",
@@ -39,7 +39,7 @@ export type AiModel = {
   updatedAt: string;
 };
 
-/** D530 — one price line. `when` lists request params that must all match; none = any run. */
+/** D553 — one price line. `when` lists request params that must all match; none = any run. */
 export type PriceLine = {
   meter: Meter;
   unit_usd: number;
@@ -57,7 +57,7 @@ export type AiModelPrice = {
   note: string | null;
 };
 
-/** D531: what a provider reported for one run, as meters, and its own block verbatim. */
+/** D554: what a provider reported for one run, as meters, and its own block verbatim. */
 export type ProviderBill = {
   source: "provider_charge" | "provider_usage" | "request";
   meters: Partial<Record<Meter, number>>;
@@ -66,7 +66,7 @@ export type ProviderBill = {
   unpriced?: Meter[];
 };
 
-/** D548 — how a run's cost becomes credits, from `effectiveFrom` on. A row is never edited. */
+/** D571 — how a run's cost becomes credits, from `effectiveFrom` on. A row is never edited. */
 export type CreditSettings = {
   id: string;
   effectiveFrom: string;

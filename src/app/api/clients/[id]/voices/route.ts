@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // for this client plus ElevenLabs' stock voices. Same response shape as the account list in
 // /api/elevenlabs/voices, so the picker reads either.
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) => {
+  return withClient(req, params, { need: "view" }, async (clientId) => {
     try {
       const [account, clientVoiceIds] = await Promise.all([
         getAccountVoicesCached(),

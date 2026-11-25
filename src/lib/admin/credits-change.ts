@@ -1,6 +1,6 @@
 // The change-credit-settings flow on the Credits page: When (tomorrow 00:00 IST first, Now allowed
 // with a warning), the Review (typical runs and agencies before and after, notes), and the toast's
-// words and Undo after saving. Mirrors the server's D548 checks. Client-safe.
+// words and Undo after saving. Mirrors the server's D571 checks. Client-safe.
 import { CREDIT_SETTINGS_LEAD_MINUTES, CREDIT_SETTINGS_LEAD_MS } from "@/lib/credits/settings-edit";
 import { creditSettingsAt } from "@/lib/credits/units";
 import type { CreditSettings } from "@/lib/ai-models/types";

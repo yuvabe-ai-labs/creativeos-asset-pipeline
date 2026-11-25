@@ -5,7 +5,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
   return {
     ...actual,
-    withCanvas: (_req: Request, _params: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("cv1", { id: "cv1", client_id: "cl1" }),
+    withCanvas: (_req: Request, _params: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("cv1", { id: "cv1", client_id: "cl1" }),
   };
 });
 
@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 describe("GET /api/canvas/[id]/cost", () => {
-  it("tallies settled jobs only, leaving record-only rows (D537) out", async () => {
+  it("tallies settled jobs only, leaving record-only rows (D560) out", async () => {
     const res = await GET(new Request("http://x"), { params: Promise.resolve({ id: "cv1" }) });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ totalCredits: 4, byNode: { n1: 4 } });

@@ -37,7 +37,7 @@ import { ActiveOnlyNotice } from "./active-only-notice";
 import { useVersionViewing } from "@/hooks/use-version-viewing";
 import { versionLabelsById } from "@/lib/generations/version-labels";
 import type { ApprovalStatus } from "@/lib/approval";
-import { useIdentity } from "@/hooks/use-identity";
+import { useCanvasPermissions } from "@/components/permissions/client-permissions";
 import { useNodeVersionUpdates } from "@/hooks/use-node-version-updates";
 import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useRailDisconnect } from "./use-rail-disconnect";
@@ -48,7 +48,7 @@ export type PromptFocusShellSlots = {
   // The viewed version's label ("v1"); empty while nothing is viewed.
   viewedLabel: string;
   isViewingOther: boolean;
-  // A ready-wired <InlineApprovalBar> (gated on the viewer's role, and on viewing the active
+  // A ready-wired <InlineApprovalBar> (gated on the node area's Approve, and on viewing the active
   // version) — the caller places it beside its own eval bar.
   approvalControls: ReactNode;
 };
@@ -184,7 +184,7 @@ export function PromptFocusShell({
   guidedInHeader = false,
   children,
 }: PromptFocusShellProps) {
-  const { identity } = useIdentity();
+  const { approve: canApprove } = useCanvasPermissions(); // "video-prompt" or "multishot-prompt"
   // A pending destructive action awaiting confirmation. Replaces window.confirm so the
   // prompt stays inside the design system instead of native OS chrome.
   const [confirm, setConfirm] = useState<{
@@ -257,7 +257,7 @@ export function PromptFocusShell({
         saving={approvalSaving}
         // R7.1/D160: not gated on `editable` — approval writes only to node_versions, outside
         // what the D33 lock serialises. D383: gated on viewing the active version.
-        canApprove={identity?.role === "senior" && !viewing.isViewingOther}
+        canApprove={canApprove && !viewing.isViewingOther}
         onSet={onSetApproval}
         approvedByName={approvedByName}
         approvedAt={approvedAt}

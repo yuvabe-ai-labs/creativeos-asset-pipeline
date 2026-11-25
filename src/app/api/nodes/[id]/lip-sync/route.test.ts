@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
-  return { ...actual, withNode: (_r: Request, _p: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", { type: "dubbing", active_version_id: "ver-1" }, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
+  return { ...actual, withNode: (_r: Request, _p: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", { type: "dubbing", active_version_id: "ver-1" }, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
 });
 vi.mock("@/lib/db/versions", () => ({ getVersionById: mocks.getVersion }));
 vi.mock("@/lib/db/generations", () => ({ insertGeneration: mocks.insertGeneration, failGeneration: mocks.failGeneration, hasRunningGeneration: mocks.running }));
@@ -57,7 +57,7 @@ describe("POST /api/nodes/[id]/lip-sync", () => {
     });
   });
 
-  it("refuses a model with no price before anything is recorded (D535)", async () => {
+  it("refuses a model with no price before anything is recorded (D558)", async () => {
     const { priceForNewRun } = await import("@/lib/ai-models/run-price");
     vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
     const res = await post({ versionId: "ver-1" });

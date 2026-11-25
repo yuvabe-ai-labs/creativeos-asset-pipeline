@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { getScript } from "@/lib/db/scripts";
 import { changeScriptAssets } from "@/lib/db/script-assets";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
@@ -32,16 +31,12 @@ const Body = z.discriminatedUnion("mode", [
 // script's other pictures, then written as the location's image through the one asset write.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId, locationId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("Could not draw the location.", async () => {
       // No body is a first Generate: fresh, no note.
       const body = Body.safeParse((await req.json().catch(() => null)) ?? { mode: "fresh" });
       if (!body.success) return apiError("Invalid request body.", 400);
-      const [script, kbText, caller] = await Promise.all([
-        getScript(clientId, scriptId),
-        loadKbText(clientId),
-        resolveCallerContext(),
-      ]);
+      const [script, kbText] = await Promise.all([getScript(clientId, scriptId), loadKbText(clientId)]);
       if (!script) return apiError("Script not found.", 404);
       if (script.stage !== "generate" && !isVisualiseStage(script.stage)) {
         return apiError("Locations can be drawn while the script is being written or visualised.", 409);
@@ -79,7 +74,7 @@ export async function POST(req: Request, { params }: Ctx) {
         if (!url) throw new Error("The location could not be drawn.");
       } catch (e) {
         // Nothing was charged: the billed run refunded the reservation (D291).
-        // D540 — a refused model is refused before anything is recorded or reserved: a 400.
+        // D563 — a refused model is refused before anything is recorded or reserved: a 400.
         if (e instanceof ModelRefusedError) return apiError(e.message, 400);
         const capped = e instanceof CreditLimitError;
         return apiError(capped ? CREDIT_LIMIT_TOAST_MESSAGE : e instanceof Error ? e.message : "The location could not be drawn.", capped ? 402 : 502);

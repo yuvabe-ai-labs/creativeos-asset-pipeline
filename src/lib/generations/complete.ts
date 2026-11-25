@@ -40,7 +40,7 @@ function videoFailureText(generation: GenerationRow, generationId: string, raw: 
   return plainVideoEditFailure(raw);
 }
 
-// D534 — a finished paid run is never charged 0 because its price is missing: the provider has
+// D557 — a finished paid run is never charged 0 because its price is missing: the provider has
 // billed us and the output is kept, so settle at what was reserved and record no dollar cost.
 export async function reservedAmountForUnpriced(
   generationId: string,
@@ -86,7 +86,7 @@ async function completeImageGeneration(
     output: input.imageUrl,
   });
 
-  // D534 — priced with the row this run was reserved with: billed images (Seedream) or tokens.
+  // D557 — priced with the row this run was reserved with: billed images (Seedream) or tokens.
   const { price, catalog } = await pricingForGeneration(generation);
   const charge = price
     ? imageChargeUsd(price, { tokens: input.tokensUsed ?? null, billedImages: input.billedImages ?? null })
@@ -101,7 +101,7 @@ async function completeImageGeneration(
     !!charge && charge.unpriced.length > 0 && charge.usd === 0 && Object.values(charge.meters).some((q) => (q ?? 0) > 0);
   const cost = charge && !nothingPriced ? { usd: charge.usd } : null;
   // A paid image with a missing price settles at what was reserved. A provider that reported
-  // neither tokens nor billed images still settles at 0 (unchanged). D548 — with the credit
+  // neither tokens nor billed images still settles at 0 (unchanged). D571 — with the credit
   // settings live when the run started.
   const actualCredits = cost
     ? creditsFromUsd(cost.usd, creditSettingsAt(catalog, new Date(generation.created_at)))
@@ -142,7 +142,7 @@ export type VideoGenerationSucceeded = {
   /** D282 — `videoUrl` is already in our bucket (the task uploaded it); skip download/upload. */
   stored?: boolean;
   meta?: Record<string, unknown>;
-  /** D528 — the provider's own usage; read through readVideoUsage, never trusted as typed. */
+  /** D551 — the provider's own usage; read through readVideoUsage, never trusted as typed. */
   usage?: VideoProviderUsage;
 };
 
@@ -365,12 +365,12 @@ export async function completeGeneration(
   const audioEnabled = isVideoAudioEnabled(generation.params_snapshot?.audio);
   const resolution = asResolutionString(generation.params_snapshot?.resolution);
 
-  // D528/D534 — the provider's reported usage when it sent one, else the seconds, both priced
+  // D551/D557 — the provider's reported usage when it sent one, else the seconds, both priced
   // with the row this run was reserved with. A voice change is ElevenLabs' work, priced by its voice.
   const usage = voiceChange ? null : readVideoUsage(input.usage);
-  // D535 — the generation records the VIDEO's model, so a voice change's row is found by the
+  // D558 — the generation records the VIDEO's model, so a voice change's row is found by the
   // ElevenLabs id; an older voice job (no recorded row) uses the row valid when it started.
-  // One catalog read either way; D548 takes the credit settings from it too.
+  // One catalog read either way; D571 takes the credit settings from it too.
   const { price: rowPrice, catalog } = voiceChange
     ? generation.model_price_id
       ? await pricingForGeneration({ ...generation, model_used: VOICE_CHANGE_PRICE_MODEL_ID })
@@ -385,7 +385,7 @@ export async function completeGeneration(
       `[completeGeneration] video ${input.generationId} (${generation.model_used}) has meters with no price: ${charge.unpriced.join(", ")}`,
     );
   }
-  // D535 — a voice change is charged by the credits ElevenLabs reported (the last attempt's only:
+  // D558 — a voice change is charged by the credits ElevenLabs reported (the last attempt's only:
   // an earlier paid attempt that failed later is not counted), else by seconds x the voice's
   // multiplier. The reported credits already reflect the voice's real charge, so the multiplier
   // applies to the fallback alone.
@@ -403,9 +403,9 @@ export async function completeGeneration(
     : charge
       ? { usd: charge.usd }
       : null;
-  // D534 — a finished video is never charged 0 because its price is missing: the provider has
+  // D557 — a finished video is never charged 0 because its price is missing: the provider has
   // billed us and the video is kept, so settle at what was reserved and record no dollar cost.
-  // D548 — with the credit settings live when the run started.
+  // D571 — with the credit settings live when the run started.
   const actualCredits = cost
     ? creditsFromUsd(cost.usd, creditSettingsAt(catalog, new Date(generation.created_at)))
     : await reservedAmountForUnpriced(input.generationId, generation, voiceChange ? "voice" : "video");

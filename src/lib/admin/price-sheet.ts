@@ -1,6 +1,6 @@
 // The admin model page's price sheet and side column (prototype v3, "Model"): the sheet's title and
 // footnote, credits per cell, the scheduled-change notice, "Try a run" and the price history.
-// Credits use the credit settings row live now (D548); runs use the same estimators a real run
+// Credits use the credit settings row live now (D571); runs use the same estimators a real run
 // reserves with (typical-runs.ts). Client-safe.
 import { formatUsd, isTokenMeter } from "@/lib/ai-models/price-format";
 import { CATALOG_CHANGE_LEAD_MS } from "@/lib/ai-models/pricing";
@@ -102,7 +102,7 @@ export function scheduledNotice(current: Pick<AiModelPrice, "lines"> | null, nex
   };
 }
 
-/** A price row as the page reads it; `price` is null when the row fails its check (D547). */
+/** A price row as the page reads it; `price` is null when the row fails its check (D570). */
 export type TimelineInputRow = {
   id: string;
   effectiveFrom: string;

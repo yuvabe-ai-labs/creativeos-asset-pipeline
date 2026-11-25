@@ -285,6 +285,11 @@
   html {
     @apply font-sans;
   }
+  /* A client's screens (client-frame.tsx): the scrollbar's space is always kept, so switching from
+     a tab that scrolls to one that does not never moves the copilot panel sideways. */
+  html:has([data-client-frame]) {
+    scrollbar-gutter: stable;
+  }
   h1,
   h2,
   h3,
@@ -455,6 +460,28 @@
   .thinking-verb-in {
     animation: none;
   }
+}
+
+/* The page shows the copilot's work (D520). A calm sweep while a target is being changed (not
+   the brand shimmer of the copilot's working line), and a highlight that holds, then fades, when the
+   change lands. Reduced motion: no sweep; the highlight stays still until it is removed. */
+@keyframes target-sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+.animate-target-sweep {
+  animation: target-sweep 1500ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+@keyframes target-land {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.animate-target-land {
+  animation: target-land 500ms cubic-bezier(0.22, 1, 0.36, 1) 1000ms forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-target-sweep { display: none; }
+  .animate-target-land { animation: none; }
 }
 
 /* Thin, on-brand scrollbar — replaces the raw native scrollbar (arrow buttons, gray

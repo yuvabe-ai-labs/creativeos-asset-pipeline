@@ -46,7 +46,7 @@ const START_FAILED = "Couldn't start the edit. Try again.";
 // and settles credits. Its own type (like a voice change's `voice`) is what lets the focus view
 // keep Edit open and the take on screen while it runs.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, (nodeId, node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, (nodeId, node, caller, clientId, effectiveOrgId) => {
     return withTryCatch(START_FAILED, async () => {
       if (node.type !== "video-gen") return apiError("Node not found.", 404);
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
@@ -65,7 +65,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       ]);
       if (locked) return locked;
       const videos = videoModelsFrom(catalog);
-      // D540 — the edit model goes through the same check as a generation. A hidden edit model
+      // D563 — the edit model goes through the same check as a generation. A hidden edit model
       // keeps running on a take last edited with it; a take never edited falls back to the node's model.
       const editedWith = editOwnModelId(base?.inputs_used, nodeModelId(node.data));
       const modelId = parsed.data.modelId ?? firstOfferedEditModel(videos, editedWith);

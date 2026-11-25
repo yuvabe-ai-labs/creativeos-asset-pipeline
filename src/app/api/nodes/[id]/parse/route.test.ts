@@ -6,7 +6,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
   return {
     ...actual,
-    withNode: (_req: Request, _params: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
+    withNode: (_req: Request, _params: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
       fn("node-1", {}, { userId: "u1", email: "u@x.com" }, "client-1", "org-1"),
   };
 });
@@ -21,7 +21,7 @@ vi.mock("@/lib/openai/server", () => ({ createOpenAI: () => ({ chat: { completio
 import { recordProviderCost } from "@/lib/generations/record-cost";
 import { POST } from "./route";
 
-// D537 — the Script parse records what it cost us, once.
+// D560 — the Script parse records what it cost us, once.
 const usage = { prompt_tokens: 1200, completion_tokens: 300, total_tokens: 1500, prompt_tokens_details: { cached_tokens: 200 } };
 const post = () => POST(new Request("http://x", { method: "POST", body: JSON.stringify({ source: "Scene 1: a shot" }) }), { params: Promise.resolve({ id: "node-1" }) });
 

@@ -23,7 +23,7 @@ export type TokenUsage = {
 
 // The shape a model call hands back: the canonical token counts (TokenUsage), plus whatever else
 // the provider included (e.g. prompt_tokens_details, completion_tokens_details) passed through
-// untouched. D536 - promptRunRecord prices the recorded token cost from these counts and the
+// untouched. D559 - promptRunRecord prices the recorded token cost from these counts and the
 // cached-token detail, and the raw object is what gets persisted. Callers must NOT narrow usage
 // before returning it here: narrowing would drop fields a future pricing change might need.
 export type ModelUsage = TokenUsage & Record<string, unknown>;
@@ -53,7 +53,7 @@ export async function runPromptGeneration<T>(args: {
   operatorUserId?: string | null;
   type: GenerationRow["type"];
   model: string;
-  // D536 — the flat price is `request` + one `input_image` per attachment, read from the row.
+  // D559 — the flat price is `request` + one `input_image` per attachment, read from the row.
   attachmentCount: number;
   generationParamsSnapshot?: Record<string, unknown>;
   generationInputsSnapshot?: Record<string, unknown>;
@@ -70,7 +70,7 @@ export async function runPromptGeneration<T>(args: {
   // propagates regardless of what onFailure does.
   onFailure?: (error: unknown) => Promise<void> | void;
 }): Promise<{ output: T; versionId: string; generationId: string; usage: ModelUsage | null }> {
-  // D536 — the row is looked up before anything is recorded: no row, no run.
+  // D559 — the row is looked up before anything is recorded: no row, no run.
   const price = await priceForNewRun(PROMPT_MODEL_ID);
   const estimate = price ? promptFlatCredits(price, args.attachmentCount) : null;
   if (!price || estimate === null) throw new NoPriceError(NO_PRICE_MESSAGE);
@@ -106,7 +106,7 @@ export async function runPromptGeneration<T>(args: {
     });
     await setActiveVersion(args.nodeId, version.id);
 
-    // D536 — a prompt run keeps its flat price, set in the database, for reserve and settle. The
+    // D559 — a prompt run keeps its flat price, set in the database, for reserve and settle. The
     // token cost OpenAI billed is recorded for comparison and never drives credits_charged.
     const record = promptRunRecord(price, usage, args.attachmentCount);
     const credits = record?.credits ?? estimate;

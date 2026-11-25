@@ -1,4 +1,4 @@
-// D537 — the text and scrape models the free features call, and their ai_models rows
+// D560 — the text and scrape models the free features call, and their ai_models rows
 // (migration 0082). Ids are provider-prefixed; the call sites use the bare model name.
 import type { AiModelSeedRow } from "./seed";
 

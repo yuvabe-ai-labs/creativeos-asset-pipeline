@@ -1,4 +1,4 @@
-// D546 — the checks every admin write to a model or a price runs. Pure and client-safe.
+// D569 — the checks every admin write to a model or a price runs. Pure and client-safe.
 import { paramDefaults } from "./model-lists";
 import { aspectRatioToOpenAISize } from "@/lib/image-gen/cost";
 import { checkAiModelPriceRow, checkAiModelRow } from "./schema";
@@ -67,14 +67,14 @@ export function checkModelPatch(
       return { ok: false, error: REPLACEMENT_ERROR };
     }
   } else if (touchesReplacement && isMedia) {
-    // A retired image or video model must name where its nodes go (D546, amended).
+    // A retired image or video model must name where its nodes go (D569, amended).
     return { ok: false, error: REPLACEMENT_ERROR };
   }
   if (merged.status === "live" && isMedia) {
     if (typeof merged.adapter_key !== "string" || !ctx.runnableKeys.has(merged.adapter_key)) {
       return { ok: false, error: NO_ADAPTER_ERROR };
     }
-    // Going live needs a price that has started; a run of a live model with none is refused (D546, amended).
+    // Going live needs a price that has started; a run of a live model with none is refused (D569, amended).
     const at = (ctx.now ?? new Date()).getTime();
     const started = ctx.prices.some((p) => p.modelId === rawRow.id && new Date(p.effectiveFrom).getTime() <= at);
     if (rawRow.status !== "live" && !started) return { ok: false, error: NO_PRICE_ERROR };
@@ -245,7 +245,7 @@ export function requestedStart(input: StartInput, now: Date): Date {
   return input.now === true ? now : new Date(typeof input.effectiveFrom === "string" ? input.effectiveFrom : NaN);
 }
 
-// D549 — Undo of a started change: only the latest started row, made by this admin in the last day.
+// D572 — Undo of a started change: only the latest started row, made by this admin in the last day.
 export const UNDO_WINDOW_MS = 24 * 60 * 60 * 1000;
 type DatedRow = { id: string; effectiveFrom: string; createdAt: string; createdBy: string | null };
 

@@ -55,7 +55,7 @@ describe("loadGenerationFeed (D366)", () => {
     await expect(loadGenerationFeed(client, ids(150))).rejects.toThrow("gateway");
   });
 
-  it("leaves record-only rows (D537) out of every chunk", async () => {
+  it("leaves record-only rows (D560) out of every chunk", async () => {
     const { client, calls } = fakeClient(() => ({ data: [], error: null }));
     await loadGenerationFeed(client, ids(150));
     for (const c of calls) expect(c.eqs).toContainEqual(["record_only", false]);
@@ -70,7 +70,7 @@ describe("isLiveFeedRow", () => {
     expect(isLiveFeedRow(row, onCanvas)).toBe(true);
   });
 
-  it("ignores a record-only row (D537), even on this canvas's node", () => {
+  it("ignores a record-only row (D560), even on this canvas's node", () => {
     expect(isLiveFeedRow({ ...row, record_only: true }, onCanvas)).toBe(false);
   });
 

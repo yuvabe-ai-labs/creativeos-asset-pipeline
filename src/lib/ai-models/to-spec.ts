@@ -1,4 +1,4 @@
-// D529 — a catalog model as the spec shapes the app reads today, so Plan 1b can swap the
+// D552 — a catalog model as the spec shapes the app reads today, so Plan 1b can swap the
 // registries for the catalog without touching their readers. Client-safe.
 import type { ClientModelSpec } from "@/lib/image-gen/types";
 import type { VideoGenClientModelSpec } from "@/lib/video-gen/types";
@@ -6,7 +6,7 @@ import { buildZodFromParams } from "@/lib/image-gen/schema-builder";
 import type { ImageCapabilities, VideoCapabilities } from "./schema";
 import type { AiModel } from "./types";
 
-// D539 — checked on load (schema.ts), so these casts hold.
+// D562 — checked on load (schema.ts), so these casts hold.
 export function toImageClientSpec(model: AiModel): ClientModelSpec {
   return {
     ...(model.capabilities as ImageCapabilities),

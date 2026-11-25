@@ -6,7 +6,7 @@ vi.mock("@/hooks/queries/ai-models", () => ({ useAiCatalog: () => catalog }));
 
 import { AvatarCreditCost } from "../avatar-credit-cost";
 
-describe("AvatarCreditCost (D534)", () => {
+describe("AvatarCreditCost (D557)", () => {
   it("shows the credits", () => {
     expect(renderToStaticMarkup(<AvatarCreditCost credits={1250} />)).toContain("1,250");
   });

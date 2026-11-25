@@ -26,7 +26,7 @@ export type SnapshotResult =
 export async function snapshotHandle(
   clientId: string,
   handle: string,
-  // D537 — whom the Apify run's cost is recorded for, from what the caller already resolved. The
+  // D560 — whom the Apify run's cost is recorded for, from what the caller already resolved. The
   // route passes `record: recordAfterResponse`; the daily task keeps the default, which awaits it.
   opts?: { fetchImpl?: typeof fetch; recordFor?: RecordFor; record?: RecordApifyCost },
 ): Promise<SnapshotResult> {

@@ -22,7 +22,7 @@ export type HeaderModel = {
   replacedBy: string | null;
   /** The saved replacement's name when it is no longer live, so it can still be named. */
   replacedByLabel: string | null;
-  /** Fails its check (D547): no price actions; name, status and order still try to save. */
+  /** Fails its check (D570): no price actions; name, status and order still try to save. */
   broken: boolean;
 };
 

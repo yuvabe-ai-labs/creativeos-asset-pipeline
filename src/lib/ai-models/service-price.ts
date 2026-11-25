@@ -1,4 +1,4 @@
-// D535 — the per-run services' estimate and charge, from a price row. Client-safe: the dub, lip
+// D558 — the per-run services' estimate and charge, from a price row. Client-safe: the dub, lip
 // sync, voice, captions and prompt panels price their estimate with these too.
 import { priceMeters } from "./pricing";
 import { openAiChatMeters } from "./text-usage";
@@ -88,7 +88,7 @@ export function transcribeCharge(
 }
 
 /**
- * D536 — a prompt run's flat price in USD, read from its row: a `request` line plus one
+ * D559 — a prompt run's flat price in USD, read from its row: a `request` line plus one
  * `input_image` line per attachment. On a prompt row the input_image line is a flat per-attachment
  * price, not a token meter.
  */
@@ -109,7 +109,7 @@ type PromptUsage = {
 };
 
 /**
- * D536 — a prompt run is charged its flat price; the token cost OpenAI billed is returned beside it
+ * D559 — a prompt run is charged its flat price; the token cost OpenAI billed is returned beside it
  * (`recordedUsd`, null when a token meter is unpriced) to be recorded, never charged. `usd` is the
  * flat USD; callers convert it with promptFlatCredits (x1000), never creditsFromUsd.
  */
@@ -125,7 +125,7 @@ export function promptCharge(
 }
 
 /**
- * D536 — what a finished prompt run records: the flat credits it is charged (reserved and settled
+ * D559 — what a finished prompt run records: the flat credits it is charged (reserved and settled
  * alike), the token cost OpenAI billed (null when there is no usage or a token meter is unpriced),
  * and the bill. With no usage the bill is the request itself. Null when the row has no flat price.
  */

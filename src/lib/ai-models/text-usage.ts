@@ -1,4 +1,4 @@
-// D537 — provider usage blocks as pricing meters. Pure: no provider calls, no database.
+// D560 — provider usage blocks as pricing meters. Pure: no provider calls, no database.
 import type { ProviderBill } from "./types";
 
 type Meters = ProviderBill["meters"];

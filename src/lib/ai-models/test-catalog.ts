@@ -1,4 +1,4 @@
-// D538 — the ai_models rows the migrations leave behind (0077, 0079 and 0082 insert, 0084
+// D561 — the ai_models rows the migrations leave behind (0077, 0079 and 0082 insert, 0084
 // updates), with the seeded prices, for tests anywhere in the app. Not imported by app code.
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -19,7 +19,7 @@ function rowsOf(name: string): SeedJsonRow[] {
   return JSON.parse(sql.slice(sql.indexOf(SEED_JSON_TAG) + SEED_JSON_TAG.length, sql.lastIndexOf(SEED_JSON_TAG)));
 }
 
-// D548 — 0086's one `insert … values (…)` row, read from the migration so a test never keeps its own copy.
+// D571 — 0086's one `insert … values (…)` row, read from the migration so a test never keeps its own copy.
 function seededCreditSettings(): CreditSettings[] {
   const file = resolve(process.cwd(), "supabase/migrations/0086_credit_settings.sql");
   if (!existsSync(file)) return [];
@@ -70,7 +70,7 @@ export function withPrice(catalog: AiCatalog, price: AiModelPrice): AiCatalog {
   return { ...catalog, prices: [...catalog.prices.filter((p) => p.modelId !== price.modelId), price] };
 }
 
-/** D548 — the catalog with its credit settings rows replaced. The original is untouched. */
+/** D571 — the catalog with its credit settings rows replaced. The original is untouched. */
 export function withCreditSettings(
   catalog: AiCatalog,
   rows: Array<Pick<CreditSettings, "effectiveFrom" | "marginPercent" | "roundStep">>,

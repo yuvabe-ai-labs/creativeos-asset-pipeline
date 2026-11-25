@@ -48,7 +48,7 @@ export async function insertGeneration(input: {
   modelUsed?: string;
   paramsSnapshot?: Record<string, unknown>;
   inputsSnapshot?: Record<string, unknown>;
-  /** D534 — the price row the run is reserved and charged with. */
+  /** D557 — the price row the run is reserved and charged with. */
   modelPriceId?: string;
 }): Promise<GenerationRow> {
   if (!input.nodeId && !input.avatarId && !input.scriptId) {
@@ -91,7 +91,7 @@ export async function succeedGeneration(input: {
   tokensUsed?: Record<string, unknown> | null;
   outputSnapshot?: string;
   meta?: Record<string, unknown>;
-  /** D535 — what the provider reported for the run. Untouched when omitted. */
+  /** D558 — what the provider reported for the run. Untouched when omitted. */
   providerBill?: ProviderBill | null;
 }): Promise<void> {
   const supabase = createServerSupabase();
@@ -203,7 +203,7 @@ export async function listLatestGenerations(
   return out;
 }
 
-// The admin org page lists jobs. Record-only rows (D537: a Copilot reply, a KB build) charge
+// The admin org page lists jobs. Record-only rows (D560: a Copilot reply, a KB build) charge
 // nothing and are not jobs, so the count and the list both leave them out.
 export async function countGenerationsForOrg(orgId: string): Promise<number> {
   const supabase = createServerSupabase();
@@ -291,7 +291,7 @@ export async function listGenerationsForOrgPage(
 // is carried under that name rather than aliased back — reviving the old name is exactly
 // the confusion 0019 existed to end.
 //
-// Record-only rows (D537) are kept here, unlike the admin list: the audit shows every provider
+// Record-only rows (D560) are kept here, unlike the admin list: the audit shows every provider
 // call the operator made while impersonating, and a Copilot reply or a KB build is one of them.
 export async function listGenerationsInWindowForOrg(
   orgId: string,
@@ -336,7 +336,7 @@ export async function listAvatarGenerations(avatarId: string): Promise<Generatio
     .from("generations")
     .select("*")
     .eq("avatar_id", avatarId)
-    // D537: a record-only row is a cost record, not one of the avatar's pictures.
+    // D560: a record-only row is a cost record, not one of the avatar's pictures.
     .eq("record_only", false)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -396,7 +396,7 @@ export async function sumAvatarCredits(avatarId: string): Promise<number> {
   );
 }
 
-/** D537: a provider call that charges no credits, kept so we know what it cost us. No ledger rows. */
+/** D560: a provider call that charges no credits, kept so we know what it cost us. No ledger rows. */
 export async function insertRecordOnlyGeneration(input: {
   orgId: string;
   clientId?: string | null;

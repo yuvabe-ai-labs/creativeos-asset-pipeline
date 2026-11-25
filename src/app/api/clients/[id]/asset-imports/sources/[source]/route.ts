@@ -1,5 +1,4 @@
 import { apiError, apiOk, withClient, withQuietErrors } from "@/lib/api/route-helpers";
-import { resolveCallerContextOrNull } from "@/lib/dal";
 import { IMPORT_SOURCES, type ImportSource } from "@/lib/asset-import/constants";
 import { ImportTargetError, setImportTarget, startAssetImports } from "@/lib/asset-import/start";
 
@@ -12,7 +11,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; source: string }> },
 ) {
   const { source } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "edit" }, async (clientId, _client, caller) =>
     withQuietErrors("Couldn't save that. Try again.", async () => {
       if (!IMPORT_SOURCES.includes(source as ImportSource)) return apiError("Unknown source.", 404);
       const body = (await req.json().catch(() => null)) as { value?: unknown } | null;
@@ -27,9 +26,8 @@ export async function PUT(
         throw e;
       }
       // A connected source imports at once; a disconnected one has nothing to import.
-      const caller = await resolveCallerContextOrNull();
       const imports = targets[source as ImportSource]
-        ? await startAssetImports({ clientId, sources: [source as ImportSource], userId: caller?.userId ?? null })
+        ? await startAssetImports({ clientId, sources: [source as ImportSource], userId: caller.userId })
         : undefined;
       return apiOk({ targets, imports });
     }),

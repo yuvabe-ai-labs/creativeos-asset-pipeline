@@ -1,7 +1,6 @@
 "use client";
 
 import { Info, Languages, Loader2, MessageSquareQuote } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DUB_LANGUAGES, DUB_STYLES, PRESENTER_VOICE, dubLanguageLabel, dubStyleLabel, dubVoiceLabel, type DubLanguage, type DubPace, type DubStyle, type DubVoiceChoice } from "@/lib/dubbing/types";
@@ -12,7 +11,7 @@ import { creditsFromUsd } from "@/lib/credits/units";
 import { DUB_NO_LENGTH_MESSAGE } from "@/lib/dubbing/copy";
 import { FieldLabel } from "./field-label";
 import { EstimatedCreditsLabel } from "./estimated-credits-label";
-import { DisabledReason } from "./disabled-reason";
+import { GatedButton } from "@/components/permissions/gated-button";
 import { DubbingAdvanced } from "./dubbing-advanced";
 import { dubBlockedReason } from "@/lib/dubbing/blocked-reasons";
 
@@ -43,7 +42,7 @@ type Props = {
 export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onStyleChange, voice, onVoiceChange, pace, onPaceChange, sourceSeconds, sourceLoading, hasSource, hasDub, running, editable, locked = null, onDub }: Props) {
   const busy = running !== null;
   const blocked = dubBlockedReason({ editable, running, hasSource, sourceLoading, sourceSeconds, locked });
-  // D535 - the estimate comes from the price row; the paid button waits until it is known.
+  // D558 - the estimate comes from the price row; the paid button waits until it is known.
   const { price: dubPrice, loading: dubPriceLoading, error: dubPriceError } = useModelPrice(DUB_MODEL_ID);
   const dubUsdEstimate = dubPrice && sourceSeconds > 0 ? dubUsd(dubPrice, sourceSeconds) : null;
   const settings = useCreditSettings();
@@ -102,13 +101,18 @@ export function DubbingDubPanel({ nodeId, language, onLanguageChange, style, onS
       <DubbingAdvanced nodeId={nodeId} language={language} voice={voice} onVoiceChange={onVoiceChange} pace={pace} onPaceChange={onPaceChange} disabled={!editable || busy} />
 
       <div className="flex flex-col gap-2">
-        <DisabledReason reason={canDub ? null : blocked ?? priceReason}>
-          <Button onClick={onDub} disabled={!canDub} className="w-full">
-            {dubPriceLoading && sourceSeconds > 0 && running !== "dub" && <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />}
-            {running === "dub" ? "Dubbing…" : hasDub ? "Dub again" : "Dub"}
-            {running !== "dub" && !dubPriceLoading && dubCredits !== null && <EstimatedCreditsLabel credits={dubCredits} />}
-          </Button>
-        </DisabledReason>
+        <GatedButton
+          onClick={onDub}
+          disabled={!canDub}
+          disabledReason={blocked ?? priceReason}
+          className="w-full"
+          triggerClassName="block w-full"
+          tooltipSide="bottom"
+        >
+          {dubPriceLoading && sourceSeconds > 0 && running !== "dub" && <Loader2 className="size-4 animate-spin" strokeWidth={1.5} />}
+          {running === "dub" ? "Dubbing…" : hasDub ? "Dub again" : "Dub"}
+          {running !== "dub" && !dubPriceLoading && dubCredits !== null && <EstimatedCreditsLabel credits={dubCredits} />}
+        </GatedButton>
         <p className="text-xs text-muted-foreground">Each dub is added to History as a new version.</p>
       </div>
     </div>

@@ -35,7 +35,7 @@ export type VideoGenInput = {
 export type VideoGenResult = {
   videoUrl: string;
   durationSeconds: number;
-  /** D528 — what the provider says it billed, when it says (Gemini Omni, Seedance). */
+  /** D551 — what the provider says it billed, when it says (Gemini Omni, Seedance). */
   usage?: VideoProviderUsage;
 };
 
@@ -107,7 +107,7 @@ export type VideoGenModelSpec = {
 
 export type VideoGenClientModelSpec = VideoGenModelSpec;
 
-/** D538 — what an adapter is given besides the request: the catalog's spec and the provider's
+/** D561 — what an adapter is given besides the request: the catalog's spec and the provider's
  *  own name for the model (the row's provider_model_id). */
 export type VideoAdapterContext = { spec: VideoGenClientModelSpec; providerModelId: string };
 export type VideoAdapter = (input: VideoGenInput, ctx: VideoAdapterContext) => Promise<VideoGenResult>;

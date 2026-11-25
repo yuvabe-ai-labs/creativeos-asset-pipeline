@@ -1,4 +1,4 @@
-// D529 — the ai_models seed row shape and the SQL writer. Migration 0077 was generated from the
+// D552 — the ai_models seed row shape and the SQL writer. Migration 0077 was generated from the
 // code registries of the day and is frozen (seed-migration.test.ts). A model change is a new migration.
 import type { AiModelKind } from "./types";
 import type { ParamSpec } from "@/lib/image-gen/types";

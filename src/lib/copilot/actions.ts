@@ -21,6 +21,15 @@ export type CopilotAction =
   | { name: "connect_nodes"; args: { from: string[]; to: string } }
   | { name: "run_playbook"; args: { name: string; slots: Record<string, string | string[]> } };
 
+// One short line for a person who may chat with the copilot but cannot change this canvas.
+export const COPILOT_VIEW_ONLY_REPLY = "This canvas is view only for you, so I can't change it.";
+
+// Whether running this decision adds or changes nodes or edges. Only opening a node's editor is
+// navigation; everything else writes to the canvas, so it is skipped on a view-only canvas.
+export function copilotActionChangesCanvas(name: CopilotAction["name"]): boolean {
+  return name !== "open_node";
+}
+
 // Where a copilot-created node lands: just right of the rightmost node (same row),
 // or a sensible spot on an empty canvas. Pure + deterministic — the caller can pan
 // to this exact point without waiting for React Flow to re-measure the new node.

@@ -21,7 +21,7 @@ vi.mock("@/lib/openai/server", () => ({ createOpenAI: () => ({ chat: { completio
 import { recordProviderCost } from "@/lib/generations/record-cost";
 import { buildCopilotContext } from "@/lib/copilot/context";
 
-// D537 — the canvas copilot records what each call cost us, once, as copilot.
+// D560 — the canvas copilot records what each call cost us, once, as copilot.
 const usage = { prompt_tokens: 1200, completion_tokens: 300, total_tokens: 1500, prompt_tokens_details: { cached_tokens: 200 } };
 const expected = {
   orgId: "org-1", clientId: "client-1", scriptId: "script-1", userId: "user-1", userEmail: "user-1@example.com",
