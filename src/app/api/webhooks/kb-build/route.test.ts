@@ -15,7 +15,9 @@ vi.mock("@/lib/db/copilot-messages", () => ({ insertCopilotMessages: vi.fn() }))
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn() }));
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
+vi.mock("@/lib/journey/kb-copilot/answers", () => ({ withAnswers: vi.fn() }));
 
+import { withAnswers } from "@/lib/journey/kb-copilot/answers";
 import { getKBJob, markKBJobFailed } from "@/lib/db/kb-jobs";
 import { getActiveKBVersion, insertKBVersion } from "@/lib/db/kb";
 import { getClientById } from "@/lib/db/clients";
@@ -33,6 +35,26 @@ describe("POST /api/webhooks/kb-build, the copilot thread", () => {
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", org_id: "org-1" } as never);
     vi.mocked(getActiveKBVersion).mockResolvedValue(null);
     vi.mocked(insertKBVersion).mockResolvedValue({ id: "v1" } as never);
+    vi.mocked(withAnswers).mockImplementation(async (messages) => messages);
+  });
+
+  it("lays likely answers onto the first question (D533)", async () => {
+    const { kbWith } = await import("@/lib/kb/__tests__/fixtures");
+    vi.mocked(withAnswers).mockImplementation(async (messages) => messages.map((m) => (m.card?.kind === "question" ? { ...m, suggestions: ["Tapped"] } : m)));
+    const { POST } = await import("./route");
+    await POST(post({ ...succeeded, kbOutput: kbWith({ "target_audience.age_range": { evidence_type: "inferred", value: "" } }) }));
+    const messages = vi.mocked(insertCopilotMessages).mock.calls[0][3];
+    expect(messages[1].suggestions).toEqual(["Tapped"]);
+  });
+
+  it("still writes the build message and the plain question when likely answers fail (D533)", async () => {
+    const { kbWith } = await import("@/lib/kb/__tests__/fixtures");
+    vi.mocked(withAnswers).mockRejectedValue(new Error("down"));
+    const { POST } = await import("./route");
+    await POST(post({ ...succeeded, kbOutput: kbWith({ "target_audience.age_range": { evidence_type: "inferred", value: "25 to 40" } }) }));
+    const messages = vi.mocked(insertCopilotMessages).mock.calls[0][3];
+    expect(messages).toHaveLength(2);
+    expect(messages[1].card).toMatchObject({ kind: "question", field: "target_audience.age_range" });
   });
 
   it("says in the thread that the KB is built", async () => {

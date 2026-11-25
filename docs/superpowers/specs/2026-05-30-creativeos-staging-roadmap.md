@@ -9304,6 +9304,16 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** `2026-11-24-copilot-market-research-design.md` §5, §9 question 1.
 
+### D533 — Questions about empty brand KB fields offer likely answers *(recorded 2026-11-25; refines brand KB copilot spec §6)*
+
+**Decision.** In the review walk, a question about a field the build found nothing for offers up to 4 likely answers as buttons, before "There is none" and "Skip this one", and says they are guesses ("Some likely answers are below, or type your own."). They come from one quick model call when the question is asked, reading the field and the brand KB as it stands; a failure or a wait over 5 seconds sends the question without them. They are kept on the question card, and a tap is saved in code as the person's own answer (D519). Questions about an inferred value are unchanged.
+
+**Why.** Cyril, 2026-11-25: typing every empty field's answer is most of the walk's work; a tap is quicker. Empty fields only: an inferred value already has a guess on screen, and alternatives to it would read as the copilot arguing with the KB.
+
+**Rejected.** Likely answers on every question. Working them out for all empty fields at the end of the build (stale once answers come in, and a heavier build). Letting the chat model offer them with its own reply choices (questions are written by code, the first one when a build lands, with no model).
+
+**Originated →** `2026-11-25-kb-question-answer-options-design.md`.
+
 D551–D572 were D528–D549 on the model-catalog branch; migrations 0076–0089 and older comments use the old numbers.
 
 ### D551 — A video or image is charged from what the provider says it billed *(recorded 2026-11-21; refines D484, D366, D299)*

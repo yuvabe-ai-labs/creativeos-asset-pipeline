@@ -16,6 +16,8 @@ import { insertCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-
 import { buildFailedMessage, buildSucceededMessage } from "@/lib/journey/kb-copilot/build-messages";
 import { reviewAccount, reviewFields } from "@/lib/journey/kb-copilot/review";
 import { walkMessages } from "@/lib/journey/kb-copilot/walk";
+import { withAnswers } from "@/lib/journey/kb-copilot/answers";
+import { renderKbText } from "@/lib/scripts/copilot/prompt-context";
 import { ONBOARDING } from "@/lib/journey/thread/schema";
 
 const NON_TERMINAL = KB_JOB_NON_TERMINAL_STATUSES;
@@ -161,10 +163,13 @@ export async function POST(req: Request) {
     let landed: NewCopilotMessage[];
     try {
       const fields = reviewFields(body.kbOutput);
-      landed = [
-        buildSucceededMessage({ ...built, account: reviewAccount(fields) }),
-        ...walkMessages({ fields, walk: { asked: [], pending: null }, turn: null }),
-      ];
+      const questions = walkMessages({ fields, walk: { asked: [], pending: null }, turn: null });
+      // Likely answers on a question about an empty field (D533). Never at the cost of the question.
+      const answered = await withAnswers(questions, fields, renderKbText(body.kbOutput as TraceableBrandKB)).catch((e) => {
+        console.error("[webhooks/kb-build] could not suggest answers", e);
+        return questions;
+      });
+      landed = [buildSucceededMessage({ ...built, account: reviewAccount(fields) }), ...answered];
     } catch (e) {
       // The KB is saved by now. A KB this cannot count must still be announced, never failed.
       console.error("[webhooks/kb-build] could not count the KB for the copilot thread", e);

@@ -23,6 +23,7 @@ vi.mock("@/lib/image-analysis/start", () => ({ startImageAnalysisQuietly: vi.fn(
 vi.mock("@/lib/kb/changes/start", () => ({ startKbProposal: vi.fn() }));
 vi.mock("@/lib/db/kb", () => ({ getActiveKBVersion: vi.fn(), patchKBFields: vi.fn() }));
 vi.mock("@/lib/db/copilot-traces", () => ({ insertTurnTrace: vi.fn() }));
+vi.mock("@/lib/journey/kb-copilot/answers", () => ({ withAnswers: vi.fn() }));
 
 import { revalidatePath } from "next/cache";
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
@@ -39,6 +40,7 @@ import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 import { startKbProposal } from "@/lib/kb/changes/start";
 import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
 import { insertTurnTrace } from "@/lib/db/copilot-traces";
+import { withAnswers } from "@/lib/journey/kb-copilot/answers";
 import { kbWith } from "@/lib/kb/__tests__/fixtures";
 import { KB_TURN_FAILED_AFTER_SAVE_REPLY, KB_TURN_FAILED_REPLY, KB_TURN_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
 import { BuildAlreadyRunningError } from "@/lib/kb/build-errors";
@@ -72,6 +74,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     afterWork.length = 0;
+    vi.mocked(withAnswers).mockImplementation(async (messages) => messages);
     vi.mocked(resolveOrgId).mockResolvedValue("org-1");
     vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", orgId: "org-1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
@@ -313,6 +316,22 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       expect(stored).toHaveLength(2);
       expect(stored[0]).toEqual({ id: expect.any(String), role: "assistant", content: "Good.", suggestions: [] });
       expect(stored[1].card).toMatchObject({ kind: "question", field: TONE });
+    });
+
+    it("lays likely answers onto the next question before storing it (D533)", async () => {
+      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Good.", suggestions: [], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] }, card: null });
+      vi.mocked(withAnswers).mockImplementation(async (messages) => messages.map((m) => (m.card?.kind === "question" ? { ...m, suggestions: ["Tapped", ...(m.suggestions ?? [])] } : m)));
+      await send({ text: "yes", attachments: [] });
+      const [, fields, kbText] = vi.mocked(withAnswers).mock.calls[0];
+      expect(fields).toHaveLength(43);
+      expect(kbText).not.toBe("");
+      expect(vi.mocked(insertCopilotMessages).mock.calls[1][3][1].suggestions?.[0]).toBe("Tapped");
+    });
+
+    it("gives the turn the waiting question's likely answers, and none once it is no longer waiting (D533)", async () => {
+      vi.mocked(listCopilotMessages).mockResolvedValue([{ ...question(AGE), card: { kind: "question", field: AGE, label: AGE, answers: ["25–34"] } }]);
+      await send({ text: "25–34", attachments: [] });
+      expect(vi.mocked(runKbTurn).mock.calls[0][0].review?.answers).toEqual(["25–34"]);
     });
 
     it("marks a trace whose waiting question code asks again", async () => {

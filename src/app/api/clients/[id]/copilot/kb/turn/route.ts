@@ -18,6 +18,7 @@ import {
 import { isBuilding, openingMessage } from "@/lib/journey/kb-copilot/context";
 import { reviewFields } from "@/lib/journey/kb-copilot/review";
 import { walkMessages, walkOf, type TurnWalk } from "@/lib/journey/kb-copilot/walk";
+import { withAnswers } from "@/lib/journey/kb-copilot/answers";
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
 import { kbTraceRow, kbTurnMarks } from "@/lib/journey/kb-copilot/trace";
 import { runKbTurn, type KbActions, type KbReview, type KbSaved } from "@/lib/journey/kb-copilot/turn";
@@ -224,8 +225,12 @@ export async function POST(req: Request, { params }: Ctx) {
           // after a turn that failed. The fields are the ones read above with this turn's answers laid
           // over them.
           const settled = turnWalk?.settled ?? [];
+          // A question about an empty field comes with likely answers (D533); they never hold it up.
           const extra: NewCopilotMessage[] = fields && turnWalk && !isBuilding(ctx)
-            ? walkMessages({ fields: fields.map((f) => (settled.includes(f.path) ? { ...f, status: "approved" as const } : f)), walk, turn: turnWalk })
+            ? await withAnswers(
+              walkMessages({ fields: fields.map((f) => (settled.includes(f.path) ? { ...f, status: "approved" as const } : f)), walk, turn: turnWalk }),
+              fields, version ? renderKbText(version.output as unknown as TraceableBrandKB) : "",
+            )
             : [];
           // The reply's id is made here so the trace can name the reply this turn produced.
           const replyId = crypto.randomUUID();
