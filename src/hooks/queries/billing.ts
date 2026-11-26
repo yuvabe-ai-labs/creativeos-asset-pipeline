@@ -31,6 +31,11 @@ export function useChangePlan() {
   return useMutation({ mutationFn: (priceId: string) => billingService.changePlan(priceId) });
 }
 
+// Approve a new plan price the owner's way of paying can't move to (D595).
+export function useApproveNewPrice() {
+  return useMutation({ mutationFn: () => billingService.approveNewPrice() });
+}
+
 // Top-ups (D581): one payment; the credits come with the order.paid webhook.
 export function useStartTopUp() {
   return useMutation({ mutationFn: (priceId: string) => billingService.startTopUp(priceId) });

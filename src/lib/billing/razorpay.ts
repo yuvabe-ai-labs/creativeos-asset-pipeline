@@ -140,11 +140,29 @@ export async function listOrderPayments(orderId: string): Promise<{ id: string; 
   return res.items ?? [];
 }
 
-/** A monthly subscription to a plan, charged up to `totalCount` times. */
-export async function createSubscription(input: { planId: string; totalCount: number; notes: Record<string, string> }): Promise<RazorpaySubscription> {
+/** A monthly subscription to a plan, charged up to `totalCount` times. With `startAt` (unix seconds,
+ *  in the future) the first charge waits for that day: Checkout only authorises it with a small
+ *  amount that is refunded, and a subscription not authorised by then expires (D595).
+ *  `notifyCustomer: false` keeps Razorpay's own emails out of it; we tell the owner. */
+export async function createSubscription(input: {
+  planId: string;
+  totalCount: number;
+  notes: Record<string, string>;
+  startAt?: number;
+  notifyCustomer?: boolean;
+}): Promise<RazorpaySubscription> {
   return razorpay<RazorpaySubscription>(
     "/subscriptions",
-    { method: "POST", body: { plan_id: input.planId, total_count: input.totalCount, customer_notify: 1, notes: input.notes } },
+    {
+      method: "POST",
+      body: {
+        plan_id: input.planId,
+        total_count: input.totalCount,
+        customer_notify: input.notifyCustomer === false ? 0 : 1,
+        notes: input.notes,
+        ...(input.startAt ? { start_at: input.startAt } : {}),
+      },
+    },
     PLAN_FAILED,
   );
 }

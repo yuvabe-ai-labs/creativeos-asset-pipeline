@@ -3,8 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
-  record: vi.fn(), charge: vi.fn(), status: vi.fn(), store: vi.fn(), mark: vi.fn(),
+  record: vi.fn(), charge: vi.fn(), status: vi.fn(), store: vi.fn(), mark: vi.fn(), approve: vi.fn(),
 }));
+vi.mock("@/lib/db/billing-approvals", () => ({ recordPriceApproval: m.approve }));
 vi.mock("@/lib/db/billing-payments", () => ({ recordRazorpayPayment: m.record }));
 vi.mock("@/lib/db/billing-subscriptions", () => ({
   recordSubscriptionCharge: m.charge, setSubscriptionStatus: m.status, storeRazorpayEvent: m.store, markRazorpayEvent: m.mark,
@@ -34,6 +35,14 @@ describe("POST /api/webhooks/razorpay", () => {
     m.status.mockResolvedValue(true);
     m.store.mockResolvedValue("new");
     m.mark.mockResolvedValue(undefined);
+  });
+
+  it("records an approval of a new price when its subscription is authorised (D595)", async () => {
+    m.approve.mockResolvedValue(true);
+    const res = await post({ event: "subscription.authenticated", payload: { subscription: { entity: sub } } });
+    expect(res.status).toBe(200);
+    expect(m.approve).toHaveBeenCalledWith("sub_1");
+    expect(m.status).not.toHaveBeenCalled();
   });
 
   it("refuses a wrong or missing signature and stores nothing", async () => {

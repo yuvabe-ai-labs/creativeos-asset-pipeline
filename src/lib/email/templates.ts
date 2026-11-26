@@ -154,3 +154,31 @@ export function planPriceChangeEmail(a: {
     action: { label: "Open Billing", link: a.link },
   });
 }
+
+/** To the owners when a new price for their plan needs their approval, because the way they pay
+ *  can't move to it on its own (D595), and once more 3 days before the end date. Amounts with GST. */
+export function planPriceApprovalEmail(a: {
+  to: string[];
+  agency: string;
+  plan: string;
+  toMinor: number;
+  credits: number;
+  endsAt: string;
+  reminder: boolean;
+  link: string;
+}): Email {
+  const by = formatIstDate(new Date(a.endsAt));
+  const lines = [
+    `The price of the ${a.plan} plan for ${a.agency} is changing to ${formatRupees(a.toMinor)} a month with GST, for ${a.credits.toLocaleString("en-IN")} credits every month.`,
+    `The way you pay can't move to a new price by itself, so it needs your approval. Approve it on the Billing page before ${by}, or your plan ends that day.`,
+    `Approving takes a ₹5 check that's refunded. Your first payment at the new price is on ${by}, and nothing changes until then.`,
+  ];
+  return compose({
+    to: a.to,
+    subject: a.reminder ? `Approve your plan's new price by ${by}` : `Approve the new price of your ${a.plan} plan`,
+    preview: `Approve before ${by}, or your plan ends then.`,
+    heading: a.reminder ? "Your plan ends soon unless you approve" : "Approve your plan's new price",
+    lines,
+    action: { label: "Approve on Billing", link: a.link },
+  });
+}

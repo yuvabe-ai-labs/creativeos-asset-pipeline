@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/" }));
 vi.mock("@/hooks/queries/billing", () => {
   const m = () => ({ mutateAsync: vi.fn(), isPending: false });
-  return { useSubscribe: m, useConfirmSubscription: m, useStartTopUp: m, useConfirmTopUp: m, useCancelPlan: m, useChangePlan: m, usePayNow: m };
+  return { useSubscribe: m, useConfirmSubscription: m, useStartTopUp: m, useConfirmTopUp: m, useCancelPlan: m, useChangePlan: m, usePayNow: m, useApproveNewPrice: m };
 });
 vi.mock("@/hooks/queries/billing-history", () => ({ useOwnerPaymentsPage: () => ({ data: undefined, isFetching: false, isError: false }) }));
 
@@ -12,6 +12,7 @@ import { ownerLine } from "../billing-bar";
 import { PlansGrid } from "../owner/plans-grid";
 import { PaymentsList } from "../owner/payments-list";
 import { PlanSummary } from "../owner/plan-summary";
+import { PriceApprovalBanner } from "../owner/price-approval-banner";
 import { CreditGrantList } from "../credit-grant-list";
 import { ProfileCredits } from "@/components/identity/profile-credits";
 import type { OwnerBillingSummary } from "@/lib/billing/summary";
@@ -21,7 +22,7 @@ const plans = [
   { priceId: "p1", productId: "a", name: "Starter", description: null, amountMinor: 1_200_000, credits: 100_000 },
   { priceId: "p2", productId: "b", name: "Studio", description: "For growing teams", amountMinor: 2_400_000, credits: 200_000 },
 ];
-const sub = { id: "s", status: "active" as const, priceId: "p1", nextPriceId: null, planName: "Starter", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1", paymentDueSince: null, next: null };
+const sub = { id: "s", status: "active" as const, priceId: "p1", nextPriceId: null, planName: "Starter", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1", paymentDueSince: null, next: null, approval: null };
 const moving = (state: "scheduled" | "waiting" | "refused") => ({
   ...sub,
   nextPriceId: "p1b",
@@ -122,5 +123,26 @@ describe("the owner's billing page", () => {
     expect(html).toContain("48,000");
     expect(html).toContain("left");
     expect(html).toContain('href="/billing"');
+  });
+});
+
+describe("a new price to approve (D595)", () => {
+  const asked = { state: "asked" as const, priceId: "p1b", planName: "Starter", amountMinor: 1_400_000, credits: 100_000, endsAt: "2026-12-21T00:00:00Z" };
+
+  it("asks the owner to approve before the plan's end date, with the ₹5 check, and no vendor names", () => {
+    const html = renderToStaticMarkup(<PriceApprovalBanner approval={asked} />);
+    expect(html).toContain("The Starter price changes to ₹14,000 a month + GST. Approve the new price before 21 Dec 2026, or your plan ends then.");
+    expect(html).toContain("₹5 check that&#x27;s refunded");
+    expect(html).toContain("Approve new price");
+    expect(html).not.toMatch(/razorpay|upi|mandate/i);
+  });
+
+  it("says it continues once approved, and the plan line says so too", () => {
+    const approved = { state: "approved" as const, priceId: "p1b", planName: "Starter", amountMinor: 1_400_000, credits: 100_000, startsAt: "2026-12-21T00:00:00Z" };
+    expect(renderToStaticMarkup(<PriceApprovalBanner approval={approved} />)).toContain("New price approved. Your plan continues on 21 Dec 2026 at ₹14,000 a month.");
+    const html = renderToStaticMarkup(<PlanSummary subscription={{ ...sub, status: "cancelling", approval: asked }} />);
+    expect(html).toContain("Ends 21 Dec 2026 unless you approve the new price.");
+    expect(html).not.toContain(">Cancelled<");
+    expect(html).toContain("Cancel plan");
   });
 });

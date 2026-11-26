@@ -24,7 +24,6 @@ import { agencyMonthWords, exampleRuns, heldRunsChange, heldWords, roundingPushW
 /** Every change starts this long after it is saved at the earliest; the server moves a sooner start. */
 export const LEAD_MINUTES = CREDIT_SETTINGS_LEAD_MINUTES;
 /** A rise of this much on a typical run is flagged. */
-export const RISE_WARN_PERCENT = 20;
 /** At or above this margin the rise warning names it, in case it is a typo. */
 export const MARGIN_WARN_PERCENT = 50;
 
@@ -107,10 +106,10 @@ export function buildCreditReview(a: {
   if (same) {
     warnings.push({ tone: "info", text: rep ? "These are the settings that change already holds. Nothing new to save." : "These are the settings in force then. Nothing new to save." });
   }
-  const rises = rows.filter((r) => (r.percent ?? 0) >= RISE_WARN_PERCENT - 1e-9).length;
-  if (rises) {
-    const check = a.draft.marginPercent >= MARGIN_WARN_PERCENT ? `Check the margin: you entered ${a.draft.marginPercent}%.` : "Check that's what you meant.";
-    warnings.push({ tone: "warn", text: `${rises} of ${rows.length} typical runs cost ${RISE_WARN_PERCENT}% or more extra. ${check}` });
+  // Runs rising with the margin is the point of a margin change, so that alone is not a warning;
+  // a margin this high usually is a typo (a 10 typed as 100).
+  if (!same && a.draft.marginPercent >= MARGIN_WARN_PERCENT) {
+    warnings.push({ tone: "warn", text: `A ${a.draft.marginPercent}% margin puts every run up by at least that much. Check that's what you meant.` });
   }
   const scheduled = [...a.settings].filter((s) => s.id !== rep?.id && startOf(s) > a.now.getTime()).sort((x, y) => startOf(x) - startOf(y));
   for (const s of scheduled) {

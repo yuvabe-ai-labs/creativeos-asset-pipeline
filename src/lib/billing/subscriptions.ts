@@ -8,9 +8,11 @@ import {
   updateSubscription,
   type PurchasablePrice,
 } from "@/lib/db/billing-subscriptions";
+import { getNewerPrice } from "@/lib/db/billing-approvals";
 import { cancelSubscription, createPlan, createSubscription, getSubscription, razorpayKeyId } from "./razorpay";
 import { withGst } from "./gst";
 import { schedulePlanChange } from "./plan-change";
+import { dropPendingApproval } from "./price-approval";
 import type { MoveRefusal } from "./plan-move-copy";
 
 // The owner's plan steps (spec 2026-11-21-monthly-plans-design.md). Each answers either what the
@@ -55,6 +57,8 @@ export async function startSubscription(orgId: string, priceId: string): Promise
     if (live.razorpaySubscriptionId) await cancelSubscription(live.razorpaySubscriptionId, false).catch((e) => console.warn("[billing] stale subscription not cancelled", e));
     await updateSubscription(live.id, { status: "ended" });
   }
+  // A new price approved for a plan that has since ended (D595): the plan picked now replaces it.
+  await dropPendingApproval(orgId);
 
   const planId = await razorpayPlanFor(price);
   const sub = await createSubscription({ planId, totalCount: TOTAL_CHARGES, notes: { org_id: orgId, price_id: price.id } });
@@ -66,6 +70,11 @@ export async function startSubscription(orgId: string, priceId: string): Promise
 export async function cancelPlan(orgId: string): Promise<StepResult<{ endsAt: string | null }>> {
   const live = await getLiveSubscription(orgId);
   if (!live || !live.razorpaySubscriptionId || live.status === "created") return refuse(404, "You don't have a plan to cancel.");
+  // A new price waiting for approval, or approved, goes too: the plan ends and nothing follows (D595).
+  if (live.approval) {
+    await dropPendingApproval(orgId);
+    await updateSubscription(live.id, { endsUnlessApprovedAt: null });
+  }
   if (live.status === "cancelling") return { ok: true, value: { endsAt: live.currentPeriodEnd } };
   // A payment is due: there is no paid month left to use, so the plan ends now (D585).
   if (live.status === "payment_due") {
@@ -99,8 +108,55 @@ export async function changePlan(orgId: string, priceId: string): Promise<StepRe
   const outcome = await schedulePlanChange(live.razorpaySubscriptionId, planId);
   if (outcome.kind === "refused") return refuse(409, CHANGE_REFUSED[outcome.refused]);
   if (outcome.kind === "waiting") return refuse(409, "Your plan can't be changed right now. Try again later.");
-  await updateSubscription(live.id, { nextPriceId: price.id });
+  // The owner's choice replaces a new price waiting for approval (D595).
+  if (live.approval) await dropPendingApproval(orgId);
+  await updateSubscription(live.id, { nextPriceId: price.id, ...(live.approval ? { endsUnlessApprovedAt: null } : {}) });
   return { ok: true, value: { from: live.currentPeriodEnd } };
+}
+
+/** An approval subscription starts at once when its day is this close (Razorpay needs start_at in
+ *  the future). */
+const START_LEAD_MS = 10 * 60_000;
+/** The final cycle Razorpay runs may end a day or two from the end date counted in months. */
+const FINAL_CYCLE_SLACK_MS = 3 * 86_400_000;
+
+/**
+ * The owner approves a new price their way of paying can't move to (D595): a new subscription at
+ * that price whose first charge is the day the plan would end. Checkout authorises it with a small
+ * refunded amount; the webhook records the approval and the first charge makes it the plan. Asking
+ * again replaces an attempt never finished. If the day has passed, it starts now.
+ */
+export async function approveNewPrice(orgId: string, now = Date.now()): Promise<StepResult<{ subscriptionId: string; keyId: string; startsAt: string | null }>> {
+  const live = await getLiveSubscription(orgId);
+  const ask = live?.approval;
+  if (!live || !ask) return refuse(409, "There's no new price to approve.");
+  if (ask.state === "approved") return refuse(409, "You've already approved the new price.");
+  const price = await getPurchasablePrice(ask.priceId);
+  if (!price || price.product.kind !== "plan" || price.intervalMonths !== 1) return refuse(409, "That price isn't available. Pick a plan when yours ends.");
+
+  if ((await dropPendingApproval(orgId, { unapprovedOnly: true })) === "approved") return refuse(409, "You've already approved the new price.");
+
+  // The day the old subscription's last paid cycle ends: Razorpay's own date once that cycle runs.
+  const endsAt = new Date(ask.endsAt).getTime();
+  const cycleEnd = live.currentPeriodEnd ? new Date(live.currentPeriodEnd).getTime() : null;
+  const startAt = cycleEnd !== null && Math.abs(cycleEnd - endsAt) <= FINAL_CYCLE_SLACK_MS ? cycleEnd : endsAt;
+  const later = startAt - now > START_LEAD_MS;
+  // The day has passed with a payment due: there is no paid month to finish, so the old one stops now.
+  if (!later && live.status === "payment_due" && live.razorpaySubscriptionId) {
+    await cancelSubscription(live.razorpaySubscriptionId, false).catch((e) => console.warn("[billing] due plan not cancelled", e instanceof Error ? e.message : e));
+  }
+
+  const [planId, newer] = await Promise.all([razorpayPlanFor(price), getNewerPrice(price.id)]);
+  const sub = await createSubscription({
+    planId,
+    totalCount: TOTAL_CHARGES,
+    notes: { org_id: orgId, price_id: price.id, replaces: live.id },
+    notifyCustomer: false,
+    ...(later ? { startAt: Math.floor(startAt / 1000) } : {}),
+  });
+  const startsAt = later ? new Date(startAt).toISOString() : null;
+  await insertSubscription({ orgId, priceId: price.id, razorpaySubscriptionId: sub.id, scheduled: { startsAt, nextPriceId: newer } });
+  return { ok: true, value: { subscriptionId: sub.id, keyId: razorpayKeyId(), startsAt } };
 }
 
 /** Where the owner pays a due charge (D585): Razorpay's hosted page for the subscription, which

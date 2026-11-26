@@ -38,8 +38,11 @@ export type OlderPrice = {
   lastRenewal: string | null;
   /** Marked to move, not set up yet (a payment due, or not reached yet). */
   waiting: number;
-  /** Can't move, by why, with the agencies. */
-  refused: { refused: MoveRefusal; agencies: number; orgs: { id: string; name: string }[] }[];
+  /** Can't move, by why, with the agencies. UPI and bank mandate owners are asked to approve
+   *  today's price, and their plans end between `firstEnd` and `lastEnd` if they don't (D595). */
+  refused: { refused: MoveRefusal; agencies: number; orgs: { id: string; name: string }[]; firstEnd: string | null; lastEnd: string | null }[];
+  /** Today's price, which the refused owners are asked to approve. */
+  toMinor: number | null;
 };
 
 const NONE: PriceHealth = { agencies: 0, active: 0, ending: 0, due: 0, monthlyMinor: 0, paidCount: 0, paidMinor: 0 };
@@ -53,7 +56,7 @@ const latest = (a: string | null, b: string | null) => (a === null ? b : b === n
 
 /** An older price's agencies and their moves to today's price. */
 function olderPrice(p: CatalogPrice, agencies: number, to: CatalogPrice | null, moves: readonly PriceMove[]): OlderPrice {
-  const o: OlderPrice = { amountMinor: p.amount_minor, agencies, moving: 0, firstRenewal: null, lastRenewal: null, waiting: 0, refused: [] };
+  const o: OlderPrice = { amountMinor: p.amount_minor, agencies, moving: 0, firstRenewal: null, lastRenewal: null, waiting: 0, refused: [], toMinor: to?.amount_minor ?? null };
   for (const m of moves) {
     if (m.priceId !== p.id || !to || m.nextPriceId !== to.id) continue;
     if (m.state === "scheduled") {
@@ -61,7 +64,7 @@ function olderPrice(p: CatalogPrice, agencies: number, to: CatalogPrice | null, 
       o.firstRenewal = earliest(o.firstRenewal, m.firstRenewal);
       o.lastRenewal = latest(o.lastRenewal, m.lastRenewal);
     } else if (m.state === "waiting") o.waiting += m.agencies;
-    else if (m.refused) o.refused.push({ refused: m.refused, agencies: m.agencies, orgs: m.orgs });
+    else if (m.refused) o.refused.push({ refused: m.refused, agencies: m.agencies, orgs: m.orgs, firstEnd: m.firstEnd ?? null, lastEnd: m.lastEnd ?? null });
   }
   return o;
 }
@@ -117,6 +120,19 @@ const they = (n: number) => (n === 1 ? "it" : "they");
 const theyStay = (n: number) => (n === 1 ? "it stays" : "they stay");
 const theirRenewal = (n: number) => (n === 1 ? "its next renewal" : "their next renewal");
 
+/** What one refused group of an older price says: asked to approve (UPI, bank mandate, D595), or
+ *  stays on the old price. */
+function refusedText(r: OlderPrice["refused"][number], o: OlderPrice, untilChange = true): string {
+  const old = `${formatRupees(o.amountMinor)} + GST`;
+  const changes = `${they(r.agencies)} change${r.agencies === 1 ? "s" : ""} plan`;
+  if (r.refused === "other") return `${plural(r.agencies, "agency", "agencies")} couldn't be moved, so ${theyStay(r.agencies)} on ${old} until ${changes}`;
+  if (r.firstEnd && o.toMinor !== null) {
+    const ends = r.agencies === 1 ? "plan ends" : "plans end";
+    return `${plural(r.agencies, "agency", "agencies")} ${refusalWords(r.refused, r.agencies)}: asked to approve ${formatRupees(o.toMinor)} + GST, ${ends} ${renewalWindow(r.firstEnd, r.lastEnd)} if ${they(r.agencies)} ${r.agencies === 1 ? "doesn't" : "don't"}`;
+  }
+  return `${plural(r.agencies, "agency", "agencies")} ${refusalWords(r.refused, r.agencies)}, so ${theyStay(r.agencies)} on ${old}${untilChange ? ` until ${changes}` : ""}`;
+}
+
 /** Agencies on an older price move to today's price from their next renewal, once that is set up on
  *  the payment service (D593). One line per older price: who moves and when, who isn't set up yet,
  *  who can't move (and so stays) and who is ending or changing to another plan. */
@@ -128,13 +144,7 @@ export function olderPriceLines(v: OfferView): string[] {
     const bits: string[] = [];
     if (o.moving) bits.push(`${plural(o.moving, "agency moves", "agencies move")} from ${old} to the new price at ${theirRenewal(o.moving)}, ${renewalWindow(o.firstRenewal, o.lastRenewal)}.`);
     if (o.waiting) bits.push(`${plural(o.waiting, "agency", "agencies")} on ${old} ${o.waiting === 1 ? "isn't" : "aren't"} set up to move yet. ${o.waiting === 1 ? "It's" : "They're"} tried again each night.`);
-    for (const r of o.refused) {
-      bits.push(
-        r.refused === "other"
-          ? `${plural(r.agencies, "agency", "agencies")} couldn't be moved, so ${theyStay(r.agencies)} on ${old} until ${they(r.agencies)} change${r.agencies === 1 ? "s" : ""} plan.`
-          : `${plural(r.agencies, "agency", "agencies")} ${refusalWords(r.refused, r.agencies)}, so ${theyStay(r.agencies)} on ${old} until ${they(r.agencies)} change${r.agencies === 1 ? "s" : ""} plan.`,
-      );
-    }
+    for (const r of o.refused) bits.push(`${refusedText(r, o)}.`);
     if (others) bits.push(`${plural(others, "agency", "agencies")} on ${old} ${others === 1 ? "is" : "are"} ending or changing to another plan.`);
     return bits.join(" ");
   });
@@ -153,7 +163,7 @@ export function moveRefusedItems(views: OfferView[]): AttentionItem[] {
         text:
           r.refused === "other"
             ? `${plural(r.agencies, "agency", "agencies")} couldn't be moved to the new price, so ${theyStay(r.agencies)} on ${formatRupees(o.amountMinor)} + GST`
-            : `${plural(r.agencies, "agency", "agencies")} ${refusalWords(r.refused, r.agencies)}, so ${theyStay(r.agencies)} on ${formatRupees(o.amountMinor)} + GST`,
+            : refusedText(r, o, false),
         detail: `${r.orgs.map((g) => g.name).join(", ")}.`,
         action: r.orgs.length === 1 ? "Open the agency" : "See the plan",
         href: r.orgs.length === 1 ? `/admin/orgs/${r.orgs[0].id}` : `#offer-${v.product.id}`,

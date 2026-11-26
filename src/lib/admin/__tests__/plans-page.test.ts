@@ -23,7 +23,7 @@ describe("offer health", () => {
   });
 
   it("says who moves to today's price and when, who isn't set up yet and who can't move (D593)", () => {
-    const move = (over: Partial<PriceMove>): PriceMove => ({ priceId: "a", nextPriceId: "now", state: "scheduled", refused: null, agencies: 1, firstRenewal: null, lastRenewal: null, orgs: [], ...over });
+    const move = (over: Partial<PriceMove>): PriceMove => ({ priceId: "a", nextPriceId: "now", state: "scheduled", refused: null, agencies: 1, firstRenewal: null, lastRenewal: null, firstEnd: null, lastEnd: null, orgs: [], ...over });
     const moves = [
       move({ agencies: 3, firstRenewal: "2026-12-03T06:00:00Z", lastRenewal: "2026-12-28T06:00:00Z" }),
       move({ state: "waiting", agencies: 1 }),
@@ -43,6 +43,15 @@ describe("offer health", () => {
     expect(items[0]).toMatchObject({ name: "Growth", text: "2 agencies pay by bank mandate, so they stay on ₹10,500 + GST", detail: "Acme, Bolt.", action: "See the plan", href: "#offer-g", tone: "warn" });
     const one = moveRefusedItems([offerView(growth, { a: h({ agencies: 1 }) }, settings, [move({ state: "refused", refused: "upi", orgs: [{ id: "o1", name: "Acme" }] })])]);
     expect(one[0]).toMatchObject({ text: "1 agency pays by UPI, so it stays on ₹10,500 + GST", action: "Open the agency", href: "/admin/orgs/o1" });
+  });
+
+  it("says the owners asked to approve today's price and when their plans end if they don't (D595)", () => {
+    const move = (over: Partial<PriceMove>): PriceMove => ({ priceId: "a", nextPriceId: "now", state: "refused", refused: "emandate", agencies: 2, firstRenewal: null, lastRenewal: null, firstEnd: "2026-12-03T06:00:00Z", lastEnd: "2026-12-03T06:00:00Z", orgs: [{ id: "o1", name: "Acme" }, { id: "o2", name: "Bolt" }], ...over });
+    const v = offerView(growth, { now: h({ agencies: 1 }), a: h({ agencies: 2 }) }, settings, [move({})]);
+    const [item] = moveRefusedItems([v]);
+    expect(item.text).toMatch(/^2 agencies pay by bank mandate: asked to approve ₹[\d,]+ \+ GST, plans end on 3 Dec 2026 if they don't$/);
+    expect(item.detail).toBe("Acme, Bolt.");
+    expect(olderPriceLines(v)[0]).toContain("asked to approve");
   });
 
   it("knows no margin without settings, and never flags it", () => {

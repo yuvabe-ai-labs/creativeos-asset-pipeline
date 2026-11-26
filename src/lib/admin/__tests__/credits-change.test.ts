@@ -111,12 +111,11 @@ describe("buildCreditReview", () => {
     expect(r.startText).toBe("starting 2 minutes after you save.");
     expect(r.confirm).toBe("Apply new settings");
   });
-  it("warns when typical runs rise 20% or more, naming a margin of 50% or above", () => {
+  it("warns only when the margin looks like a typo, not because runs rise with the margin", () => {
     expect(review({ marginPercent: 10, roundStep: 5 }).warnings.filter((w) => w.tone === "warn")).toEqual([]);
+    expect(review({ marginPercent: 30, roundStep: 5 }).warnings.filter((w) => w.tone === "warn" && /margin/.test(w.text))).toEqual([]);
     const typo = review({ marginPercent: 100, roundStep: 5 }).warnings.find((w) => w.tone === "warn")!;
-    expect(typo.text).toMatch(new RegExp(`^\\d+ of ${runs.length} typical runs cost 20% or more extra\\. Check the margin: you entered 100%\\.$`));
-    const below = review({ marginPercent: 30, roundStep: 5 }).warnings.find((w) => w.tone === "warn")!;
-    expect(below.text).toMatch(/cost 20% or more extra\. Check that's what you meant\.$/);
+    expect(typo.text).toBe("A 100% margin puts every run up by at least that much. Check that's what you meant.");
   });
   it("a cut says held credits buy more runs; the same settings have nothing to save", () => {
     const cut = buildCreditReview({ settings: [row("a", LIVE.effectiveFrom, 20, 5)], draft: { marginPercent: 0, roundStep: 5 }, when: tomorrow, now: NOW, runs, agencyRuns: [], modelRuns: {} });

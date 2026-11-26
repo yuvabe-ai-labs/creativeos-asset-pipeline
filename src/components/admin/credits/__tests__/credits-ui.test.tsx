@@ -12,7 +12,6 @@ import { CreditHistory } from "../credit-history";
 import { NextChangeRow } from "../next-change-row";
 import { CreditReviewStep } from "../credit-review-step";
 import { CreditsWorkspace } from "../credits-workspace";
-import { TypicalRunsTable } from "../typical-runs-table";
 import { WorkedExample } from "../worked-example";
 
 const NOW = new Date("2026-11-24T06:30:00Z");
@@ -58,18 +57,6 @@ describe("worked example", () => {
   });
 });
 
-describe("typical runs table", () => {
-  it("shows credits with rounding and flat notes, or before and after with a change", () => {
-    const single = text(renderToStaticMarkup(<TypicalRunsTable rows={creditRunRows(runs, ZERO, null)} />));
-    expect(single).toContain("$0.00695 is 6.95 credits, rounded up to 10 (+44%). With a step of 1 it would be 7.");
-    expect(single).toContain("Prompt runs are charged a flat price; margin doesn't apply.");
-    expect(single).not.toContain("Change");
-    const both = text(renderToStaticMarkup(<TypicalRunsTable rows={creditRunRows(runs, ZERO, { marginPercent: 10, roundStep: 10 })} />));
-    expect(both).toContain("+10%");
-    expect(both).toContain("No change");
-  });
-});
-
 describe("settings step", () => {
   it("edits margin and step, shows three example runs, and flags a margin to fix", () => {
     const examples = creditRunRows(exampleRuns(runs), ZERO, { marginPercent: 10, roundStep: 10 });
@@ -96,11 +83,11 @@ describe("review", () => {
     });
     const t = text(renderToStaticMarkup(<CreditReviewStep review={review} />));
     expect(t).toContain("Margin 0% → 100%, from 25 Nov 2026, 00:00 IST, tomorrow.");
-    expect(t).toContain("Check the margin: you entered 100%.");
+    expect(t).toContain("A 100% margin puts every run up by at least that much. Check that's what you meant.");
     expect(t).toContain("The one agency with runs this month would have used about 67% more credits for the same work.");
     expect(t).toContain("Credits agencies hold buy about 40% fewer runs.");
-    expect(t).toContain("Every model and agency");
-    expect(t).not.toContain("Agencies affected");
+    // No full table in review: only what the decision needs.
+    expect(t).not.toContain("Every model and agency");
   });
 });
 
@@ -109,9 +96,7 @@ describe("review over a scheduled change", () => {
     const scheduled = { ...LIVE_ROW, id: "s", effectiveFrom: "2026-11-25T04:30:00Z", marginPercent: 10, roundStep: 10 as const };
     const review = buildCreditReview({ settings: [LIVE_ROW, scheduled], draft: { marginPercent: 20, roundStep: 10 }, when: defaultCreditWhen(NOW), now: NOW, runs, agencyRuns: [], modelRuns: {} });
     const t = text(renderToStaticMarkup(<CreditReviewStep review={review} />));
-    expect(t).toContain("This replaces the change scheduled for 25 Nov 2026, 10:00 IST.");
-    expect(t).toContain("Margin10%20%");
-    expect(t).toContain("Rounding step10 creditsSame");
+    expect(t).toContain("This replaces the change scheduled for 25 Nov 2026, 10:00 IST (margin 10%, rounding step 10 credits).");
     expect(review.confirm).toBe("Replace the 25 Nov change");
   });
 });

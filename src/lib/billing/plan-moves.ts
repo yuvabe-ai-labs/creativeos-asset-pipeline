@@ -8,6 +8,7 @@ import { appLink, planPriceChangeEmail } from "@/lib/email/templates";
 import { razorpayPlanFor } from "./subscriptions";
 import { schedulePlanChange, type ChangeOutcome } from "./plan-change";
 import { withGst } from "./gst";
+import { askForApproval } from "./price-approval";
 
 // After an admin changes a plan's price, every running plan on the old price moves to the new one
 // from its next renewal, on Razorpay too (D593). The `move-plan-price` task runs this once per price
@@ -82,6 +83,9 @@ async function moveOne(id: string): Promise<"moved" | "refused" | "waiting" | "s
     }
     return "skipped";
   }
+  // UPI or a bank mandate: the owner approves the new price by the end date record_plan_move gave,
+  // or the plan ends then (D595).
+  if (refused === "upi" || refused === "emandate") await askForApproval(sub.id);
   if (refused) return "refused";
   await tellOwners(sub);
   return "moved";

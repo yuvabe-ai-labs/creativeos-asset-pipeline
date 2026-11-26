@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
   list: vi.fn(), get: vi.fn(), nextId: vi.fn(), record: vi.fn(), price: vi.fn(), planFor: vi.fn(), schedule: vi.fn(),
-  org: vi.fn(), owners: vi.fn(), emails: vi.fn(), send: vi.fn(),
+  org: vi.fn(), owners: vi.fn(), emails: vi.fn(), send: vi.fn(), ask: vi.fn(),
 }));
 vi.mock("@/lib/db/billing-plan-moves", () => ({ listPendingMoves: m.list, getPendingMove: m.get, getNextPriceId: m.nextId, recordPlanMove: m.record }));
 vi.mock("@/lib/db/billing-subscriptions", () => ({ getPurchasablePrice: m.price }));
@@ -12,6 +12,7 @@ vi.mock("@/lib/db/people", () => ({ ownerIds: m.owners, loginEmails: m.emails })
 vi.mock("@/lib/email/send", () => ({ sendEmail: m.send }));
 vi.mock("../subscriptions", () => ({ razorpayPlanFor: m.planFor }));
 vi.mock("../plan-change", () => ({ schedulePlanChange: m.schedule }));
+vi.mock("../price-approval", () => ({ askForApproval: m.ask }));
 
 import { movePendingPlans } from "../plan-moves";
 
@@ -51,9 +52,17 @@ describe("movePendingPlans (D593)", () => {
     m.schedule.mockResolvedValue({ kind: "refused", refused: "upi" });
     await expect(movePendingPlans()).resolves.toMatchObject({ refused: 1 });
     expect(m.record).toHaveBeenCalledWith("row_1", "new", "upi");
+    // UPI: the owner is asked to approve the new price (D595).
+    expect(m.ask).toHaveBeenCalledWith("row_1");
     m.get.mockResolvedValue(pending({ status: "payment_due" }));
     await expect(movePendingPlans()).resolves.toMatchObject({ waiting: 1 });
     expect(m.send).not.toHaveBeenCalled();
+  });
+
+  it("asks no approval for a refusal that isn't UPI or a bank mandate (D595)", async () => {
+    m.schedule.mockResolvedValue({ kind: "refused", refused: "other" });
+    await movePendingPlans();
+    expect(m.ask).not.toHaveBeenCalled();
   });
 
   it("skips a plan that moved on before it was reached", async () => {

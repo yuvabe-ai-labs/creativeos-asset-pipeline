@@ -50,7 +50,7 @@ export function EnterImpersonationButton({
       <AlertDialogTrigger
         render={
           <Button type="button" variant="outline" size="sm" disabled={isPending}>
-            Enter as this org
+            Enter as this agency
           </Button>
         }
       />

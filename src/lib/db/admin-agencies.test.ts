@@ -18,7 +18,7 @@ function fakeDb(byTable: Record<string, unknown[]>, rpc: Answer | Error) {
         const chain = { table, calls: [] as unknown[][] };
         chains.push(chain);
         const builder: Record<string, unknown> = {};
-        for (const name of ["select", "eq", "neq", "is", "in", "gt", "lte", "order"]) {
+        for (const name of ["select", "eq", "neq", "not", "is", "in", "gt", "lte", "order"]) {
           builder[name] = (...args: unknown[]) => { chain.calls.push([name, ...args]); return builder; };
         }
         builder.then = (resolve: (v: unknown) => void) => resolve({ data: byTable[table] ?? [], error: null });
@@ -69,7 +69,7 @@ describe("listAgencySources (D590)", () => {
     expect(grants.calls).toEqual(expect.arrayContaining([["lte", "starts_at", NOW.toISOString()], ["gt", "ends_at", NOW.toISOString()]]));
     const invites = chains.find((c) => c.table === "org_invitations")!;
     expect(invites.calls).toEqual(expect.arrayContaining([["eq", "as_owner", true], ["is", "accepted_at", null], ["is", "revoked_at", null]]));
-    expect(chains.find((c) => c.table === "billing_subscriptions")!.calls).toContainEqual(["neq", "status", "ended"]);
+    expect(chains.find((c) => c.table === "billing_subscriptions")!.calls).toContainEqual(["not", "status", "in", "(ended,scheduled)"]);
   });
 
   it("still lists every agency when the activity read fails, with activity unknown", async () => {

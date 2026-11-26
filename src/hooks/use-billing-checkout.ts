@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useConfirmSubscription, useConfirmTopUp, useStartTopUp, useSubscribe } from "@/hooks/queries/billing";
+import { useApproveNewPrice, useConfirmSubscription, useConfirmTopUp, useStartTopUp, useSubscribe } from "@/hooks/queries/billing";
+import { approvedText } from "@/lib/billing/price-approval-copy";
 import { CHECKOUT_LOAD_FAILED, loadCheckout, openCheckout, type CheckoutSuccess, type SubscriptionCheckoutSuccess } from "@/lib/billing/load-checkout";
 import { ApiError } from "@/services/read-json";
 
@@ -27,9 +28,10 @@ export function useBillingCheckout() {
   const confirmSubscription = useConfirmSubscription();
   const startTopUp = useStartTopUp();
   const confirmTopUp = useConfirmTopUp();
+  const approve = useApproveNewPrice();
   const [status, setStatus] = useState<CheckoutStatus>(null);
   const [open, setOpen] = useState(false);
-  const busy = open || subscribe.isPending || confirmSubscription.isPending || startTopUp.isPending || confirmTopUp.isPending;
+  const busy = open || subscribe.isPending || confirmSubscription.isPending || startTopUp.isPending || confirmTopUp.isPending || approve.isPending;
 
   const dismiss = () => {
     setOpen(false);
@@ -104,5 +106,39 @@ export function useBillingCheckout() {
     }
   }
 
-  return { buyPlan, buyTopUp, busy, status, setStatus };
+  /** Approve a new price (D595): Checkout authorises the new subscription with a small refunded
+   *  check; the first payment is on the day it starts. `amountMinor` is the new price before GST. */
+  async function approvePrice(amountMinor: number) {
+    setStatus(null);
+    try {
+      const [started] = await Promise.all([approve.mutateAsync(), loadCheckout()]);
+      setOpen(true);
+      openCheckout(
+        {
+          key: started.keyId,
+          subscription_id: started.subscriptionId,
+          name: "CreativeOS",
+          description: "Approve the new price",
+          handler: async (r: SubscriptionCheckoutSuccess) => {
+            try {
+              await confirmSubscription.mutateAsync({ subscriptionId: r.razorpay_subscription_id, paymentId: r.razorpay_payment_id, signature: r.razorpay_signature });
+              setStatus({ tone: "ok", text: approvedText({ amountMinor, startsAt: started.startsAt }) });
+            } catch {
+              setStatus({ tone: "error", text: "We couldn't confirm the approval here. If it went through, this page shows it within a few minutes." });
+            } finally {
+              setOpen(false);
+              router.refresh();
+            }
+          },
+          modal: { ondismiss: dismiss },
+        },
+        () => setStatus({ tone: "error", text: "The check didn't go through. Try again or use another method." }),
+      );
+    } catch (e) {
+      setOpen(false);
+      setStatus({ tone: "error", text: plainError(e, "Could not start the approval.") });
+    }
+  }
+
+  return { buyPlan, buyTopUp, approvePrice, busy, status, setStatus };
 }

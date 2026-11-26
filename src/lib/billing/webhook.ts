@@ -1,5 +1,6 @@
 import "server-only";
 import { recordRazorpayPayment } from "@/lib/db/billing-payments";
+import { recordPriceApproval } from "@/lib/db/billing-approvals";
 import { markRazorpayEvent, recordSubscriptionCharge, setSubscriptionStatus, storeRazorpayEvent, type SubscriptionStatus } from "@/lib/db/billing-subscriptions";
 
 // What each signed Razorpay webhook does (spec 2026-11-21-monthly-plans-design.md, Flow 3). Every
@@ -65,6 +66,14 @@ async function apply(body: RazorpayWebhook): Promise<Record<string, unknown>> {
     });
     if (!recorded) console.warn("[razorpay] charge changed nothing (unknown subscription or payment already recorded)", subscriptionId, paymentId);
     return { recorded };
+  }
+
+  // The owner authorised a subscription at a new price that starts later (D595). Every checkout
+  // sends this; only an approval waiting to start records anything, once.
+  if (event === "subscription.authenticated") {
+    const subscriptionId = str(sub?.id);
+    if (!subscriptionId) throw new Error(`${event} without a subscription`);
+    return { approved: await recordPriceApproval(subscriptionId) };
   }
 
   const status = STATUS_FOR[event];

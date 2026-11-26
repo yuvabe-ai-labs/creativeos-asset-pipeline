@@ -39,6 +39,9 @@ export function describeBillingChange(c: Change): string {
       // A new plan price set up on Razorpay for the next renewal, or why it couldn't be (D593).
       const to = `${formatRupees(Number(after.amount_minor ?? 0))} a month`;
       const refused = after.refused as MoveRefusal | null | undefined;
+      if ((refused === "upi" || refused === "emandate") && typeof after.ends_at === "string") {
+        return `Asked the owner to approve ${to}: the plan ${refusalWords(refused, 1).replace(/^pays/, "is paid")}. It ends on ${formatIstDate(new Date(after.ends_at))} unless they do`;
+      }
       if (refused) {
         return refused === "other"
           ? `Couldn't move the plan to ${to}. It stays at ${formatRupees(Number(before.amount_minor ?? 0))} until it changes plan`
@@ -46,6 +49,15 @@ export function describeBillingChange(c: Change): string {
       }
       const from = typeof after.starts_at === "string" ? ` from the renewal on ${formatIstDate(new Date(after.starts_at))}` : " from the next renewal";
       return `Plan moves from ${formatRupees(Number(before.amount_minor ?? 0))} to ${to}${from}`;
+    }
+    case "price_approved": {
+      // The owner approved a new price their way of paying couldn't move to (D595).
+      const from = typeof after.starts_at === "string" ? `, from ${formatIstDate(new Date(after.starts_at))}` : "";
+      return `Owner approved ${formatRupees(Number(after.amount_minor ?? 0))} a month${from}`;
+    }
+    case "price_not_approved": {
+      const on = typeof after.ends_at === "string" ? ` on ${formatIstDate(new Date(after.ends_at))}` : "";
+      return `Plan ended${on}: the owner didn't approve ${formatRupees(Number(after.amount_minor ?? 0))} a month`;
     }
     default:
       return "Billing changed";

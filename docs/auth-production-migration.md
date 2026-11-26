@@ -2102,6 +2102,84 @@ alter table billing_subscriptions drop column if exists next_price_scheduled_at;
 notify pgrst, 'reload schema';
 ```
 
+## Migration 0104 — price approvals (D595, 2026-11-26)
+
+Apply after 0103, **before** the code: Billing reads the four new columns, the approve route inserts
+a `scheduled` row (refused by the old status check), and Admin › Plans and prices reads
+`admin_price_moves()`'s new columns.
+
+- Adds `billing_subscriptions.ends_unless_approved_at`, `approval_reminded_at`, `approved_at` and
+  `starts_at`, and the `scheduled` status (an approval subscription at a new price, waiting beside
+  the live plan until it starts).
+- Replaces the "one live plan" unique index so it leaves out `scheduled`, and adds one allowing at
+  most one `scheduled` row per agency, plus a partial index on `ends_unless_approved_at`.
+- Replaces `record_plan_move` (a UPI or mandate refusal gets an end date: the first renewal at least
+  7 days away), `set_subscription_status` and `record_subscription_charge` (an approval that starts
+  becomes the plan and ends the one it replaces), `admin_save_offer` (also marks `scheduled` rows on a
+  replaced price) and the 0103 reset trigger function (also clears the reminder). Drops and recreates
+  `admin_price_moves()` (new return columns `first_end`, `last_end`).
+- Adds `record_price_approval(text)`, `billing_end_replaced_subscription(uuid, uuid)` and trigger
+  `billing_subscriptions_on_end` (logs `price_not_approved`, ends unfinished approvals).
+- Clears `next_price_refused` on plans 0103 refused as UPI or bank mandate, so the next run asks
+  their owners (with the email and a fair end date) instead of leaving them on the old price.
+- Safe to apply: re-runnable (`if not exists`, `drop … if exists`, `create or replace`). The index is
+  dropped and recreated inside the same migration; no existing row is `scheduled`, so it cannot fail.
+
+**Then deploy the Trigger.dev tasks** (`npx trigger.dev deploy`, staging and production):
+`move-plan-price` (asks for approval after a UPI or mandate refusal and stops a final cycle at once)
+and `reconcile-billing-plans` (stops old subscriptions in their final cycle, sends the 3-day
+reminder, and checks approval subscriptions against Razorpay).
+
+**And in each Razorpay webhook** (test mode for dev and staging, live mode for production), turn on
+`subscription.authenticated`, so the list in "Razorpay setup" below becomes 9 events. Without it an
+approval is only seen by the nightly check.
+
+**Verify after running:**
+
+```sql
+-- expect four rows
+select column_name from information_schema.columns
+ where table_name = 'billing_subscriptions'
+   and column_name in ('ends_unless_approved_at', 'approval_reminded_at', 'approved_at', 'starts_at');
+-- expect the two unique indexes with their new conditions
+select indexname, indexdef from pg_indexes
+ where indexname in ('billing_subscriptions_one_live_idx', 'billing_subscriptions_one_scheduled_idx');
+-- expect the trigger
+select tgname from pg_trigger where tgname = 'billing_subscriptions_on_end';
+-- expect zero: every 0103 UPI or mandate refusal is waiting to be asked again
+select count(*) from billing_subscriptions
+ where next_price_refused in ('upi', 'emandate') and ends_unless_approved_at is null and status in ('active', 'payment_due');
+-- expect false, false
+select has_function_privilege('anon', 'record_price_approval(text)', 'execute'),
+       has_function_privilege('authenticated', 'record_price_approval(text)', 'execute');
+select * from admin_price_moves();
+```
+
+**Rollback** (only while no row is `scheduled`; end them first. Then re-apply 0103 for
+`record_plan_move`, `admin_save_offer`, `admin_price_moves` and the reset trigger function, and 0098
+for `set_subscription_status` and `record_subscription_charge`):
+
+```sql
+update billing_subscriptions set status = 'ended', ended_at = coalesce(ended_at, now()) where status = 'scheduled';
+drop trigger if exists billing_subscriptions_on_end on billing_subscriptions;
+drop function if exists billing_subscriptions_on_end();
+drop function if exists record_price_approval(text);
+drop function if exists billing_end_replaced_subscription(uuid, uuid);
+drop function if exists admin_price_moves();
+drop index if exists billing_subscriptions_ends_unless_approved_idx;
+drop index if exists billing_subscriptions_one_scheduled_idx;
+drop index if exists billing_subscriptions_one_live_idx;
+create unique index billing_subscriptions_one_live_idx on billing_subscriptions (org_id) where status <> 'ended';
+alter table billing_subscriptions drop constraint if exists billing_subscriptions_status_check;
+alter table billing_subscriptions add constraint billing_subscriptions_status_check
+  check (status in ('created', 'active', 'payment_due', 'cancelling', 'ended'));
+alter table billing_subscriptions drop column if exists starts_at;
+alter table billing_subscriptions drop column if exists approved_at;
+alter table billing_subscriptions drop column if exists approval_reminded_at;
+alter table billing_subscriptions drop column if exists ends_unless_approved_at;
+notify pgrst, 'reload schema';
+```
+
 ## Razorpay setup for each environment (D589, 2026-11-23) — no migration
 
 Razorpay keeps test mode and live mode apart: each has its own keys, webhooks and webhook secrets.
@@ -2130,8 +2208,8 @@ Production uses live mode; dev and staging share test mode. Every environment ca
 
 - The environment's address, its own secret (generated, not reused across environments), and an
   alert email that reaches the team.
-- These 8 events: `order.paid`, `subscription.activated`, `subscription.charged`,
-  `subscription.pending`, `subscription.halted`, `subscription.cancelled`,
+- These 9 events: `order.paid`, `subscription.authenticated` (0104, D595), `subscription.activated`,
+  `subscription.charged`, `subscription.pending`, `subscription.halted`, `subscription.cancelled`,
   `subscription.completed`, `subscription.resumed`.
 
 **Expected behaviour:**

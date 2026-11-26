@@ -79,19 +79,19 @@ export default async function OrgDetailPage({
   ]);
 
   return (
-    <main className={adminPageClass("wide")}>
+    <main className={adminPageClass()}>
       <div className="mb-6">
         <PageHeader
           breadcrumb={<OrgCrumbs org={{ id: org.id, name: org.name }} />}
           title={org.name}
           actions={
             isViewingThisOrg ? (
-              // Offering "Enter as this org" while already inside it is the kind of dead
+              // Offering "Enter as this agency" while already inside it is the kind of dead
               // control that makes the whole feature feel unresponsive. Exit lives in the
               // banner, so this is a status, not an action.
               <span className="flex items-center gap-1.5 text-sm text-neutral-500">
                 <Eye className="size-3.5" strokeWidth={1.5} />
-                You&rsquo;re viewing as this org
+                You&rsquo;re viewing as this agency
               </span>
             ) : (
               <EnterImpersonationButton orgId={org.id} orgName={org.name} />

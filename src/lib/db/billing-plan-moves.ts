@@ -97,6 +97,8 @@ type MoveRow = {
   agencies: number | string;
   first_renewal: string | null;
   last_renewal: string | null;
+  first_end: string | null;
+  last_end: string | null;
   orgs: { id: string; name: string }[] | null;
 };
 
@@ -112,6 +114,8 @@ export async function getPriceMoves(): Promise<PriceMove[]> {
     agencies: Number(r.agencies),
     firstRenewal: r.first_renewal,
     lastRenewal: r.last_renewal,
-    orgs: r.orgs ?? [],
+    firstEnd: r.first_end ?? null,
+    lastEnd: r.last_end ?? null,
+    orgs: (r.orgs ?? []).map((o) => ({ id: o.id, name: o.name })),
   }));
 }

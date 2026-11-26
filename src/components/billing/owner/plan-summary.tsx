@@ -37,8 +37,14 @@ export function PlanSummary({ subscription }: { subscription: LiveSubscription |
   }
 
   const end = paid.currentPeriodEnd ? day(paid.currentPeriodEnd) : null;
+  // Ending because a new price waits for approval, not because the owner cancelled (D595).
+  const approval = paid.approval;
   const line =
-    paid.status === "cancelling" ? `Cancelled. Works until ${end ?? "the paid month ends"}.`
+    paid.status === "cancelling" && approval
+      ? approval.state === "asked"
+        ? `Ends ${day(approval.endsAt)} unless you approve the new price.`
+        : `Continues ${approval.startsAt ? `on ${day(approval.startsAt)}` : "soon"} at the new price.`
+    : paid.status === "cancelling" ? `Cancelled. Works until ${end ?? "the paid month ends"}.`
     : paid.status === "payment_due"
       ? `Your payment didn't go through, so AI runs are paused. Pay now with the same card, a new one or UPI; runs start again as soon as it goes through. Nothing is lost.${paid.paymentDueSince ? ` If it isn't paid by ${day(new Date(new Date(paid.paymentDueSince).getTime() + 30 * 86_400_000).toISOString())}, the plan ends.` : ""}`
     : ownerRenewalLine(paid.planName, paid.currentPeriodEnd, paid.next);
@@ -48,7 +54,7 @@ export function PlanSummary({ subscription }: { subscription: LiveSubscription |
       <div className="flex flex-col gap-1">
         <span className="flex flex-wrap items-center gap-2">
           <span className="font-display text-xl font-semibold tracking-tight">{paid.planName ?? "Your plan"}</span>
-          {paid.status === "payment_due" ? <Badge variant="destructive">Payment due</Badge> : paid.status === "cancelling" ? <Badge variant="outline">Cancelled</Badge> : null}
+          {paid.status === "payment_due" ? <Badge variant="destructive">Payment due</Badge> : paid.status === "cancelling" && !approval ? <Badge variant="outline">Cancelled</Badge> : null}
         </span>
         {paid.amountMinor !== null && paid.credits !== null && (
           <span className="text-sm text-muted-foreground">
@@ -60,7 +66,7 @@ export function PlanSummary({ subscription }: { subscription: LiveSubscription |
           {line}
         </span>
       </div>
-      {paid.status !== "cancelling" && (
+      {(paid.status !== "cancelling" || approval) && (
         <div className="flex flex-wrap gap-2">
           {paid.status === "payment_due" && (
             <Button
@@ -79,7 +85,7 @@ export function PlanSummary({ subscription }: { subscription: LiveSubscription |
               {payNow.isPending ? "Opening…" : "Pay now"}
             </Button>
           )}
-          <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/billing/plans" />}>Change plan</Button>
+          {paid.status !== "cancelling" && <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/billing/plans" />}>Change plan</Button>}
           <ConfirmStepDialog
             trigger={<Button variant="ghost" size="sm">Cancel plan</Button>}
             title="Cancel your plan?"
