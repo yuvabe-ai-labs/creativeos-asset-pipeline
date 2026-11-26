@@ -2,7 +2,7 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { usePeople } from "@/hooks/queries/people";
-import { orgTabFrom, orgTabUrl } from "./org-tabs";
+import { ORG_TAB_LABEL, orgTabFrom, orgTabUrl } from "./org-tabs";
 import { Tabs, TabsList, TabsContent } from "@/components/ui/tabs";
 import { COUNT_TABS_LIST, CountTabTrigger } from "@/components/shared/count-tab-trigger";
 import { cn } from "@/lib/utils";
@@ -118,12 +118,12 @@ export function OrgDetailTabs({
       {/* The shared line tabs with counts, as on every other admin page. */}
       <div className="mb-8 border-b border-border">
         <TabsList variant="line" aria-label="Agency sections" className={cn(COUNT_TABS_LIST, "justify-start self-start")}>
-          <CountTabTrigger value="overview" label="Overview" />
-          <CountTabTrigger value="billing" label="Billing" />
-          <CountTabTrigger value="people" label="People" count={peopleCount} />
-          <CountTabTrigger value="clients" label="Clients" count={clients.length} />
-          <CountTabTrigger value="generations" label="Generations" count={generationCount} />
-          <CountTabTrigger value="support" label="Support activity" />
+          <CountTabTrigger value="overview" label={ORG_TAB_LABEL.overview} />
+          <CountTabTrigger value="billing" label={ORG_TAB_LABEL.billing} />
+          <CountTabTrigger value="people" label={ORG_TAB_LABEL.people} count={peopleCount} />
+          <CountTabTrigger value="clients" label={ORG_TAB_LABEL.clients} count={clients.length} />
+          <CountTabTrigger value="generations" label={ORG_TAB_LABEL.generations} count={generationCount} />
+          <CountTabTrigger value="support" label={ORG_TAB_LABEL.support} />
         </TabsList>
       </div>
 

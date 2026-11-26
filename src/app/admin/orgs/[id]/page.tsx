@@ -20,7 +20,6 @@ import { listBillingLog } from "@/lib/db/billing-admin";
 import { getLiveSubscription } from "@/lib/db/billing-subscriptions";
 import { OrgDetailTabs } from "./org-detail-tabs";
 import { EnterImpersonationButton } from "./enter-impersonation-button";
-import { OrgCrumbs } from "./org-crumbs";
 import { PageHeader } from "@/components/shared/page-header";
 import { adminPageClass } from "@/components/admin/admin-page";
 
@@ -82,7 +81,6 @@ export default async function OrgDetailPage({
     <main className={adminPageClass()}>
       <div className="mb-6">
         <PageHeader
-          breadcrumb={<OrgCrumbs org={{ id: org.id, name: org.name }} />}
           title={org.name}
           actions={
             isViewingThisOrg ? (
