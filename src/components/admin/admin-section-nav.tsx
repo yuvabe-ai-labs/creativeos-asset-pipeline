@@ -36,8 +36,11 @@ const TABS = [
 // Each admin page sets its own content width; the tabs take the same width so they line up
 // with the content below them.
 function contentWidth(pathname: string): string {
+  // The models catalog's card grid (D591); a model's own page stays narrower.
+  if (pathname === "/admin/models") return "max-w-7xl";
   if (pathname.startsWith("/admin/models") || pathname.startsWith("/admin/credits")) return "max-w-5xl";
   if (pathname.startsWith("/admin/orgs")) return "max-w-4xl";
+  if (pathname === "/admin") return "max-w-6xl";
   return "max-w-3xl";
 }
 

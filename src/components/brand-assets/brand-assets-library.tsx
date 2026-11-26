@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CountTabTrigger } from "@/components/shared/count-tab-trigger";
 import { InfiniteScrollSentinel } from "@/components/shared/infinite-scroll-sentinel";
 import { IMPORT_SOURCES, IMPORT_SOURCE_LABELS, type ImportSource } from "@/lib/asset-import/constants";
 import type { AssetImport } from "@/lib/asset-import/types";
@@ -217,18 +218,17 @@ export function BrandAssetsLibrary({ clientId }: { clientId: string }) {
 function SourceTrigger(props: { value: SourceTab; label: string; count?: number; last?: AssetImport; live: boolean }) {
   const failed = props.last?.status === "failed";
   return (
-    <TabsTrigger
+    <CountTabTrigger
       value={props.value}
-      className="h-auto flex-none gap-1.5 rounded-none px-0.5 pb-2.5 pt-1 after:bg-primary group-data-horizontal/tabs:after:bottom-0"
-    >
-      {props.label}
-      {props.live ? (
-        <span className="size-3 animate-spin rounded-full border-[1.5px] border-current border-t-transparent text-muted-foreground" />
-      ) : failed && props.value !== "all" ? (
-        <span aria-label="Needs attention" className="size-1.5 rounded-full bg-destructive" />
-      ) : props.count ? (
-        <span className="text-xs tabular-nums text-muted-foreground">{props.count}</span>
-      ) : null}
-    </TabsTrigger>
+      label={props.label}
+      count={props.count}
+      badge={
+        props.live ? (
+          <span className="size-3 animate-spin rounded-full border-[1.5px] border-current border-t-transparent text-muted-foreground" />
+        ) : failed && props.value !== "all" ? (
+          <span aria-label="Needs attention" className="size-1.5 rounded-full bg-destructive" />
+        ) : undefined
+      }
+    />
   );
 }

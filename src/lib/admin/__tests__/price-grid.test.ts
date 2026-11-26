@@ -3,7 +3,7 @@ import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import { lineFor } from "@/lib/ai-models/pricing";
 import { priceDims } from "@/lib/ai-models/model-edit";
 import type { AiModel, AiModelPrice } from "@/lib/ai-models/types";
-import { lineKey, parseLineKey, priceGrid, priceRange } from "../price-grid";
+import { lineKey, parseLineKey, priceGrid, startingPrice } from "../price-grid";
 
 const catalog = seededModelCatalog();
 const model = (id: string): AiModel => {
@@ -164,30 +164,30 @@ describe("priceGrid over every seeded image and video model", () => {
   });
 });
 
-describe("priceRange", () => {
-  const range = (id: string) => priceRange(model(id), lastPrice(id));
-  it("media: cheapest offered setting, and the top one", () => {
-    expect(range("gemini:gemini-omni-1.2-flash")).toEqual({ from: "$0.023172 a second", to: "up to $0.208512 at 4K", single: false });
-    expect(range("openai:gpt-image-2")).toEqual({ from: "$0.005 an image", to: "up to $0.211 at Square, High", single: false });
-    expect(range("kling:kling-3-0")).toEqual({ from: "$0.084 a second", to: "up to $0.42 at 4K, with audio", single: false });
+describe("startingPrice", () => {
+  const start = (id: string) => startingPrice(model(id), lastPrice(id));
+  it("media: the cheapest offered setting, and whether others cost more", () => {
+    expect(start("gemini:gemini-omni-1.2-flash")).toEqual({ kind: "price", usd: 0.023172, unit: "a second", varies: true });
+    expect(start("openai:gpt-image-2")).toEqual({ kind: "price", usd: 0.005, unit: "an image", varies: true });
+    expect(start("kling:kling-3-0")).toEqual({ kind: "price", usd: 0.084, unit: "a second", varies: true });
   });
   it("one price at every setting", () => {
-    expect(range("gemini:gemini-2.5-flash-image")).toEqual({ from: "$0.039 an image", to: "same at every setting", single: true });
-    expect(range("kling:kling-o1")).toEqual({ from: "$0.112 a second", to: "same at every setting", single: true });
+    expect(start("gemini:gemini-2.5-flash-image")).toEqual({ kind: "price", usd: 0.039, unit: "an image", varies: false });
+    expect(start("kling:kling-o1")).toEqual({ kind: "price", usd: 0.112, unit: "a second", varies: false });
   });
   it("other kinds", () => {
-    expect(range("sarvam:dub")).toEqual({ from: "$0.006961122 a second", to: "same at every setting", single: true });
-    expect(range("openai:gpt-5")).toEqual({ from: "$1.25 in · $10.00 out", to: "per 1M tokens", single: true });
-    expect(range("openai:gpt-5.4-mini")).toEqual({ from: "$0.005 a request", to: "plus $0.0025 an attached image", single: true });
-    expect(range("elevenlabs:scribe_v2")).toEqual({ from: "$0.000182", to: `per ${model("elevenlabs:scribe_v2").providerLabel} credit`, single: true });
-    expect(range("apify:actor")).toEqual({ from: "At cost", to: "what the provider reports", single: true });
+    expect(start("sarvam:dub")).toEqual({ kind: "price", usd: expect.closeTo(0.006961122, 9), unit: "a second of audio", varies: false });
+    expect(start("openai:gpt-5")).toEqual({ kind: "price", usd: 1.25, unit: "per 1M tokens in", varies: false });
+    expect(start("openai:gpt-5.4-mini")).toEqual({ kind: "price", usd: 0.005, unit: "a request", varies: false });
+    expect(start("elevenlabs:scribe_v2")).toEqual({ kind: "price", usd: 0.000182, unit: `per ${model("elevenlabs:scribe_v2").providerLabel} credit`, varies: false });
+    expect(start("apify:actor")).toEqual({ kind: "at-cost" });
   });
   it("is null with no lines", () => {
-    expect(priceRange(model("sarvam:dub"), { ...lastPrice("sarvam:dub"), lines: [] })).toBeNull();
+    expect(startingPrice(model("sarvam:dub"), { ...lastPrice("sarvam:dub"), lines: [] })).toBeNull();
   });
   it("works for every seeded row", () => {
     for (const kind of ["image", "video", "text", "dub", "voice", "lipsync", "transcribe", "scrape"]) {
-      for (const { m, price } of priced(kind)) expect(priceRange(m, price)).not.toBeNull();
+      for (const { m, price } of priced(kind)) expect(startingPrice(m, price)).not.toBeNull();
     }
   });
 });

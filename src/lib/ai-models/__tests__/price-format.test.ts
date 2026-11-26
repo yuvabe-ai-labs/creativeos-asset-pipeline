@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayAmount, formatPriceLine, formatPriceSummary, formatUnitPrice, formatUsd, isTokenMeter } from "../price-format";
+import { displayAmount, formatPriceLine, formatPriceShort, formatPriceSummary, formatUnitPrice, formatUsd, formatUsdShort, isTokenMeter } from "../price-format";
 import type { PriceLine } from "../types";
 
 describe("formatPriceLine", () => {
@@ -70,5 +70,31 @@ describe("unit prices", () => {
     expect(formatUnitPrice("video_second", 0.023172)).toBe("$0.023172");
     expect(isTokenMeter("thought_token")).toBe(true);
     expect(isTokenMeter("video_second")).toBe(false);
+  });
+});
+
+describe("formatUsdShort (money rounded for reading)", () => {
+  it("rounds to cents with thousands grouped", () => {
+    expect(formatUsdShort(15.16145)).toBe("$15.16");
+    expect(formatUsdShort(101.0808)).toBe("$101.08");
+    expect(formatUsdShort(1234.5)).toBe("$1,234.50");
+  });
+  it("says under a cent, and $0 for nothing", () => {
+    expect(formatUsdShort(0.004111)).toBe("<$0.01");
+    expect(formatUsdShort(0)).toBe("$0");
+  });
+});
+
+describe("formatPriceShort (a unit price rounded for reading)", () => {
+  it("keeps cents from $0.10 up", () => {
+    expect(formatPriceShort(1.25)).toBe("$1.25");
+    expect(formatPriceShort(2)).toBe("$2.00");
+    expect(formatPriceShort(0.134)).toBe("$0.13");
+  });
+  it("keeps 2 significant figures below that, never exponent form", () => {
+    expect(formatPriceShort(0.084)).toBe("$0.084");
+    expect(formatPriceShort(0.0337925)).toBe("$0.034");
+    expect(formatPriceShort(0.006961122)).toBe("$0.007");
+    expect(formatPriceShort(0.000000182)).toBe("$0.00000018");
   });
 });

@@ -1975,6 +1975,33 @@ drop index if exists billing_log_org_id_created_at_idx, billing_payments_org_id_
   billing_payments_listed_created_at_idx, billing_subscriptions_status_period_end_idx;
 ```
 
+## Migration 0101 — the admin agencies list (D590, 2026-11-26)
+
+Apply after 0100, before or with the code. The page works without it: owner emails, people counts
+and last activity show as "—" until it is applied, and the server log says
+`[admin] could not read agency activity`.
+
+- Adds `admin_agency_activity()`: for every agency, the owner's login email, how many people it has
+  and when it last ran anything. One read for the whole Admin › Agencies list. Service role only.
+- Safe to apply: re-runnable (`create or replace`); no table or row changes.
+
+**Verify after running:**
+
+```sql
+-- expect one row per agency; last_run_at null for an agency that never ran
+select * from admin_agency_activity() limit 5;
+-- expect false, false
+select has_function_privilege('anon', 'admin_agency_activity()', 'execute'),
+       has_function_privilege('authenticated', 'admin_agency_activity()', 'execute');
+```
+
+**Rollback:**
+
+```sql
+drop function if exists admin_agency_activity();
+notify pgrst, 'reload schema';
+```
+
 ## Razorpay setup for each environment (D589, 2026-11-23) — no migration
 
 Razorpay keeps test mode and live mode apart: each has its own keys, webhooks and webhook secrets.

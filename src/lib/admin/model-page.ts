@@ -48,6 +48,18 @@ export type PickerOrder = {
   title: string;
 };
 
+/** The order popover's heading: "Order in the video picker". */
+export const pickerTitle = (kind: string) => `Order in the ${pickerNoun(kind)} picker`;
+
+/** One kind's models as the order popover lists them, each noted unless live; `current` (the model the page is about) has no note. */
+export function pickerItems(same: readonly PickerModel[], current?: string): PickerOrder["items"] {
+  return same.map((m) => ({
+    id: m.id,
+    label: m.label,
+    note: m.id === current ? null : m.broken ? "Fails its check" : m.status === "live" ? null : (STATUS_TEXT[m.status] ?? m.status),
+  }));
+}
+
 /** Where `id` sits among the models of its kind; `models` come in picker order (sort_order, then id). */
 export function pickerOrder(models: readonly PickerModel[], id: string): PickerOrder {
   const kind = models.find((m) => m.id === id)?.kind ?? "";
@@ -55,14 +67,10 @@ export function pickerOrder(models: readonly PickerModel[], id: string): PickerO
   const position = same.findIndex((m) => m.id === id) + 1;
   return {
     kind,
-    items: same.map((m) => ({
-      id: m.id,
-      label: m.label,
-      note: m.id === id ? null : m.broken ? "Fails its check" : m.status === "live" ? null : (STATUS_TEXT[m.status] ?? m.status),
-    })),
+    items: pickerItems(same, id),
     position,
     text: `${ordinal(position)} of ${same.length} in the picker`,
-    title: `Order in the ${pickerNoun(kind)} picker`,
+    title: pickerTitle(kind),
   };
 }
 

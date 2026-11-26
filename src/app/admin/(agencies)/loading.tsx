@@ -1,5 +1,5 @@
-import { OrgsListSkeleton } from "@/components/skeletons/orgs-list-skeleton";
+import { AgenciesListSkeleton } from "@/components/skeletons/agencies-list-skeleton";
 
 export default function Loading() {
-  return <OrgsListSkeleton />;
+  return <AgenciesListSkeleton />;
 }
