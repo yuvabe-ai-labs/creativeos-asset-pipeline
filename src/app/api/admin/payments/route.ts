@@ -1,12 +1,13 @@
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
-import { listRecentPayments } from "@/lib/db/billing-admin-payments";
+import { listAdminPaymentsPage } from "@/lib/db/billing-admin-payments";
 import { apiOk, withTryCatch } from "@/lib/api/route-helpers";
-import { pageParam } from "@/lib/billing/usage-page-size";
+import { paymentFiltersFromParams } from "@/lib/billing/admin-payments-filters";
 
-// GET /api/admin/payments?page=N — older pages of Admin › Payments (D588). Page 1 comes with the
-// page itself. Super admin only.
+// GET /api/admin/payments?range=…&status=…&q=…&page=N — Admin › Payments' ledger for other filters
+// and older pages (D588, D592): the page of payments and the totals by status. The page's first
+// view comes with the page itself. Super admin only.
 export async function GET(req: Request) {
   await requireSuperAdmin();
-  const page = pageParam(new URL(req.url).searchParams.get("page"));
-  return withTryCatch("Could not load payments.", async () => apiOk(await listRecentPayments(page)));
+  const filters = paymentFiltersFromParams(new URL(req.url).searchParams);
+  return withTryCatch("Could not load payments.", async () => apiOk(await listAdminPaymentsPage(filters)));
 }

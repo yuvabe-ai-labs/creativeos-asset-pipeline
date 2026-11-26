@@ -28,6 +28,16 @@ describe("billing log in plain words", () => {
       .toBe("Ended plan credits");
   });
 
+  it("says a plan moves to a new price from its renewal, or why it can't (D593)", () => {
+    const before = { price_id: "old", amount_minor: 1_000_000 };
+    expect(describeBillingChange(entry("plan_move", before, { price_id: "new", amount_minor: 1_200_000, starts_at: "2026-12-03T06:00:00Z", refused: null })))
+      .toBe("Plan moves from ₹10,000 to ₹12,000 a month from the renewal on 3 Dec 2026");
+    expect(describeBillingChange(entry("plan_move", before, { price_id: "new", amount_minor: 1_200_000, refused: "upi" })))
+      .toBe("Couldn't move the plan to ₹12,000 a month: it is paid by UPI. It stays at ₹10,000 until it changes plan");
+    expect(describeBillingChange(entry("plan_move", before, { price_id: "new", amount_minor: 1_200_000, refused: "other" })))
+      .toBe("Couldn't move the plan to ₹12,000 a month. It stays at ₹10,000 until it changes plan");
+  });
+
   it("names anything else plainly", () => {
     expect(describeBillingChange(entry("something_new", null, null))).toBe("Billing changed");
   });

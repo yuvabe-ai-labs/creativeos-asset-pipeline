@@ -10,6 +10,7 @@ import {
   type SubscriptionStatus,
 } from "@/lib/db/billing-subscriptions";
 import { cancelSubscription, getSubscription, listOrderPayments, listSubscriptionInvoices } from "./razorpay";
+import { PAYMENT_DUE_END_DAYS } from "./constants";
 
 // The check against Razorpay (spec 2026-11-21-failed-payments-design.md, D585). Webhooks can be
 // late, missing (Razorpay disables a webhook after 24 hours of failures) or out of order; this
@@ -17,8 +18,7 @@ import { cancelSubscription, getSubscription, listOrderPayments, listSubscriptio
 // so running it twice changes nothing. Every agency is checked on its own: one failure never
 // stops the rest.
 
-/** A plan unpaid this long is ended (Razorpay would keep raising unpaid invoices forever). */
-export const PAYMENT_DUE_END_DAYS = 30;
+export { PAYMENT_DUE_END_DAYS };
 
 const STATUS_FROM_RAZORPAY: Record<string, SubscriptionStatus> = {
   created: "created",

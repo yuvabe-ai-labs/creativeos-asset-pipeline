@@ -5,7 +5,7 @@
 // run's estimate. Client-safe.
 import { lineFor } from "@/lib/ai-models/pricing";
 import { priceDims } from "@/lib/ai-models/model-edit";
-import { displayAmount, formatUsd, isTokenMeter } from "@/lib/ai-models/price-format";
+import { displayAmount, isTokenMeter } from "@/lib/ai-models/price-format";
 import type { AiModel, AiModelPrice, Meter, PriceLine } from "@/lib/ai-models/types";
 
 type Value = string | boolean;
@@ -209,40 +209,42 @@ export function priceGrid(model: GridModel, price: AiModelPrice): PriceGrid {
   return { rowAxis, colAxis, rowValues, colValues, cells, otherCharges: price.lines.filter((l) => !isMain(l)).map((l) => otherCharge(model, l)) };
 }
 
-export type PriceRange = { from: string; to: string; single: boolean };
+/**
+ * What a model costs us at its cheapest setting, as the models catalog shows it ("Costs us from
+ * $0.084 a second"). `varies`: other settings cost more. `usd` is the amount as read: per 1M for
+ * token prices.
+ */
+export type StartingPrice = { kind: "price"; usd: number; unit: string; varies: boolean } | { kind: "at-cost" };
 
-const PER_UNIT: Partial<Record<Meter, string>> = { video_second: "a second", audio_second: "a second", output_image: "an image", request: "a request" };
+const PER_UNIT: Partial<Record<Meter, string>> = {
+  video_second: "a second",
+  audio_second: "a second of audio",
+  output_image: "an image",
+  request: "a request",
+};
 const lineOf = (price: Pick<AiModelPrice, "lines">, meter: Meter) => price.lines.find((l) => l.meter === meter);
+const unitOf = (meter: Meter, model: GridModel) => PER_UNIT[meter] ?? meterLabel(meter, model);
 
-/** The models list's price text: "$0.023172 a second" / "up to $0.208512 at 4K". Null with no price. */
-export function priceRange(model: GridModel, price: AiModelPrice): PriceRange | null {
+/** The cheapest offered setting's price, or a flat price; null with no price lines to read. */
+export function startingPrice(model: GridModel, price: AiModelPrice): StartingPrice | null {
   const grid = priceGrid(model, price);
   const cells = grid.cells.flat().filter((c): c is GridCell & { usd: number } => c.offered && c.usd !== null);
   if (cells.length) {
     const lo = cells.reduce((a, b) => (b.usd < a.usd ? b : a));
     const hi = cells.reduce((a, b) => (b.usd > a.usd ? b : a));
-    const single = hi.usd === lo.usd;
-    return {
-      from: `${formatUsd(lo.usd)} ${PER_UNIT[lo.meter]}`,
-      to: single ? "same at every setting" : `up to ${formatUsd(hi.usd)} at ${whenText(hi.when) || "top setting"}`,
-      single,
-    };
+    return { kind: "price", usd: lo.usd, unit: unitOf(lo.meter, model), varies: hi.usd !== lo.usd };
   }
+  // A flat price per run (prompt runs, D559); an attached image adds its own flat price.
   const request = lineOf(price, "request");
-  if (request) {
-    // A flat price per run (prompt runs, D559); an attached image adds its own flat price.
-    const image = lineOf(price, "input_image");
-    return { from: `${formatUsd(request.unit_usd)} a request`, to: image ? `plus ${formatUsd(image.unit_usd)} an attached image` : "flat price", single: true };
-  }
+  if (request) return { kind: "price", usd: request.unit_usd, unit: unitOf("request", model), varies: false };
   const flat = price.lines.find((l) => (l.meter === "video_second" || l.meter === "audio_second") && !Object.keys(asWhen(l)).length);
-  if (flat) return { from: `${formatUsd(flat.unit_usd)} ${PER_UNIT[flat.meter]}`, to: "same at every setting", single: true };
+  if (flat) return { kind: "price", usd: flat.unit_usd, unit: unitOf(flat.meter, model), varies: false };
   const tokensIn = lineOf(price, "input_token");
-  const tokensOut = lineOf(price, "text_output_token");
-  if (tokensIn && tokensOut) {
-    return { from: `${formatUsd(displayAmount("input_token", tokensIn.unit_usd))} in · ${formatUsd(displayAmount("text_output_token", tokensOut.unit_usd))} out`, to: "per 1M tokens", single: true };
+  if (tokensIn && lineOf(price, "text_output_token")) {
+    return { kind: "price", usd: displayAmount("input_token", tokensIn.unit_usd), unit: "per 1M tokens in", varies: false };
   }
   const credit = lineOf(price, "provider_credit");
-  if (credit) return { from: formatUsd(credit.unit_usd), to: meterLabel("provider_credit", model), single: true };
-  if (lineOf(price, "usd")) return { from: "At cost", to: "what the provider reports", single: true };
+  if (credit) return { kind: "price", usd: credit.unit_usd, unit: meterLabel("provider_credit", model), varies: false };
+  if (lineOf(price, "usd")) return { kind: "at-cost" };
   return null;
 }

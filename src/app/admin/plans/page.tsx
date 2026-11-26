@@ -1,29 +1,46 @@
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
-import { getBillingSettings, getCatalog, getSubscriberCounts } from "@/lib/db/billing-catalog";
-import { SettingsBar } from "@/components/admin/plans/settings-bar";
-import { OffersSection } from "@/components/admin/plans/offers-section";
+import { getBillingSettings, getCatalog, getOfferHealth } from "@/lib/db/billing-catalog";
+import { getPriceMoves } from "@/lib/db/billing-plan-moves";
+import { usageRange } from "@/lib/billing/usage-period";
+import { offerView } from "@/lib/admin/plans-page";
+import { SettingsLine } from "@/components/admin/plans/settings-line";
+import { PlansView } from "@/components/admin/plans/plans-view";
+import { OfferDialog } from "@/components/admin/plans/offer-dialog";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Plans and prices · Admin" };
+export const metadata = { title: "Plans and prices — Admin" };
 
-// Admin › Plans and prices (spec 2026-11-21-plans-and-prices-design.md). Three calls whatever the
-// number of agencies: the catalog with its prices, the settings in force, subscribers per price.
-// The same width as Agencies, so the section nav doesn't move between the two.
+// Admin › Plans and prices, cards with health (D592). Four calls in parallel whatever the number of
+// agencies: the catalog with its prices, the settings in force, every price's running plans and
+// this month's payments (grouped in the database, migration 0102), and the plans moving to a new
+// price (grouped, migration 0103, D593).
 export default async function AdminPlansPage() {
   await requireSuperAdmin();
-  const [catalog, settings, counts] = await Promise.all([getCatalog(), getBillingSettings(), getSubscriberCounts()]);
+  const [catalog, settings, health, moves] = await Promise.all([getCatalog(), getBillingSettings(), getOfferHealth(usageRange("this_month").from), getPriceMoves()]);
+  const views = catalog.map((p) => offerView(p, health, settings, moves));
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-14">
-      <div className="mb-6 flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">Plans and prices</h1>
-        <p className="text-sm text-muted-foreground">What agencies that pay for a plan can buy. The same for every agency.</p>
+    <main className={adminPageClass()}>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Plans and prices</h1>
+          <SettingsLine settings={settings} views={views} />
+        </div>
+        <OfferDialog
+          kind="plan"
+          settings={settings}
+          trigger={
+            <Button>
+              <Plus aria-hidden strokeWidth={1.5} />
+              Add a plan
+            </Button>
+          }
+        />
       </div>
-      <div className="flex flex-col gap-10">
-        <SettingsBar settings={settings} />
-        <OffersSection kind="plan" products={catalog.filter((p) => p.kind === "plan")} counts={counts} settings={settings} />
-        <OffersSection kind="topup" products={catalog.filter((p) => p.kind === "topup")} counts={counts} settings={settings} />
-      </div>
+      <PlansView views={views} health={health} settings={settings} />
     </main>
   );
 }

@@ -5,7 +5,9 @@ import { defaultCreditWhen } from "@/lib/admin/credits-change";
 import { parseMargin, sameSettings, settingsChangeWords, type Settings } from "@/lib/admin/credits-page";
 import type { When } from "@/lib/admin/change-prices-when";
 
-/** Where the flow is: closed, the settings on the page, or the When / Review dialogs. */
+export const CREDIT_STEPS = ["Settings", "When", "Review"] as const;
+
+/** Where the flow is: closed, or one of its three steps, all in one dialog (D594). */
 export type CreditFlowStage = "closed" | "settings" | "when" | "review";
 export type Step = Settings["roundStep"];
 
@@ -27,14 +29,14 @@ export const closedCreditFlow: CreditFlow = {
 };
 
 export type CreditFlowAction =
-  | { type: "start"; live: Settings; now: Date }
+  /** `from` fills in a scheduled change (its settings and start), so saving on its day replaces it. */
+  | { type: "start"; live: Settings; now: Date; from?: { settings: Settings; when: When } }
   | { type: "margin"; text: string }
   | { type: "step"; step: Step }
   | { type: "go"; stage: "when" | "review" }
   | { type: "back" }
-  /** Esc or the close button on When or Review: back to the settings. */
+  /** Esc, the close button or Cancel: the flow closes. */
   | { type: "close" }
-  | { type: "cancel" }
   | { type: "when"; when: Partial<When> }
   | { type: "saving"; on: boolean }
   | { type: "done" }
@@ -45,8 +47,10 @@ export function changeCreditsReducer(s: CreditFlow, a: CreditFlowAction): Credit
   // While a save runs, nothing moves.
   if (s.saving && a.type !== "saving" && a.type !== "done" && a.type !== "stale") return s;
   switch (a.type) {
-    case "start":
-      return { stage: "settings", margin: String(a.live.marginPercent), step: a.live.roundStep, when: defaultCreditWhen(a.now), saving: false };
+    case "start": {
+      const from = a.from?.settings ?? a.live;
+      return { stage: "settings", margin: String(from.marginPercent), step: from.roundStep, when: a.from?.when ?? defaultCreditWhen(a.now), saving: false };
+    }
     case "margin":
       return { ...s, margin: a.text };
     case "step":
@@ -56,8 +60,6 @@ export function changeCreditsReducer(s: CreditFlow, a: CreditFlowAction): Credit
     case "back":
       return s.stage === "review" ? { ...s, stage: "when" } : s.stage === "when" ? { ...s, stage: "settings" } : s;
     case "close":
-      return s.stage === "when" || s.stage === "review" ? { ...s, stage: "settings" } : s;
-    case "cancel":
     case "done":
       return closedCreditFlow;
     case "when":

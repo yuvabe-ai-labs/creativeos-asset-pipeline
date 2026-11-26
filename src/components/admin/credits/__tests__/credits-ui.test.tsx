@@ -4,11 +4,12 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {}, repla
 vi.mock("@/lib/actions/credit-settings", () => ({}));
 import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import { buildCreditReview, defaultCreditWhen } from "@/lib/admin/credits-change";
-import { creditHistory, creditRunRows, creditsSummary, typicalCreditRuns } from "@/lib/admin/credits-page";
-import { CreditsSummary } from "../credits-summary";
-import { CreditSettingsCard } from "../credit-settings-card";
-import { CreditEditBar } from "../credit-edit-bar";
+import { creditHistory, creditRunRows, typicalCreditRuns } from "@/lib/admin/credits-page";
+import { exampleRuns, nextCreditChange, nowRow } from "@/lib/admin/credits-overview";
+import { CreditsCard } from "../credits-card";
+import { CreditSettingsStep } from "../credit-settings-step";
 import { CreditHistory } from "../credit-history";
+import { NextChangeRow } from "../next-change-row";
 import { CreditReviewStep } from "../credit-review-step";
 import { CreditsWorkspace } from "../credits-workspace";
 import { TypicalRunsTable } from "../typical-runs-table";
@@ -20,15 +21,29 @@ const LIVE_ROW = { id: "a", effectiveFrom: "2026-01-01T00:00:00Z", marginPercent
 const runs = typicalCreditRuns(seededModelCatalog(), NOW);
 const text = (html: string) => html.replace(/<[^>]+>/g, "").replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
 
-describe("summary", () => {
-  it("is one line, the next change or none, How, and the one action", () => {
-    const s = creditsSummary([LIVE_ROW], ZERO, NOW);
-    const html = renderToStaticMarkup(<CreditsSummary line={s.line} next={s.next} onHow={() => {}} onStart={() => {}} />);
-    expect(text(html)).toContain("1 credit = $0.001 · margin 0% · rounds up to the next 5 credits");
-    expect(text(html)).toContain("No change scheduled.");
-    expect(text(html)).toContain("How is this worked out?");
-    expect(html).toContain('id="credits-change-start"');
-    expect(renderToStaticMarkup(<CreditsSummary line={s.line} next={s.next} onHow={() => {}} onStart={null} />)).not.toContain("Change credit settings");
+const SCHEDULED = { ...LIVE_ROW, id: "n", effectiveFrom: "2026-12-01T18:30:00Z", marginPercent: 10 };
+const emptyHistory = { timeline: { items: [], source: null }, kept: {} };
+
+describe("settings card", () => {
+  it("shows Now, no change scheduled, the fixed rate and two closed disclosures", () => {
+    const t = text(renderToStaticMarkup(<CreditsCard now={nowRow(LIVE_ROW)} live={ZERO} next={null} history={emptyHistory} />));
+    expect(t).toContain("Margin 0% · rounds up to the next 5 credits");
+    expect(t).toContain("Since 1 Jan 2026");
+    expect(t).toContain("No change scheduled.");
+    expect(t).toContain("1 credit is $0.001 of what we pay, always.");
+    const html = renderToStaticMarkup(<CreditsCard now={nowRow(LIVE_ROW)} live={ZERO} next={null} history={emptyHistory} />);
+    expect(html.match(/aria-expanded="false"/g)).toHaveLength(2);
+    expect(t).toContain("How credits are worked out");
+    expect(t).toContain("History");
+  });
+  it("the Next row says the change, a typical run, held credits and offers Cancel", () => {
+    const next = nextCreditChange({ settings: [LIVE_ROW, SCHEDULED], now: NOW, reference: { name: "Kling 3.0", usd: 0.62, flat: null }, runs, agencyRuns: [], modelRuns: {} });
+    const t = text(renderToStaticMarkup(<NextChangeRow next={next} />));
+    expect(t).toContain("From 2 Dec 2026, 00:00 IST");
+    expect(t).toContain("Margin 0% → 10%.");
+    expect(t).toContain("A typical Kling 3.0 run goes from 620 to 685 credits.");
+    expect(t).toMatch(/Credits agencies hold buy about \d+% fewer runs\./);
+    expect(t).toContain("Cancel");
   });
 });
 
@@ -55,18 +70,16 @@ describe("typical runs table", () => {
   });
 });
 
-describe("settings card and edit bar", () => {
-  it("edits margin and step, shows the fixed settings with why, and flags a margin to fix", () => {
-    const ok = renderToStaticMarkup(<CreditSettingsCard margin="10" step={10} draft={{ marginPercent: 10, roundStep: 10 }} live={ZERO} onMargin={() => {}} onStep={() => {}} />);
-    for (const t of ["Margin", "Rounding step", "1 credit", "5 credits", "10 credits", "Credit rate", "$0.001 per credit", "Always up", "never charges below what it costs us", "Worked example"]) {
-      expect(text(ok)).toContain(t);
-    }
-    const bad = renderToStaticMarkup(<CreditSettingsCard margin="250" step={5} draft={null} live={ZERO} onMargin={() => {}} onStep={() => {}} />);
+describe("settings step", () => {
+  it("edits margin and step, shows three example runs, and flags a margin to fix", () => {
+    const examples = creditRunRows(exampleRuns(runs), ZERO, { marginPercent: 10, roundStep: 10 });
+    const ok = text(renderToStaticMarkup(<CreditSettingsStep margin="10" step={10} invalid={false} examples={examples} filledIn={null} onMargin={() => {}} onStep={() => {}} />));
+    for (const t of ["Margin", "Round up to", "1 credit", "5 credits", "10 credits", "What this does", "→"]) expect(ok).toContain(t);
+    expect(examples).toHaveLength(3);
+    const bad = renderToStaticMarkup(<CreditSettingsStep margin="250" step={5} invalid examples={[]} filledIn="the 2 Dec change" onMargin={() => {}} onStep={() => {}} />);
     expect(bad).toContain('aria-invalid="true"');
     expect(text(bad)).toContain("Use a number from 0 to 200");
-    const bar = renderToStaticMarkup(<CreditEditBar summary="Margin 0% → 10%" invalid={false} canGoOn onCancel={() => {}} onNext={() => {}} />);
-    expect(text(bar)).toContain("Settings");
-    expect(text(bar)).toContain("Margin 0% → 10%");
+    expect(text(bad)).toContain("The 2 Dec change is filled in. Saving on that day replaces it.");
   });
 });
 
@@ -84,9 +97,10 @@ describe("review", () => {
     const t = text(renderToStaticMarkup(<CreditReviewStep review={review} />));
     expect(t).toContain("Margin 0% → 100%, from 25 Nov 2026, 00:00 IST, tomorrow.");
     expect(t).toContain("Check the margin: you entered 100%.");
-    expect(t).toContain("Agencies affected");
-    expect(t).toContain("Acme");
-    expect(t).toContain("Credits agencies already hold will buy fewer runs.");
+    expect(t).toContain("The one agency with runs this month would have used about 67% more credits for the same work.");
+    expect(t).toContain("Credits agencies hold buy about 40% fewer runs.");
+    expect(t).toContain("Every model and agency");
+    expect(t).not.toContain("Agencies affected");
   });
 });
 
@@ -114,21 +128,23 @@ describe("history and page", () => {
     expect(t).toContain("Cancel this change");
     expect(t).toContain("Live now");
   });
-  it("the workspace shows the summary and typical runs, with no settings card until the flow opens", () => {
+  it("the workspace shows the title, its one action and the card, with the flow closed", () => {
     const html = renderToStaticMarkup(
       <CreditsWorkspace
-        summary={creditsSummary([LIVE_ROW], ZERO, NOW)}
+        now={nowRow(LIVE_ROW)}
+        next={null}
+        history={emptyHistory}
         live={ZERO}
         settings={[LIVE_ROW]}
         starts={[{ id: LIVE_ROW.id, effectiveFrom: LIVE_ROW.effectiveFrom }]}
         runs={runs}
         agencyRuns={[]}
         modelRuns={{}}
-        aside={<aside>History</aside>}
       />,
     );
-    expect(text(html)).toContain("What typical runs cost in credits");
-    expect(text(html)).toContain("Change credit settings");
-    expect(text(html)).not.toContain("New settings");
+    expect(text(html)).toContain("What runs cost agencies in credits. One setting for every agency.");
+    expect(html).toContain('id="credits-change-start"');
+    expect(text(html)).toContain("No change scheduled.");
+    expect(text(html)).not.toContain("What this does");
   });
 });

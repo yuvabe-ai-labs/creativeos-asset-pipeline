@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
   requireSuperAdmin: vi.fn(), revalidatePath: vi.fn(),
-  saveBillingSettings: vi.fn(), saveProduct: vi.fn(), saveOffer: vi.fn(), getCurrentPrice: vi.fn(),
+  saveBillingSettings: vi.fn(), saveProduct: vi.fn(), saveOffer: vi.fn(), getCurrentPrice: vi.fn(), trigger: vi.fn(),
 }));
+vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: m.trigger } }));
 vi.mock("@/lib/auth/require-super-admin", () => ({ requireSuperAdmin: m.requireSuperAdmin }));
 vi.mock("next/cache", () => ({ revalidatePath: m.revalidatePath }));
 vi.mock("@/lib/db/billing-catalog", () => ({
@@ -62,9 +63,18 @@ describe("Plans and prices actions", () => {
     await expect(saveOfferAction({ ...offer, productId: P, name: "Studio Plus" })).resolves.toEqual({ moved: 0 });
   });
 
-  it("says how many agencies move to a new price", async () => {
+  it("says how many agencies move to a new price, and moves them on Razorpay in the background (D593)", async () => {
     m.saveOffer.mockResolvedValue({ productId: P, priceChanged: true, moved: 3 });
     await expect(saveOfferAction({ ...offer, productId: P, reason: "Costs went up" })).resolves.toEqual({ moved: 3 });
+    expect(m.trigger).toHaveBeenCalledWith("move-plan-price", { productId: P });
+  });
+
+  it("starts no moves when no one moves, and saves even when the background run can't start", async () => {
+    await saveOfferAction(offer);
+    expect(m.trigger).not.toHaveBeenCalled();
+    m.saveOffer.mockResolvedValue({ productId: P, priceChanged: true, moved: 1 });
+    m.trigger.mockRejectedValue(new Error("queue down"));
+    await expect(saveOfferAction({ ...offer, productId: P, reason: "Costs went up" })).resolves.toEqual({ moved: 1 });
   });
 
   it("refuses bad input before writing", async () => {

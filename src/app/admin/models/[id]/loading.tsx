@@ -1,9 +1,10 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 // The model page's shape: header strip, the price sheet, and the side column.
 export default function Loading() {
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 md:px-6 md:py-14">
+    <main className={adminPageClass("wide")}>
       <Skeleton className="mb-3 h-4 w-28" />
       <div className="mb-5 flex items-center gap-4">
         <Skeleton className="h-8 w-64 flex-1 sm:flex-none" />

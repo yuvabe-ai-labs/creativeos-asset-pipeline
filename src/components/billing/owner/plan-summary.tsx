@@ -9,6 +9,7 @@ import { useCancelPlan, usePayNow } from "@/hooks/queries/billing";
 import { useState } from "react";
 import type { LiveSubscription } from "@/lib/db/billing-subscriptions";
 import { formatRupees } from "@/lib/billing/pricing";
+import { ownerRenewalLine } from "@/lib/billing/plan-move-copy";
 import { ApiError } from "@/services/read-json";
 import { ConfirmStepDialog } from "./confirm-step-dialog";
 
@@ -40,7 +41,7 @@ export function PlanSummary({ subscription }: { subscription: LiveSubscription |
     paid.status === "cancelling" ? `Cancelled. Works until ${end ?? "the paid month ends"}.`
     : paid.status === "payment_due"
       ? `Your payment didn't go through, so AI runs are paused. Pay now with the same card, a new one or UPI; runs start again as soon as it goes through. Nothing is lost.${paid.paymentDueSince ? ` If it isn't paid by ${day(new Date(new Date(paid.paymentDueSince).getTime() + 30 * 86_400_000).toISOString())}, the plan ends.` : ""}`
-    : `Renews ${end ?? "every month"}${paid.nextPriceId ? ". Your new plan starts then." : "."}`;
+    : ownerRenewalLine(paid.planName, paid.currentPeriodEnd, paid.next);
 
   return (
     <div className="flex flex-wrap items-start justify-between gap-4 p-6">

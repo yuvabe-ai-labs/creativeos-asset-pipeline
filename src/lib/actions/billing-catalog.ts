@@ -2,6 +2,7 @@
 
 import * as z from "zod";
 import { revalidatePath } from "next/cache";
+import { tasks } from "@trigger.dev/sdk";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { saveBillingSettings, saveProduct, saveOffer, getCurrentPrice } from "@/lib/db/billing-catalog";
 import { OfferFormSchema, SettingsFormSchema } from "@/lib/billing/catalog-schema";
@@ -45,8 +46,18 @@ export async function saveBillingSettingsAction(form: {
   });
 }
 
+/** Sets up the moves on Razorpay in the background (D593): many calls, so never in this request.
+ *  An enqueue that fails is not the admin's problem: the nightly check sets them up. */
+async function startMoves(productId: string): Promise<void> {
+  try {
+    await tasks.trigger("move-plan-price", { productId });
+  } catch (e) {
+    console.error("[admin catalog] could not start the plan moves; the nightly check sets them up", e);
+  }
+}
+
 /** One step: a new plan or pack with its price, or an edit of everything about it. A changed
- *  price needs a reason; the result says how many agencies move to it from their next payment. */
+ *  price needs a reason; the result says how many agencies move to it from their next renewal. */
 export async function saveOfferAction(form: {
   productId: string | null;
   kind: "plan" | "topup";
@@ -68,10 +79,11 @@ export async function saveOfferAction(form: {
       const current = await getCurrentPrice(form.productId, intervalMonths);
       if (current && (current.amountMinor !== o.amount || current.credits !== o.credits)) return { error: "Add a reason for the new price." };
     }
-    const { moved } = await saveOffer(
+    const { productId, priceChanged, moved } = await saveOffer(
       { productId: form.productId, kind: o.kind, name: o.name, description: o.description, active: form.active, amountMinor: o.amount, credits: o.credits, intervalMonths, reason: o.reason || null },
       admin.userId,
     );
+    if (o.kind === "plan" && priceChanged && moved > 0) await startMoves(productId);
     return { moved };
   });
 }

@@ -21,7 +21,8 @@ import { getLiveSubscription } from "@/lib/db/billing-subscriptions";
 import { OrgDetailTabs } from "./org-detail-tabs";
 import { EnterImpersonationButton } from "./enter-impersonation-button";
 import { OrgCrumbs } from "./org-crumbs";
-import { PAGE_CONTAINER, PageHeader } from "@/components/shared/page-header";
+import { PageHeader } from "@/components/shared/page-header";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,7 @@ export default async function OrgDetailPage({
   ]);
 
   return (
-    <main className={PAGE_CONTAINER}>
+    <main className={adminPageClass("wide")}>
       <div className="mb-6">
         <PageHeader
           breadcrumb={<OrgCrumbs org={{ id: org.id, name: org.name }} />}

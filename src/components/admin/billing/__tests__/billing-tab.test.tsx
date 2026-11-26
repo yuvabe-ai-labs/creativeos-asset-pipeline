@@ -63,7 +63,7 @@ describe("Billing tab", () => {
     expect(html).toContain("Yuva · Trial");
   });
 
-  const sub = { id: "s", status: "active" as const, priceId: "p", nextPriceId: null, planName: "Studio", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1", paymentDueSince: null };
+  const sub = { id: "s", status: "active" as const, priceId: "p", nextPriceId: null, planName: "Studio", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1", paymentDueSince: null, next: null };
 
   it("shows a paying agency's plan, its price and when it renews", () => {
     const html = renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} subscription={sub} />);
@@ -71,6 +71,17 @@ describe("Billing tab", () => {
     expect(html).toContain("₹12,000 a month + GST");
     expect(html).toContain("Active");
     expect(html).toContain("Renews 21 Dec 2026");
+  });
+
+  it("says what happens to the price at renewal, as far as the move got (D593)", () => {
+    const next = (state: "scheduled" | "waiting" | "refused") => ({
+      ...sub,
+      nextPriceId: "p2",
+      next: { priceId: "p2", planName: "Studio", amountMinor: 1_400_000, credits: 100_000, state, refused: state === "refused" ? ("emandate" as const) : null },
+    });
+    expect(renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} subscription={next("scheduled")} />)).toContain("Renews 21 Dec 2026 · moves to ₹14,000 a month then");
+    expect(renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} subscription={next("waiting")} />)).toContain("move to ₹14,000 a month not set up yet");
+    expect(renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} subscription={next("refused")} />)).toContain("stays on this price: pays by bank mandate, so it can&#x27;t move to ₹14,000 a month");
   });
 
   it("warns when a payment is due, and says when a cancelled plan ends", () => {

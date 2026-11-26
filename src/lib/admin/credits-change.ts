@@ -7,11 +7,9 @@ import type { CreditSettings } from "@/lib/ai-models/types";
 import { replacedRow, serverStart, type When } from "./change-prices-when";
 import type { AgencyChange } from "./change-prices";
 import { addIstDays, formatIstDate, formatIstTime, formatIstWhen, relativeIstDay, todayIst } from "./ist";
-import { percentChange } from "./percent-edit";
 import {
   agencyCreditImpact,
   creditRunRows,
-  creditsFor,
   sameSettings,
   settingsChangeWords,
   settingsWords,
@@ -21,6 +19,7 @@ import {
   type PricedRun,
   type Settings,
 } from "./credits-page";
+import { agencyMonthWords, exampleRuns, heldRunsChange, heldWords, roundingPushWords } from "./credits-overview";
 
 /** Every change starts this long after it is saved at the earliest; the server moves a sooner start. */
 export const LEAD_MINUTES = CREDIT_SETTINGS_LEAD_MINUTES;
@@ -72,9 +71,13 @@ export type CreditReview = {
   /** The replaced row's id and start, for the save and its Undo. */
   replacedRow: CreditSettings | null;
   rows: CreditRunRow[];
+  /** The three example runs of `rows`, shown first; the full table is behind a disclosure. */
+  examples: CreditRunRow[];
   warnings: ReviewNote[];
   agencies: AgencyChange[];
-  /** "Credits agencies already hold will buy fewer runs." */
+  /** "The 3 agencies with runs this month would have used about 9% more credits for the same work." */
+  agencySummary: string | null;
+  /** "Credits agencies hold buy about 9% fewer runs." */
   holdNote: ReviewNote | null;
   canSave: boolean;
   confirm: string;
@@ -116,14 +119,15 @@ export function buildCreditReview(a: {
     else if (startOf(s) > t) warnings.push({ tone: "info", text: `The change scheduled for ${when} still follows and replaces these settings then.` });
   }
 
-  const sum = (s: Settings) => a.runs.reduce((n, r) => n + creditsFor(r, s), 0);
-  const p = percentChange(sum(before), sum(a.draft));
-  const holdNote: ReviewNote | null =
-    p === null || Math.abs(p) < 1e-9
-      ? null
-      : p > 0
-        ? { tone: "warn", text: "Credits agencies already hold will buy fewer runs." }
-        : { tone: "info", text: "Credits agencies already hold will buy more runs." };
+  const push = same ? null : roundingPushWords(rows);
+  if (push) warnings.push({ tone: "warn", text: push });
+
+  // Weighted by this month's runs of each model when there are any (D594), else by the typical runs.
+  const held = same ? null : heldRunsChange(before, a.draft, a);
+  const heldText = heldWords(held);
+  const holdNote: ReviewNote | null = held === null || !heldText ? null : { tone: held < -1e-9 ? "warn" : "info", text: heldText };
+  const agencies = agencyCreditImpact(a.agencyRuns, a.modelRuns, before, a.draft);
+  const exampleKeys = new Set(exampleRuns(a.runs).map((r) => r.key));
 
   const replaced: ReplacedChange | null = rep
     ? {
@@ -142,8 +146,10 @@ export function buildCreditReview(a: {
     replaced,
     replacedRow: rep,
     rows,
+    examples: rows.filter((r) => exampleKeys.has(r.key)),
     warnings,
-    agencies: agencyCreditImpact(a.agencyRuns, a.modelRuns, before, a.draft),
+    agencies,
+    agencySummary: agencyMonthWords(agencies),
     holdNote,
     canSave: !same,
     confirm: same

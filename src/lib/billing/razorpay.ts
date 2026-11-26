@@ -29,25 +29,51 @@ export function razorpayKeyId(): string {
   return k.keyId;
 }
 
+/** A refused call: `message` is plain enough to show a person; `status` and `description` (Razorpay's
+ *  own words, never shown) let a caller tell a refusal that will never change from one worth a retry.
+ *  `status` is 0 when Razorpay could not be reached. */
+export class RazorpayError extends Error {
+  constructor(message: string, readonly status: number, readonly description: string) {
+    super(message);
+    this.name = "RazorpayError";
+  }
+}
+
+const describeRefusal = (body: string) => {
+  try {
+    const d = (JSON.parse(body) as { error?: { description?: unknown } }).error?.description;
+    return typeof d === "string" ? d : body;
+  } catch {
+    return body;
+  }
+};
+
 // One call to Razorpay's REST API with basic auth. A refusal is logged with its body and thrown as
-// `failMessage`, which is plain enough to show a person.
+// a RazorpayError with `failMessage`, which is plain enough to show a person.
 async function razorpay<T>(path: string, init: { method: "GET" | "POST" | "PATCH"; body?: unknown }, failMessage: string): Promise<T> {
   const k = keys();
   if (!k) {
     console.error("[razorpay] RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET not set");
     throw new Error(failMessage);
   }
-  const res = await fetch(`https://api.razorpay.com/v1${path}`, {
-    method: init.method,
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${k.keyId}:${k.keySecret}`).toString("base64")}`,
-      "Content-Type": "application/json",
-    },
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`https://api.razorpay.com/v1${path}`, {
+      method: init.method,
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${k.keyId}:${k.keySecret}`).toString("base64")}`,
+        "Content-Type": "application/json",
+      },
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    });
+  } catch (e) {
+    console.error("[razorpay] unreachable", init.method, path, e instanceof Error ? e.message : e);
+    throw new RazorpayError(failMessage, 0, "");
+  }
   if (!res.ok) {
-    console.error("[razorpay] refused", init.method, path, res.status, await res.text().catch(() => ""));
-    throw new Error(failMessage);
+    const body = await res.text().catch(() => "");
+    console.error("[razorpay] refused", init.method, path, res.status, body);
+    throw new RazorpayError(failMessage, res.status, describeRefusal(body));
   }
   return (await res.json()) as T;
 }
@@ -79,6 +105,10 @@ export type RazorpaySubscription = {
   current_end?: number | null;
   /** Razorpay's hosted page for this subscription: pay a due charge, change card or method. */
   short_url?: string | null;
+  /** A plan change waits for the end of the cycle. */
+  has_scheduled_changes?: boolean;
+  /** How the subscription is paid: "card", "upi", "emandate"… (not always sent). */
+  payment_method?: string | null;
 };
 
 const READ_FAILED = "Could not reach the payment service.";
@@ -128,13 +158,33 @@ export async function cancelSubscription(subscriptionId: string, atCycleEnd: boo
   );
 }
 
-/** Moves the subscription to another plan from the next cycle. */
+const CHANGE_FAILED = "Could not change the plan.";
+
+/** Moves the subscription to another plan from the next cycle. Razorpay allows it only for a
+ *  subscription paid by card, while it is authenticated or active (Subscriptions FAQs). */
 export async function changeSubscriptionPlan(subscriptionId: string, planId: string): Promise<RazorpaySubscription> {
   return razorpay<RazorpaySubscription>(
     `/subscriptions/${encodeURIComponent(subscriptionId)}`,
     { method: "PATCH", body: { plan_id: planId, schedule_change_at: "cycle_end" } },
-    "Could not change the plan.",
+    CHANGE_FAILED,
   );
+}
+
+/** The plan a scheduled change will move the subscription to; null when none is scheduled
+ *  (Razorpay answers 400 "No Pending update for this subscription."). */
+export async function getScheduledPlan(subscriptionId: string): Promise<string | null> {
+  try {
+    const sub = await razorpay<RazorpaySubscription>(`/subscriptions/${encodeURIComponent(subscriptionId)}/retrieve_scheduled_changes`, { method: "GET" }, READ_FAILED);
+    return sub.has_scheduled_changes === false ? null : sub.plan_id;
+  } catch (e) {
+    if (e instanceof RazorpayError && e.status === 400 && /no pending update/i.test(e.description)) return null;
+    throw e;
+  }
+}
+
+/** Drops a scheduled change that hasn't happened yet. */
+export async function cancelScheduledChange(subscriptionId: string): Promise<void> {
+  await razorpay<RazorpaySubscription>(`/subscriptions/${encodeURIComponent(subscriptionId)}/cancel_scheduled_changes`, { method: "POST" }, CHANGE_FAILED);
 }
 
 function hmacMatches(secret: string | undefined, message: string, signature: string | null | undefined): boolean {

@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: () => ({ rpc: m.rpc, from: m.from }) }));
 
-import { getCatalog, getBillingSettings, getSubscriberCounts, saveOffer, saveProduct, saveBillingSettings } from "../billing-catalog";
+import { getCatalog, getBillingSettings, getOfferHealth, saveOffer, saveProduct, saveBillingSettings } from "../billing-catalog";
 
 beforeEach(() => { m.rpc.mockReset(); m.from.mockReset(); });
 
@@ -41,10 +41,17 @@ describe("catalog reads", () => {
     expect(q.calls).toContainEqual(["limit", 1]);
   });
 
-  it("maps subscriber counts by price", async () => {
-    m.rpc.mockResolvedValue({ data: [{ price_id: "a", subscribers: 3 }], error: null });
-    await expect(getSubscriberCounts()).resolves.toEqual({ a: 3 });
-    expect(m.rpc).toHaveBeenCalledWith("billing_price_subscriber_counts");
+  it("maps each price's running plans and money, read in one grouped call", async () => {
+    m.rpc.mockResolvedValue({ data: [{ price_id: "a", agencies: 3, active: "2", ending: 1, due: 0, monthly_minor: "2400000", paid_count: 2, paid_minor: "2832000" }], error: null });
+    await expect(getOfferHealth("2026-10-31T18:30:00.000Z")).resolves.toEqual({
+      a: { agencies: 3, active: 2, ending: 1, due: 0, monthlyMinor: 2_400_000, paidCount: 2, paidMinor: 2_832_000 },
+    });
+    expect(m.rpc).toHaveBeenCalledWith("admin_offer_health", { p_since: "2026-10-31T18:30:00.000Z" });
+  });
+
+  it("throws when the health read fails, so the page never shows zero agencies", async () => {
+    m.rpc.mockResolvedValue({ data: null, error: new Error("down") });
+    await expect(getOfferHealth("2026-10-31T18:30:00.000Z")).rejects.toThrow("down");
   });
 });
 

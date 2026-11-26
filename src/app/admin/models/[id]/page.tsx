@@ -16,6 +16,7 @@ import { ModelProblems } from "@/components/admin/models/model-problems";
 import { MonthSummary } from "@/components/admin/models/month-summary";
 import { PriceTimeline } from "@/components/admin/models/price-timeline";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Model — Admin" };
@@ -98,7 +99,7 @@ export default async function AdminModelPage({
   const month = now.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 md:px-6 md:py-14">
+    <main className={adminPageClass("wide")}>
       <Breadcrumb className="mb-3">
         <BreadcrumbList>
           <BreadcrumbItem>

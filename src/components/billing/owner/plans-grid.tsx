@@ -31,7 +31,8 @@ export function PlansGrid({ plans, subscription }: { plans: OfferPrice[]; subscr
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {plans.map((p) => {
           const current = paid?.priceId === p.priceId;
-          const next = paid?.nextPriceId === p.priceId;
+          // Only a change Razorpay has agreed to is shown as coming (D593).
+          const next = paid?.next?.state === "scheduled" && paid.next.priceId === p.priceId;
           return (
             <Card key={p.priceId} className={cn("flex flex-col gap-0 py-0 shadow-card", current && "ring-1 ring-primary/40")}>
               <PlanCardFace

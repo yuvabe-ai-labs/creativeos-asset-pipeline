@@ -1,5 +1,6 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { moveState, type MoveRefusal, type NextPrice } from "@/lib/billing/plan-move-copy";
 
 // An agency's plan (billing_subscriptions, 0092) and the Razorpay events that move it (0095).
 // Spec 2026-11-21-monthly-plans-design.md.
@@ -11,6 +12,8 @@ export type LiveSubscription = {
   status: Exclude<SubscriptionStatus, "ended">;
   priceId: string;
   nextPriceId: string | null;
+  /** The price it moves to from the next renewal, and whether that is set up (0103, D593). */
+  next: NextPrice | null;
   planName: string | null;
   amountMinor: number | null;
   credits: number | null;
@@ -25,18 +28,23 @@ type LiveRow = {
   status: LiveSubscription["status"];
   price_id: string;
   next_price_id: string | null;
+  next_price_scheduled_at: string | null;
+  next_price_refused: MoveRefusal | null;
   current_period_end: string | null;
   razorpay_subscription_id: string | null;
   payment_due_since: string | null;
-  price: { amount_minor: number | string; credits: number | string; product: { name: string } | null } | null;
+  price: PriceJoin | null;
+  next_price: PriceJoin | null;
 };
+
+type PriceJoin = { amount_minor: number | string; credits: number | string; product: { name: string } | null };
 
 /** The agency's subscription that hasn't ended, with its plan's name; null when there is none. */
 export async function getLiveSubscription(orgId: string): Promise<LiveSubscription | null> {
   const { data, error } = await createServerSupabase()
     .from("billing_subscriptions")
     .select(
-      "id, status, price_id, next_price_id, current_period_end, razorpay_subscription_id, payment_due_since, price:billing_prices!billing_subscriptions_price_id_fkey(amount_minor, credits, product:billing_products(name))",
+      "id, status, price_id, next_price_id, next_price_scheduled_at, next_price_refused, current_period_end, razorpay_subscription_id, payment_due_since, price:billing_prices!billing_subscriptions_price_id_fkey(amount_minor, credits, product:billing_products(name)), next_price:billing_prices!billing_subscriptions_next_price_id_fkey(amount_minor, credits, product:billing_products(name))",
     )
     .eq("org_id", orgId)
     .neq("status", "ended")
@@ -49,6 +57,17 @@ export async function getLiveSubscription(orgId: string): Promise<LiveSubscripti
     status: r.status,
     priceId: r.price_id,
     nextPriceId: r.next_price_id,
+    next:
+      r.next_price_id && r.next_price
+        ? {
+            priceId: r.next_price_id,
+            planName: r.next_price.product?.name ?? null,
+            amountMinor: Number(r.next_price.amount_minor),
+            credits: Number(r.next_price.credits),
+            state: moveState(r.next_price_scheduled_at, r.next_price_refused),
+            refused: r.next_price_refused,
+          }
+        : null,
     planName: r.price?.product?.name ?? null,
     amountMinor: r.price ? Number(r.price.amount_minor) : null,
     credits: r.price ? Number(r.price.credits) : null,
@@ -127,7 +146,8 @@ export async function insertSubscription(row: { orgId: string; priceId: string; 
   return (data as { id: string }).id;
 }
 
-/** Our side of a subscription change the owner asked for (Razorpay already agreed). */
+/** Our side of a subscription change the owner asked for (Razorpay already agreed, so a new next
+ *  price is saved as set up). */
 export async function updateSubscription(
   id: string,
   change: { status?: SubscriptionStatus; cancelAtPeriodEnd?: boolean; nextPriceId?: string | null },
@@ -136,7 +156,11 @@ export async function updateSubscription(
   if (change.status) patch.status = change.status;
   if (change.status === "ended") patch.ended_at = new Date().toISOString();
   if (change.cancelAtPeriodEnd !== undefined) patch.cancel_at_period_end = change.cancelAtPeriodEnd;
-  if (change.nextPriceId !== undefined) patch.next_price_id = change.nextPriceId;
+  if (change.nextPriceId !== undefined) {
+    patch.next_price_id = change.nextPriceId;
+    patch.next_price_scheduled_at = change.nextPriceId ? new Date().toISOString() : null;
+    patch.next_price_refused = null;
+  }
   const { error } = await createServerSupabase().from("billing_subscriptions").update(patch).eq("id", id);
   if (error) throw error;
 }

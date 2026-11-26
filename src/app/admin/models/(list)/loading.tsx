@@ -1,21 +1,34 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { adminPageClass } from "@/components/admin/admin-page";
 
+// The catalog's shape: title and subtitle, the toolbar, then kinds of cards.
 export default function Loading() {
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-14">
+    <main className={adminPageClass()}>
       <Skeleton className="mb-2 h-8 w-32" />
-      <Skeleton className="mb-8 h-4 w-40" />
-      <Skeleton className="mb-5 h-11 w-full rounded-xl" />
-      <div className="overflow-hidden rounded-xl border bg-card shadow-card">
-        {Array.from({ length: 8 }, (_, i) => (
-          <div key={i} className="flex items-center gap-4 border-b px-5 py-3.5 last:border-b-0">
-            <Skeleton className="h-5 flex-[3]" />
-            <Skeleton className="h-5 flex-1" />
-            <Skeleton className="h-5 flex-[2]" />
-            <Skeleton className="h-5 w-20" />
-          </div>
+      <Skeleton className="mb-1.5 h-4 w-full max-w-2xl" />
+      <Skeleton className="mb-6 h-4 w-2/3 max-w-md" />
+      <div className="mb-2 flex flex-wrap items-center gap-3">
+        <Skeleton className="h-9 w-full sm:w-64" />
+        {Array.from({ length: 5 }, (_, i) => (
+          <Skeleton key={i} className="h-7 w-20 rounded-full" />
         ))}
       </div>
+      {[6, 5].map((count, s) => (
+        <div key={s} className="mt-7">
+          <Skeleton className="mb-3 h-6 w-48" />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(218px,1fr))] sm:gap-3">
+            {Array.from({ length: count }, (_, i) => (
+              <div key={i} className="flex flex-col gap-2 rounded-xl border bg-card px-3.5 py-3 shadow-card">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/3" />
+                <Skeleton className="mt-1.5 h-4 w-1/2" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </main>
   );
 }

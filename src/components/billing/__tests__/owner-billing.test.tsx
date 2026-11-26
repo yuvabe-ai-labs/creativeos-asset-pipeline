@@ -21,7 +21,12 @@ const plans = [
   { priceId: "p1", productId: "a", name: "Starter", description: null, amountMinor: 1_200_000, credits: 100_000 },
   { priceId: "p2", productId: "b", name: "Studio", description: "For growing teams", amountMinor: 2_400_000, credits: 200_000 },
 ];
-const sub = { id: "s", status: "active" as const, priceId: "p1", nextPriceId: null, planName: "Starter", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1", paymentDueSince: null };
+const sub = { id: "s", status: "active" as const, priceId: "p1", nextPriceId: null, planName: "Starter", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1", paymentDueSince: null, next: null };
+const moving = (state: "scheduled" | "waiting" | "refused") => ({
+  ...sub,
+  nextPriceId: "p1b",
+  next: { priceId: "p1b", planName: "Starter", amountMinor: 1_400_000, credits: 100_000, state, refused: state === "refused" ? ("upi" as const) : null },
+});
 
 describe("the workspace bar", () => {
   it("shows free credits and when they end, with a way to the plans", () => {
@@ -67,6 +72,23 @@ describe("the owner's billing page", () => {
     expect(html).toContain("Renews 21 Dec 2026.");
     expect(html).toContain("Change plan");
     expect(html).toContain("Cancel plan");
+  });
+
+  it("shows a new price and the day it starts only once it is set up (D593)", () => {
+    const scheduled = renderToStaticMarkup(<PlanSummary subscription={moving("scheduled")} />);
+    expect(scheduled).toContain("Renews 21 Dec 2026. From then your plan is ₹14,000 a month + GST for 1,00,000 credits.");
+    for (const state of ["waiting", "refused"] as const) {
+      const html = renderToStaticMarkup(<PlanSummary subscription={moving(state)} />);
+      expect(html).toContain("Renews 21 Dec 2026.");
+      expect(html).not.toContain("₹14,000");
+      expect(html).not.toMatch(/new plan starts/i);
+    }
+  });
+
+  it("marks the plan coming next on the plans page only once it is set up", () => {
+    const next = [{ ...plans[0], priceId: "p1b", amountMinor: 1_400_000 }];
+    expect(renderToStaticMarkup(<PlansGrid plans={next} subscription={moving("scheduled")} />)).toContain("From next payment");
+    expect(renderToStaticMarkup(<PlansGrid plans={next} subscription={moving("refused")} />)).not.toContain("From next payment");
   });
 
   it("explains a due payment without naming the payment company", () => {
