@@ -10,7 +10,7 @@ vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/scripts", () => ({ getScript: vi.fn() }));
 vi.mock("@/lib/db/script-panels", () => ({ getPanelTake: vi.fn(), setPanelPick: vi.fn() }));
 
-import { resolveOrgId } from "@/lib/dal";
+import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
 import { getScript } from "@/lib/db/scripts";
@@ -26,6 +26,7 @@ const put = (body: unknown) =>
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(resolveOrgId).mockResolvedValue("org-1");
+  vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", email: "u@x.com", orgId: "org-1" } as never);
   vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
   vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Jackfruit365", org_id: "org-1" } as never);
   vi.mocked(getScript).mockResolvedValue(makeScript());

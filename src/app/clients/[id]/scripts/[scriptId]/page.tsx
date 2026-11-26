@@ -1,6 +1,6 @@
+import { loadClientPage } from "@/lib/permissions/page";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { getClientBySlug } from "@/lib/db/clients";
+import { notFound } from "next/navigation";
 import { getScript } from "@/lib/db/scripts";
 import { getScriptCanvas } from "@/lib/db/canvases";
 import { ScriptCanvasButton } from "@/components/scripts/script-canvas-button";
@@ -8,10 +8,11 @@ import { getGenerateScript, listCopilotAvatars, listScriptMessages, loadGenerate
 import { scriptWaiting } from "@/lib/scripts/copilot/waiting";
 import { CopilotChat } from "@/components/scripts/generate/copilot-chat";
 import { listAvatars } from "@/lib/db/avatars";
-import { resolveOrgId } from "@/lib/dal";
 import { scriptsLocked } from "@/lib/journey/stages";
 import { redirectUnlessKbReady } from "@/lib/clients/kb-gate";
 import { ScriptView } from "@/components/scripts/script-view";
+import { BuiltFromLine } from "@/components/scripts/built-from-line";
+import { listSignalNames } from "@/lib/db/signals";
 import { ScriptBreadcrumb } from "@/components/scripts/script-breadcrumb";
 import { GenerateWorkspace } from "@/components/scripts/generate/generate-workspace";
 import { ApprovedReviewBoard } from "@/components/script-review/team/approved-review-board";
@@ -28,16 +29,15 @@ export const dynamic = "force-dynamic";
 
 export default async function ScriptPage({ params }: { params: Promise<{ id: string; scriptId: string }> }) {
   const { id, scriptId } = await params; // `id` is the client slug
-  const client = await getClientBySlug(id);
-  const effectiveOrgId = await resolveOrgId();
-  if (!client || client.org_id !== effectiveOrgId) redirect("/");
+  const { client } = await loadClientPage(id, "view");
   // D503: no scripts or avatars until the Brand KB is set up, the same rule as the canvases page.
   redirectUnlessKbReady(client);
 
   // Spec 2 — at Generate the script opens in the copilot workspace, with or without a draft yet.
   const atGenerate = await getGenerateScript(client.id, scriptId);
   if (atGenerate?.stage === "generate") {
-    const state = await loadGenerateState(client.id, scriptId);
+    // The client's signals by name for the "Built from" line (D531): one read, beside the state.
+    const [state, signals] = await Promise.all([loadGenerateState(client.id, scriptId), listSignalNames(client.id)]);
     if (!state) notFound();
     const doc = state.script.doc;
     // D489 — a reopened script the client commented on keeps those comments in a third column. The
@@ -49,7 +49,7 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
     return (
       <main className="mx-auto flex w-full max-w-[96rem] flex-1 flex-col px-6 py-8">
         <ScriptBreadcrumb client={client} title={title} />
-        <GenerateWorkspace client={{ id: client.id, name: client.name, slug: client.slug }} initialState={state} initialReview={review} locked={scriptsLocked(client)} />
+        <GenerateWorkspace client={{ id: client.id, name: client.name, slug: client.slug }} initialState={state} initialReview={review} signals={signals} locked={scriptsLocked(client)} />
       </main>
     );
   }
@@ -64,7 +64,7 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
   // 4.1). At Visualise and In review the thread seeds the panel's live state (piece 5.1); after
   // that it goes to the read-only panel as props, so the browser makes no request for it.
   const visualising = isVisualiseStage(script.stage);
-  const [board, approved, scriptCanvas, copilotState, messages, copilotAvatars] = await Promise.all([
+  const [board, approved, scriptCanvas, copilotState, messages, copilotAvatars, signals] = await Promise.all([
     visualising ? loadVisualiseBoard(client.id, script) : null,
     script.stage === "approved" ? loadApprovedVersion(script.id) : null,
     // D372 — an approved script's canvas: Create canvas, or Open canvas once it has one.
@@ -72,6 +72,8 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
     visualising ? loadGenerateState(client.id, script.id) : null,
     visualising ? [] : listScriptMessages(client.id, script.id),
     visualising ? [] : listCopilotAvatars(client.id),
+    // D531 — the "Built from" line's names, one read for the page.
+    listSignalNames(client.id),
   ]);
   // Seeds the team's review query, so the board draws its Comments column at once (no reflow).
   const review = board || approved ? await loadTeamReview(script) : null;
@@ -114,6 +116,7 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
           initialState={copilotState}
           initialBoard={{ script, board }}
           initialReview={review!}
+          signals={signals}
         />
       ) : (
         // An approved script: the copilot read-only beside it, folded until opened (spec §3.2).
@@ -127,7 +130,9 @@ export default async function ScriptPage({ params }: { params: Promise<{ id: str
             waiting={waiting}
             live={null}
           />
-          <div className="min-w-0">
+          <div className="flex min-w-0 flex-col gap-4">
+            {/* D531 — what it was built from, read-only once approved. */}
+            <BuiltFromLine signals={signals} chosen={atGenerate?.brief.signalIds ?? null} editable={false} />
             {approved ? (
               <ApprovedReviewBoard clientId={client.id} script={script} version={approved} initialReview={review!} canvasAction={canvasAction} />
             ) : (

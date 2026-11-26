@@ -20,6 +20,15 @@ vi.mock("@/lib/db/credit-transactions", () => {
   class CreditLimitError extends Error {}
   return { CreditLimitError };
 });
+const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
+});
+vi.mock("@/lib/image-gen/adapters", async () => {
+  const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
+  return { imageAdapters: stubAdapters("image", async () => { throw new Error("a route never generates"); }) };
+});
 
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
@@ -40,6 +49,7 @@ const post = (body: unknown) =>
 
 beforeEach(() => {
   vi.resetAllMocks();
+  cat.value = null;
   vi.mocked(resolveOrgId).mockResolvedValue("org-1");
   vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", email: "op@x.com", orgId: "org-1" } as never);
   vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
@@ -111,6 +121,15 @@ describe("POST …/panels/:shotId", () => {
     expect(insertPanelTake).not.toHaveBeenCalled();
   });
 
+  it("refuses a model that is not a panel model, before anything is reserved or stored", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(post({ kind: "draw", modelId: "seedream:seedream-5-0-lite" }), ctx("s06"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This model isn't available. Pick another.");
+    expect(insertPanelTake).not.toHaveBeenCalled();
+    expect(runPanelGeneration).not.toHaveBeenCalled();
+  });
+
   it("draws a B-roll shot with no avatars at all", async () => {
     vi.mocked(getScript).mockResolvedValue(makeScript(reel01Doc()));
     vi.mocked(loadVisualiseBoard).mockResolvedValue({ avatars: [], takes: [], picks: {}, kits: [] });
@@ -151,6 +170,28 @@ describe("POST …/panels/:shotId", () => {
     expect((await POST(post({ kind: "draw", modelId: "gemini:gemini-3.1-flash-image" }), ctx("s06"))).status).toBe(200);
     expect(vi.mocked(runPanelGeneration).mock.calls[0][0].modelId).toBe("gemini:gemini-3.1-flash-image");
     expect((await POST(post({ kind: "draw", modelId: "seedream:seedream-5-0-lite" }), ctx("s06"))).status).toBe(400);
+  });
+
+  // D563 — a refused model is a 400 before the take is stored, so no failed take is left behind.
+  it("refuses a model the catalog won't run before storing a take or reserving anything", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    const { PANEL_MODEL_ID } = await import("@/lib/scripts/visualise/constants");
+    cat.value = withModel(seededModelCatalog(), PANEL_MODEL_ID, { status: "draft" });
+    const { POST } = await import("./route");
+    const res = await POST(post({ kind: "draw" }), ctx("s06"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This model isn't available. Pick another.");
+    expect(insertPanelTake).not.toHaveBeenCalled();
+    expect(runPanelGeneration).not.toHaveBeenCalled();
+  });
+
+  it("answers 400 with the copy when the billed run refuses the model", async () => {
+    const { ModelRefusedError, MODEL_RETIRED_MESSAGE } = await import("@/lib/ai-models/runnable");
+    vi.mocked(runPanelGeneration).mockRejectedValue(new ModelRefusedError(MODEL_RETIRED_MESSAGE));
+    const { POST } = await import("./route");
+    const res = await POST(post({ kind: "draw" }), ctx("s06"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This model was retired. Pick another.");
   });
 
   it("is a 400 for an empty edited prompt or an unknown body", async () => {

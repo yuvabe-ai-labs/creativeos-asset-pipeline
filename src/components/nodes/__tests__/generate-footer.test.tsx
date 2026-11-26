@@ -1,10 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { GenerateFooter } from "../generate-footer";
+import { ClientPermissionsProvider } from "@/components/permissions/client-permissions";
+import { GENERATE_OFF_REASON } from "@/components/permissions/gated-button";
+import { ALL_CLIENT_PERMISSIONS, type ClientPermissions } from "@/lib/permissions/model";
 
-const render = (over: Partial<Parameters<typeof GenerateFooter>[0]> = {}) =>
+const render = (over: Partial<Parameters<typeof GenerateFooter>[0]> = {}, value: ClientPermissions = ALL_CLIENT_PERMISSIONS) =>
   renderToStaticMarkup(
-    <GenerateFooter label="Re-generate" busy={false} onClick={vi.fn()} disabled={false} credits={605} {...over} />,
+    <ClientPermissionsProvider value={value}>
+      <GenerateFooter label="Re-generate" busy={false} onClick={vi.fn()} disabled={false} credits={605} {...over} />
+    </ClientPermissionsProvider>,
   );
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
@@ -23,5 +28,18 @@ describe("GenerateFooter", () => {
     expect(text(html)).toContain("Changing voice…");
     expect(text(html)).not.toContain("Est.");
     expect(html).toMatch(/<button[^>]*disabled=""/);
+  });
+
+  it("while the price loads: a disabled button with a spinner and no estimate", () => {
+    const html = render({ estimating: true, disabled: true, credits: null });
+    expect(html).toMatch(/<button[^>]*disabled=""/);
+    expect(html).toContain("animate-spin");
+    expect(text(html)).not.toContain("Est.");
+  });
+
+  it("is disabled with the reason when generating is turned off for the person", () => {
+    const html = render({}, { ...ALL_CLIENT_PERMISSIONS, generate: false });
+    expect(html).toMatch(/<button[^>]*disabled=""/);
+    expect(text(html)).toContain(GENERATE_OFF_REASON);
   });
 });

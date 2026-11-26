@@ -3,13 +3,17 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { isHandleTracked, getLatestSnapshot } from "@/lib/db/performance";
 import { snapshotHandle } from "@/lib/market/snapshot";
 import { parseInstagramHandle } from "@/lib/market/performance";
+import { recordAfterResponse } from "@/lib/generations/record-for";
 
 // Apify is pay-per-result — no free spamming. The guard is PER HANDLE (D253): keyed to
 // the client, one refresh would freeze every other sub-tab for an hour.
 const MIN_INTERVAL_MS = 60 * 60 * 1000;
 
+// The Apify run can use its full 280 s; the dataset read and thumbnails come after it.
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client) =>
     withTryCatch("Could not refresh performance data.", async () => {
       const body = (await req.json().catch(() => null)) as { handle?: unknown } | null;
       const handle = parseInstagramHandle(typeof body?.handle === "string" ? body.handle : null);
@@ -24,7 +28,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return apiError("A snapshot was taken within the last hour — try again later.", 429);
       }
 
-      const result = await snapshotHandle(clientId, handle);
+      // D560 — the Apify run's cost is recorded for the client withClient already resolved.
+      const result = await snapshotHandle(clientId, handle, {
+        recordFor: { orgId: client.org_id, clientId },
+        record: recordAfterResponse,
+      });
       if (!result.ok) {
         return apiError("Instagram returned no data for this handle.", 409);
       }

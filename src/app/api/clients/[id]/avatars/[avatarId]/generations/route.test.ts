@@ -15,6 +15,15 @@ vi.mock("@/lib/db/credit-transactions", () => {
   return { CreditLimitError };
 });
 vi.mock("@/lib/avatars/generate", () => ({ runAvatarGeneration: vi.fn() }));
+const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
+});
+vi.mock("@/lib/image-gen/adapters", async () => {
+  const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
+  return { imageAdapters: stubAdapters("image", async () => { throw new Error("a route never generates"); }) };
+});
 
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
@@ -41,6 +50,7 @@ const body = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  cat.value = null;
   vi.mocked(resolveOrgId).mockResolvedValue("org-1");
   vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "user-9", email: "op@x.com", orgId: "org-1" } as never);
   vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
@@ -100,13 +110,12 @@ describe("POST generations", () => {
     expect(runAvatarGeneration).not.toHaveBeenCalled();
   });
 
-  it("is a 400 for a model that is not in the registry, before generating anything", async () => {
+  it("is a 400 for a model the catalog doesn't offer, before generating anything", async () => {
     const { POST } = await import("./route");
     const res = await POST(post({ ...body, modelId: "nope:none" }), { params });
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("Unknown model.");
+    expect((await res.json()).error).toBe("This model isn't available. Pick another.");
     expect(runAvatarGeneration).not.toHaveBeenCalled();
-    expect(getAvatar).not.toHaveBeenCalled();
   });
 
   it("is a 404 for an archived avatar", async () => {
@@ -132,13 +141,20 @@ describe("POST generations", () => {
     expect((await res.json()).error).toBe("Content blocked");
   });
 
-  it("formats a thrown failure ahead of generation (e.g. resolveCallerContext) as a 500, via withTryCatch", async () => {
-    vi.mocked(resolveCallerContext).mockRejectedValue(new Error("Session expired"));
+  it("formats a thrown failure ahead of generation (e.g. getAvatar) as a 500, via withTryCatch", async () => {
+    vi.mocked(getAvatar).mockRejectedValueOnce(new Error("Session expired"));
     const { POST } = await import("./route");
     const res = await POST(post(body), { params });
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe("Session expired");
     expect(runAvatarGeneration).not.toHaveBeenCalled();
+  });
+
+  // Auth once per request: the chokepoint resolves the caller and hands it on.
+  it("resolves the caller once", async () => {
+    const { POST } = await import("./route");
+    await POST(post(body), { params });
+    expect(resolveCallerContext).toHaveBeenCalledTimes(1);
   });
 });
 

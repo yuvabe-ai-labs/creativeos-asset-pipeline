@@ -15,7 +15,7 @@ This holds for every stage's copilot, as streaming does (D514). Each stage's pag
 
 The four things a person sees:
 1. **Go there.** The page brings the target into view: switching tab, scrolling, whatever the page needs.
-2. **Asking.** A target the copilot is asking about carries a quiet mark: a soft tint and the label "Copilot is asking". It stays while the question waits.
+2. **Asking.** ~~A target the copilot is asking about carries a quiet mark: a soft tint and the label "Copilot is asking". It stays while the question waits.~~ *Removed by D528 (2026-11-23): a target asked about carries no mark; only a change marks it.*
 3. **Working.** While the copilot is changing a target, it shimmers.
 4. **Landed.** When the change is stored, the new value appears with a short highlight that fades.
 

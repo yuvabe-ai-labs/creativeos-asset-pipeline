@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { getAvatar, updateAvatar } from "@/lib/db/avatars";
 import { sumAvatarCredits } from "@/lib/db/generations";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
@@ -12,7 +11,9 @@ import { cutSheetIntoViews } from "@/lib/avatars/sheet-cut";
 import { withStatus } from "@/lib/avatars/utils";
 import { AVATAR_SHEET_ASPECT, AVATAR_VIEWS, AVATAR_VIEW_LABELS } from "@/lib/avatars/constants";
 import type { AvatarImage, AvatarViewId } from "@/lib/avatars/schema";
-import { imageGenClientModelMap, isImageModelDeprecated, IMAGE_MODEL_DEPRECATED_MESSAGE } from "@/lib/image-gen/client-models";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { imageRun } from "@/lib/image-gen/image-run";
+import { ModelRefusedError } from "@/lib/ai-models/runnable";
 import { preconditionFailed } from "@/lib/avatars/route-responses";
 import { buildAvatarSheetPrompt } from "@/prompts/avatar-character";
 
@@ -34,21 +35,19 @@ export async function POST(
   { params }: { params: Promise<{ id: string; avatarId: string }> },
 ) {
   const { avatarId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("Could not generate the profile sheet.", async () => {
       const parsed = SheetSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Choose a model.", 400);
-      if (!imageGenClientModelMap[parsed.data.modelId]) return apiError("Unknown model.", 400);
-      // D467 — a tab open from before the model went can still send it.
-      if (isImageModelDeprecated(parsed.data.modelId)) return apiError(IMAGE_MODEL_DEPRECATED_MESSAGE, 400);
-
-      const current = await getAvatar(clientId, avatarId);
+      // D563 — an avatar has no node, so a hidden model is refused here like a retired one.
+      const [catalog, current] = await Promise.all([getAiCatalog(), getAvatar(clientId, avatarId)]);
+      const run = imageRun(catalog, parsed.data.modelId);
+      if (!run.ok) return apiError(run.message, 400);
       if (!current || current.archivedAt) return apiError("Avatar not found.", 404);
       if (!current.front) return apiError("Add a front image before generating the profile sheet.", 400);
       const frontUrl = current.front.url;
       const frontPrompt = current.front.source.kind === "generated" ? current.front.source.prompt : undefined;
 
-      const caller = await resolveCallerContext();
       let made: Awaited<ReturnType<typeof runAvatarGeneration>>;
       try {
         made = await runAvatarGeneration({
@@ -58,6 +57,7 @@ export async function POST(
         });
       } catch (e) {
         if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);
+        if (e instanceof ModelRefusedError) return apiError(e.message, 400);
         return apiError(e instanceof Error ? e.message : "Image generation failed", 500);
       }
       const sheet = generationToImage(made.generation);

@@ -1,7 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { canDuplicateNode } from "@/lib/canvas-nodes";
 import { apiError, apiOk, withTryCatch, withCanvas } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { edgeRowToFlow, flowEdgeToRow, type EdgeRow } from "@/lib/db/edge-rows";
 
 type InternalEdge = { source: string; target: string };
@@ -23,13 +22,12 @@ export async function POST(req: Request) {
   // canvasId comes from the request body, not a URL param — this route isn't rooted at
   // /api/canvas/[id]/* or /api/nodes/[id]/*, so it never went through an isolation check
   // at all until now. withCanvas takes the same { id } shape everywhere else uses.
-  return withCanvas(req, Promise.resolve({ id: canvasId }), async () => {
+  return withCanvas(req, Promise.resolve({ id: canvasId }), { need: "edit" }, async (_canvasId, _canvas, caller) => {
     return withTryCatch("Batch duplicate failed", async () => {
     const supabase = createServerSupabase();
-    // withCanvas doesn't hand the handler a caller (unlike withNode), so resolve it
-    // directly — the duplicated versions are set active and enter the review queue, and
-    // a queued item with no maker cannot be routed back on rejection (R4.3).
-    const caller = await resolveCallerContext();
+    // The duplicated versions are set active and enter the review queue, so each records its
+    // maker (the caller withCanvas resolved): a queued item with no maker cannot be routed
+    // back on rejection (R4.3).
 
     // 1. Fetch all source nodes — validate they belong to this canvas
     const { data: sourceNodes, error: fetchErr } = await supabase
@@ -102,7 +100,7 @@ export async function POST(req: Request) {
           output: activeVersion.output ?? null,
           generated_output: activeVersion.generated_output ?? null,
           operator: "duplicate",
-          operator_user_id: caller.userId, // R11.1 — see the resolveCallerContext note above
+          operator_user_id: caller.userId, // R11.1 — see the maker note above
         })
         .select()
         .single();

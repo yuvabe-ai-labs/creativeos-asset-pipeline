@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // Static, unlike the `generate` tests below: `explainSeedanceError` is a pure function of a status
 // and a response body, so it needs neither the fetch stub nor a re-import after env changes.
 import { explainSeedanceError } from "../providers/seedance";
+import { runSeededVideoModel } from "./run-seeded-model";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
@@ -23,8 +24,7 @@ describe("createSeedanceTask error handling", () => {
       },
     });
 
-    const { seedance25 } = await import("../providers/seedance");
-    const resultPromise = seedance25.generate({
+    const resultPromise = runSeededVideoModel("seedance:seedance-2-5", {
       prompt: "test prompt",
       referenceUrls: [],
       params: {},
@@ -41,8 +41,7 @@ describe("createSeedanceTask error handling", () => {
       json: async () => ({ error: { message: "Model not available" } }),
     });
 
-    const { seedance25 } = await import("../providers/seedance");
-    const resultPromise = seedance25.generate({
+    const resultPromise = runSeededVideoModel("seedance:seedance-2-5", {
       prompt: "test prompt",
       referenceUrls: [],
       params: {},
@@ -71,8 +70,7 @@ describe("createSeedanceTask error handling", () => {
         }),
       });
 
-    const { seedance25 } = await import("../providers/seedance");
-    const resultPromise = seedance25.generate({
+    const resultPromise = runSeededVideoModel("seedance:seedance-2-5", {
       prompt: "test prompt",
       referenceUrls: [],
       params: {},
@@ -159,12 +157,43 @@ describe("pollSeedanceTask — transient network failures", () => {
       .mockRejectedValueOnce(new TypeError("fetch failed"))
       .mockResolvedValueOnce(succeeded);
 
-    const { seedance25 } = await import("../providers/seedance");
-    const p = seedance25.generate({
+    const p = runSeededVideoModel("seedance:seedance-2-5", {
       prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
     });
     await vi.runAllTimersAsync();
     await expect(p).resolves.toMatchObject({ videoUrl: "https://v/out.mp4" });
+  });
+
+  it("returns the tokens BytePlus billed, from the task's usage", async () => {
+    mockFetch.mockResolvedValueOnce(created).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "succeeded",
+        content: { video_url: "https://v/out.mp4" },
+        duration: 8,
+        usage: { completion_tokens: 108900, total_tokens: 108900 },
+      }),
+    });
+
+    const p = runSeededVideoModel("seedance:seedance-2-5", {
+      prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
+    });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toEqual({
+      videoUrl: "https://v/out.mp4",
+      durationSeconds: 8,
+      usage: { kind: "seedance", completionTokens: 108900 },
+    });
+  });
+
+  it("returns no usage when the task reports none", async () => {
+    mockFetch.mockResolvedValueOnce(created).mockResolvedValueOnce(succeeded);
+
+    const p = runSeededVideoModel("seedance:seedance-2-5", {
+      prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
+    });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toEqual({ videoUrl: "https://v/out.mp4", durationSeconds: 8 });
   });
 
   it("retries a 429 and a 502, which are the server asking us to come back", async () => {
@@ -174,8 +203,7 @@ describe("pollSeedanceTask — transient network failures", () => {
       .mockResolvedValueOnce({ ok: false, status: 502 })
       .mockResolvedValueOnce(succeeded);
 
-    const { seedance25 } = await import("../providers/seedance");
-    const p = seedance25.generate({
+    const p = runSeededVideoModel("seedance:seedance-2-5", {
       prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
     });
     await vi.runAllTimersAsync();
@@ -187,8 +215,7 @@ describe("pollSeedanceTask — transient network failures", () => {
   it("does NOT retry a 404", async () => {
     mockFetch.mockResolvedValueOnce(created).mockResolvedValue({ ok: false, status: 404 });
 
-    const { seedance25 } = await import("../providers/seedance");
-    const p = seedance25.generate({
+    const p = runSeededVideoModel("seedance:seedance-2-5", {
       prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
     });
     const assertion = expect(p).rejects.toThrow(/404/);
@@ -201,8 +228,7 @@ describe("pollSeedanceTask — transient network failures", () => {
   it("gives up after a run of failures and says the task may still be running", async () => {
     mockFetch.mockResolvedValueOnce(created).mockRejectedValue(new TypeError("fetch failed"));
 
-    const { seedance25 } = await import("../providers/seedance");
-    const p = seedance25.generate({
+    const p = runSeededVideoModel("seedance:seedance-2-5", {
       prompt: "a cat", referenceUrls: [], params: { duration: 8, resolution: "480p", ratio: "9:16" },
     });
     const assertion = expect(p).rejects.toThrow(/may still be running/i);

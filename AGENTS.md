@@ -34,7 +34,8 @@ the in-repo source of truth. Aesthetic: *"light editorial premium."*
   (`neutral-900` text, `neutral-500` metadata, `neutral-200` borders, `neutral-25/50` bg).
   Yellow `#ffca2d` only as a soft radial glow.
 - **Drive everything through the shadcn CSS variables** in `globals.css` — never hardcode
-  colors. Use the `.text-eyebrow` utility for tracked small-caps labels (not mono).
+  colors. Use the `.text-eyebrow` utility for tracked small-caps labels (not mono), and only for a
+  real section label: never above every heading or field. Field labels and card titles are sentence case.
 - **Hierarchy from weight / casing / tracking / color, not size.** ~3 type sizes per page.
 - **Cards:** white, 1px `neutral-200` border, soft blue-black shadow
   (`shadow-card`: `0 1px 2px rgba(11,15,25,.08), 0 6px 14px rgba(11,15,25,.1)` — ambient
@@ -126,6 +127,15 @@ Helpers live in `src/lib/api/route-helpers.ts`. Key rules:
 - Use `withTryCatch` for any OpenAI call or multi-step async handler.
 - Use `parseFormFile` / `validateFileExtension` / `validateFileSize` for uploads.
 <!-- END:api-routes -->
+
+<!-- BEGIN:database -->
+# Database & tables
+
+Before adding or changing a table, column, index, view, RLS policy, SQL function or migration,
+load the **`database-schema`** skill. The schema map is **[docs/database-schema.md](docs/database-schema.md)**.
+Create a new table only when it is genuinely needed, and put new data where it belongs. Never run
+SQL or apply migrations.
+<!-- END:database -->
 
 <!-- BEGIN:react-flow -->
 # React Flow (`@xyflow/react`)
@@ -221,8 +231,9 @@ Spec: [docs/superpowers/specs/2026-11-19-copilot-turn-traces-design.md](docs/sup
 
 # The page shows the copilot's work
 
-**Whatever the copilot changes on a page, the page shows it happening** (D520): it goes there, marks
-what is asked about ("Copilot is asking"), shimmers what is being changed, and shows the change land.
+**Whatever the copilot changes on a page, the page shows it happening** (D520): it goes there, shimmers
+what is being changed, and shows the change land. A field is marked only when its value changes,
+never while the copilot just asks about it (D528).
 Spec: [docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md](docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md).
 
 - A page names what the copilot can work on as **targets**: wrap each in `CopilotTarget` and call
@@ -231,6 +242,8 @@ Spec: [docs/superpowers/specs/2026-11-19-copilot-page-follows-design.md](docs/su
 - The page moves only for this browser's own turns; the "asking" mark is for everyone.
 - The copilot's change wins over an unsaved edit of the same thing; every other unsaved edit is kept.
 - No new request and no new polling: the page reads what the panel already holds.
+- The Market page's targets are its signals (`marketTarget.signal(id)`, D530): a kept draft switches to
+  the Signals tab and lands there; references a fetch brings in land highlighted once (`useFreshItems`).
 
 # Performance — rules we never break
 

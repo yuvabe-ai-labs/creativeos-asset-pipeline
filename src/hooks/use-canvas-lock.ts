@@ -23,14 +23,13 @@ const POLL_MS = 10_000;
 // D33: acquires a per-tab lock on the canvas, heartbeats while editing, releases on
 // unload, and polls for take-over while read-only.
 //
-// Acquisition is unconditional. D161 briefly made it opt-out (`acquire: false`) so a senior
-// arriving via a review link would not evict a junior mid-generation, but that left two
-// entry paths into the same canvas obeying different locking rules, which proved hard to
-// reason about in practice — so it is DEFERRED and the single rule is back (see the ADR
-// log). What survives from that work is separate and still stands: *approval* does not
-// require canEdit, so a senior can sign off from a read-only session (D160, and the focus
-// views' canApprove).
-export function useCanvasLock(canvasId: string) {
+// D545: someone without Generate on the client opens the canvas WITHOUT the lock (`acquire: false`): view
+// only, no heartbeat, no take-over poll, and they never evict the person editing. D201 removed
+// D161's URL-dependent opt-out because nothing on screen said which mode you were in; this one
+// depends on a permission, and the banner says so. If the permission arrives mid-session the
+// effect below acquires; if it goes, the heartbeat effect's cleanup releases the lock.
+// Approval still does not require canEdit (D160).
+export function useCanvasLock(canvasId: string, { acquire = true }: { acquire?: boolean } = {}) {
   const { identity } = useIdentity();
   const [state, dispatch] = useReducer(lockReducer, INITIAL_LOCK_STATE);
 
@@ -43,8 +42,9 @@ export function useCanvasLock(canvasId: string) {
   const nameRef = useRef<string | null>(identity?.name ?? null);
   nameRef.current = identity?.name ?? null;
 
-  // Acquire on mount.
+  // Acquire on mount (and when the permission to edit arrives).
   useEffect(() => {
+    if (!acquire) return;
     let cancelled = false;
     void trackConnection(() =>
       acquireCanvasLockAction(canvasId, sessionId, nameRef.current),
@@ -55,9 +55,9 @@ export function useCanvasLock(canvasId: string) {
     return () => {
       cancelled = true;
     };
-  }, [canvasId, sessionId]);
+  }, [canvasId, sessionId, acquire]);
 
-  const isEditor = isEditorState(state);
+  const isEditor = acquire && isEditorState(state);
 
   // Heartbeat + release while editing.
   useEffect(() => {
@@ -87,7 +87,7 @@ export function useCanvasLock(canvasId: string) {
   }, [isEditor, canvasId, sessionId]);
 
   // Poll while viewer to detect a free/stale lock (enables take-over).
-  const isViewer = state.role === "viewer";
+  const isViewer = acquire && state.role === "viewer";
   useEffect(() => {
     if (!isViewer) return;
     const id = setInterval(() => {
@@ -128,6 +128,7 @@ export function useCanvasLock(canvasId: string) {
 
   return {
     canEdit: isEditor,
+    viewOnly: !acquire,
     heldByName: state.heldByName,
     canTakeOver: state.canTakeOver,
     sessionId,

@@ -18,4 +18,13 @@ describe("the angles card", () => {
     expect(html).not.toContain("Meal and use");
     expect(html).not.toContain("Review theme"); // D464
   });
+
+  it("names the signal each angle comes from (D531)", () => {
+    const signals = [{ id: "s1", name: "Monsoon rituals" }, { id: "s2", name: "Question hooks" }];
+    const html = renderToStaticMarkup(
+      <CopilotAnglesCard angles={[{ ...angle, signalIds: ["s1", "s2"] }, { ...angle, id: "B", signalIds: [] }]} signals={signals} disabled={false} />,
+    );
+    expect(html).toContain("from <em>Monsoon rituals</em>, <em>Question hooks</em>");
+    expect(html.split("from <em>").length - 1).toBe(1);
+  });
 });

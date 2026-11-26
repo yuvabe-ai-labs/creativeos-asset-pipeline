@@ -1,6 +1,5 @@
 // src/app/api/clients/[id]/scripts/[scriptId]/review/comments/[commentId]/replies/route.ts
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { getScript } from "@/lib/db/scripts";
 import {
   countScriptComments, getCommentForReply, getScriptReviewForScript, insertScriptComment,
@@ -17,7 +16,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string; commentId: string }
 // client's comment; the reply belongs to that thread's version and part.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId, commentId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "share" }, async (clientId, _client, caller) =>
     withTryCatch("Could not post the reply.", async () => {
       const parsed = parseReply(await req.json().catch(() => null));
       if (!parsed.ok) return apiError(parsed.error, 400);
@@ -30,7 +29,6 @@ export async function POST(req: Request, { params }: Ctx) {
       if (parent.parentId) return apiError("Reply to the thread's first comment.", 400);
       // The team may reply after approval too (user, 8 Oct); only the client's link becomes a record.
       if ((await countScriptComments(review.id)) >= MAX_COMMENTS_PER_REVIEW) return apiError(COMMENT_LIMIT_ERROR, 409);
-      const caller = await resolveCallerContext();
       const comment = await insertScriptComment({
         reviewId: review.id,
         versionId: parent.versionId,

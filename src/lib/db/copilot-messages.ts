@@ -1,7 +1,7 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { rowToThreadMessage, type CopilotMessageRow } from "@/lib/journey/thread/rows";
-import { changeCardSchema, ONBOARDING, type Attachment, type ChangeCard, type CopilotThread, type ThreadCard, type ThreadMessage } from "@/lib/journey/thread/schema";
+import { changeCardSchema, ONBOARDING, threadCardSchema, type Attachment, type BrandsCard, type ChangeCard, type SignalDraftCard, type CopilotThread, type ThreadCard, type ThreadMessage } from "@/lib/journey/thread/schema";
 
 // The saved onboarding thread of a client (D508). Every query filters on client_id AND thread:
 // withClient authorises the CLIENT in the URL, and a client may gain other threads later.
@@ -100,6 +100,39 @@ export async function claimChangeCard(clientId: string, messageId: string, next:
   if (error) throw error;
   return Boolean(data);
 }
+
+/** Moves a market card (D530) from one status to the next, only while it is still in `from`: two
+ *  windows or a double click act once. Returns the card as stored now, or null when it had already
+ *  moved (the second caller), so the caller reports the settled card and starts nothing. */
+export async function claimCopilotCard<K extends MarketCardKind>(
+  clientId: string, messageId: string, kind: K, from: MarketCardOf<K>["status"], next: MarketCardOf<K>,
+): Promise<MarketCardOf<K> | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("client_copilot_messages").update({ card: next })
+    .eq("id", messageId).eq("client_id", clientId).eq("thread", ONBOARDING)
+    .eq("card->>kind", kind).eq("card->>status", from)
+    .select("card")
+    .maybeSingle();
+  if (error) throw error;
+  return data ? (data as { card: MarketCardOf<K> }).card : null;
+}
+
+/** One market card as stored, read by its message (a job or a route acting on it); null when the
+ *  message is not this client's or holds another kind of card. Throws when the read fails. */
+export async function getCopilotCard<K extends MarketCardKind>(clientId: string, messageId: string, kind: K): Promise<MarketCardOf<K> | null> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from("client_copilot_messages").select("card")
+    .eq("id", messageId).eq("client_id", clientId).eq("thread", ONBOARDING).eq("card->>kind", kind)
+    .maybeSingle();
+  if (error) throw error;
+  const parsed = threadCardSchema.safeParse((data as { card: unknown } | null)?.card);
+  return parsed.success && parsed.data.kind === kind ? (parsed.data as MarketCardOf<K>) : null;
+}
+
+type MarketCardKind = "brands" | "signal-draft";
+type MarketCardOf<K extends MarketCardKind> = K extends "brands" ? BrandsCard : SignalDraftCard;
 
 /** Puts a card back on its message: a claimed change card whose write then failed. */
 export async function setMessageCard(clientId: string, messageId: string, card: ThreadCard): Promise<void> {

@@ -2,7 +2,7 @@
 
 **For:** whoever runs manual QA on the copilot journey before it is merged.
 **Build:** branch `feat/copilot-journey`. Kept up to date while the branch is built; the last section is the newest work.
-**Last updated:** 2026-11-20 (section 10 added; rows 9.5–9.7, 9.10 and 9.11 corrected for 5.1).
+**Last updated:** 2026-11-23 (rows 8.1, 8.4–8.6, 8.9 and 10.1: no "Copilot is asking" mark, D528). Before that 2026-11-20 (section 10 added; rows 9.5–9.7, 9.10 and 9.11 corrected for 5.1).
 
 ## Before you start
 
@@ -81,6 +81,7 @@
 | 4.14 | Type "yes, that's right but make it 30 to 45" as an answer. | The copilot reads it (not treated as the button): the field gets "30 to 45". |
 | 4.15 | Watch any reply made of two sentences. | The sentences are separated ("Got it." never runs into the previous sentence with no space). |
 | 4.16 | While a question about a *different* field waits, type "edit the mission statement to: you tell us what you need, we do the rest" (pick any field not reviewed yet). | The reply reads "Saved {field}." and the field on the right shows your words, marked as coming from you. It never says it "can only save your wording as a new answer". |
+| 4.17 | Wait for a question about a field the build left empty (it says "I could not find this in the sources"). Tap one of the likely answers. | Up to 4 likely answers show before "There is none" and "Skip this one", and the question says they are guesses. Tapping one saves it at once (no "thinking"), the field on the right shows it, and the next question follows. A question about an inferred value has no likely answers, and neither does one about an empty Compliance Rules field (content rules, claims or words never to use, disclaimers). |
 
 ## 5. Background jobs that fail
 
@@ -154,15 +155,15 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 
 | # | Do | Expected |
 |---|---|---|
-| 8.1 | *(client in review)* Answer five review questions with the buttons, without touching the page. | Each time the page is already on the field's tab with the field in view, marked "Copilot is asking". Each answer sweeps, then lands with a short highlight; the mark moves to the next field. |
+| 8.1 | *(client in review)* Answer five review questions with the buttons, without touching the page. | Each time the page is already on the field's tab with the field in view. The field asked about carries no mark (D528). Each answer sweeps, then lands with a short highlight; the page moves on to the next field. |
 | 8.2 | *(client in review)* Go to another tab on the right. Type an answer for the waiting field. | The page switches to that field's tab, the field sweeps, and the answer lands. |
 | 8.3 | *(client in review)* Edit the waiting field on the page and do not save. Edit a second field too. Answer the waiting field in the chat. | The waiting field shows the chat answer. Pressing Save does not bring your edit of it back. Your unsaved edit of the second field is still there. |
-| 8.4 | *(client in review)* With a question waiting, go to another tab and ask "what is our tone of voice?" | The page does not move. The mark stays on the waiting field. |
-| 8.5 | *(two people)* B watches the Brand KB page while A answers questions. | B's page never moves by itself. B sees the "Copilot is asking" mark move (within about 20 seconds). |
-| 8.6 | *(client in review)* Reload with a question waiting. Then open Brand KB from the client's Canvases tab. | Both times the page lands on the waiting field, marked. |
+| 8.4 | *(client in review)* With a question waiting, go to another tab and ask "what is our tone of voice?" | The page does not move. |
+| 8.5 | *(two people)* B watches the Brand KB page while A answers questions. | B's page never moves by itself. B sees A's answers land in the fields (within about 20 seconds). |
+| 8.6 | *(client in review)* Reload with a question waiting. Then open Brand KB from the client's Canvases tab. | Both times the page lands on the waiting field. |
 | 8.7 | *(new client)* Send the website in the chat, then "instagram is @acme". | Each form field comes into view, sweeps, and the value lands with a highlight. |
 | 8.8 | *(new client)* Attach a PDF in the chat. | It appears in the form's document list with the highlight. |
-| 8.9 | Turn on "reduce motion" in the operating system and repeat 8.1. | No sweep and no animated scroll. The tint, the "Copilot is asking" label and the highlight still show. |
+| 8.9 | Turn on "reduce motion" in the operating system and repeat 8.1. | No sweep and no animated scroll. The highlight still shows when an answer lands. |
 | 8.10 | *(approved client)* Approve a change card. | The page does not move. Changed fields that are on screen highlight briefly. |
 | 8.11 | *(client in review)* Stop the model (an invalid key) and type an answer. | No sweep is left running after the failure reply. |
 
@@ -186,7 +187,7 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 
 | # | Do | Expected |
 |---|---|---|
-| 10.1 | Mark a script final whose characters have no avatar. | Visualise opens with the panel open. At the foot of the thread: "Who plays {lead}?" with the client's avatars as buttons; the lead's cast slot on the board says "Copilot is asking". The rail reads "Waiting for you: choose who plays {lead}". |
+| 10.1 | Mark a script final whose characters have no avatar. | Visualise opens with the panel open. At the foot of the thread: "Who plays {lead}?" with the client's avatars as buttons; the lead's cast slot on the board carries no mark (D528). The rail reads "Waiting for you: choose who plays {lead}". |
 | 10.2 | Press an avatar on that card. | The cast slot fills and highlights; the card moves to the next character, or on. |
 | 10.3 | With a location used by shots still to draw and no picture. | The card: "The café has no picture. Panels drawn now would need redrawing once it does.", with Attach a picture and Draw it, and "Draw N panels without them". |
 | 10.4 | Press Attach a picture on that card and choose an image. Send with no words. | The picture shows in the thread; the copilot answers "Added it to the café." with no model wait; the café chip shows the picture and highlights. It is in the script's folder, not in Brand assets. |
@@ -203,6 +204,42 @@ Change cards are how the copilot changes a field someone has already reviewed: i
 | 10.15 | Send for review in tab A, then send a message in tab B still on Visualise. | The copilot says the script has moved on from Visualise; nothing changes. |
 | 10.16 | Open the script In review. | The panel is folded, read-only, "Waiting for the client's review"; offers in the thread are one-line notes. |
 | 10.17 | Open a script at Generate. | Everything as before 5.1: same steps, wording, cards and drafting. |
+
+## 11. Market research agent and "Built from" (D529–D532) *(client with an approved brand KB and market research pending)*
+
+Before you start: migration 0067 is applied; the staging Trigger.dev project has the `market-fetch` and `market-draft` tasks deployed, and `APIFY_TOKEN`, the OpenAI key and the Gemini key set.
+
+| # | Do this | Expect |
+|---|---|---|
+| 11.1 | Open the Market research tab of a client whose brand KB was just approved. | The copilot panel is there (same thread as the Brand KB tab), with a "Research the market" choice. The rail waits on "Approve market research". |
+| 11.2 | Open the Market research tab of a client whose brand KB is still in review. | The stage guide shows, not the copilot. |
+| 11.3 | Press "Research the market". | "Searching the web…", then a brands card in two groups, Direct and Adjacent, each brand with its @handle, name and one line on why, a switch per brand, and "Fetch their posts (n)". At most 5 per group. The client's own handle is not on it. Nothing is fetched. |
+| 11.4 | Type "drop @x, move @y to Adjacent, add @brandy to Direct". | The same card updates: @x switched off, @y under Adjacent, @brandy added ("Added by you."). |
+| 11.5 | Type "add @a, @b, @c, @d, @e, @f to Direct" on a card with 5 Direct brands. | The copilot refuses the ones over 5 and says to drop one first. |
+| 11.6 | Ask to research again while a card is waiting. | A new card appears; the older one reads "Replaced by a newer list." and has no controls. |
+| 11.7 | Switch one brand off and press "Fetch their posts". | The card reads "Bringing in their posts…"; a live line "Bringing in posts from N brands…" shows in the panel; references appear in Direct and Adjacent as they arrive, each highlighted once. |
+| 11.8 | *(double click / second tab)* Press "Fetch their posts" in two tabs at once. | One fetch runs; the second tab shows the card already fetching, and no second set of posts arrives. |
+| 11.9 | Include a handle that does not exist or is private. | The closing line names it ("I could not bring in posts from @x…"); posts from the others still come in. |
+| 11.10 | Use a list where every handle is wrong. | A failed line says it could not finish bringing in posts; the card goes back to waiting, so "try again" works. |
+| 11.11 | When the fetch ends. | "N posts from M brands are in Direct and Adjacent. Delete any you don't want, then tell me to draft signals." with a "Draft signals" choice. Each reference's note reads "@handle · caption". |
+| 11.12 | Ask to fetch the same brands again. | No post already in Direct or Adjacent is added twice (also when the first copy was clipped by hand as a /reel/ link). |
+| 11.13 | Press "Draft signals". | "Reading the posts…" then up to 6 draft signal cards, each with a name, tags, a description and the thumbnails of the posts behind it (at least 2 each), then "Here are N signals from M posts. Keep, edit or drop each one." No draft names a claim, proof, health statement or product use. |
+| 11.14 | Press Keep on a draft. | The card reads "Kept as a signal."; the Market page switches to Signals and the new signal lands highlighted. |
+| 11.15 | Press Edit on a draft, change the name and tags, remove one post, then Keep. | The saved signal has the edited name, tags and only the posts left. |
+| 11.16 | *(double click / second tab)* Press Keep twice. | One signal is saved. |
+| 11.17 | Press Drop on a draft. | The card reads "Dropped."; no signal is saved. |
+| 11.18 | Delete a reference on the page, then ask for more signals. | No draft cites the deleted post. |
+| 11.19 | Ask the copilot to approve market research. | It says only a person can; nothing changes. Press "Approve market research" on the gate card. |
+| 11.20 | After 11.19. | "<you> approved market research. That opens scripts." in the thread; the Scripts tab opens. |
+| 11.21 | Start a script and get to the angles. | Each angle says "from <signal>" where it used one; there is no separate research card. The "Built from" line at the top of the script reads "Set when you pick an angle". |
+| 11.22 | Before the angles, type "use the Monsoon rituals signal". | "Built from" shows Monsoon rituals; the angles that follow draw only on it. |
+| 11.23 | Pick an angle. | "Built from" shows that angle's signals. Remove one with its ×, add one with "Add a signal". |
+| 11.24 | Write the draft, then change "Built from". | "Built from changed. Want me to rewrite the script with these signals?" with a "Rewrite with these signals" choice; no shot changed. Pressing it proposes the rewrite as a change to approve. |
+| 11.25 | Delete a signal on the Market page that a script is built from, then open the script. | The line no longer shows it; the next turn and the draft ignore it; nothing errors. |
+| 11.26 | Open a script In review and an approved script. | "Built from" shows the names with no ×, no "Add a signal". |
+| 11.27 | In a script, type "research what competitors post for Diwali". | The script copilot says it asked market research and where to review it. The onboarding thread gets "From <script>: research what competitors post for Diwali" and a brands card focused on it. |
+| 11.28 | In a script, type something with no research in it. | Nothing new appears in the onboarding thread. |
+| 11.29 | Open the canvas for an approved script built from signals. | The canvas script node's signal picker is unchanged; the script's "Built from" is not carried over. |
 
 ## Known limits (not bugs)
 

@@ -1,8 +1,10 @@
 import { tasks } from "@trigger.dev/sdk";
 import * as z from "zod";
 import { apiError, apiOk, withCanvas, withTryCatch } from "@/lib/api/route-helpers";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
-import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
+import { NO_PRICE_MESSAGE, pricingForNewRun } from "@/lib/ai-models/run-price";
+import { TRANSCRIBE_MODEL_ID } from "@/lib/ai-models/service-models";
+import { transcribeFilesEstimateUsd } from "@/lib/ai-models/service-price";
+import { CREDIT_LIMIT_TOAST_MESSAGE, creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { CreditLimitError, refundReservation, reserveCredits } from "@/lib/db/credit-transactions";
 import { failGeneration, insertGeneration } from "@/lib/db/generations";
 import { listTranscribedUrls } from "@/lib/db/media-transcripts";
@@ -11,7 +13,6 @@ import { planTranscription, type TranscribeJobInput } from "@/lib/editor/transcr
 import { findLiveTranscribeJob, settleIfRunDead } from "@/lib/editor/transcribe-recovery-server";
 import { failJob, failStaleJobs, insertJob, setJobRunId } from "@/lib/jobs/db";
 import { JobLockedError } from "@/lib/jobs/types";
-import { transcribeCredits } from "@/lib/transcribe/cost";
 import { TRANSCRIBE_ENGINE } from "@/lib/transcribe/providers";
 
 // Starts Auto captions (D411, D399). The files come from the SAVED edit's sources, read fresh here
@@ -23,14 +24,15 @@ const BodySchema = z.object({ nodeId: z.uuid(), pieceIds: z.array(z.string().min
 
 export async function POST(req: Request, { params }: { params: Promise<{ cid: string }> }) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId, canvas) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "generate" }, async (canvasId, canvas, caller, orgId) =>
     withTryCatch(START_FAILED, async () => {
       const parsed = BodySchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Say which clips to caption.", 400);
       const { nodeId, pieceIds } = parsed.data;
       if (!process.env.ELEVEN_LABS_API_KEY) return apiError("Captions aren't set up yet.", 400);
 
-      const [state, orgId, caller] = await Promise.all([loadEditorState(canvasId), resolveOrgId(), resolveCallerContext()]);
+      // D558 - the row prices the run: its estimate is the reservation, and the run records it.
+      const [state, { price, catalog }] = await Promise.all([loadEditorState(canvasId), pricingForNewRun(TRANSCRIBE_MODEL_ID)]);
       if (!state || state.editorNodeId !== nodeId) return apiError("Editor not found.", 404);
 
       const { files, noSound } = planTranscription(state.doc, state.sources, pieceIds);
@@ -39,6 +41,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       if (fresh.length === 0) return apiOk({ jobId: null, noSound });
 
       const seconds = fresh.reduce((s, f) => s + f.seconds, 0);
+      const usd = price ? transcribeFilesEstimateUsd(price, fresh.map((f) => f.seconds)) : null;
+      if (!price || usd === null) return apiError(NO_PRICE_MESSAGE, 409);
       const clientId = canvas.client_id;
       await failStaleJobs(clientId, "editor-transcribe", STALE_MS);
       const generation = await insertGeneration({
@@ -49,6 +53,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
         userEmail: caller.email,
         type: "transcribe",
         modelUsed: TRANSCRIBE_ENGINE.modelUsed,
+        modelPriceId: price.id,
         paramsSnapshot: { seconds },
         inputsSnapshot: { files: fresh },
       });
@@ -61,7 +66,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ cid: st
       const insert = () => insertJob({ orgId, clientId, kind: "editor-transcribe", input, lockKey: `editor-transcribe:${nodeId}`, phaseMessage: "Listening…" });
       let jobId: string;
       try {
-        const reservation = await reserveCredits(orgId, generation.id, transcribeCredits(seconds));
+        const reservation = await reserveCredits(orgId, generation.id, creditsFromUsd(usd, creditSettingsAt(catalog, new Date(generation.created_at))));
         if (!reservation.ok) throw new CreditLimitError(CREDIT_LIMIT_TOAST_MESSAGE);
         try {
           jobId = (await insert()).id;

@@ -20,6 +20,8 @@ import { useNodeConnectionState } from "./use-node-connection-state";
 import { useFocusViewRegistration } from "@/hooks/use-focus-view-open";
 import { NodeCardHeader } from "./node-card-header";
 import { formatDate } from "@/lib/kb/utils";
+import { useAiCatalog } from "@/hooks/queries/ai-models";
+import { catalogModelLabel } from "@/lib/ai-models/model-lists";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -116,6 +118,8 @@ function KBSheetContent({
   documents: DocMeta[];
   images: ImageMeta[];
 }) {
+  // The extraction model by its catalog label; one the catalog doesn't hold shows nothing.
+  const modelLabel = catalogModelLabel(useAiCatalog().data, version?.modelUsed);
   return (
     <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
       <SheetHeader className="border-b p-5 pr-12">
@@ -151,7 +155,7 @@ function KBSheetContent({
                 <span>
                   Extracted {formatDate(version.createdAt)}
                 </span>
-                <span className="ml-auto font-mono">{version.modelUsed}</span>
+                {modelLabel && <span className="ml-auto">{modelLabel}</span>}
               </div>
             )}
 

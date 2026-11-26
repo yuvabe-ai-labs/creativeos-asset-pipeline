@@ -1,9 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { validateAgainstRules } from "../constraints";
-import { videoGenClientModelMap } from "../client-models";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 
-const veoRefs = videoGenClientModelMap["veo:veo-3.1-fast"].rules;
-const kling30 = videoGenClientModelMap["kling:kling-3-0"].rules;
+const videoSpec = (id: string) => videoModelsFrom(seededModelCatalog()).get(id)!;
+
+const veoRefs = videoSpec("veo:veo-3.1-fast").rules;
+const kling30 = videoSpec("kling:kling-3-0").rules;
 
 // D97 — the server rejects, it never corrects. Auto-correcting would silently change both what
 // the caller asked for and what they are billed.

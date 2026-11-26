@@ -4,11 +4,13 @@ import type { Attachment, ThreadMessage } from "@/lib/journey/thread/schema";
 import { BuildAlreadyRunningError } from "@/lib/kb/build-errors";
 import { kbCopilotSystem } from "@/prompts/kb-copilot";
 import { KB_CONVERSATION_WINDOW, KB_REPLY_CHOICE_MAX_CHARS, KB_REPLY_CHOICES_MAX } from "./constants";
-import { canStartBuild, fallbackSuggestions, isBuilding, nextStep, type KbContext } from "./context";
+import { canStartBuild, fallbackSuggestions, isBuilding, nextStep, START_BUILD_CHOICE, type KbContext } from "./context";
 import type { KBFieldPatch } from "@/lib/kb/field-patch";
 import { coerceValue as coerce, isEmpty, REVIEW_FIELD_PATHS, reviewFields, type ReviewField } from "./review";
 import { walkChoice, type TurnWalk } from "./walk";
-import type { ChangeCard } from "@/lib/journey/thread/schema";
+import type { BrandsCard, ChangeCard } from "@/lib/journey/thread/schema";
+import type { MarketActions } from "@/lib/journey/market-copilot/context";
+import { marketTools } from "@/lib/journey/market-copilot/tools";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { buildChangeCard, sameValue, type Proposal } from "@/lib/kb/changes/card";
 import { kbTarget } from "./targets";
@@ -31,6 +33,8 @@ export type KbActions = {
   /** Merges `patch` into the one field at `path` (dotted) of the KB in review, only if that field
    *  is still unreviewed as stored. False when it was not written: somebody reviewed it meanwhile. */
   setField: (path: string, patch: KBFieldPatch["patch"]) => Promise<boolean>;
+  /** Market research (D530); its tools refuse without these. */
+  market?: MarketActions;
 };
 
 /** What a brand KB turn reports while it runs (D514), on top of what every agent turn reports. */
@@ -45,7 +49,8 @@ export type KbTurnEvents = AgentEvents & {
 };
 
 /** The brand KB in review as this turn sees it: its fields, and the question waiting for an answer. */
-export type KbReview = { fields: ReviewField[]; pending: string | null };
+/** `answers`: the likely answers the waiting question offered (D533), read as taps in code. */
+export type KbReview = { fields: ReviewField[]; pending: string | null; answers?: string[] };
 
 const ALREADY_RUNNING = "A build is already running.";
 const ALREADY_BUILT = "The brand KB is already built. Changes to it come in a later step.";
@@ -99,7 +104,7 @@ export async function runKbTurn(input: {
   on?: KbTurnEvents;
   /** Where the turn reports what it did, for its trace (D521). */
   trace?: TraceSink;
-}): Promise<{ reply: string; suggestions: string[]; changed: boolean; saved: KbSaved; walk: TurnWalk; card: ChangeCard | null }> {
+}): Promise<{ reply: string; suggestions: string[]; changed: boolean; saved: KbSaved; walk: TurnWalk; card: ChangeCard | BrandsCard | null }> {
   const { actions, model } = input;
   // The context as the tools have changed it so far this turn, so a later tool sees an earlier one.
   let ctx = input.ctx;
@@ -130,6 +135,8 @@ export async function runKbTurn(input: {
   const statusOf = (path: string) => status.get(path) ?? kbFields.find((f) => f.path === path)?.status;
   const proposals: Proposal[] = [];
   let toldChange = false;
+  /** A list of brands this turn made (D530), stored as its own message after the reply. */
+  let brandsCard: BrandsCard | null = null;
   // How many times the model has been asked, and when a change call only saved (no card). A turn that
   // ends on that call ends on code's words: the model wrote its own expecting a card (review fix).
   let modelCalls = 0;
@@ -348,6 +355,14 @@ export async function runKbTurn(input: {
         return tell("Started the build.");
       },
     },
+    // Market research (D530): its tools refuse until the brand KB is approved.
+    ...marketTools({
+      market: () => ctx.market,
+      setMarket: (market) => { ctx = { ...ctx, market }; },
+      actions: actions.market,
+      emit: (card) => { brandsCard = card; },
+      tell, refuse,
+    }),
     reply_choices: {
       description: "Offer the person's likely answers as buttons under your message. Short phrases they could send as they are.",
       // Nothing to say back: words written beside the buttons are the reply.
@@ -363,7 +378,11 @@ export async function runKbTurn(input: {
   // A button the walk offered is carried out here, with no model call (D519): the model once
   // answered "Yes, that's right" with words and no tool, so nothing was saved and the question came
   // back. The tool's own code runs, so its refusals still apply, and its sentence is the reply.
-  const choice = input.attachments.length === 0 ? walkChoice(input.text, review) : null;
+  // "Start the build" too: the model once re-saved the website and handles instead, and a save ends
+  // the turn, so the button had to be pressed again and again.
+  const choice = input.attachments.length === 0
+    ? walkChoice(input.text, review) ?? (input.text.trim() === START_BUILD_CHOICE ? { tool: "start_build", args: {} } : null)
+    : null;
   if (choice) {
     const tool = tools[choice.tool];
     if (tool.label) input.on?.step?.(tool.label);
@@ -377,6 +396,8 @@ export async function runKbTurn(input: {
     }
     input.trace?.choice({ tool: choice.tool, args: choice.args, output });
     const reply = said.length > 0 ? said.join(" ") : CHOICE_REPLY[choice.tool];
+    // Final already, so it is shown now (D514): the next question may still take a moment.
+    input.on?.text?.(reply);
     return { reply, suggestions: fallbackSuggestions(ctx), changed, saved, walk, card: null };
   }
 
@@ -397,6 +418,6 @@ export async function runKbTurn(input: {
   const reply = codeWords && said.length > 0 ? [said.join(" "), nextStep(ctx)].filter(Boolean).join("\n\n") : text;
   const card = input.kb && proposals.length > 0
     ? buildChangeCard({ versionId: input.kb.versionId, current: input.kb.output, proposals, refused: new Set() })
-    : null;
+    : brandsCard;
   return { reply, suggestions: card ? [] : choices ?? fallbackSuggestions(ctx), changed, saved, walk, card };
 }

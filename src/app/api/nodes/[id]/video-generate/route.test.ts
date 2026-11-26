@@ -2,9 +2,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import type { MultishotCut } from "@/lib/nodes/multishot-cuts";
 import { checkLadder, multishotCapabilityFor } from "@/lib/nodes/multishot-models";
-import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID, GEMINI_OMNI_11_MODEL_ID } from "@/lib/video-gen/client-models";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID, GEMINI_OMNI_11_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 vi.mock("server-only", () => ({}));
+const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
+});
+vi.mock("@/lib/video-gen/adapters", async () => {
+  const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
+  return { videoAdapters: stubAdapters("video", async () => { throw new Error("a route never generates"); }) };
+});
+vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock());
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
 vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 
@@ -20,6 +31,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
     withNode: (
       req: Request,
       _params: unknown,
+      _guard: unknown,
       fn: (
         nodeId: string,
         node: unknown,
@@ -49,7 +61,7 @@ type Row = {
 // initialization").
 const mocks = vi.hoisted(() => ({
   graph: {} as Record<string, Row[]>,
-  insertGeneration: vi.fn(async () => ({ id: "gen-1" })),
+  insertGeneration: vi.fn(async () => ({ id: "gen-1", created_at: new Date().toISOString() })),
   failGeneration: vi.fn(async () => undefined),
   reserveCredits: vi.fn(async () => ({ ok: true })),
   refundReservation: vi.fn(async () => undefined),
@@ -134,21 +146,55 @@ const ILLEGAL_KLING_CUTS: MultishotCut[] = [
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.graph = {};
+  cat.value = null;
 });
 
-describe("POST video-generate — deprecated models (D461)", () => {
+describe("POST video-generate — retired models (D563)", () => {
   it.each(["veo:veo-3.1-lite", "veo:veo-3.1-fast", "veo:veo-3.1"])(
     "refuses %s before any generation is recorded",
     async (modelId) => {
       const res = await post({ modelId, params: {}, imageRoles: {} });
 
       expect(res.status).toBe(400);
-      expect((await res.json()).error).toBe("This model is deprecated");
+      expect((await res.json()).error).toBe("This model was retired. Pick another.");
       expect(mocks.insertGeneration).not.toHaveBeenCalled();
       expect(mocks.reserveCredits).not.toHaveBeenCalled();
       expect(mocks.triggerTask).not.toHaveBeenCalled();
     },
   );
+
+  it("refuses a model with no adapter in this build without naming it", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withModel(seededModelCatalog(), KLING_OMNI_MODEL_ID, { adapterKey: "video:not-in-this-build" });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await post({ modelId: KLING_OMNI_MODEL_ID, params: {}, imageRoles: {} });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This model isn't available. Pick another.");
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
+});
+
+describe("POST video-generate — the default model (D565)", () => {
+  it("with no modelId runs the catalog's default, the first live video model", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    const { videoModelsFrom } = await import("@/lib/ai-models/model-lists");
+    const seeded = seededModelCatalog();
+    const first = videoModelsFrom(seeded).defaultId;
+    cat.value = withModel(seeded, first, { status: "hidden" });
+    const expected = videoModelsFrom(cat.value).defaultId;
+    expect(expected).not.toBe(first);
+    mocks.graph = {
+      vg: [{ nodeId: "vp", type: "video-prompt", data: {}, activeOutput: "A hand lifts the keys.", versionId: "v1" }],
+    };
+    const res = await post({ params: {}, imageRoles: {} });
+    // The run started on the new default, not the hidden one: that model's own input rule speaks
+    // (a hidden default would have answered "isn't available").
+    const { error } = await res.json();
+    expect(error).not.toBe("This model isn't available. Pick another.");
+    expect(error).toContain(videoModelsFrom(cat.value).get(expected)!.providerLabel);
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST video-generate — multishot server backstop (D236, D97)", () => {
@@ -284,6 +330,7 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     });
 
     expect(res.status).toBe(202);
+    expect((mocks.insertGeneration.mock.calls[0] as unknown as [object])[0]).toMatchObject({ modelPriceId: seededPrice(GEMINI_OMNI_MODEL_ID).id });
     const [, payload] = mocks.triggerTask.mock.calls[0] as [
       string,
       { params: Record<string, unknown>; prompt: string },
@@ -292,6 +339,37 @@ describe("POST video-generate — multishot server backstop (D236, D97)", () => 
     expect(payload.prompt).toContain("[0-3s]");
     expect(payload.prompt).not.toContain("shot 1, ");
     expect(payload.params.multi_shot).toBeUndefined();
+  });
+
+  it("refuses a model with no price before anything is recorded (D557)", async () => {
+    const { seededModelCatalog, withoutPrice } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withoutPrice(seededModelCatalog(), GEMINI_OMNI_MODEL_ID);
+    mocks.graph = buildGraph(
+      [{ id: "c1", text: "keys", seconds: 3 }, { id: "c2", text: "cab", seconds: 5 }],
+      GEMINI_OMNI_MODEL_ID,
+      PLAN,
+    );
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: { duration: 5 }, imageRoles: { ig: "reference" } });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This model has no price set, so it can't run right now." });
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("says a run it can't price can't be priced, without naming the model, and refunds", async () => {
+    const { seededModelCatalog, withPrice } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withPrice(seededModelCatalog(), { ...seededPrice(GEMINI_OMNI_MODEL_ID), lines: [] });
+    mocks.graph = buildGraph(
+      [{ id: "c1", text: "keys", seconds: 3 }, { id: "c2", text: "cab", seconds: 5 }],
+      GEMINI_OMNI_MODEL_ID,
+      PLAN,
+    );
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: { duration: 5 }, imageRoles: { ig: "reference" } });
+    expect((await res.json()).error).toBe("This model can't be priced for these settings. Pick other settings or another model.");
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(GEMINI_OMNI_MODEL_ID), expect.anything());
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
+    expect(mocks.refundReservation).toHaveBeenCalled();
+    log.mockRestore();
   });
 
   // D486 — Omni 1.1 and 1.2 read the same plan, so a 1.2 plan generates on 1.1 without a rewrite,
@@ -537,5 +615,40 @@ describe("the Editor's generation lock", () => {
     } finally {
       editorLock.value = null;
     }
+  });
+});
+
+// D571 — a new run is reserved with the credit settings live now, not an older row.
+describe("POST video-generate — credit settings live now (D571)", () => {
+  it("reserves with the row that started an hour ago, not yesterday's", async () => {
+    const { seededModelCatalog, withCreditSettings } = await import("@/lib/ai-models/test-catalog");
+    const { creditsFromUsd } = await import("@/lib/credits/units");
+    const { videoEstimateUsd } = await import("@/lib/ai-models/video-price");
+    const { isVideoAudioEnabled, asResolutionString } = await import("@/lib/video-gen/cost");
+    const hour = 3_600_000;
+    const OLD = { marginPercent: 0, roundStep: 5 } as const;
+    const NEW = { marginPercent: 10, roundStep: 1 } as const;
+    cat.value = withCreditSettings(seededModelCatalog(), [
+      { effectiveFrom: new Date(Date.now() - 24 * hour).toISOString(), ...OLD },
+      { effectiveFrom: new Date(Date.now() - hour).toISOString(), ...NEW },
+    ]);
+    mocks.graph = buildGraph(
+      [{ id: "c1", text: "keys", seconds: 3 }, { id: "c2", text: "cab", seconds: 5 }],
+      GEMINI_OMNI_MODEL_ID,
+      PLAN,
+    );
+
+    const res = await post({ modelId: GEMINI_OMNI_MODEL_ID, params: { duration: 5 }, imageRoles: { ig: "reference" } });
+
+    expect(res.status).toBe(202);
+    const snap = (mocks.insertGeneration.mock.calls[0] as unknown as [{ paramsSnapshot: Record<string, unknown> }])[0].paramsSnapshot;
+    const usd = videoEstimateUsd(seededPrice(GEMINI_OMNI_MODEL_ID), {
+      durationSeconds: Number(snap.seconds ?? snap.duration ?? 0),
+      audioEnabled: isVideoAudioEnabled(snap.audio),
+      resolution: asResolutionString(snap.resolution),
+      images: 1,
+    })!;
+    expect(creditsFromUsd(usd, NEW)).not.toBe(creditsFromUsd(usd, OLD));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-1", creditsFromUsd(usd, NEW));
   });
 });

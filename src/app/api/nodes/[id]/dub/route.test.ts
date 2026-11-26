@@ -1,13 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { dubCredits } from "@/lib/dubbing/cost";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { dubUsd } from "@/lib/ai-models/service-price";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededSettingsRow } from "@/lib/ai-models/test-catalog";
+import { DUB_MODEL_ID } from "@/lib/ai-models/service-models";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock());
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
 vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 const mocks = vi.hoisted(() => ({
   resolve: vi.fn(),
   running: vi.fn(async () => false),
-  insertGeneration: vi.fn(async () => ({ id: "gen-1" })),
+  insertGeneration: vi.fn(async () => ({ id: "gen-1", created_at: new Date().toISOString() })),
   failGeneration: vi.fn(async () => undefined),
   reserveCredits: vi.fn(async () => ({ ok: true })),
   refundReservation: vi.fn(async () => undefined),
@@ -17,7 +22,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
-  return { ...actual, withNode: (_r: Request, _p: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", { type: mocks.nodeType.value }, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
+  return { ...actual, withNode: (_r: Request, _p: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", { type: mocks.nodeType.value }, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
 });
 vi.mock("@/lib/dubbing/source", () => ({ resolveDubSource: mocks.resolve }));
 vi.mock("@/lib/db/nodes", () => ({ getUpstreamOutputs: vi.fn() }));
@@ -48,7 +53,9 @@ describe("POST /api/nodes/[id]/dub", () => {
       paramsSnapshot: { durationSeconds: 8 },
       inputsSnapshot: { dub: { sourceNodeId: "vg", sourceVersionId: "sv", sourceUrl: "https://own/src.mp4", srcLang: "en-IN", targetLang: "ta-IN", durationSeconds: 8, provider: "sarvam", model: "sarvam-dub", style: "formal" } },
     }));
-    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-1", dubCredits(8));
+    const price = seededPrice(DUB_MODEL_ID);
+    expect(mocks.insertGeneration).toHaveBeenCalledWith(expect.objectContaining({ modelPriceId: price.id }));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-1", creditsFromUsd(dubUsd(price, 8)!, seededSettingsRow()));
     expect(mocks.trigger).toHaveBeenCalledWith("video-dub", {
       generationId: "gen-1", sourceUrl: "https://own/src.mp4", targetLang: "ta-IN", style: "formal",
       dubbedPutUrl: "https://put/v", dubbedAudioPutUrl: "https://put/a",
@@ -91,6 +98,16 @@ describe("POST /api/nodes/[id]/dub", () => {
     process.env.SARVAM_API_KEY = "k";
     expect((await post({ language: "hi-IN" })).status).toBe(404);
     expect(mocks.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("refuses a model with no price before anything is recorded (D558)", async () => {
+    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const res = await post({ language: "hi-IN" });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This model has no price set, so it can't run right now." });
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
   });
 
   it("fails and refunds when the trigger throws", async () => {

@@ -10,21 +10,27 @@ const note = msg({ card: { kind: "note" } });
 
 describe("walkOf", () => {
   it("a build resets what was asked; only the last message can be a pending question", () => {
-    expect(walkOf([q("a"), built, q("b"), msg({ role: "user" }), q("c")])).toEqual({ asked: ["b", "c"], pending: "c" });
+    expect(walkOf([q("a"), built, q("b"), msg({ role: "user" }), q("c")])).toEqual({ asked: ["b", "c"], pending: "c", answers: [] });
     expect(walkOf([q("b"), msg({})]).pending).toBeNull();
     expect(walkOf([q("b"), msg({ role: "user" })]).pending).toBeNull();
   });
 
   it("counts a field asked twice once", () => {
-    expect(walkOf([q("a"), msg({ role: "user" }), msg({}), q("a")])).toEqual({ asked: ["a"], pending: "a" });
+    expect(walkOf([q("a"), msg({ role: "user" }), msg({}), q("a")])).toEqual({ asked: ["a"], pending: "a", answers: [] });
   });
 
   it("looks past notes: a save on the page neither answers a question nor resets the walk", () => {
-    expect(walkOf([q("a"), note, note])).toEqual({ asked: ["a"], pending: "a" });
+    expect(walkOf([q("a"), note, note])).toEqual({ asked: ["a"], pending: "a", answers: [] });
   });
 
   it("is empty for an empty thread", () => {
-    expect(walkOf([])).toEqual({ asked: [], pending: null });
+    expect(walkOf([])).toEqual({ asked: [], pending: null, answers: [] });
+  });
+
+  it("reads the likely answers of the waiting question (D533)", () => {
+    const withAnswers = msg({ card: { kind: "question", field: "a", label: "a", answers: ["x", "y"] } });
+    expect(walkOf([withAnswers]).answers).toEqual(["x", "y"]);
+    expect(walkOf([withAnswers, msg({ role: "user" })])).toMatchObject({ pending: null, answers: [] });
   });
 });
 
@@ -51,6 +57,23 @@ describe("questionMessage", () => {
       suggestions: ["Yes, that's right", "Skip this one"],
       card: { kind: "question", field: "target_audience.age_range", label: "Audience & Casting · Age Range" },
     });
+  });
+
+  it("offers likely answers before its own buttons on an empty field, and says they are guesses (D533)", () => {
+    const empty = f("target_audience.age_range", { title: "Age Range", value: null, inferred: false });
+    expect(questionMessage(empty, ["18–24", "25–34"])).toEqual({
+      role: "assistant",
+      content: "Age Range: I could not find this in the sources. What should it be? Some likely answers are below, or type your own.",
+      suggestions: ["18–24", "25–34", "There is none", "Skip this one"],
+      card: { kind: "question", field: "target_audience.age_range", label: "Age Range", answers: ["18–24", "25–34"] },
+    });
+    expect(questionMessage(empty, [])).toEqual(questionMessage(empty));
+    expect(questionMessage(empty).content).toBe("Age Range: I could not find this in the sources. What should it be?");
+  });
+
+  it("ignores likely answers on an inferred field", () => {
+    const inferred = f("target_audience.age_range", { value: "25 to 40" });
+    expect(questionMessage(inferred, ["18–24"])).toEqual(questionMessage(inferred));
   });
 
   it("reads a list out in a sentence", () => {
@@ -162,9 +185,35 @@ describe("walkChoice", () => {
     expect(walkChoice("Yes, that's right, but it should say 30 to 45", review)).toBeNull();
     expect(walkChoice("yes", review)).toBeNull();
   });
+  it("reads a tapped likely answer as the person's answer to the waiting field (D533)", () => {
+    expect(walkChoice(" 25–34 ", { pending: AGE, answers: ["25–34"] })).toEqual({ tool: "answer_field", args: { field: AGE, value: "25–34" } });
+    expect(walkChoice("25–34 mostly", { pending: AGE, answers: ["25–34"] })).toBeNull();
+    expect(walkChoice("25–34", { pending: null, answers: ["25–34"] })).toBeNull();
+  });
+
   it("leaves a confirm or a skip to the model when no question is waiting, and everything when no KB is in review", () => {
     expect(walkChoice("Yes, that's right", { pending: null })).toBeNull();
     expect(walkChoice("Skip this one", { pending: null })).toBeNull();
     expect(walkChoice("Keep asking", null)).toBeNull();
+  });
+});
+
+// ── Compliance fields get no likely answers (D533, Cyril 2026-11-25) ───────────
+
+import { needsAnswers, offersAnswers } from "../walk";
+
+describe("offersAnswers", () => {
+  const rules = f("compliance.content_rules", { module: "compliance", value: null, inferred: false });
+  const age = f("target_audience.age_range", { module: "audience_casting", value: null, inferred: false });
+
+  it("is true only for an empty field outside Compliance Rules", () => {
+    expect(offersAnswers(age)).toBe(true);
+    expect(offersAnswers(rules)).toBe(false);
+    expect(offersAnswers({ ...age, value: "25–34" })).toBe(false);
+  });
+
+  it("means no answers are looked for when the only question is about a compliance field", () => {
+    expect(needsAnswers([questionMessage(rules)], [rules])).toBe(false);
+    expect(needsAnswers([questionMessage(age)], [age])).toBe(true);
   });
 });

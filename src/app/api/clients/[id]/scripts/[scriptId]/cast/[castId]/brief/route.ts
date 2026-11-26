@@ -24,7 +24,7 @@ const MAX_SHOTS = 8;
 // relative gets the family's look; a relative whose face exists comes back for the face to use.
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId, castId } = await params;
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client) =>
     withTryCatch("Could not describe the person.", async () => {
       const parsed = Body.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Invalid request body.", 400);
@@ -52,7 +52,7 @@ export async function POST(req: Request, { params }: Ctx) {
           const src = avatars.get(c.id)?.front?.source;
           return { id: c.id, name: c.name, description: c.description, ...(src?.kind === "generated" && { look: src.prompt }) };
         }),
-      });
+      }, { recordFor: { orgId: client.org_id, clientId, scriptId } });
       const relatives = family.flatMap((f) => {
         const a = avatars.get(f.castId);
         return a?.front ? [{ avatarId: a.id, relation: f.relation.trim().slice(0, 40) || "relative" }] : [];

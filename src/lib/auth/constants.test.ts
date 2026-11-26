@@ -10,6 +10,8 @@ vi.mock("@/lib/auth/impersonation", () => ({
   resolveImpersonationState: resolveImpersonationStateMock,
 }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
+// withAction reads impersonation through its guard (resolveActingCaller); give that a caller.
+vi.mock("@/lib/dal", () => ({ resolveCallerContext: async () => ({ userId: "op-1", orgId: "op-org" }) }));
 
 import { assertImpersonationWriteAllowed } from "@/lib/api/route-helpers";
 import { withAction } from "@/lib/actions/with-action";
@@ -41,7 +43,7 @@ describe("IMPERSONATION_READ_ONLY_MESSAGE", () => {
   });
 
   it("is the exact message the server-action gate throws", async () => {
-    await expect(withAction("someAction", async () => "done")).rejects.toThrow(
+    await expect(withAction("someAction", { custom: "test" }, async () => "done")).rejects.toThrow(
       IMPERSONATION_READ_ONLY_MESSAGE,
     );
   });

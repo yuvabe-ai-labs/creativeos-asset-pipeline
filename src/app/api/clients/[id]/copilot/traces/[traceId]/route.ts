@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string; traceId: string }> };
 // of this client: one of another client reads as gone.
 export async function GET(req: Request, { params }: Ctx) {
   const { traceId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "view" }, async (clientId) =>
     withTryCatch("The trace could not be loaded.", async () => {
       if (!z.string().uuid().safeParse(traceId).success) return apiError("That is not a trace.", 400);
       const found = await getTurnTrace(clientId, traceId);

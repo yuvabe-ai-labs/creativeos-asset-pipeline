@@ -9,11 +9,22 @@ const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
 import { authFetch } from "./session-ready";
+import { onAccessDenied } from "@/lib/permissions/access-signal";
 
 describe("authFetch", () => {
   beforeEach(() => {
     getSession.mockReset();
     fetchMock.mockReset();
+  });
+
+  it("reports a 403 to the access signal", async () => {
+    getSession.mockResolvedValue({ data: { session: null } });
+    fetchMock.mockResolvedValue({ ok: false, status: 403, clone: () => ({ json: async () => ({}) }) });
+    const listener = vi.fn();
+    const off = onAccessDenied(listener);
+    await authFetch("/api/review/counts");
+    expect(listener).toHaveBeenCalledTimes(1);
+    off();
   });
 
   it("waits for the session check to resolve before calling fetch", async () => {

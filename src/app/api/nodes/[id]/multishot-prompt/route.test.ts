@@ -1,11 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MultishotPlan } from "@/lib/nodes/multishot-plan";
 import { MULTISHOT_BEAT_SCHEMA, planSchemaForCuts } from "@/prompts/multishot-prompt-generate";
-import {
-  KLING_OMNI_MODEL_ID,
-  GEMINI_OMNI_MODEL_ID,
-  SEEDANCE_MODEL_ID,
-} from "@/lib/video-gen/client-models";
+import { KLING_OMNI_MODEL_ID, GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 vi.mock("server-only", () => ({}));
 
@@ -32,6 +28,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
     withNode: (
       req: Request,
       _params: unknown,
+      _guard: unknown,
       fn: (
         nodeId: string,
         node: unknown,
@@ -551,5 +548,15 @@ describe("POST multishot-prompt — Direction references (D281)", () => {
     const content = create.mock.calls[0][0].messages[1].content as Array<{ type: string; text?: string }>;
     expect(content[1]).toEqual({ type: "text", text: "Reference image 1:" });
     expect(content[2].type).toBe("image_url");
+  });
+});
+
+describe("POST multishot-prompt - no price row (D558)", () => {
+  it("409s with the no-price message when the run is refused for it", async () => {
+    const { NoPriceError, NO_PRICE_MESSAGE } = await import("@/lib/ai-models/run-price");
+    runPromptGeneration.mockRejectedValueOnce(new NoPriceError(NO_PRICE_MESSAGE));
+    const res = await post({ scope: "all" });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe(NO_PRICE_MESSAGE);
   });
 });

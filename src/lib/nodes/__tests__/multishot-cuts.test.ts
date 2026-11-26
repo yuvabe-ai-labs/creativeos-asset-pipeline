@@ -16,7 +16,7 @@ import {
 } from "../multishot-cuts";
 import type { MultishotCut } from "../multishot-cuts";
 import { multishotCapabilityFor } from "../multishot-models";
-import { GEMINI_OMNI_11_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_11_MODEL_ID, KLING_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 // Omni 1.1's 10s window is the narrow ceiling these cases measure against (D484 keeps it selectable).
 const OMNI = multishotCapabilityFor(GEMINI_OMNI_11_MODEL_ID);

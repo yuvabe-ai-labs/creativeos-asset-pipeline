@@ -34,6 +34,8 @@ type EditableFieldProps = {
    * be a store write (and an autosave) per keystroke.
    */
   live?: boolean;
+  /** What the field is, for screen readers ("Model name"); the button then reads "<label>: <value>, edit". */
+  ariaLabel?: string;
 };
 
 // Click-to-edit text. Renders as read-only text until clicked, then becomes an
@@ -50,6 +52,7 @@ export function EditableField({
   editClassName,
   renderDisplay,
   live = false,
+  ariaLabel,
 }: EditableFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -89,6 +92,7 @@ export function EditableField({
           setEditing(true);
         }}
         title="Click to edit"
+        aria-label={ariaLabel ? `${ariaLabel}: ${value}, edit` : undefined}
         className={cn(
           "nodrag w-full cursor-pointer rounded-md px-1.5 py-1 text-left underline decoration-transparent decoration-dotted decoration-2 underline-offset-4 transition-colors hover:bg-primary/5 hover:decoration-primary/50",
           singleLine ? "block truncate" : "whitespace-pre-wrap",
@@ -146,6 +150,7 @@ export function EditableField({
   return (
     <Input
       autoFocus
+      aria-label={ariaLabel}
       value={draft}
       onChange={(e) => change(e.target.value)}
       onBlur={commit}

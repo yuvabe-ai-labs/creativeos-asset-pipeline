@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ cid: string }> },
 ) {
   const { cid } = await params;
-  return withCanvas(req, Promise.resolve({ id: cid }), async (canvasId) =>
+  return withCanvas(req, Promise.resolve({ id: cid }), { need: "view" }, async (canvasId) =>
     withTryCatch("Failed to load client feedback", async () =>
       apiOk(await listCanvasClientFeedback(canvasId)),
     ),

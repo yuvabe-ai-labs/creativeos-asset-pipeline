@@ -1,10 +1,7 @@
 "use client";
 
 import { AudioLines, Image as ImageIcon, PencilLine, SlidersHorizontal } from "lucide-react";
-import {
-  videoGenClientModelMap,
-  resolveVideoModelId,
-} from "@/lib/video-gen/client-models";
+import { useVideoModels } from "@/hooks/queries/ai-models";
 import {
   describeAllVersionParams,
   type VersionParamEntry,
@@ -81,9 +78,9 @@ export function VideoGenRequestPanel({
   /** Every version's `vN` label (versionLabelsById), so a voice change names its source version. */
   labelById: Map<string, string>;
 }) {
-  const model = version.modelUsed
-    ? videoGenClientModelMap[resolveVideoModelId(version.modelUsed)]
-    : undefined;
+  const videos = useVideoModels();
+  // No catalog row: the settings by their raw names, and no model label (never the id).
+  const model = videos.get(version.modelUsed);
   const images = requestImages(version.inputsUsed);
   const params = describeAllVersionParams(model?.params, version.paramsUsed);
   const prompt = version.inputsUsed?.prompt?.trim() ?? "";
@@ -163,11 +160,7 @@ export function VideoGenRequestPanel({
 
       <LeftSection icon={SlidersHorizontal} label="Settings">
         <dl className="flex flex-col gap-px overflow-hidden rounded-lg border border-border bg-border shadow-card">
-          <ParamRow
-            label="Model"
-            value={model?.label ?? version.modelUsed ?? "—"}
-            note={model?.providerLabel}
-          />
+          {model && <ParamRow label="Model" value={model.label} note={model.providerLabel} />}
           {params.map((p) =>
             p.longForm ? (
               <div key={p.name} className="flex flex-col gap-1 bg-card px-3 py-2.5">

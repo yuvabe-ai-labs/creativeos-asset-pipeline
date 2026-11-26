@@ -72,6 +72,8 @@ function item(over: Partial<InboxItem>): InboxItem {
   };
 }
 
+const BOTH = ["image-gen", "video-gen"];
+
 describe("selectInboxFor", () => {
   const pendingOther = item({
     versionId: "p1",
@@ -92,34 +94,56 @@ describe("selectInboxFor", () => {
   const all = [pendingOther, rejectedMine, rejectedOther, approved];
 
   it("designer sees only their OWN rejected work — R9.5", () => {
-    expect(selectInboxFor("designer", "me", all).map((i) => i.versionId)).toEqual(["r1"]);
+    expect(selectInboxFor([], "me", all).map((i) => i.versionId)).toEqual(["r1"]);
   });
 
   it("senior sees everything pending, plus their own rejected work", () => {
-    expect(selectInboxFor("senior", "me", all).map((i) => i.versionId).sort()).toEqual([
+    expect(selectInboxFor(BOTH, "me", all).map((i) => i.versionId).sort()).toEqual([
       "p1",
       "r1",
     ]);
   });
 
-  it("owner is treated exactly as senior", () => {
-    expect(selectInboxFor("owner", "me", all)).toEqual(selectInboxFor("senior", "me", all));
+  it("shows pending work only for the node types the person can approve", () => {
+    const items = [item({ nodeType: "image-gen" }), item({ nodeType: "video-gen" })];
+    expect(selectInboxFor(["image-gen"], "u1", items).map((i) => i.nodeType)).toEqual(["image-gen"]);
+  });
+
+  it("builds the matching PostgREST filter", () => {
+    expect(inboxFilterFor(["image-gen"], "u1")).toBe(
+      "and(approval_status.eq.pending,node_type.in.(image-gen))," +
+        "and(approval_status.eq.changes_requested,operator_user_id.eq.u1)," +
+        "and(approval_status.eq.approved,operator_user_id.eq.u1,approved_by_user_id.neq.u1,approved_seen_at.is.null)",
+    );
+    expect(inboxFilterFor([], "u1")).toBe(
+      "and(approval_status.eq.changes_requested,operator_user_id.eq.u1)," +
+        "and(approval_status.eq.approved,operator_user_id.eq.u1,approved_by_user_id.neq.u1,approved_seen_at.is.null)",
+    );
+  });
+
+  it("keeps pending work to the clients where the person holds Approve", () => {
+    expect(inboxFilterFor(["image-gen"], "u1", ["c1", "c2"])).toBe(
+      "and(approval_status.eq.pending,node_type.in.(image-gen),client_id.in.(c1,c2))," +
+        "and(approval_status.eq.changes_requested,operator_user_id.eq.u1)," +
+        "and(approval_status.eq.approved,operator_user_id.eq.u1,approved_by_user_id.neq.u1,approved_seen_at.is.null)",
+    );
+    expect(inboxFilterFor(["image-gen"], "u1", [])).toBe(inboxFilterFor([], "u1"));
   });
 
   it("never includes approved work for anyone", () => {
-    for (const role of ["designer", "senior", "owner"] as const) {
+    for (const types of [[], BOTH]) {
       expect(
-        selectInboxFor(role, "me", all).some((i) => i.approvalStatus === "approved"),
+        selectInboxFor(types, "me", all).some((i) => i.approvalStatus === "approved"),
       ).toBe(false);
     }
   });
 
   it("a senior does not see OTHER people's rejected work — that is the maker's to fix", () => {
-    expect(selectInboxFor("senior", "me", all).map((i) => i.versionId)).not.toContain("r2");
+    expect(selectInboxFor(BOTH, "me", all).map((i) => i.versionId)).not.toContain("r2");
   });
 
   it("a designer sees nothing when none of the rejected work is theirs", () => {
-    expect(selectInboxFor("designer", "nobody", all)).toEqual([]);
+    expect(selectInboxFor([], "nobody", all)).toEqual([]);
   });
 });
 
@@ -155,25 +179,23 @@ describe("selectInboxFor — unseen approvals (D170/D171)", () => {
   const all = [myApprovedUnseen, mySelfApproved, myApprovedSeen, othersApprovedUnseen];
 
   it("designer sees their own unseen approval — D170", () => {
-    expect(selectInboxFor("designer", "me", all).map((i) => i.versionId)).toEqual(["au1"]);
+    expect(selectInboxFor([], "me", all).map((i) => i.versionId)).toEqual(["au1"]);
   });
 
   it("senior/owner sees their own unseen approval too — D170 applies to every role", () => {
-    for (const role of ["senior", "owner"] as const) {
-      expect(selectInboxFor(role, "me", all).map((i) => i.versionId)).toContain("au1");
-    }
+    expect(selectInboxFor(BOTH, "me", all).map((i) => i.versionId)).toContain("au1");
   });
 
   it("self-approval never notifies — D171", () => {
-    expect(selectInboxFor("designer", "me", all).map((i) => i.versionId)).not.toContain("au2");
+    expect(selectInboxFor([], "me", all).map((i) => i.versionId)).not.toContain("au2");
   });
 
   it("an already-seen approval does not reappear", () => {
-    expect(selectInboxFor("designer", "me", all).map((i) => i.versionId)).not.toContain("au3");
+    expect(selectInboxFor([], "me", all).map((i) => i.versionId)).not.toContain("au3");
   });
 
   it("someone else's approval never appears in my inbox", () => {
-    expect(selectInboxFor("designer", "me", all).map((i) => i.versionId)).not.toContain("au4");
+    expect(selectInboxFor([], "me", all).map((i) => i.versionId)).not.toContain("au4");
   });
 });
 
@@ -184,6 +206,24 @@ describe("inboxFilterFor agrees with selectInboxFor", () => {
   // A deliberately small PostgREST `or`-filter evaluator — enough for the shapes this
   // function emits (`field.eq.X`, `field.neq.X`, `field.is.null`, and `and(...)`). If the
   // filter ever grows a shape this cannot parse, it throws rather than silently passing.
+  function splitTop(text: string): string[] {
+    const out: string[] = [];
+    let d = 0;
+    let cur = "";
+    for (const ch of text) {
+      if (ch === "(") d++;
+      if (ch === ")") d--;
+      if (ch === "," && d === 0) {
+        out.push(cur);
+        cur = "";
+        continue;
+      }
+      cur += ch;
+    }
+    out.push(cur);
+    return out;
+  }
+
   function evaluate(filter: string, item: InboxItem): boolean {
     const clauses: string[] = [];
     let depth = 0;
@@ -210,6 +250,8 @@ describe("inboxFilterFor agrees with selectInboxFor", () => {
           return item.approvedByUserId;
         case "approved_seen_at":
           return item.approvedSeenAt;
+        case "node_type":
+          return item.nodeType;
         default:
           throw new Error(`Unknown field: ${name}`);
       }
@@ -217,7 +259,9 @@ describe("inboxFilterFor agrees with selectInboxFor", () => {
 
     const evalOne = (clause: string): boolean => {
       const and = clause.match(/^and\((.*)\)$/);
-      if (and) return and[1].split(",").every(evalOne);
+      if (and) return splitTop(and[1]).every(evalOne);
+      const inList = clause.match(/^([a-z_]+)\.in\.\((.*)\)$/);
+      if (inList) return inList[2].split(",").includes(field(inList[1]) ?? "");
       const isNull = clause.match(/^([a-z_]+)\.is\.null$/);
       if (isNull) return field(isNull[1]) === null;
       const neq = clause.match(/^([a-z_]+)\.neq\.(.*)$/);
@@ -234,6 +278,7 @@ describe("inboxFilterFor agrees with selectInboxFor", () => {
   }
 
   const fixtures = [
+    item({ versionId: "pv", approvalStatus: "pending", operatorUserId: "someone", nodeType: "video-gen" }),
     item({ versionId: "p1", approvalStatus: "pending", operatorUserId: "someone" }),
     item({ versionId: "p2", approvalStatus: "pending", operatorUserId: "me" }),
     item({ versionId: "r1", approvalStatus: "changes_requested", operatorUserId: "me" }),
@@ -275,12 +320,12 @@ describe("inboxFilterFor agrees with selectInboxFor", () => {
     }),
   ];
 
-  for (const role of ["designer", "senior", "owner"] as const) {
-    it(`selects the same items for ${role}`, () => {
+  for (const types of [[], ["image-gen"], ["image-gen", "video-gen"]]) {
+    it(`selects the same items for [${types.join(",")}]`, () => {
       const viaSql = fixtures
-        .filter((i) => evaluate(inboxFilterFor(role, "me"), i))
+        .filter((i) => evaluate(inboxFilterFor(types, "me"), i))
         .map((i) => i.versionId);
-      const viaJs = selectInboxFor(role, "me", fixtures).map((i) => i.versionId);
+      const viaJs = selectInboxFor(types, "me", fixtures).map((i) => i.versionId);
       expect(viaSql.sort()).toEqual(viaJs.sort());
     });
   }

@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
-import {
-  SEEDREAM_LITE_SIZES,
-  SEEDREAM_PRO_SIZES,
-  seedreamLiteParams,
-  seedreamProParams,
-  seedreamSize,
-} from "../seedream";
+import { SEEDREAM_LITE_SIZES, SEEDREAM_PRO_SIZES, seedreamSize } from "../../providers/seedream";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import type { ParamSpec } from "../../types";
+
+const paramsOf = (id: string) => imageModelsFrom(seededModelCatalog()).get(id)!.params;
+const seedreamLiteParams = paramsOf("seedream:seedream-5-0-lite");
+const seedreamProParams = paramsOf("seedream:seedream-5-0-pro");
 
 function options(params: ParamSpec[], name: string): string[] {
   const spec = params.find((p) => p.name === name);

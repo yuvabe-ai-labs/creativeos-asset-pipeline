@@ -4,8 +4,10 @@ import {
   avatarAutoVoiceMissing, presenterDefaultVoiceId, presenterVideoNotes, seedanceVoiceText, seedingScriptId,
   presenterUpstreamRows, unavailableModelsFor, withAvatarAsSpeaker,
 } from "../presenter";
-import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { makeAvatar, makeImage, GENERATED } from "./fixtures";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
 import type { AvatarVoice, AvatarVoiceSample } from "../schema";
 
 const NAMED: AvatarVoice = {
@@ -101,21 +103,29 @@ describe("seedanceVoiceText", () => {
 });
 
 describe("unavailableModelsFor", () => {
+  const videos = videoModelsFrom(seededModelCatalog());
   it("a real person's photo rules out Seedance and Veo, each with its reason", () => {
-    const out = unavailableModelsFor(makeAvatar());
+    const out = unavailableModelsFor(videos, makeAvatar());
     expect(out[SEEDANCE_MODEL_ID]).toMatch(/refuses a real person's face/);
     expect(out["veo:veo-3.1-fast"]).toMatch(/may refuse a real person's face/);
     expect(out[GEMINI_OMNI_MODEL_ID]).toBeUndefined();
     expect(out["kling:kling-3-0"]).toBeUndefined();
   });
   it("a Seedream face rules out nothing", () => {
-    expect(unavailableModelsFor(makeAvatar({ personType: "generic", front: makeImage(GENERATED) }))).toEqual({});
+    expect(unavailableModelsFor(videos, makeAvatar({ personType: "generic", front: makeImage(GENERATED) }))).toEqual({});
   });
   it("another generated face rules out Seedance only, saying which model it needs", () => {
     const other = GENERATED.kind === "generated" ? { ...GENERATED, modelId: "gemini:gemini-3-pro-image" } : GENERATED;
-    const out = unavailableModelsFor(makeAvatar({ personType: "generic", front: makeImage(other) }));
+    const out = unavailableModelsFor(videos, makeAvatar({ personType: "generic", front: makeImage(other) }));
     expect(Object.keys(out)).toEqual([SEEDANCE_MODEL_ID]);
     expect(out[SEEDANCE_MODEL_ID]).toMatch(/Seedream 5\.0 Lite/);
+  });
+  it("rules out models from the catalog's list, including one only the catalog has", () => {
+    const c = seededModelCatalog();
+    const seedance = c.models.find((m) => m.id === "seedance:seedance-2-5")!;
+    const extra = { ...seedance, id: "seedance:seedance-9", label: "Seedance 9", sortOrder: 999 };
+    const list = videoModelsFrom({ ...c, models: [...c.models, extra] });
+    expect(Object.keys(unavailableModelsFor(list, makeAvatar()))).toContain("seedance:seedance-9");
   });
 });
 

@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ id: string; scriptId: string }> };
 // use (applyAssetOp), written through the one stage-aware write (changeScriptAssets).
 export async function POST(req: Request, { params }: Ctx) {
   const { scriptId } = await params;
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "edit" }, async (clientId) =>
     withTryCatch("Could not change the script.", async () => {
       const parsed = assetOpSchema.safeParse(await req.json().catch(() => null));
       if (!parsed.success) return apiError("Invalid request body.", 400);

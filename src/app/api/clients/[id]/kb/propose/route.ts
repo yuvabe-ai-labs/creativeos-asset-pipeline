@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpers";
-import { resolveCallerContext } from "@/lib/dal";
 import { listKBDocuments } from "@/lib/db/kb";
 import { startKbProposal } from "@/lib/kb/changes/start";
 
@@ -18,7 +17,7 @@ const bodySchema = z.object({
 // answers in the thread with a change card. Nothing is rebuilt, no review is wiped and the KB's
 // status is never touched. Images are not read here: they are studied as they are uploaded.
 export async function POST(req: Request, { params }: Ctx) {
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("Could not read the changes.", async () => {
       const body = bodySchema.safeParse(await req.json().catch(() => null));
       if (!body.success) return apiError("Nothing to read.", 400);
@@ -26,7 +25,8 @@ export async function POST(req: Request, { params }: Ctx) {
       const { added, removed } = body.data;
       if (added.length === 0 && removed.length === 0) return apiOk({ started: false });
 
-      const [{ userId }, docs] = await Promise.all([resolveCallerContext(), listKBDocuments(clientId)]);
+      const { userId } = caller;
+      const docs = await listKBDocuments(clientId);
       // The ids come from the browser: each must be one of this client's documents, and is named
       // from what is stored, never from what the browser sent.
       const byId = new Map(docs.map((d) => [d.id, d.filename]));

@@ -1,11 +1,17 @@
 import { describe, it, expect } from "vitest";
-import {
-  kling30Params,
-  kling30OmniParams,
-  klingO1Params,
-  KLING_NEGATIVE_DEFAULT,
-} from "../params/kling";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 import type { ParamSpec } from "@/lib/image-gen/types";
+
+// Each Kling model's params as its catalog row seeds them.
+const paramsOf = (id: string) => videoModelsFrom(seededModelCatalog()).get(id)!.params;
+const kling30Params = paramsOf("kling:kling-3-0");
+const kling30OmniParams = paramsOf("kling:kling-3-0-omni");
+const klingO1Params = paramsOf("kling:kling-o1");
+
+// The product-tuned visual-defect list every Kling model prefills.
+const KLING_NEGATIVE_DEFAULT =
+  "blurry, low quality, distorted, deformed, morphing, warped label, label deformation, text distortion, changing text, flickering, jitter, floating objects, extra objects, duplicated product, watermark";
 
 function names(params: ParamSpec[]) {
   return params.map((p) => p.name);

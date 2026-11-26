@@ -9,46 +9,61 @@ import {
   mapAppMetadataToPlatformRole,
   mapAppMetadataToMustChangePassword,
   type CallerContext,
-  type OrgRole,
 } from "./dal-logic";
+import { accessFromRows, type MembershipAccessRow } from "@/lib/permissions/model";
 
 export type { CallerContext } from "./dal-logic";
 
-// The primary auth entry point (from Stage 1C onward). Every route handler / server
-// action / protected page will call this at the top. Cached per request (React cache)
-// so N callers in one render share one session read + one membership query. Redirects
-// to /login if unauthenticated — note /login doesn't exist until Stage 1C, so hitting
-// this unauthenticated in 1B correctly redirects toward a page that 404s for now.
+// D538/D546: ONE round trip returns the membership and everything access needs. Several rows
+// = several agencies, which is not allowed yet (the one_org_per_user index).
+// cache() dedupes within one render (so both resolvers share one RPC per user id), not inside
+// route handlers. A failed read throws: it is an error page, never "no access" (spec §4.1).
+const loadMembershipAccess = cache(async (userId: string): Promise<MembershipAccessRow[]> => {
+  const db = createServerSupabase();
+  const { data, error } = await db.rpc("get_membership_access", { p_user_id: userId });
+  if (error) throw error;
+  const rows = (data ?? []) as MembershipAccessRow[];
+  if (rows.length > 1) throw new Error("Belonging to more than one agency is not supported yet.");
+  return rows;
+});
+
+// One Supabase session read per render, shared by both resolvers (AGENTS.md rule 6).
+const loadSessionUser = cache(async () => getUserWithRetry(await createSSRServerClient()));
+
+function buildCallerContext(
+  user: NonNullable<Awaited<ReturnType<typeof getUserWithRetry>>>,
+  platformRole: CallerContext["platformRole"],
+  mustChangePassword: boolean,
+  rows: MembershipAccessRow[],
+): CallerContext {
+  return {
+    userId: user.id,
+    email: user.email ?? null,
+    platformRole,
+    orgId: rows[0].org_id,
+    mustChangePassword,
+    access: accessFromRows(user.id, platformRole === "super_admin", rows),
+  };
+}
+
+// The primary auth entry point. Cached per request (React cache) so N callers in one page
+// render share one session read + one membership query; cache() does not dedupe inside route
+// handlers, so routes get the caller from their chokepoint instead. Redirects to /login if
+// unauthenticated.
 export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
-  const supabase = await createSSRServerClient();
-  const user = await getUserWithRetry(supabase);
+  const user = await loadSessionUser();
   if (!user) redirect("/login");
 
   const platformRole = mapAppMetadataToPlatformRole(user.app_metadata);
   const mustChangePassword = mapAppMetadataToMustChangePassword(user.app_metadata);
 
-  // Membership read uses the service-role client. org_memberships has no RLS by design
-  // in Stage 1 (app-layer enforces) — see the Stage 1 plan's Global Constraints.
-  const db = createServerSupabase();
-  const { data: membership, error } = await db
-    .from("org_memberships")
-    .select("org_id, org_role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!membership) {
+  const rows = await loadMembershipAccess(user.id);
+  if (rows.length === 0) {
     // Authenticated but unprovisioned — treat as no access.
     redirect("/login?error=no-membership");
   }
 
-  return {
-    userId: user.id,
-    email: user.email ?? null,
-    platformRole,
-    orgId: membership.org_id as string,
-    orgRole: membership.org_role as OrgRole,
-    mustChangePassword,
-  };
+  return buildCallerContext(user, platformRole, mustChangePassword, rows);
 });
 
 // Non-redirecting variant of resolveCallerContext(), for callers that must never trigger a
@@ -57,30 +72,16 @@ export const resolveCallerContext = cache(async (): Promise<CallerContext> => {
 // when there's no session; do not use this for anything that gates access to real data (use
 // resolveCallerContext() for that — its redirect is the correct behavior everywhere else).
 export const resolveCallerContextOrNull = cache(async (): Promise<CallerContext | null> => {
-  const supabase = await createSSRServerClient();
-  const user = await getUserWithRetry(supabase);
+  const user = await loadSessionUser();
   if (!user) return null;
 
   const platformRole = mapAppMetadataToPlatformRole(user.app_metadata);
   const mustChangePassword = mapAppMetadataToMustChangePassword(user.app_metadata);
 
-  const db = createServerSupabase();
-  const { data: membership, error } = await db
-    .from("org_memberships")
-    .select("org_id, org_role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!membership) return null;
+  const rows = await loadMembershipAccess(user.id);
+  if (rows.length === 0) return null;
 
-  return {
-    userId: user.id,
-    email: user.email ?? null,
-    platformRole,
-    orgId: membership.org_id as string,
-    orgRole: membership.org_role as OrgRole,
-    mustChangePassword,
-  };
+  return buildCallerContext(user, platformRole, mustChangePassword, rows);
 });
 
 // The org whose data the caller should see. Defaults to the caller's own org; when a

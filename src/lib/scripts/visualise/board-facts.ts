@@ -1,3 +1,4 @@
+import type { ImageModels } from "@/lib/ai-models/model-lists";
 import type { Script } from "../schema";
 import type { BoardFacts, PanelState } from "../copilot/board-text";
 import { PANEL_MODEL_ID } from "./constants";
@@ -19,10 +20,11 @@ function versionsOf(takes: PanelTake[], shotId: string): PanelTake[] {
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-export function boardFacts(script: Script, board: VisualiseBoard, now: number): BoardFacts {
+/** `images` is the model catalog's image list: the panel model's reference limit comes from it. */
+export function boardFacts(script: Script, board: VisualiseBoard, images: ImageModels, now: number): BoardFacts {
   const { doc } = script;
   const avatars = new Map(board.avatars.map((a) => [a.id, a]));
-  const cap = panelReferenceCap(PANEL_MODEL_ID);
+  const cap = panelReferenceCap(images, PANEL_MODEL_ID);
   const shots = doc.shots.map((shot, i) => {
     const inputs = panelInputs({ doc, shot, avatars, kits: board.kits, cap });
     const view = panelView({ inputs, takes: board.takes.filter((t) => t.shotId === shot.id), pickId: board.picks[shot.id], drawing: false, now });

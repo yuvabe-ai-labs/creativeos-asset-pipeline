@@ -9,7 +9,7 @@ vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
   return {
     ...actual,
-    withNode: (_req: Request, _params: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
+    withNode: (_req: Request, _params: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) =>
       fn("node-1", { data: stored }, { userId: "u1", email: "u@x.com" }, "client-1", "org-1"),
   };
 });
@@ -20,25 +20,23 @@ const FILE_REF: CompositeRef = { nodeId: "n-file", name: "Sandals.png", role: "i
 const loadCompositeInputs = vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({}) as unknown);
 vi.mock("@/lib/composite/load-inputs", () => ({ loadCompositeInputs: (...a: unknown[]) => loadCompositeInputs(...a) }));
 
-// vi.mock factories are hoisted above every const; the registry factory CALLS `model`, so it
-// lives in vi.hoisted.
-const { model } = vi.hoisted(() => {
-  const model = (label: string, maxReferenceImages: number) => ({
-    label,
-    maxReferenceImages,
-    maxReferenceSizeBytes: 0,
-    schema: { safeParse: (v: unknown) => ({ success: true, data: v }) },
-  });
-  return { model };
-});
-vi.mock("@/lib/image-gen/registry", () => ({
-  imageGenRegistry: {
-    "seedream:seedream-5-0-lite": model("Seedream 5.0 Lite", 14),
-    "gemini:gemini-3-pro-image": model("Nano Banana Pro", 14),
-    "tiny:two": model("Tiny", 2),
-    "openai:gpt-image-2": { ...model("GPT Image 2", 16), supportsMask: true },
-  },
+const cat = vi.hoisted(() => ({
+  value: null as import("@/lib/ai-models/types").AiCatalog | null,
+  fail: null as Error | null,
 }));
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return {
+    getAiCatalog: async () => {
+      if (cat.fail) throw cat.fail;
+      return cat.value ?? seededModelCatalog();
+    },
+  };
+});
+vi.mock("@/lib/image-gen/adapters", async () => {
+  const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
+  return { imageAdapters: stubAdapters("image", async () => { throw new Error("a route never generates"); }) };
+});
 
 const start = vi.fn<(...a: unknown[]) => Promise<Response>>(
   async () => new Response(JSON.stringify({ generationId: "g1" }), { status: 202 }),
@@ -67,17 +65,46 @@ const sent = () => start.mock.calls[0][0] as { prompt: string; referenceUrls: st
 
 beforeEach(() => {
   vi.clearAllMocks();
+  cat.value = null;
+  cat.fail = null;
   for (const k of Object.keys(stored)) delete stored[k];
   stored.instruction = "";
   loadCompositeInputs.mockResolvedValue({ ok: true, refs: [AVATAR_REF, SHEET_REF, FILE_REF], avatarIds: ["av-1"], contexts: [] });
 });
 
 describe("POST composite-generate (D312)", () => {
-  it("refuses a deprecated model before anything starts (D467)", async () => {
+  it("answers a catalog failure with plain copy and no raw message", async () => {
+    cat.fail = new Error("relation ai_models does not exist");
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await post({ instruction: "x" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "Could not load the models. Try again." });
+    expect(start).not.toHaveBeenCalled();
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it("refuses a retired model before anything starts (D563)", async () => {
     const res = await post({ instruction: "x", modelId: "openai:gpt-image-1" });
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("This model is deprecated");
+    expect((await res.json()).error).toBe("This model was retired. Pick another.");
     expect(start).not.toHaveBeenCalled();
+  });
+
+  // D563 — a hidden model keeps running on the node that already uses it (its data.modelId).
+  it("runs a hidden model on the node that already uses it, and refuses it on any other", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withModel(seededModelCatalog(), "gemini:gemini-3-pro-image", { status: "hidden" });
+    loadCompositeInputs.mockResolvedValue({ ok: true, refs: [FILE_REF], avatarIds: [], contexts: [] });
+
+    stored.modelId = "gemini:gemini-3-pro-image";
+    expect((await post({ instruction: "on a desk", modelId: "gemini:gemini-3-pro-image" })).status).toBe(202);
+
+    stored.modelId = SEEDANCE_FACE_MODEL_ID;
+    const refused = await post({ instruction: "on a desk", modelId: "gemini:gemini-3-pro-image" });
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error).toBe("This model isn't available. Pick another.");
+    expect(start).toHaveBeenCalledTimes(1);
   });
 
   it("refuses with no instruction, before reserving", async () => {
@@ -138,8 +165,12 @@ describe("POST composite-generate (D312)", () => {
   });
 
   it("refuses more images than the model takes, without slicing", async () => {
+    const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+    const base = seededModelCatalog();
+    const lite = base.models.find((x) => x.id === SEEDANCE_FACE_MODEL_ID)!;
+    cat.value = withModel(base, SEEDANCE_FACE_MODEL_ID, { capabilities: { ...lite.capabilities, maxReferenceImages: 2 } });
     loadCompositeInputs.mockResolvedValue({ ok: true, refs: [FILE_REF, { ...FILE_REF, nodeId: "b", position: 2 }, { ...FILE_REF, nodeId: "c", position: 3 }], avatarIds: [], contexts: [] });
-    const res = await post({ instruction: "x", modelId: "tiny:two" });
+    const res = await post({ instruction: "x", modelId: SEEDANCE_FACE_MODEL_ID });
     expect(res.status).toBe(422);
     expect((await res.json()).error).toContain("3 reference images");
     expect(start).not.toHaveBeenCalled();

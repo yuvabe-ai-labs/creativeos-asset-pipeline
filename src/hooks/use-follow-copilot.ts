@@ -9,7 +9,7 @@ import type { TargetActivity } from "@/lib/journey/thread/target-activity";
 // there, and tells each target whether it is asked about, being written, or has just landed.
 
 export type TargetState = {
-  /** The question waiting is about this target ("Copilot is asking"). Everyone sees it. */
+  /** The question waiting is about this target. Not drawn (D528): only a change marks a target. */
   asking: boolean;
   /** The copilot is changing it now (the sweep). */
   writing: boolean;

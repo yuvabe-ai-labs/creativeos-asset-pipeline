@@ -1,10 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { multishotPromptFor } from "../multishot-prompt-for";
-import {
-  GEMINI_OMNI_MODEL_ID,
-  KLING_OMNI_MODEL_ID,
-  SEEDANCE_MODEL_ID,
-} from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 // D236 — the bug this router exists to make unrepresentable: two models sharing one writer object,
 // which is exactly how Omni's prompt used to leak into a Kling (or now Seedance) plan. The same

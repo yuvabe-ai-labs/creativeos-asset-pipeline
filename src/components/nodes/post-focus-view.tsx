@@ -27,6 +27,7 @@ import { usePostExport } from "@/hooks/use-post-export";
 import { useClientId } from "@/components/canvas/client-id-context";
 import { brandAssetGeometry, applyBrandBackground } from "@/lib/post/brand-placement";
 import type { BrandAsset } from "@/lib/brand-kit/types";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { EditableField } from "./editable-field";
 import { PostStage } from "./post-stage";
 import { PostInspector } from "./post-inspector";
@@ -79,6 +80,8 @@ export function PostFocusView({
   open, onOpenChange, nodeId, title, format, templateId, layers: persistedLayers,
   autoPlacedNodeIds, connectedImageNodes, onPatch,
 }: Props) {
+  // View-only: the design is shown as it is, with no editing controls, drops, shortcuts or writes.
+  const canEdit = useCanvasEditable();
   const { layers, format: editorFormat, templateId: editorTemplateId, setFormat,
     selectedIds, selectLayer, toggleLayerSelection, selectMany, addText, addShape,
     addImage, addIcon, updateLayerLive, commitLayerChange, replaceAllLayers, deleteSelection,
@@ -97,6 +100,8 @@ export function PostFocusView({
       templateId,
     },
     (next) => onPatch({ layers: next.layers, format: next.format, templateId: next.templateId }),
+    undefined,
+    !canEdit,
   );
 
   const clientId = useClientId();
@@ -292,6 +297,7 @@ export function PostFocusView({
   // removed. The current-layer check stays as a second guard for scenes authored before
   // the field existed, and so a deliberate swap is never fought.
   useEffect(() => {
+    if (!canEdit) return;
     if (connectedImageNodes.length === 0) return;
     const placed = autoPlacedNodeIds ?? [];
     const target = connectedImageNodes.find((c) => !placed.includes(c.nodeId));
@@ -400,7 +406,7 @@ export function PostFocusView({
   // Keyboard shortcuts — guarded against typing in a field (isEditableTarget), same
   // pattern the canvas itself already uses for its own shortcuts.
   useEffect(() => {
-    if (!open) return;
+    if (!open || !canEdit) return;
     function onKeyDown(e: KeyboardEvent) {
       if (isEditableTarget(e.target as HTMLElement)) return;
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -457,7 +463,7 @@ export function PostFocusView({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, selectedIds, layers, containerW, containerH, updateLayerLive, commitLayerChange,
+  }, [open, canEdit, selectedIds, layers, containerW, containerH, updateLayerLive, commitLayerChange,
       deleteSelection, duplicateSelection, undo, redo, reorder, group, ungroup, copySelection,
       pasteClipboard]);
 
@@ -475,7 +481,7 @@ export function PostFocusView({
    */
   const closeWithThumbnail = useCallback(() => {
     const stage = stageRef.current;
-    if (stage) {
+    if (stage && canEdit) {
       flushSync(() => selectLayer(null));
       const thumbnail = captureThumbnail(stage);
       // null means the canvas could not be read — a cross-origin image that slipped past the
@@ -483,7 +489,7 @@ export function PostFocusView({
       if (thumbnail) onPatch({ thumbnail });
     }
     onOpenChange(false);
-  }, [stageRef, selectLayer, onPatch, onOpenChange]);
+  }, [stageRef, canEdit, selectLayer, onPatch, onOpenChange]);
 
   return (
     <Sheet open={open} onOpenChange={(next) => { if (next) onOpenChange(true); else closeWithThumbnail(); }}>
@@ -510,6 +516,7 @@ export function PostFocusView({
                   className="font-display text-2xl font-semibold tracking-tight"
                 />
               </SheetTitle>
+              {canEdit && (
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="icon" disabled={!canUndo} onClick={undo} aria-label="Undo">
                   <Undo2 className="size-4" />
@@ -524,12 +531,14 @@ export function PostFocusView({
                   {isExporting ? "Exporting…" : "Download"}
                 </Button>
               </div>
+              )}
             </header>
           </div>
         </div>
 
         <div ref={bodyRef} className="flex min-h-0 flex-1">
-          <PostToolRail active={tool} onSelect={setTool} />
+          {canEdit && <PostToolRail active={tool} onSelect={setTool} />}
+          {canEdit && (
           <PostToolPanel tool={tool}>
             {tool === "templates" && (
               <PostPanelTemplates
@@ -599,6 +608,7 @@ export function PostFocusView({
               />
             )}
           </PostToolPanel>
+          )}
 
           {/* Stage */}
           <div
@@ -620,7 +630,7 @@ export function PostFocusView({
             // Anything draggable in the left panels — a shape, an icon, a text preset, an
             // uploaded or connected photo — drops here, all through one payload type.
             onDragOver={(e) => {
-              if (!e.dataTransfer.types.includes(ELEMENT_DRAG_TYPE)) return;
+              if (!canEdit || !e.dataTransfer.types.includes(ELEMENT_DRAG_TYPE)) return;
               // preventDefault is what marks this a valid drop target; without it the browser
               // refuses the drop and animates the tile flying back to the panel.
               e.preventDefault();
@@ -636,6 +646,7 @@ export function PostFocusView({
             }}
             onDrop={(e) => {
               setIsDropTarget(false);
+              if (!canEdit) return;
               const payload = parseElementDrag(e.dataTransfer.getData(ELEMENT_DRAG_TYPE));
               if (!payload) return;
               e.preventDefault();
@@ -705,6 +716,7 @@ export function PostFocusView({
                 updateLayerLive={updateLayerLive}
                 commitLayerChange={commitLayerChange}
                 stageRef={stageRef}
+                readOnly={!canEdit}
                 onCommitText={(id, text) => { updateLayerLive(id, { text } as Partial<PostLayer>); commitLayerChange(); }}
                 onImageLoaded={handleImageLoaded}
               />
@@ -714,6 +726,7 @@ export function PostFocusView({
 
           {/* Inspector — the shell (width/header) always renders regardless of selection
               state; only the content below the header changes across 0/1/2+ selected. */}
+          {canEdit && (
           <div className="scrollbar-thin w-56 shrink-0 overflow-y-auto border-l border-border p-3">
             {/* No heading here — PostInspector's own Shell renders it, for every selection
                 state. Having one here too printed the layer kind twice ("TEXT / TEXT"). */}
@@ -735,6 +748,7 @@ export function PostFocusView({
               containerH={containerH}
             />
           </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

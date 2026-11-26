@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import { boardFacts, resolvePicks } from "../board-facts";
 import { HUSBAND_AVATAR, MEENAKSHI_AVATAR, linkedDoc, makeScript, makeTake, readyAvatar, reel01Doc } from "./fixtures";
 import type { VisualiseBoard } from "../schema";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
 
+const images = imageModelsFrom(seededModelCatalog());
 const NOW = Date.parse("2026-10-08T12:00:00.000Z");
 const avatars = [readyAvatar(MEENAKSHI_AVATAR, "meenakshi"), readyAvatar(HUSBAND_AVATAR, "husband")];
 const board = (over: Partial<VisualiseBoard> = {}): VisualiseBoard => ({ avatars, takes: [], picks: {}, kits: [], ...over });
@@ -14,7 +17,7 @@ describe("boardFacts", () => {
       makeTake({ id: "t1", shotId: "s01", createdAt: "2026-10-08T10:00:00.000Z" }),
       makeTake({ id: "tf", shotId: "s01", status: "failed", url: null, createdAt: "2026-10-08T10:30:00.000Z" }),
     ];
-    const f = boardFacts(makeScript(), board({ takes, picks: { s01: "t2" } }), NOW);
+    const f = boardFacts(makeScript(), board({ takes, picks: { s01: "t2" } }), images, NOW);
     expect(f.shots[0]).toMatchObject({ id: "s01", label: "S1", versions: 2, picked: 2 });
     expect(f.shots[1]).toMatchObject({ id: "s02", label: "S2", panel: "not_yet", versions: 0, picked: null });
   });
@@ -22,7 +25,7 @@ describe("boardFacts", () => {
   it("leaves out a character on screen in no shot, and names one with no avatar", () => {
     const doc = reel01Doc();
     doc.cast.push({ id: "narrator", name: "Narrator", description: "Voice.", avatarId: null, isLead: false });
-    const f = boardFacts(makeScript(doc), board({ avatars: [] }), NOW);
+    const f = boardFacts(makeScript(doc), board({ avatars: [] }), images, NOW);
     expect(f.castWithoutAvatar).toEqual(["Meenakshi", "Meenakshi's husband"]);
     expect(f.shots[0].panel).toBe("waiting");
   });
@@ -35,7 +38,7 @@ describe("boardFacts", () => {
     ];
     doc.products = [{ id: "pouch", name: "the pouch", images: [] }];
     doc.shots[0] = { ...doc.shots[0], location: "cafe", products: ["pouch"] };
-    expect(boardFacts(makeScript(doc), board(), NOW).withoutPicture).toEqual(["the café (location)", "the pouch (product)"]);
+    expect(boardFacts(makeScript(doc), board(), images, NOW).withoutPicture).toEqual(["the café (location)", "the pouch (product)"]);
   });
 });
 

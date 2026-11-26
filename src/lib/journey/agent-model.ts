@@ -3,6 +3,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { toResponseInputItems } from "openai/lib/responses/ResponseInputItems";
 import type { FunctionTool, ResponseInputItem } from "openai/resources/responses/responses";
 import { createOpenAI } from "@/lib/openai/server";
+import { openAiCost, recordAfterResponse, type RecordFor } from "@/lib/generations/record-for";
 import { toolDefinitions, type AgentModel, type ToolCall } from "./agent";
 
 // The OpenAI adapter for the shared agent loop (D509): Responses API function tools. This is the
@@ -37,7 +38,8 @@ function replyText(response: { output: { type: string; content?: unknown }[]; ou
   return messages.length > 0 ? messages.join("\n\n") : (response.output_text ?? "");
 }
 
-export function openaiAgentModel(modelId: string): AgentModel {
+/** `recordFor` names whom each call's cost is recorded for (D560); without it nothing is recorded. */
+export function openaiAgentModel(modelId: string, recordFor?: RecordFor): AgentModel {
   const carried: ResponseInputItem[] = [];
   let roundsSent = 0;
   let lastTools: FunctionTool[] = [];
@@ -82,8 +84,11 @@ export function openaiAgentModel(modelId: string): AgentModel {
       const streamed = client.responses.stream(body, { ...options, signal: AbortSignal.timeout(CALL_TIMEOUT_MS) });
       streamed.on("response.output_text.delta", (event) => onText(event.delta));
       response = await streamed.finalResponse();
+      // D560: paid once it answered, whatever the answer turns out to be.
+      recordAfterResponse(openAiCost(recordFor, "copilot", modelId, response.usage, "responses"));
     } else {
       response = await client.responses.create(body, options);
+      recordAfterResponse(openAiCost(recordFor, "copilot", modelId, response.usage, "responses"));
     }
     if (functionTools.length > 0) lastTools = functionTools;
 

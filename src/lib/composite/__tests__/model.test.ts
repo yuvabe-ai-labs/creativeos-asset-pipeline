@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { SEEDANCE_FACE_MODEL_ID } from "@/lib/avatars/constants";
-import { imageGenClientModels } from "@/lib/image-gen/client-models";
+import { seededModelCatalog, withModel } from "@/lib/ai-models/test-catalog";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
 import {
   COMPOSITE_DEFAULT_MODEL_ID,
   COMPOSITE_ASPECT_RATIOS,
@@ -21,17 +22,22 @@ describe("composite model (D312)", () => {
     expect(resolveCompositeModelId(undefined)).toBe(COMPOSITE_DEFAULT_MODEL_ID);
   });
 
-  it("the picker keeps any image model Image Gen offers", () => {
-    for (const m of imageGenClientModels) expect(compositePickerModelId(m.id)).toBe(m.id);
+  const images = imageModelsFrom(seededModelCatalog());
+  it("the picker keeps a stored model the composite may use, else the default", () => {
+    expect(compositePickerModelId(images, "gemini:gemini-3-pro-image")).toBe("gemini:gemini-3-pro-image");
+    expect(compositePickerModelId(images, "nope:nope")).toBe(COMPOSITE_DEFAULT_MODEL_ID);
+    expect(compositePickerModelId(images, undefined)).toBe(COMPOSITE_DEFAULT_MODEL_ID);
+    expect(compositePickerModelId(images, "openai:gpt-image-1")).toBe(COMPOSITE_DEFAULT_MODEL_ID);
   });
 
-  it("the picker shows a retired or missing model as the default", () => {
-    expect(compositePickerModelId("openai:dall-e-3")).toBe(COMPOSITE_DEFAULT_MODEL_ID);
-    expect(compositePickerModelId(undefined)).toBe(COMPOSITE_DEFAULT_MODEL_ID);
+  it("the picker keeps its own hidden model, and moves off a default that isn't live", () => {
+    const hidden = imageModelsFrom(withModel(seededModelCatalog(), COMPOSITE_DEFAULT_MODEL_ID, { status: "hidden" }));
+    expect(compositePickerModelId(hidden, COMPOSITE_DEFAULT_MODEL_ID)).toBe(COMPOSITE_DEFAULT_MODEL_ID);
+    expect(compositePickerModelId(hidden, undefined)).toBe(hidden.defaultId);
   });
 
   it("every image model can make a composite's two aspect ratios", () => {
-    for (const m of imageGenClientModels) {
+    for (const m of images.all) {
       const ratio = m.params.find((p) => p.name === "aspect_ratio");
       const options = ratio?.constraints.type === "select" ? ratio.constraints.options : [];
       for (const r of COMPOSITE_ASPECT_RATIOS) expect(options, `${m.id} ${r}`).toContain(r);

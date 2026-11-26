@@ -1,6 +1,4 @@
-import { redirect } from "next/navigation";
-import { getClientBySlug } from "@/lib/db/clients";
-import { resolveOrgId } from "@/lib/dal";
+import { loadClientPage } from "@/lib/permissions/page";
 import {
   listKBDocuments,
   listBrandImages,
@@ -9,6 +7,7 @@ import {
 import { getLatestKBJob } from "@/lib/db/kb-jobs";
 import { getBrandDetails } from "@/lib/db/brand-kit";
 import { ClientIdentity } from "@/components/clients/client-identity";
+import { ClientMembersButton } from "@/components/clients/client-members-button";
 import { KBRequiredToast } from "@/components/kb/kb-required-toast";
 import { KB_REQUIRED_PARAM, KB_REQUIRED_VALUE } from "@/lib/clients/kb-gate";
 import { KBOnboardingUploadStep } from "@/components/kb/kb-onboarding-upload-step";
@@ -28,14 +27,7 @@ export default async function KBPage({
   const { id } = await params;
   // D503: Scripts or Avatars sent the user here because the KB isn't ready; say so in a toast.
   const kbRequired = (await searchParams)[KB_REQUIRED_PARAM] === KB_REQUIRED_VALUE;
-  const client = await getClientBySlug(id);
-  const effectiveOrgId = await resolveOrgId();
-
-  // Org isolation: a client outside the caller's org redirects the same as a
-  // nonexistent one — see the note in ../page.tsx.
-  if (!client || client.org_id !== effectiveOrgId) {
-    redirect("/");
-  }
+  const { client } = await loadClientPage(id, "view");
 
   const [documents, images, activeKBVersion, latestJob, brandDetails] = await Promise.all([
     listKBDocuments(client.id),
@@ -61,6 +53,14 @@ export default async function KBPage({
     >
 
       {kbRequired && <KBRequiredToast />}
+      {/* Until the brand KB is ready the client page sends everyone here, so the Members button
+          that sits in the client page's header sits in this page too (spec 6.2). The review step
+          has no header of its own, so there it sits above the step. */}
+      {isReviewOrEdit && !isEditMode && (
+        <div className="animate-rise flex shrink-0 justify-end">
+          <ClientMembersButton slug={client.slug} clientId={client.id} />
+        </div>
+      )}
 
       {isReviewOrEdit ? (
         <KBOnboardingReviewStep
@@ -79,12 +79,15 @@ export default async function KBPage({
         />
       ) : (
         <>
-          <header className="animate-rise mb-8 mt-4">
-            <h1 className="text-eyebrow mb-3 text-muted-foreground">Brand Knowledge Base</h1>
-            <ClientIdentity clientId={client.id} name={client.name} logoUrl={client.logo_url} size="md" />
-            <p className="mt-3 text-sm text-muted-foreground">
-              Upload brand documents and images to extract your brand knowledge base.
-            </p>
+          <header className="animate-rise mb-8 mt-4 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-eyebrow mb-3 text-muted-foreground">Brand Knowledge Base</h1>
+              <ClientIdentity clientId={client.id} name={client.name} logoUrl={client.logo_url} size="md" />
+              <p className="mt-3 text-sm text-muted-foreground">
+                Upload brand documents and images to extract your brand knowledge base.
+              </p>
+            </div>
+            {!isEditMode && <ClientMembersButton slug={client.slug} clientId={client.id} />}
           </header>
           <KBOnboardingUploadStep
             clientId={client.id}

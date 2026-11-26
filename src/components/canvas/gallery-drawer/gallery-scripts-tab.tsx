@@ -3,10 +3,12 @@
 import Link from "next/link";
 import type { XYPosition } from "@xyflow/react";
 import { ArrowUpRight, FileText, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useClientSlug } from "@/components/canvas/client-id-context";
 import { useApprovedScripts } from "@/hooks/queries/scripts";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useAddScriptNode } from "@/hooks/use-add-script-node";
 import { SCRIPT_DRAG_MIME } from "@/lib/scripts/constants";
 import { reelLabel, shotSummary } from "@/lib/scripts/utils";
@@ -22,6 +24,7 @@ export function GalleryScriptsTab({ clientId, defaultPosition }: Props) {
   const clientSlug = useClientSlug();
   const scripts = useApprovedScripts(clientId);
   const addScriptNode = useAddScriptNode();
+  const canEdit = useCanvasEditable();
   const libraryHref = `/clients/${clientSlug}/scripts`;
 
   if (scripts.isLoading) {
@@ -57,7 +60,7 @@ export function GalleryScriptsTab({ clientId, defaultPosition }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs text-muted-foreground">Drag an approved script onto the canvas. It parses into shots, with its lead&apos;s avatar attached.</p>
+      <p className="text-xs text-muted-foreground">{canEdit ? "Drag an approved script onto the canvas. It parses into shots, with its lead&apos;s avatar attached." : "Approved scripts for this client."}</p>
       <ul className="flex flex-col gap-2">
         {list.map((s) => {
           const { header } = s.doc;
@@ -65,12 +68,13 @@ export function GalleryScriptsTab({ clientId, defaultPosition }: Props) {
           return (
             <li
               key={s.id}
-              draggable
+              draggable={canEdit}
               onDragStart={(e) => {
+                if (!canEdit) return;
                 e.dataTransfer.setData(SCRIPT_DRAG_MIME, JSON.stringify({ scriptId: s.id }));
                 e.dataTransfer.effectAllowed = "copy";
               }}
-              className="flex cursor-grab items-center gap-3 rounded-lg border bg-card p-3 active:cursor-grabbing"
+              className={cn("flex items-center gap-3 rounded-lg border bg-card p-3", canEdit && "cursor-grab active:cursor-grabbing")}
             >
               <FileText className="size-5 shrink-0 text-muted-foreground" strokeWidth={1.5} aria-hidden />
               <div className="min-w-0 flex-1">
@@ -80,6 +84,7 @@ export function GalleryScriptsTab({ clientId, defaultPosition }: Props) {
                   {shotSummary(s.doc)}
                 </p>
               </div>
+              {canEdit && (
               <Button
                 variant="outline"
                 size="icon-sm"
@@ -89,6 +94,7 @@ export function GalleryScriptsTab({ clientId, defaultPosition }: Props) {
               >
                 <Plus className="size-3.5" strokeWidth={1.5} />
               </Button>
+              )}
             </li>
           );
         })}

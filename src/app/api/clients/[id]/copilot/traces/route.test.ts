@@ -16,7 +16,7 @@ import { getTurnTrace, listTurnLines } from "@/lib/db/copilot-traces";
 const setup = () => {
   vi.resetAllMocks();
   vi.mocked(resolveOrgId).mockResolvedValue("o1");
-  vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1" } as never);
+  vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", orgId: "o1" } as never);
   vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
   vi.mocked(getClientById).mockResolvedValue({ id: "c1", slug: "acme", org_id: "o1" } as never);
 };

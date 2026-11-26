@@ -9,6 +9,8 @@ import { JOB_LIVE_STATUSES } from "@/lib/jobs/types";
 import { KB_JOB_NON_TERMINAL_STATUSES, WEBSITE_RESEARCH_FILENAME } from "@/lib/kb/constants";
 import type { Attachment } from "@/lib/journey/thread/schema";
 import type { KbContext } from "./context";
+import { normalizeHandle } from "@/lib/journey/market-copilot/brands";
+import { loadMarketContext } from "@/lib/journey/market-copilot/load";
 
 /** A job that has not reported for this long is not running, whatever its row says: its run died.
  *  Longer than any of these tasks may take. Read in memory, so the polled read never writes. */
@@ -29,7 +31,7 @@ const NON_TERMINAL: readonly string[] = KB_JOB_NON_TERMINAL_STATUSES;
  *  KB's content. If that read fails the whole read fails: unknown must never look like none left. */
 export async function loadKbContext(client: ClientRow, now: number = Date.now()): Promise<{ ctx: KbContext; sources: Map<string, Attachment> }> {
   const reviewing = client.kb_status === "in_review" && client.active_kb_version_id !== null;
-  const [documents, images, job, details, importJobs, studyJobs, proposeJobs, unreviewed] = await Promise.all([
+  const [documents, images, job, details, importJobs, studyJobs, proposeJobs, unreviewed, market] = await Promise.all([
     listKBDocuments(client.id),
     listBrandImages(client.id, "uploads"),
     getLatestKBJob(client.id),
@@ -38,6 +40,8 @@ export async function loadKbContext(client: ClientRow, now: number = Date.now())
     listRecentJobs(client.id, "image-analysis", 1),
     listRecentJobs(client.id, "kb-propose", 1),
     reviewing ? listUnreviewedFields(client.active_kb_version_id as string) : Promise.resolve(null),
+    // Market research (D530) is read only once the brand KB is approved.
+    client.kb_status === "ready" ? loadMarketContext(client, now) : Promise.resolve(null),
   ]);
   const reporting = (updatedAt: string) => now - Date.parse(updatedAt) < KB_STALE_AFTER_MS;
   const live = (j: { status: string; updated_at: string }) => JOB_LIVE_STATUSES.has(j.status as never) && reporting(j.updated_at);
@@ -73,6 +77,7 @@ export async function loadKbContext(client: ClientRow, now: number = Date.now())
     importedBefore: latest.map(([source]) => source),
     studyingImages: study !== undefined && live(study),
     proposing: proposeJobs[0] && live(proposeJobs[0]) ? (proposeJobs[0].phase_message ?? "Reading the documents…") : null,
+    ...(market ? { market: { ...market, ownHandle: details.instagram ? normalizeHandle(details.instagram) : null } } : {}),
   };
 
   const sources = new Map<string, Attachment>();

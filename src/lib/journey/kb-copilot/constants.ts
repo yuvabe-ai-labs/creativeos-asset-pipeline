@@ -19,6 +19,11 @@ export const KB_TURN_FAILED_REPLY = "Something went wrong on my side. Nothing wa
 /** What a failed turn says when a tool had already saved something before the failure. */
 export const KB_TURN_FAILED_AFTER_SAVE_REPLY = "Something went wrong on my side after I saved what you gave me. Check the page on the right, then try again.";
 
+/** The longest a question waits for its likely answers (D533); after this it goes out without them. */
+export const KB_ANSWERS_TIMEOUT_MS = 5_000;
+/** The live line while they are found, when nothing else is showing. */
+export const FINDING_ANSWERS = "Finding likely answers…";
+
 /** How many questions the review walk asks before it offers to stop (brand KB spec §2.3). */
 export const REVIEW_QUESTIONS_FIRST = 5;
 /** The most of a field's value a question repeats back. */

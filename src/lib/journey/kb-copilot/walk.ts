@@ -14,6 +14,8 @@ export type Walk = {
   asked: string[];
   /** The field of the question that is still the last thing said; null when none is. */
   pending: string | null;
+  /** The likely answers that waiting question offered (D533); empty when none is waiting. */
+  answers: string[];
 };
 
 /** A build's own message carries a status card: a new build starts the walk again. A note (a save
@@ -28,8 +30,8 @@ export function walkOf(messages: ThreadMessage[]): Walk {
     if (m.card?.kind === "status") asked = [];
     else if (m.card?.kind === "question" && !asked.includes(m.card.field)) asked.push(m.card.field);
   }
-  const pending = last && last.role === "assistant" && last.card?.kind === "question" ? last.card.field : null;
-  return { asked, pending };
+  const question = last && last.role === "assistant" && last.card?.kind === "question" ? last.card : null;
+  return { asked, pending: question?.field ?? null, answers: question?.answers ?? [] };
 }
 
 // ── What is asked next ────────────────────────────────────────────────────────
@@ -46,8 +48,8 @@ export const REVIEW_REST_CHOICE = "I'll review the rest";
  *  a skip needs a waiting question, and nothing counts outside a review. */
 export function walkChoice(
   text: string,
-  review: { pending: string | null } | null,
-): { tool: "confirm_field" | "skip_question" | "keep_asking" | "stop_asking"; args: Record<string, unknown> } | null {
+  review: { pending: string | null; answers?: string[] } | null,
+): { tool: "confirm_field" | "skip_question" | "keep_asking" | "stop_asking" | "answer_field"; args: Record<string, unknown> } | null {
   if (!review) return null;
   const said = text.trim();
   const pending = review.pending;
@@ -55,6 +57,8 @@ export function walkChoice(
   if (said === SKIP_CHOICE && pending) return { tool: "skip_question", args: {} };
   if (said === KEEP_ASKING_CHOICE || said === ASK_OPEN_CHOICE) return { tool: "keep_asking", args: {} };
   if (said === REVIEW_REST_CHOICE) return { tool: "stop_asking", args: {} };
+  // A likely answer the waiting question offered (D533): saved as the person's own answer.
+  if (pending && review.answers?.includes(said)) return { tool: "answer_field", args: { field: pending, value: said } };
   return null;
 }
 
@@ -77,14 +81,17 @@ function listInWords(items: string[]): string {
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
-/** One question about one field, worded by code so it only ever repeats what the KB holds. The
- *  copilot offers no value of its own as a choice: it has no source for one (spec §6). */
-export function questionMessage(field: ReviewField): NewCopilotMessage {
+/** One question about one field, worded by code so it only ever repeats what the KB holds. An empty
+ *  field may offer likely answers, said to be guesses (D533, refining spec §6); an inferred one never
+ *  does: the copilot offers no other value against what the KB holds. */
+export function questionMessage(field: ReviewField, answers: string[] = []): NewCopilotMessage {
   const card = { kind: "question" as const, field: field.path, label: field.title };
   if (isEmpty(field.value)) {
+    const asked = `${field.title}: I could not find this in the sources. What should it be?`;
+    if (answers.length === 0) return { role: "assistant", card, suggestions: [NONE_CHOICE, SKIP_CHOICE], content: asked };
     return {
-      role: "assistant", card, suggestions: [NONE_CHOICE, SKIP_CHOICE],
-      content: `${field.title}: I could not find this in the sources. What should it be?`,
+      role: "assistant", card: { ...card, answers }, suggestions: [...answers, NONE_CHOICE, SKIP_CHOICE],
+      content: `${asked} Some likely answers are below, or type your own.`,
     };
   }
   const value = Array.isArray(field.value) ? cut(listInWords(field.value)) : `"${cut(String(field.value))}"`;
@@ -94,10 +101,25 @@ export function questionMessage(field: ReviewField): NewCopilotMessage {
   };
 }
 
+/** Whether any of these messages asks about an empty field, so likely answers will be looked for (D533). */
+/** Whether a question about this field offers likely answers (D533): only an empty field, and never
+ *  a Compliance Rules one, where a tap would make a guessed rule the brand's own (Cyril, 2026-11-25). */
+export function offersAnswers(field: ReviewField): boolean {
+  return isEmpty(field.value) && field.module !== "compliance";
+}
+
+export function needsAnswers(messages: NewCopilotMessage[], fields: ReviewField[]): boolean {
+  return messages.some((m) => {
+    const card = m.card;
+    const field = card?.kind === "question" ? fields.find((f) => f.path === card.field) : undefined;
+    return field !== undefined && offersAnswers(field);
+  });
+}
+
 /** What code adds to the thread after a turn, or after a build lands (`turn: null`): the next
  *  question, the offer to stop after the first few, the "that is everything" line, or nothing.
  *  `fields` is the KB as it stands after the turn; `walk` is the thread as it stood before it. */
-export function walkMessages(input: { fields: ReviewField[]; walk: Walk; turn: TurnWalk | null }): NewCopilotMessage[] {
+export function walkMessages(input: { fields: ReviewField[]; walk: Pick<Walk, "asked" | "pending">; turn: TurnWalk | null }): NewCopilotMessage[] {
   const { fields, walk, turn } = input;
   const candidates = unsettled(fields).filter((f) => !walk.asked.includes(f.path));
   if (turn === null) return candidates[0] ? [questionMessage(candidates[0])] : [];

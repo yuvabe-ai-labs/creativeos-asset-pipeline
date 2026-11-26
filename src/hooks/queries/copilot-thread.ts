@@ -4,11 +4,11 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { KbSaved } from "@/lib/journey/kb-copilot/turn";
-import type { ThreadState } from "@/lib/journey/thread/schema";
+import type { SignalDraftDecision, ThreadState } from "@/lib/journey/thread/schema";
 import type { KbTurnEvent } from "@/lib/journey/thread/turn-events";
 import { applyTurnEvent, NO_PROGRESS, type TurnProgress } from "@/lib/journey/thread/turn-progress";
 import { applyTargetEvent, askingTargetOf, NO_TARGET_ACTIVITY, type TargetActivity, type TargetEvent } from "@/lib/journey/thread/target-activity";
-import { kbTarget } from "@/lib/journey/kb-copilot/targets";
+import { kbTarget, marketTarget } from "@/lib/journey/kb-copilot/targets";
 import { copilotThreadService, type KbTurnBody } from "@/services/copilot-thread.service";
 import { refreshTurnLinesSoon } from "./copilot-traces";
 import { imageAnalysisKeys } from "./image-analysis";
@@ -172,6 +172,48 @@ export function useDecideChange(clientId: string) {
       for (const path of card.decision?.kept ?? []) recordActivity(queryClient, clientId, { type: "written", target: kbTarget.field(path), move: false });
     },
     // Settled by someone else meanwhile, or the write failed: show what is really stored.
+    onError: () => void queryClient.invalidateQueries({ queryKey: key }),
+  });
+}
+
+/** A person confirms a brands card with its button (D530). The thread comes back with the card
+ *  fetching and the job's live line, so the panel starts polling fast. */
+export function useConfirmBrands(clientId: string) {
+  const queryClient = useQueryClient();
+  const key = copilotThreadKeys.thread(clientId);
+  return useMutation({
+    mutationFn: ({ messageId, keep }: { messageId: string; keep: string[] }) => copilotThreadService.confirmBrands(clientId, messageId, keep),
+    onSuccess: ({ state }) => finishTurn(queryClient, key, state),
+    // Confirmed by someone else meanwhile, or the fetch could not start: show what is stored.
+    onError: () => void queryClient.invalidateQueries({ queryKey: key }),
+  });
+}
+
+/** A switch on a brands card, stored at once (review fix): what the card shows switched off is
+ *  never fetched, whether the person then presses the button or tells the copilot. */
+export function useSaveBrandSwitches(clientId: string) {
+  const queryClient = useQueryClient();
+  const key = copilotThreadKeys.thread(clientId);
+  return useMutation({
+    mutationFn: ({ messageId, keep }: { messageId: string; keep: string[] }) =>
+      copilotThreadService.confirmBrands(clientId, messageId, keep, { fetch: false }),
+    onSuccess: ({ state }) => finishTurn(queryClient, key, state),
+    onError: () => void queryClient.invalidateQueries({ queryKey: key }),
+  });
+}
+
+/** A person keeps or drops a drafted signal (D530). A kept one lands on the Market page's Signals
+ *  tab, which the page brings into view (D520). */
+export function useDecideSignalDraft(clientId: string) {
+  const queryClient = useQueryClient();
+  const key = copilotThreadKeys.thread(clientId);
+  return useMutation({
+    mutationFn: ({ messageId, body }: { messageId: string; body: SignalDraftDecision }) =>
+      copilotThreadService.decideSignalDraft(clientId, messageId, body),
+    onSuccess: async ({ state, signalId }) => {
+      await finishTurn(queryClient, key, state);
+      if (signalId) recordActivity(queryClient, clientId, { type: "written", target: marketTarget.signal(signalId), move: true });
+    },
     onError: () => void queryClient.invalidateQueries({ queryKey: key }),
   });
 }

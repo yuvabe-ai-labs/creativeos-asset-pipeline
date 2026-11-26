@@ -3,13 +3,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   getAccountVoicesCached: vi.fn(),
   getLibraryPageCached: vi.fn(),
-  resolveCallerContextOrNull: vi.fn(async (): Promise<{ userId: string } | null> => ({ userId: "u1" })),
 }));
 vi.mock("@/lib/elevenlabs/voices-cache", () => ({
   getAccountVoicesCached: mocks.getAccountVoicesCached,
   getLibraryPageCached: mocks.getLibraryPageCached,
 }));
-vi.mock("@/lib/dal", () => ({ resolveCallerContextOrNull: mocks.resolveCallerContextOrNull }));
+// The chokepoint (agency, permission) has its own tests; here it just runs the handler.
+vi.mock("@/lib/api/route-helpers", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
+  return { ...actual, withAccess: (_req: Request, _guard: unknown, fn: (caller: unknown, orgId: string) => Promise<Response>) => fn({ userId: "u1" }, "org-1") };
+});
+const agency = vi.hoisted(() => ({ agencyVoiceIds: vi.fn(async (): Promise<string[]> => []) }));
+vi.mock("@/lib/elevenlabs/agency-voices", () => agency);
 
 import { GET } from "./route";
 import { ElevenLabsKeyMissingError, ElevenLabsHttpError } from "@/lib/elevenlabs/client";
@@ -21,11 +26,23 @@ const get = (qs = "") => GET(new Request(`http://x/api/elevenlabs/voices${qs}`))
 beforeEach(() => vi.clearAllMocks());
 
 describe("GET /api/elevenlabs/voices", () => {
-  it("defaults to the whole account list with no cursor", async () => {
+  it("defaults to the account list with no cursor", async () => {
     mocks.getAccountVoicesCached.mockResolvedValue([V]);
     const res = await get();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ voices: [V], nextCursor: null });
+  });
+
+  // The account serves every agency. The list keeps stock voices and the voices of clients
+  // the caller can see; another agency's clones (named "<client> · <name>") never appear.
+  it("keeps stock voices and the caller's clients' voices, never another agency's", async () => {
+    const mine = { ...V, voiceId: "mine", name: "Acme · Asha", category: "cloned" };
+    const theirs = { ...V, voiceId: "theirs", name: "Bata · Ravi", category: "cloned" };
+    mocks.getAccountVoicesCached.mockResolvedValue([V, mine, theirs]);
+    agency.agencyVoiceIds.mockResolvedValueOnce(["mine"]);
+    const res = await get();
+    expect((await res.json()).voices.map((v: { voiceId: string }) => v.voiceId)).toEqual(["a", "mine"]);
+    expect(agency.agencyVoiceIds).toHaveBeenCalledWith({ userId: "u1" }, "org-1");
   });
 
   it("pages the Library, passing filters and returning the next cursor", async () => {
@@ -58,10 +75,5 @@ describe("GET /api/elevenlabs/voices", () => {
     expect((await get()).status).toBe(403);
     mocks.getAccountVoicesCached.mockRejectedValueOnce(new Error("socket hang up"));
     expect((await get()).status).toBe(502);
-  });
-
-  it("401s without a session", async () => {
-    mocks.resolveCallerContextOrNull.mockResolvedValueOnce(null);
-    expect((await get()).status).toBe(401);
   });
 });

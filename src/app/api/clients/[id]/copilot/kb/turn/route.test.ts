@@ -11,7 +11,8 @@ vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() }));
 vi.mock("@/lib/db/impersonation-audit", () => ({ logImpersonationEvent: vi.fn() }));
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
-vi.mock("@/lib/db/copilot-messages", () => ({ listCopilotMessages: vi.fn(), insertCopilotMessages: vi.fn(), insertOpeningIfEmpty: vi.fn() }));
+vi.mock("@/lib/db/copilot-messages", () => ({ listCopilotMessages: vi.fn(), insertCopilotMessages: vi.fn(), insertOpeningIfEmpty: vi.fn(), claimCopilotCard: vi.fn() }));
+vi.mock("@/lib/journey/market-copilot/actions", () => ({ marketActions: vi.fn(() => ({ market: true })) }));
 vi.mock("@/lib/journey/kb-copilot/load", () => ({ loadKbContext: vi.fn() }));
 vi.mock("@/lib/journey/thread/load", () => ({ loadThread: vi.fn() }));
 vi.mock("@/lib/journey/kb-copilot/turn", () => ({ runKbTurn: vi.fn() }));
@@ -22,21 +23,24 @@ vi.mock("@/lib/image-analysis/start", () => ({ startImageAnalysisQuietly: vi.fn(
 vi.mock("@/lib/kb/changes/start", () => ({ startKbProposal: vi.fn() }));
 vi.mock("@/lib/db/kb", () => ({ getActiveKBVersion: vi.fn(), patchKBFields: vi.fn() }));
 vi.mock("@/lib/db/copilot-traces", () => ({ insertTurnTrace: vi.fn() }));
+vi.mock("@/lib/journey/kb-copilot/answers", () => ({ withAnswers: vi.fn() }));
 
 import { revalidatePath } from "next/cache";
 import { resolveCallerContext, resolveOrgId } from "@/lib/dal";
 import { resolveImpersonationState } from "@/lib/auth/impersonation";
 import { getClientById } from "@/lib/db/clients";
-import { insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages } from "@/lib/db/copilot-messages";
+import { claimCopilotCard, insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages } from "@/lib/db/copilot-messages";
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
 import { loadThread } from "@/lib/journey/thread/load";
 import { runKbTurn, type KbActions } from "@/lib/journey/kb-copilot/turn";
+import { marketActions } from "@/lib/journey/market-copilot/actions";
 import { setImportTarget, startAssetImports } from "@/lib/asset-import/start";
 import { startKBBuild } from "@/lib/kb/start-build";
 import { startImageAnalysisQuietly } from "@/lib/image-analysis/start";
 import { startKbProposal } from "@/lib/kb/changes/start";
 import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
 import { insertTurnTrace } from "@/lib/db/copilot-traces";
+import { withAnswers } from "@/lib/journey/kb-copilot/answers";
 import { kbWith } from "@/lib/kb/__tests__/fixtures";
 import { KB_TURN_FAILED_AFTER_SAVE_REPLY, KB_TURN_FAILED_REPLY, KB_TURN_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
 import { BuildAlreadyRunningError } from "@/lib/kb/build-errors";
@@ -70,8 +74,9 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     afterWork.length = 0;
+    vi.mocked(withAnswers).mockImplementation(async (messages) => messages);
     vi.mocked(resolveOrgId).mockResolvedValue("org-1");
-    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1" } as never);
+    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", orgId: "org-1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", slug: "acme", name: "Acme", org_id: "org-1" } as never);
     vi.mocked(loadKbContext).mockResolvedValue({ ctx, sources: new Map([[DOC, { kind: "document" as const, id: DOC, name: "brand.pdf", url: null }]]) });
@@ -80,6 +85,7 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
     vi.mocked(runKbTurn).mockResolvedValue({ reply: "Got it.", suggestions: ["Start the build"], changed: false, saved: {}, walk: NO_WALK, card: null });
     vi.mocked(loadThread).mockResolvedValue(STATE);
     vi.mocked(setImportTarget).mockResolvedValue({ website: null, instagram: null, facebook: null });
+    vi.mocked(marketActions).mockReturnValue({ market: true } as never);
   });
 
   it("refuses an empty message with no attachment", async () => {
@@ -312,6 +318,43 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
       expect(stored[1].card).toMatchObject({ kind: "question", field: TONE });
     });
 
+    it("lays likely answers onto the next question before storing it (D533)", async () => {
+      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Good.", suggestions: [], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] }, card: null });
+      vi.mocked(withAnswers).mockImplementation(async (messages) => messages.map((m) => (m.card?.kind === "question" ? { ...m, suggestions: ["Tapped", ...(m.suggestions ?? [])] } : m)));
+      await send({ text: "yes", attachments: [] });
+      const [, fields, kbText, deps] = vi.mocked(withAnswers).mock.calls[0];
+      expect(fields).toHaveLength(43);
+      expect(kbText).not.toBe("");
+      // D560: the answers call's cost is recorded for this client and person.
+      expect(deps?.recordFor).toMatchObject({ orgId: "org-1", clientId: "c1" });
+      expect(vi.mocked(insertCopilotMessages).mock.calls[1][3][1].suggestions?.[0]).toBe("Tapped");
+    });
+
+    it("says what it is doing while it finds likely answers, when nothing else is showing (review fix, D514)", async () => {
+      vi.mocked(getActiveKBVersion).mockResolvedValue({ id: "v1", output: kbWith({ [AGE]: { evidence_type: "inferred" }, [TONE]: { evidence_type: "inferred", value: "" } }) } as never);
+      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Good.", suggestions: [], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] }, card: null });
+      const sent = await send({ text: "yes", attachments: [] });
+      const stepAt = sent.events.findIndex((e) => e.type === "step" && e.text === "Finding likely answers…");
+      expect(stepAt).toBeGreaterThanOrEqual(0);
+      expect(stepAt).toBeLessThan(sent.events.findIndex((e) => e.type === "state"));
+    });
+
+    it("never wipes a reply already on screen with that line (review fix)", async () => {
+      vi.mocked(getActiveKBVersion).mockResolvedValue({ id: "v1", output: kbWith({ [AGE]: { evidence_type: "inferred" }, [TONE]: { evidence_type: "inferred", value: "" } }) } as never);
+      vi.mocked(runKbTurn).mockImplementation(async ({ on }) => {
+        on?.text?.("Good.");
+        return { reply: "Good.", suggestions: [], changed: true, saved: {}, walk: { ...NO_WALK, settled: [AGE] }, card: null };
+      });
+      const sent = await send({ text: "yes", attachments: [] });
+      expect(sent.events.some((e) => e.type === "step")).toBe(false);
+    });
+
+    it("gives the turn the waiting question's likely answers, and none once it is no longer waiting (D533)", async () => {
+      vi.mocked(listCopilotMessages).mockResolvedValue([{ ...question(AGE), card: { kind: "question", field: AGE, label: AGE, answers: ["25–34"] } }]);
+      await send({ text: "25–34", attachments: [] });
+      expect(vi.mocked(runKbTurn).mock.calls[0][0].review?.answers).toEqual(["25–34"]);
+    });
+
     it("marks a trace whose waiting question code asks again", async () => {
       vi.mocked(runKbTurn).mockResolvedValue({ reply: "Confirmed that field.", suggestions: [], changed: false, saved: {}, walk: NO_WALK, card: null });
       await send({ text: "yes", attachments: [] });
@@ -506,6 +549,50 @@ describe("POST /api/clients/[id]/copilot/kb/turn", () => {
         { id: expect.any(String), role: "assistant", content: "Here is the change.", suggestions: [] },
         { role: "assistant", content: "", card, suggestions: [] },
       ]);
+    });
+  });
+
+  describe("brands cards (D530)", () => {
+    const V1 = "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c11";
+    const brands = {
+      kind: "brands" as const, status: "pending" as const, focus: null, jobId: null,
+      brands: [{ handle: "minimalist", name: "Minimalist", why: "Same buyer.", group: "direct" as const, keep: true }],
+    };
+    beforeEach(() => {
+      vi.mocked(getClientById).mockResolvedValue({ id: "c1", slug: "acme", name: "Acme", org_id: "org-1", kb_status: "ready", active_kb_version_id: V1 } as never);
+      vi.mocked(getActiveKBVersion).mockResolvedValue({ id: V1, output: kbWith({}) } as never);
+    });
+
+    it("gives the turn the market actions, and the thread's waiting list of brands", async () => {
+      const stored = [{ id: "old", role: "assistant" as const, content: "", card: brands, attachments: [], suggestions: [], createdAt: "" }];
+      vi.mocked(listCopilotMessages).mockResolvedValue(stored);
+      vi.mocked(loadKbContext).mockResolvedValue({ ctx: { ...ctx, kbStatus: "ready", market: { open: true, pendingBrands: null } as never }, sources: new Map() });
+      await send({ text: "research the market", attachments: [] });
+      const given = vi.mocked(runKbTurn).mock.calls[0][0];
+      expect(marketActions).toHaveBeenCalledWith(expect.objectContaining({ client: expect.objectContaining({ id: "c1" }), userId: "u1", history: stored }));
+      expect(given.actions.market).toMatchObject({ market: true });
+      expect(given.ctx.market?.pendingBrands).toEqual({ messageId: "old", card: brands });
+    });
+
+    it("stores an emitted brands card as its own message and marks the older pending one stale", async () => {
+      vi.mocked(listCopilotMessages).mockResolvedValue([
+        { id: "old", role: "assistant", content: "", card: { ...brands, focus: "earlier" }, attachments: [], suggestions: [], createdAt: "" },
+      ]);
+      vi.mocked(runKbTurn).mockResolvedValue({ reply: "Here are brands to look at.", suggestions: [], changed: false, saved: {}, walk: NO_WALK, card: brands });
+      await send({ text: "research the market", attachments: [] });
+      expect(vi.mocked(insertCopilotMessages).mock.calls[1][3]).toEqual([
+        { id: expect.any(String), role: "assistant", content: "Here are brands to look at.", suggestions: [] },
+        { role: "assistant", content: "", card: brands, suggestions: [] },
+      ]);
+      expect(claimCopilotCard).toHaveBeenCalledWith("c1", "old", "brands", "pending", { ...brands, focus: "earlier", status: "stale" });
+    });
+
+    it("marks nothing stale when the turn made no brands card", async () => {
+      vi.mocked(listCopilotMessages).mockResolvedValue([
+        { id: "old", role: "assistant", content: "", card: brands, attachments: [], suggestions: [], createdAt: "" },
+      ]);
+      await send({ text: "hello", attachments: [] });
+      expect(claimCopilotCard).not.toHaveBeenCalled();
     });
   });
 

@@ -14,7 +14,7 @@ import generatePrompt from "./fixtures/edit-prompt-generate.json";
 const doc = scriptDocSchema.parse(reel01);
 const ctx: CopilotContext = {
   clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026",
-  signals: { brief: "", digest: "", list: [] },
+  signals: { brief: "", digest: "", list: [], all: [] },
 };
 const atVisualise: GenerateScript = {
   id: "s1", clientId: "c1", stage: "visualise", doc, brief: { ...EMPTY_BRIEF, phase: "written" }, notes: EMPTY_NOTES,

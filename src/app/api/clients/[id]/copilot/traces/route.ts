@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string }> };
 // first (turn traces, D521). Lines only: a whole trace is read when one is opened (./[traceId]).
 // Anything older than the keep period is left out, so a late sweep never shows a stale trace.
 export async function GET(req: Request, { params }: Ctx) {
-  return withClient(req, params, async (clientId) =>
+  return withClient(req, params, { need: "view" }, async (clientId) =>
     withTryCatch("The turns could not be loaded.", async () => {
       const since = new Date(Date.now() - TRACE_KEEP_DAYS * 86_400_000).toISOString();
       return apiOk({ lines: await listTurnLines(clientId, since, TRACE_LIST_LIMIT) });

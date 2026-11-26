@@ -8,16 +8,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopilotText } from "@/components/copilot/copilot-text";
 import { REPLY_CHIP_CLASS } from "@/components/copilot/reply-chip";
-import { useCopilotThread, useDecideChange, useRecordCopilotActivity, useRefreshCopilotThread, useSendKbTurn } from "@/hooks/queries/copilot-thread";
+import { useConfirmBrands, useCopilotThread, useDecideChange, useDecideSignalDraft, useRecordCopilotActivity, useRefreshCopilotThread, useSaveBrandSwitches, useSendKbTurn } from "@/hooks/queries/copilot-thread";
+import { useApproveMarket } from "@/hooks/queries/clients";
 import { kbTarget } from "@/lib/journey/kb-copilot/targets";
 import { useApproveKb } from "@/hooks/queries/kb";
 import { useTurnLines } from "@/hooks/queries/copilot-traces";
 import { useCopilotDeveloper } from "@/hooks/use-copilot-developer";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { APPROVE_KB_ACTION } from "@/lib/journey/kb-copilot/waiting";
+import { APPROVE_KB_ACTION, APPROVE_MARKET_ACTION } from "@/lib/journey/kb-copilot/waiting";
 import { useThreadAttachments, type PendingAttachment } from "@/hooks/use-thread-attachments";
 import { KB_TURN_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
-import type { Attachment } from "@/lib/journey/thread/schema";
+import type { Attachment, SignalDraftDecision } from "@/lib/journey/thread/schema";
 import { checkSourceFile, deleteSource, SOURCE_ACCEPT, uploadSourceFile } from "@/lib/kb/upload-source";
 import { journeyFoldKey } from "@/lib/journey/frame";
 import { JourneyPanelShell } from "./journey-panel-shell";
@@ -35,7 +36,11 @@ const WORKING = "Working on it…";
 /** The brand KB copilot on the Brand KB page (brand KB spec §2): the client's saved thread, with
  *  the brand KB agent behind it. The only file here that knows about the brand KB: the thread
  *  components below it take what is the stage's own as props. */
-export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }) {
+export function KbCopilot({ clientId, slug, placeholder = "Answer the copilot, or attach brand documents and images…" }: {
+  clientId: string; slug: string;
+  /** The message box's hint, which says what this page's copilot is for. */
+  placeholder?: string;
+}) {
   const router = useRouter();
   const thread = useCopilotThread(clientId);
   const refreshThread = useRefreshCopilotThread(clientId);
@@ -51,8 +56,25 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
     onDecide: (messageId: string, body: Parameters<typeof decide.mutate>[0]["body"]) =>
       decide.mutate({ messageId, body }, { onError: (e) => toast.error(e.message) }),
   };
+  // The market agent's cards (D530) are settled by a person only, from their own buttons.
+  const confirmBrands = useConfirmBrands(clientId);
+  const decideDraft = useDecideSignalDraft(clientId);
+  const saveSwitches = useSaveBrandSwitches(clientId);
+  const market = {
+    busy: confirmBrands.isPending || decideDraft.isPending,
+    onConfirmBrands: (messageId: string, keep: string[]) =>
+      confirmBrands.mutate({ messageId, keep }, { onError: (e) => toast.error(e.message) }),
+    onSwitchBrands: (messageId: string, keep: string[]) =>
+      saveSwitches.mutate({ messageId, keep }, { onError: (e) => toast.error(e.message) }),
+    onDecideDraft: (messageId: string, body: SignalDraftDecision) =>
+      decideDraft.mutate({ messageId, body }, { onError: (e) => toast.error(e.message) }),
+  };
+  // Approving market research is the person's own action too, from the gate card (D530).
+  const approveMarket = useApproveMarket(clientId);
   const onGate = (action: string) => {
-    if (action === APPROVE_KB_ACTION) approve.mutate(undefined, { onError: (e) => toast.error(e.message) });
+    const onError = (e: Error) => toast.error(e.message);
+    if (action === APPROVE_KB_ACTION) approve.mutate(undefined, { onError });
+    if (action === APPROVE_MARKET_ACTION) approveMarket.mutate(undefined, { onError, onSuccess: () => void refreshThread() });
   };
 
   // A file is a source of the brand KB from the moment it is attached, exactly as if uploaded on
@@ -156,7 +178,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
         {state && (
           <>
             <ol className="flex flex-col gap-4 p-4" aria-live="polite">
-              {state.messages.map((m) => <ThreadMessageItem key={m.id} message={m} change={change} footer={traceOf(m.id)} />)}
+              {state.messages.map((m) => <ThreadMessageItem key={m.id} message={m} change={change} market={market} footer={traceOf(m.id)} />)}
               {/* While a turn runs (D514): the reply as it is being written, in the place the stored
                   message will take, or else a line naming what the copilot is doing. The words are
                   not read out piece by piece; the stored message is announced once it lands. */}
@@ -176,7 +198,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
                 ))}
               </div>
             )}
-            {!busy && <ThreadWaiting waiting={state.waiting} onGate={onGate} gateBusy={approve.isPending} />}
+            {!busy && <ThreadWaiting waiting={state.waiting} onGate={onGate} gateBusy={approve.isPending || approveMarket.isPending} />}
           </>
         )}
         <div ref={end} />
@@ -184,7 +206,7 @@ export function KbCopilot({ clientId, slug }: { clientId: string; slug: string }
       )}
       <ThreadComposer
         busy={busy || !state}
-        placeholder="Answer the copilot, or attach brand documents and images…"
+        placeholder={placeholder}
         accept={SOURCE_ACCEPT}
         maxChars={KB_TURN_MAX_CHARS}
         text={text}

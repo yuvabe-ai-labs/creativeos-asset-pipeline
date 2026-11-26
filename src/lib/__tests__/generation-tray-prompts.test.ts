@@ -22,7 +22,7 @@ function makeJob(overrides: Partial<GenerationRow>): GenerationRow {
     output_snapshot: null,
     tokens_used: null,
     cost_usd: 0.001,
-    credits_charged: null,
+    credits_charged: null, record_only: false,
     version_id: "ver-1",
     user_id: null,
     error: null,

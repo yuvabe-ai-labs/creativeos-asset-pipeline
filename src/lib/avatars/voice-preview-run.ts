@@ -59,7 +59,7 @@ const REVOICE_RETRY_WAIT_MS = 5000;
 export async function runVoicePreview(
   payload: VoicePreviewRunPayload,
   deps: VoicePreviewRunDeps,
-): Promise<{ durationSeconds: number; driftMs: number }> {
+): Promise<{ durationSeconds: number; driftMs: number; characterCost: number | null }> {
   const clip = await deps.generateClip({
     prompt: payload.prompt,
     startFrameUrl: payload.frontUrl,
@@ -69,7 +69,7 @@ export async function runVoicePreview(
 
   for (let attempt = 1; ; attempt += 1) {
     try {
-      const { driftMs } = await revoiceVideo(
+      const { driftMs, characterCost } = await revoiceVideo(
         {
           sourceUrl: clip.videoUrl,
           voiceId: payload.voiceId,
@@ -78,7 +78,7 @@ export async function runVoicePreview(
         },
         deps,
       );
-      return { durationSeconds: clip.durationSeconds, driftMs };
+      return { durationSeconds: clip.durationSeconds, driftMs, characterCost };
     } catch (e) {
       if (e instanceof NonRetryableRevoiceError || attempt >= VOICE_PREVIEW_REVOICE_ATTEMPTS) throw e;
       await deps.wait(REVOICE_RETRY_WAIT_MS);

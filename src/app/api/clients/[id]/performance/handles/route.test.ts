@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({
   resolveCallerContext: vi.fn(async () => ({
-    userId: "user-1", platformRole: "member", orgId: "org-1", orgRole: "designer",
+    userId: "user-1", platformRole: "member", orgId: "org-1",
     mustChangePassword: false,
   })),
   resolveOrgId: vi.fn(async () => "org-1"),

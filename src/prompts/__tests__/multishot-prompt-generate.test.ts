@@ -12,7 +12,7 @@ import {
 import { multishotPromptFor } from "../multishot-prompt-for";
 import { multishotPromptKling, MULTISHOT_KLING_PROMPT_ID } from "../multishot-prompt-kling";
 import { MULTISHOT_MODELS } from "@/lib/nodes/multishot-models";
-import { SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 import { REF_ROLES } from "@/lib/nodes/ref-roles";
 import {
   MULTISHOT_AUTHORING_MODEL,

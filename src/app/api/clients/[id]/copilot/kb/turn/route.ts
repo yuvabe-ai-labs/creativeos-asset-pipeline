@@ -5,23 +5,26 @@ import { apiError, withClient, withTryCatch } from "@/lib/api/route-helpers";
 import { IMPORT_SOURCES } from "@/lib/asset-import/constants";
 import { setImportTarget, startAssetImports } from "@/lib/asset-import/start";
 import { importTargetEditValue } from "@/lib/asset-import/utils";
-import { resolveCallerContext } from "@/lib/dal";
-import { insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-messages";
+import { claimCopilotCard, insertCopilotMessages, insertOpeningIfEmpty, listCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-messages";
+import { marketActions } from "@/lib/journey/market-copilot/actions";
+import { marketWithThread, pendingBrands } from "@/lib/journey/market-copilot/context";
+import { renderKbText } from "@/lib/scripts/copilot/prompt-context";
 import { insertTurnTrace } from "@/lib/db/copilot-traces";
 import { getActiveKBVersion, patchKBFields } from "@/lib/db/kb";
 import { openaiAgentModel } from "@/lib/journey/agent-model";
 import {
-  KB_COPILOT_MODEL, KB_TURN_FAILED_AFTER_SAVE_REPLY, KB_TURN_FAILED_REPLY, KB_TURN_MAX_ATTACHMENTS, KB_TURN_MAX_CHARS,
+  FINDING_ANSWERS, KB_COPILOT_MODEL, KB_TURN_FAILED_AFTER_SAVE_REPLY, KB_TURN_FAILED_REPLY, KB_TURN_MAX_ATTACHMENTS, KB_TURN_MAX_CHARS,
 } from "@/lib/journey/kb-copilot/constants";
 import { isBuilding, openingMessage } from "@/lib/journey/kb-copilot/context";
 import { reviewFields } from "@/lib/journey/kb-copilot/review";
-import { walkMessages, walkOf, type TurnWalk } from "@/lib/journey/kb-copilot/walk";
+import { needsAnswers, walkMessages, walkOf, type TurnWalk } from "@/lib/journey/kb-copilot/walk";
+import { withAnswers } from "@/lib/journey/kb-copilot/answers";
 import { loadKbContext } from "@/lib/journey/kb-copilot/load";
 import { kbTraceRow, kbTurnMarks } from "@/lib/journey/kb-copilot/trace";
 import { runKbTurn, type KbActions, type KbReview, type KbSaved } from "@/lib/journey/kb-copilot/turn";
 import { traceRecorder } from "@/lib/journey/trace/recorder";
 import { loadThread } from "@/lib/journey/thread/load";
-import { ONBOARDING, VIRTUAL_OPENING_ID, type Attachment, type ChangeCard, type ThreadMessage } from "@/lib/journey/thread/schema";
+import { ONBOARDING, VIRTUAL_OPENING_ID, type Attachment, type BrandsCard, type ChangeCard, type ThreadMessage } from "@/lib/journey/thread/schema";
 import { NDJSON_HEADERS, type KbTurnEvent } from "@/lib/journey/thread/turn-events";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { startKBBuild } from "@/lib/kb/start-build";
@@ -46,7 +49,7 @@ const bodySchema = z.object({
 // a turn that starts answers as newline-delimited JSON events (turn-events.ts). Attachments are already uploaded as brand KB sources; their
 // ids are checked against this client's own documents and images.
 export async function POST(req: Request, { params }: Ctx) {
-  return withClient(req, params, async (clientId, client) =>
+  return withClient(req, params, { need: "generate" }, async (clientId, client, caller) =>
     withTryCatch("The copilot could not answer.", async () => {
       const body = bodySchema.safeParse(await req.json().catch(() => null));
       if (!body.success) return apiError("Write a message first.", 400);
@@ -61,8 +64,8 @@ export async function POST(req: Request, { params }: Ctx) {
       // about its fields and may fill the ones still unreviewed; a reviewed field it only proposes
       // to change, on a change card made against this version (D517).
       const reviewing = client.kb_status === "in_review" && client.active_kb_version_id !== null;
-      const [{ userId }, { ctx, sources }, stored, version] = await Promise.all([
-        resolveCallerContext(),
+      const { userId } = caller;
+      const [{ ctx, sources }, stored, version] = await Promise.all([
         loadKbContext(client),
         // A failed read fails the turn here: it must never look like an empty thread.
         listCopilotMessages(clientId, ONBOARDING),
@@ -125,7 +128,11 @@ export async function POST(req: Request, { params }: Ctx) {
           const walk = walkOf(history);
           const fields = version && reviewing ? reviewFields(version.output as unknown as TraceableBrandKB) : null;
           const review: KbReview | null = fields
-            ? { fields, pending: fields.some((f) => f.path === walk.pending && f.status === "needs_review") ? walk.pending : null }
+            ? (() => {
+                const pending = fields.some((f) => f.path === walk.pending && f.status === "needs_review") ? walk.pending : null;
+                // A tapped likely answer (D533) counts only while its question is still waiting.
+                return { fields, pending, answers: pending ? walk.answers : [] };
+              })()
             : null;
           kept.pending = review?.pending ?? null;
 
@@ -160,6 +167,16 @@ export async function POST(req: Request, { params }: Ctx) {
               }
               return written;
             },
+            // Market research (D530). Building them reads nothing; the tools refuse until the KB is
+            // approved. What starts paid work counts as acted.
+            market: (() => {
+              const market = marketActions({
+                client, userId, history,
+                kbText: version ? renderKbText(version.output as unknown as TraceableBrandKB) : "",
+                ownHandle: ctx.market?.ownHandle ?? null,
+              });
+              return { ...market, startFetch: done(market.startFetch), startDraft: done(market.startDraft) };
+            })(),
             startBuild: done(async () => {
               await startKBBuild(clientId);
               // Only once the build has really started, and only from sources never collected before:
@@ -179,15 +196,17 @@ export async function POST(req: Request, { params }: Ctx) {
           let changed: boolean;
           let turnWalk: TurnWalk | null = null;
           let saved: KbSaved = {};
-          let card: ChangeCard | null = null;
+          let card: ChangeCard | BrandsCard | null = null;
+          // Whether the reply's words are on screen now: a step would wipe them (applyTurnEvent).
+          let showing = false;
           try {
             const result = await runKbTurn({
-              ctx, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL), trace: recorder,
+              ctx: { ...ctx, market: marketWithThread(ctx.market, history) }, history, text, attachments, actions, review, model: openaiAgentModel(KB_COPILOT_MODEL, { orgId: client.org_id, clientId, userId, userEmail: caller.email }), trace: recorder,
               kb: version ? { versionId: version.id, output: version.output as unknown as TraceableBrandKB } : null,
               on: {
-                step: (line) => emit({ type: "step", text: line }),
-                text: (delta) => emit({ type: "text", delta }),
-                reset: () => emit({ type: "reset" }),
+                step: (line) => { showing = false; emit({ type: "step", text: line }); },
+                text: (delta) => { showing = true; emit({ type: "text", delta }); },
+                reset: () => { showing = false; emit({ type: "reset" }); },
                 saved: (stored) => emit({ type: "saved", saved: stored }),
                 page: () => emit({ type: "page" }),
                 target: (target, phase) => emit({ type: "target", target, phase }),
@@ -208,9 +227,17 @@ export async function POST(req: Request, { params }: Ctx) {
           // after a turn that failed. The fields are the ones read above with this turn's answers laid
           // over them.
           const settled = turnWalk?.settled ?? [];
-          const extra: NewCopilotMessage[] = fields && turnWalk && !isBuilding(ctx)
+          // A question about an empty field comes with likely answers (D533); they never hold it up.
+          const questions: NewCopilotMessage[] = fields && turnWalk && !isBuilding(ctx)
             ? walkMessages({ fields: fields.map((f) => (settled.includes(f.path) ? { ...f, status: "approved" as const } : f)), walk, turn: turnWalk })
             : [];
+          // While they are found, a line says so, unless the reply's words are already showing (D514).
+          if (fields && !showing && needsAnswers(questions, fields)) emit({ type: "step", text: FINDING_ANSWERS });
+          const extra = fields
+            ? await withAnswers(questions, fields, version ? renderKbText(version.output as unknown as TraceableBrandKB) : "", {
+              recordFor: { orgId: client.org_id, clientId, userId, userEmail: caller.email },
+            })
+            : questions;
           // The reply's id is made here so the trace can name the reply this turn produced.
           const replyId = crypto.randomUUID();
           kept.reply = reply.content;
@@ -227,6 +254,10 @@ export async function POST(req: Request, { params }: Ctx) {
             ...(card ? [{ role: "assistant" as const, content: "", card, suggestions: [] }] : []),
           ]);
           kept.replyId = replyId;
+          // A new list of brands replaces the one still waiting (D530): the older card goes stale, so
+          // it can no longer be confirmed. Only after the new one is stored.
+          const replaced = card?.kind === "brands" ? pendingBrands(history) : null;
+          if (replaced) await claimCopilotCard(clientId, replaced.messageId, "brands", "pending", { ...replaced.card, status: "stale" });
 
           // An attached file is a new source, so the page on the right has changed even when no tool ran.
           const refresh = changed || attachments.length > 0;

@@ -21,7 +21,7 @@ function makeDeps(overrides: Partial<VoicePreviewRunDeps> = {}): VoicePreviewRun
     generateClip: vi.fn(async () => ({ videoUrl: "https://google/files/abc", durationSeconds: 6 })),
     fetchBytes: vi.fn(async () => Buffer.from("video")),
     extractAudio: vi.fn(async () => Buffer.from("audio")),
-    speechToSpeech: vi.fn(async () => Buffer.from("voiced")),
+    speechToSpeech: vi.fn(async () => ({ audio: Buffer.from("voiced"), characterCost: 30 })),
     probeDurationSeconds: vi.fn(async () => 6),
     replaceAudio: vi.fn(async () => Buffer.from("final")),
     putBytes: vi.fn(async () => undefined),
@@ -40,7 +40,7 @@ describe("runVoicePreview", () => {
     expect(deps.fetchBytes).toHaveBeenCalledWith("https://google/files/abc");
     expect(deps.speechToSpeech).toHaveBeenCalledWith(expect.objectContaining({ voiceId: "v1" }));
     expect(deps.putBytes).toHaveBeenCalledWith("https://signed/put", Buffer.from("final"), "video/mp4");
-    expect(result).toEqual({ durationSeconds: 6, driftMs: 0 });
+    expect(result).toEqual({ durationSeconds: 6, driftMs: 0, characterCost: 30 });
   });
 
   it("retries a passing voice-change failure against the same clip — the clip is never generated twice", async () => {

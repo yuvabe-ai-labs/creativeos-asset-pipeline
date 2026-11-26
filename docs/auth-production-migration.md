@@ -950,3 +950,636 @@ select relrowsecurity from pg_class where relname = 'media_transcripts';
 select count(*) from generations
 where type = 'transcribe' and status = 'running' and created_at < now() - interval '20 minutes';
 ```
+
+## Migration 0062 — five permissions, one owner, client members (D538–D547, 2026-11-13)
+
+`supabase/migrations/0062_permission_based_access.sql`. Never applied before 13 Nov 2026, so it
+was rewritten in place; the 11 Nov presets version is not applied anywhere and never will be.
+Paste into the Supabase SQL editor → Run.
+
+What it adds:
+- `org_memberships`: `is_owner` (one per agency, unique index `org_memberships_one_owner`),
+  `permissions text[]` (only `generate, approve, share, delete, invite`), `access_given_at`
+  (null = signed up, waiting for the owner), `invited_by`. There is no View or Edit permission.
+- `membership_clients`: one row per client a person is on, with that client's permissions.
+  Having the row is what lets the person see the client; an empty set means they can only look.
+  A new row copies the person's agency set; the owner never has rows.
+- `org_invitations`: member invites carry the client; the owner invite (`as_owner`) has none.
+  The link's token is stored as issued (unique index), so Copy link shows the same link; single
+  use, 7 days, server-only (RLS on, no policies). Resend replaces the token; Cancel revokes.
+  One open invite per email per agency (unique index on `org_id, lower(email)`) and one open
+  owner invite per agency. The app also refuses an email with an open invite in another agency
+  (one agency per person). That lookup, by email across agencies, has no index: the table is
+  small. An index on `lower(email)` where the invite is open can be added in a later migration.
+- Triggers: `org_memberships_cascade_permissions` (an agency-level change reaches every client
+  row as what was added and removed), `org_memberships_keep_owner` (deferred: an agency that has
+  an owner always keeps one), `membership_clients_prepare` (no owner rows; copies the set).
+- Functions (service role only): `get_membership_access`, `transfer_agency_owner`,
+  `create_agency_with_owner_invite`, `accept_invitation`, `list_agency_people`,
+  `find_user_by_email`; `auth_org_ids()` behind the eight "org isolation" policies.
+- `nodes_keep_canvas` / `edges_keep_canvas`: a canvas save can't move another canvas's node or
+  join nodes across canvases (a refused row fails the save with `check_violation`).
+- `org_review_counts_for_types(uuid, text[])` (nothing calls it; 0063 drops it) and `admin_action`
+  in the audit log's event types.
+
+**Day one (runs once):** in each agency the earliest-joined `org_role = 'owner'` membership becomes
+the owner. Everyone else gets Generate, Approve, Share and Delete, access given, and a row with
+those four on every existing client, so nobody loses access. Nobody gets Invite (only Yuvabe adds
+people today). The backfill is skipped if any membership already has access given, so a re-run
+never hands waiting people those four.
+
+**Before applying, list agencies with more than one owner** (the earliest stays owner; the others
+become members with Generate, Approve, Share and Delete):
+
+```sql
+select o.name, count(*) as owners, array_agg(p.display_name order by m.joined_at) as by_join_date
+  from org_memberships m
+  join organizations o on o.id = m.org_id
+  left join profiles p on p.user_id = m.user_id
+ where m.org_role = 'owner'
+ group by o.id, o.name
+having count(*) > 1;
+```
+
+**`org_role` stays** and is unread by the new code. New code keeps it in step (`owner` for the
+owner, `designer` for a member who joins; `transfer_agency_owner` sets the new owner to `owner`
+and the previous one to `senior`) so 0012's `org_memberships_last_owner` trigger agrees. A later
+migration drops `org_role` and that trigger once production runs the new code. Don't create
+agencies, members or clients with the old code between applying 0062 and deploying the new code:
+the old admin screens don't set `is_owner`, and a client the old code creates gets no
+`membership_clients` rows, so only the owner sees it until people are added on its Members page.
+
+**If 0062 was applied before commit `0e63955b`** (13 Nov 2026, the switch from six permissions to
+five): that version stored `view` and `edit`, and its check constraints refuse `invite`. It must be
+re-applied from the current file, which replaces the functions (`transfer_agency_owner`, the
+cascade and the rest). Re-applying alone is not enough: both check constraints are guarded
+(`if not exists`, `create table if not exists`) and the backfill is skipped once anyone has access
+given, so the old constraints and the stored `view` and `edit` would stay. Run this first, then
+re-apply the current file:
+
+```sql
+begin;
+-- the cascade trigger also removes them from each person's client rows; the second update is a backstop
+update org_memberships set permissions = array_remove(array_remove(permissions, 'view'), 'edit')
+ where permissions && array['view','edit'];
+update membership_clients set permissions = array_remove(array_remove(permissions, 'view'), 'edit')
+ where permissions && array['view','edit'];
+alter table org_memberships drop constraint org_memberships_permissions_known;
+alter table membership_clients drop constraint membership_clients_permissions_known;
+alter table membership_clients add constraint membership_clients_permissions_known
+  check (permissions <@ array['generate','approve','share','delete','invite']::text[]);
+commit;
+-- re-applying 0062 then adds org_memberships_permissions_known back with the five.
+-- expect 0 for both afterwards
+select count(*) from org_memberships where permissions && array['view','edit'];
+select count(*) from membership_clients where permissions && array['view','edit'];
+```
+
+**Ordering** (merging deploys on this repo: Vercel is git-integrated):
+
+1. Run the multi-owner query above and note the result.
+2. Apply 0062 (staging before any staging deploy of this branch, production before the merge to
+   `main`).
+3. Run the checks below.
+4. Then deploy the code. Deployed before 0062, `get_membership_access` is missing and every
+   signed-in request fails.
+
+**Environment, each environment (Vercel), before the people screens are used (spec §6.7, §9):**
+
+- `APP_URL`: the environment's public address. Invite links and every email's button use it.
+  Without it an invite link is the path alone (`/invite/…`): it is shown to copy, works when
+  opened on the same site, and is not emailed. The signed-up and access-ready emails are skipped.
+  Invites and actions still succeed either way.
+- `RESEND_API_KEY` and `EMAIL_FROM`, where `EMAIL_FROM` is an address on a sending domain verified
+  in Resend (each environment's key must be allowed to send from it). Without either, nothing is
+  emailed; invites are still created and the link is shown to copy. The verified domain is
+  `creativeos.yuvabe.com` (Resend, verified 18 Nov 2026); the sender is
+  `EMAIL_FROM="CreativeOS <noreply@creativeos.yuvabe.com>"`. Checked end to end on 18 Nov: an
+  invite to Resend's test address `delivered@resend.dev` was sent and delivered.
+
+**The invite page is outside the session check.** `src/proxy.ts` excludes `/invite/*`: the token is
+the capability, and someone invited has no account yet. The proxy also sets an `x-pathname` header
+(always overwritten) that the root layout reads to send a person waiting for access to
+`/onboarding` from any page.
+
+**Known limitation: Google Drive is one account for the whole platform.** The Drive picker returns
+that account's read-only access token, and the Drive file, folder and import routes use the same
+login. They need only Generate on any client, so anyone with Generate on one client, in any agency,
+can open every file that account can see, including folders other agencies use (D539).
+
+**Old admin screens are gone with this code:** no temporary passwords, no role select. A new agency
+is "Add an agency" (name, owner email and monthly credit limit, Unlimited unless one is set); the
+owner signs up from the emailed link. An agency with
+no owner shows Resend while its owner invite is open, otherwise "Invite an owner". People are
+managed on the agency page's People and Clients tabs; Make owner is only there. Every change made
+from Admin is in the audit log as `admin_action`.
+
+**Check by hand in the app on staging after deploying:**
+
+1. Add an agency with an email you can read; open the link and sign up; you land on an empty client
+   list as owner.
+2. As that owner, create a client, open Members, invite someone new; sign up from that link in a
+   private window; you see "You're being onboarded". Type another address (say `/clients`) or
+   click any link: you stay on onboarding.
+3. The owner gets the signed-up email (with "Give them permissions on the Team page."); the header
+   shows Team 1. Give access with no permissions picked; the person gets the access-ready email,
+   reloads and sees the client and its work, the canvas read-only, AI buttons disabled with the
+   reason; Team shows them as "Can look".
+4. Edit them on Team to Generate, Approve, Share, Delete and Invite: on their next request the
+   canvas is editable and Generate works. Remove Generate again: their next request is refused;
+   their buttons follow on focus.
+5. With Invite, that person opens the client's Members page from the Members button: they see the
+   list with no Remove, Resend, Cancel or Set permissions, and no Copy link on open invites. They
+   invite someone new; that person signs up and waits (Signed up on Team). The owner and the
+   inviter each get the signed-up email; only the owner's has the Team page line. The Members page
+   of a client they are on without Invite, or not on, is the 404 page.
+6. Resend an open invite twice within a minute: the second is refused with "That invite was just
+   sent. Try again in a minute."; the first link stops working. Invite, from a second agency, an
+   email that has an open invite in the first: refused with "This email already belongs to another
+   agency."
+7. In `impersonation_audit_log`, the agency's `admin_action` rows list each change from Admin.
+
+```sql
+-- expect the admin actions from step 1 and any Admin changes
+select event_type, detail, occurred_at from impersonation_audit_log
+ where target_org_id = '<agency>' and event_type = 'admin_action' order by occurred_at;
+-- open invites past 7 days that were never used (the app refuses them; informational)
+select count(*) from org_invitations where accepted_at is null and revoked_at is null and expires_at < now();
+```
+
+**Verify after running:**
+
+```sql
+-- expect one owner per agency that had one
+select org_id, count(*) from org_memberships where is_owner group by org_id having count(*) <> 1;
+-- expect 0: every non-owner has access given and exactly generate, approve, share, delete
+select count(*) from org_memberships
+ where not is_owner
+   and (access_given_at is null or permissions <> array['generate','approve','share','delete']);
+-- expect 0: every non-owner is on every client of their agency
+select count(*) from org_memberships m join clients c on c.org_id = m.org_id
+ where not m.is_owner
+   and not exists (select 1 from membership_clients mc
+                    where mc.user_id = m.user_id and mc.org_id = m.org_id and mc.client_id = c.id);
+-- expect 0: no owner has client rows
+select count(*) from membership_clients mc join org_memberships m using (user_id, org_id) where m.is_owner;
+-- expect one row for a member, with a clients array
+select * from get_membership_access('<a member user id>');
+-- expect 0: no edge joins nodes on another canvas
+select count(*) from edges e
+  join nodes s on s.id = e.source_node_id
+  join nodes t on t.id = e.target_node_id
+ where s.canvas_id <> e.canvas_id or t.canvas_id <> e.canvas_id;
+```
+
+**Check by hand on staging (spec §11), in a transaction you roll back:**
+
+```sql
+begin;
+-- cascade: remove generate at agency level; every client row of that person loses it
+update org_memberships set permissions = array['approve','share','delete']
+ where user_id = '<member>' and org_id = '<agency>';
+select client_id, permissions from membership_clients where user_id = '<member>';
+-- owner protection: refused with "The agency owner can't be removed." at commit
+delete from org_memberships where org_id = '<agency>' and is_owner;
+rollback;
+```
+
+## Migration 0063 — views off the public API, every invite send counted, foreign keys indexed (D539, D549, 2026-11-16)
+
+`supabase/migrations/0063_close_views_and_count_resends.sql`. Apply after 0062, in the same window
+(staging before the staging deploy of this branch, production before the merge to `main`). Safe to
+re-run. Paste into the Supabase SQL editor → Run.
+
+What it does:
+- `review_queue_items`, `org_credit_usage` and `stuck_reservations` were plain views: anyone with
+  the anon key from the browser bundle could read every agency's review queue (client and canvas
+  names, outputs, notes), credit spend and stuck reservations, because a view runs with its
+  owner's rights. Only the server reads them, with the service role (`src/lib/db/review.ts`,
+  `src/lib/db/organizations.ts` `getOrgCreditUsage`, `trigger/reconcile-stuck-generations.ts`), so
+  0063 revokes them from `anon` and `authenticated` and also sets `security_invoker`, so a later
+  re-grant would read through the tables' own RLS. No read in the app changes.
+- `org_review_counts(uuid)` (0031, the pending counts, called only by the server) is closed to
+  `public`, `anon` and `authenticated` the same way. `org_review_counts_for_types` (0062, never
+  called) is dropped.
+- `organizations.invite_window_start` and `invite_window_count`: each agency's invite counter. No
+  new table. `take_invite_send(p_org_id, p_limit)` (service role only) takes one send in a single
+  update on the agency's row: it starts a new window when there is none or the last one began
+  more than 24 hours ago, otherwise adds one while the count is under the limit, and answers false
+  at the limit. The app calls it right before a new member invite, Admin's Invite an owner and every
+  Resend, so Resend now counts (before, resending an invite didn't add to the count). Add an agency
+  doesn't call it: the agency is new. The window is fixed (24 hours from its first send), not
+  rolling. The one-a-minute Resend gap still reads the invite's own sent time. Counters start at 0,
+  so every agency starts with a fresh window.
+- Indexes for twelve foreign keys that had none: `background_jobs.org_id`,
+  `node_version_decisions.org_id`, `canvas_reviews.canvas_id`, `script_panel_takes.client_id`,
+  `script_panel_picks.take_id`, `script_reviews.client_id`, `script_review_comments.version_id`
+  and `parent_id`, `client_script_messages.client_id`, `client_kb_jobs.version_id`,
+  `nodes.active_version_id`, `editor_edits.org_id`. All small tables, so `create index` (not
+  `concurrently`, which the SQL editor can't run in a transaction) takes a moment.
+
+**Ordering:** apply 0063, then deploy the code. Deployed before 0063, `take_invite_send` is missing
+and every invite and Resend fails with "Something went wrong". Applied before the code, nothing
+breaks: the old code keeps counting invitation rows.
+
+**Verify after running:**
+
+```sql
+-- expect security_invoker=true on all three
+select relname, reloptions from pg_class
+ where relname in ('review_queue_items', 'org_credit_usage', 'stuck_reservations');
+-- expect no rows: anon and authenticated hold nothing on the views or org_review_counts
+select table_name, grantee, privilege_type from information_schema.role_table_grants
+ where table_name in ('review_queue_items', 'org_credit_usage', 'stuck_reservations')
+   and grantee in ('anon', 'authenticated');
+select has_function_privilege('anon', 'org_review_counts(uuid)', 'execute');  -- expect false
+-- expect 0: the function is gone
+select count(*) from pg_proc where proname = 'org_review_counts_for_types';
+-- expect false for both: the counter function is the service role's only
+select has_function_privilege('anon', 'take_invite_send(uuid, int)', 'execute'),
+       has_function_privilege('authenticated', 'take_invite_send(uuid, int)', 'execute');
+-- expect 12 rows
+select indexname from pg_indexes where indexname in (
+  'background_jobs_org_id_idx', 'node_version_decisions_org_id_idx', 'canvas_reviews_canvas_id_idx',
+  'script_panel_takes_client_id_idx', 'script_panel_picks_take_id_idx', 'script_reviews_client_id_idx',
+  'script_review_comments_version_id_idx', 'script_review_comments_parent_id_idx',
+  'client_script_messages_client_id_idx', 'client_kb_jobs_version_id_idx',
+  'nodes_active_version_id_idx', 'editor_edits_org_id_idx');
+```
+
+**Check from outside, with the anon key** (from `NEXT_PUBLIC_SUPABASE_ANON_KEY`), for each view:
+
+```sh
+curl "<SUPABASE_URL>/rest/v1/review_queue_items?limit=1" -H "apikey: <anon key>"
+curl "<SUPABASE_URL>/rest/v1/org_credit_usage?limit=1" -H "apikey: <anon key>"
+curl "<SUPABASE_URL>/rest/v1/stuck_reservations?limit=1" -H "apikey: <anon key>"
+```
+
+Expect a 401 with `permission denied for view …` (code `42501`) or an empty `[]`. Rows coming back
+means the revoke didn't apply. Then in the app: the client list's review counts, a canvas's review
+drawer and badges, the review inbox and the header's credits still show as before.
+
+**Check resends are counted, on staging,** with an agency you can test on:
+
+```sql
+-- note the count, Resend one open invite in the app (Team or a client's Members page), run again:
+-- it goes up by one. A new invite adds one too.
+select invite_window_start, invite_window_count from organizations where id = '<agency>';
+```
+
+A second Resend within a minute is refused with "That invite was just sent." and adds nothing (the
+gap is checked before a send is taken). At 50 sends
+in the window, both a new invite and a Resend are refused with "You've sent 50 invites today. Try
+again tomorrow." To try that without sending 50 emails, in a transaction you roll back:
+
+```sql
+begin;
+update organizations set invite_window_start = now(), invite_window_count = 50 where id = '<agency>';
+select take_invite_send('<agency>', 50);  -- expect false
+update organizations set invite_window_start = now() - interval '25 hours' where id = '<agency>';
+select take_invite_send('<agency>', 50);  -- expect true: a new window, count 1
+select invite_window_count from organizations where id = '<agency>';  -- expect 1
+rollback;
+```
+
+
+## Migration 0064 — node-files uploads and deletes for the service role only (2026-11-16)
+
+Apply after 0063 (any order with the code: nothing in the app writes to this bucket).
+
+- The `node-files` storage bucket (0004) had insert and delete policies on `storage.objects` that
+  checked only the bucket, with no role, so the anon key could upload files into it or delete
+  files from it. Nothing in the app writes to that bucket any more (uploads go to Google Cloud
+  Storage through `src/lib/storage/`); the only call left is the server deleting an old
+  supabase.co file in `removeObject`, with the service role, which isn't affected by policies.
+  0064 drops both policies and adds none, so only the service role can write. `Public read
+  node-files` and the bucket's public setting stay as they were: old rows can still show files by
+  their public URL.
+
+It is its own migration so that, if this project refuses `drop policy` on `storage.objects`
+("must be owner of table objects"), 0063 is unaffected. In that case delete the two policies by
+hand: Supabase dashboard → Storage → Policies → `node-files` → delete "Authenticated insert
+node-files" and "Authenticated delete node-files".
+
+**Verify after running:**
+
+```sql
+-- expect one row, "Public read node-files" (SELECT): the insert and delete policies are gone
+select policyname, cmd from pg_policies
+ where schemaname = 'storage' and tablename = 'objects' and policyname like '%node-files%';
+```
+
+**Check node-files from outside, with the anon key:**
+
+```sh
+curl -X POST "<SUPABASE_URL>/storage/v1/object/node-files/test.txt" \
+  -H "apikey: <anon key>" -H "Authorization: Bearer <anon key>" --data "x"
+```
+
+Expect a 400 or 403 (`new row violates row-level security policy`). A 200 means the insert policy
+is still there; if it does go through, delete `test.txt` in the dashboard. Then in the app, open a
+canvas with File nodes and images made before the move to Google Cloud Storage (if there are any):
+they still display.
+
+## Two migrations numbered 0062 (2026-11-18)
+
+Staging's `0062_client_review_versions.sql` (client review versions, D495–D499) and this branch's
+`0062_permission_based_access.sql` were written at the same time and share the number. They touch
+different tables, so either can run first, and both are already applied on the development
+database. Neither is renamed, because both have been applied. On production, run both before 0063.
+
+## Migration 0065 — the browser's direct reads follow the client list (D550, 2026-11-18)
+
+Apply after 0064, in any order with the code: the app reads these tables through the service role,
+which policies don't affect, and the browser only uses them for Realtime.
+
+- Eight tables could be read by anyone in an agency through the public API with their own sign-in
+  (`org isolation` checked only the agency). The permission tests of 17 November showed a member,
+  and someone still waiting for access, reading the canvases and brand kit jobs of a client they
+  are not on.
+- `auth_client_ids()` lists the clients a person may see: every client of an agency they own, and
+  the clients they are on once the owner has given access. `canvases`, `client_kb_jobs`,
+  `generations`, `node_versions`, `node_version_decisions`, `node_version_annotations` and
+  `moodboard_items` now need the row's client in that list, besides the agency. Rows without a
+  client id find it through small definer lookups (`node_client_id` and the like), each a
+  primary-key read.
+- `credit_transactions` is readable by the agency's owner only (credits are owner-only in the app).
+- No tables, no columns, no data changes.
+
+**Verify after running:**
+
+```sql
+-- expect 8 rows; each qual mentions auth_client_ids except credit_transactions (is_owner)
+select tablename, qual from pg_policies
+ where schemaname = 'public' and policyname = 'org isolation'
+ order by tablename;
+
+-- expect 6 rows, all security definer
+select proname, prosecdef from pg_proc
+ where proname in ('auth_client_ids', 'node_client_id', 'version_client_id',
+                   'decision_client_id', 'moodboard_client_id', 'generation_client_id');
+```
+
+**Check in the app:** as an owner, open a canvas and run a generation: the version appears without a
+reload (Realtime on `node_versions` and `generations`), and the profile menu's credits update. As a
+member on one client, start a brand kit build there: its progress still updates. The permission
+tests' "Round the app" set (`node bypass.mjs` in the test folder) should now pass every case.
+
+**Rollback** (puts back the agency-only reads of 0062):
+
+```sql
+do $$
+declare t text;
+begin
+  foreach t in array array['canvases', 'client_kb_jobs', 'generations', 'node_versions',
+    'node_version_decisions', 'node_version_annotations', 'moodboard_items', 'credit_transactions'] loop
+    execute format('drop policy if exists "org isolation" on %I', t);
+    execute format('create policy "org isolation" on %I for select using (org_id in (select auth_org_ids()))', t);
+  end loop;
+end $$;
+drop function if exists generation_client_id(uuid, uuid, uuid);
+drop function if exists decision_client_id(uuid);
+drop function if exists version_client_id(uuid);
+drop function if exists moodboard_client_id(uuid);
+drop function if exists node_client_id(uuid);
+drop function if exists auth_client_ids();
+notify pgrst, 'reload schema';
+```
+
+## Migration 0067 — the market agent's reading of a reference (D530, 2026-11-24)
+
+`0067_market_item_readings.sql` adds one nullable column, `moodboard_items.reading jsonb`: the market
+research agent's reading of a post (hook, format, pacing, on-screen text, setting, occasion), so a
+post is read once. Safe to re-run (`add column if not exists`) and safe in any order with the code:
+the code treats a missing reading as unread. No data to backfill, no policy change (the column is
+covered by the existing `moodboard_items` read policy from 0065).
+
+**Check:** `select column_name from information_schema.columns where table_name = 'moodboard_items' and column_name = 'reading';` returns one row.
+
+**Rollback:** `alter table public.moodboard_items drop column if exists reading;`
+
+## Owed: the copilot journey's migrations 0063–0066 (2026-11-24)
+
+These are on the staging database and have no entry here yet. Each needs its own section before
+production: `0063_client_market_status` (clients.market_status; existing clients start approved),
+`0064_client_copilot_messages` (the onboarding thread table), `0065_kb_review_writes` (two KB review
+functions, no table change), `0066_copilot_turn_traces` (turn traces, kept 30 days by a daily task).
+
+## Migrations 0076 + 0077 — AI model catalog (D552–D556, 2026-11-21)
+
+`supabase/migrations/0076_ai_model_catalog.sql` (the `ai_models` and `ai_model_prices` tables, the
+price guard, three `generations` columns) and `supabase/migrations/0077_ai_models_seed.sql` (today's
+image and video models as rows). Paste each into the Supabase SQL editor → Run, in order.
+
+Nothing reads the catalog yet (Plan 1b switches the readers), so no deploy order applies.
+
+**Safe to re-run:** 0076 uses `if not exists` / `create or replace` / `drop trigger if exists`;
+0077 inserts with `on conflict (id) do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect both true
+select relname, relrowsecurity from pg_class where relname in ('ai_models', 'ai_model_prices');
+-- expect the three new columns
+select column_name from information_schema.columns
+where table_name = 'generations' and column_name in ('model_price_id', 'provider_bill', 'record_only');
+-- expect two rows: live 16, retired 4 (20 models; retired are gpt-image-1 and the three Veo models)
+select status, count(*) from ai_models group by status;
+```
+
+## Migration 0078 — model prices (D557, 2026-11-22)
+
+`supabase/migrations/0078_ai_model_prices_seed.sql`: one price row per image and video model from
+1 Jan 2026, and a second row for Omni 1.1 at 1.2 rates from 3 Dec 2026 08:00 UTC. Paste into the
+Supabase SQL editor → Run.
+
+**Ordering:** 0076, 0077 and 0078 must all be on an environment **before** the Plan 2a code is
+deployed there. That code refuses to start a video or image run whose model has no price row, so
+deploying it first stops every video and image generation.
+
+**Safe to re-run:** `on conflict (model_id, effective_from) do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect 21
+select count(*) from ai_model_prices;
+-- expect two rows for Omni 1.1: 2026-01-01 and 2026-12-03 08:00
+select effective_from from ai_model_prices where model_id = 'gemini:gemini-omni-1.1-flash' order by 1;
+-- expect an error: "ai_model_prices rows are never edited"
+update ai_model_prices set note = note where model_id = 'gemini:gemini-omni-1.2-flash';
+```
+
+## Migrations 0079 + 0080 — service prices and provider bills (D558–D559, 2026-11-22)
+
+`supabase/migrations/0079_ai_service_models.sql` (five service models in `ai_models`) and
+`supabase/migrations/0080_ai_service_prices.sql` (their prices, plus a dated row per Kling model
+that adds the price per Kling unit). Paste each into the Supabase SQL editor → Run, in order,
+after 0076–0078.
+
+**Ordering:** apply both **before** the 2b code deploys to an environment. Without them every dub,
+lip sync, voice change, auto-captions run and prompt run is refused with "This model has no price
+set, so it can't run right now."
+
+**Safe to re-run:** both insert with `on conflict … do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect 5
+select count(*) from ai_models where kind in ('dub','lipsync','voice','transcribe','text');
+-- expect 8 (5 service rows + 3 Kling unit rows), counted by the note 0080 writes
+select count(*) from ai_model_prices where note in ('Seeded from the code prices (D558).', 'Adds the price per Kling unit (D558).');
+```
+
+## Migration 0081 — record-only generations need no owner (D560, 2026-11-23)
+
+`supabase/migrations/0081_generations_record_only_owner.sql`. Paste into the Supabase SQL editor → Run, after 0080.
+Apply **before** the 2b-ii code deploys; without it every record-only insert fails (logged, not shown, and the cost is lost).
+**Safe to re-run:** drops and re-adds the constraint.
+
+```sql
+-- expect: CHECK (((node_id IS NOT NULL) OR (avatar_id IS NOT NULL) OR (script_id IS NOT NULL) OR record_only))
+select pg_get_constraintdef(oid) from pg_constraint where conname = 'generations_owner_check';
+```
+
+## Migrations 0082 + 0083 — text and scrape models and prices (D560, 2026-11-23)
+
+`supabase/migrations/0082_ai_text_models.sql` (five text models and the Apify scrape model in `ai_models`) and
+`supabase/migrations/0083_ai_text_prices.sql` (their published prices). Paste each into the Supabase SQL editor → Run, in order, after 0081.
+Apply **before** the 2b-ii code deploys; without them the free features' provider calls are recorded with no cost.
+
+**Safe to re-run:** both insert with `on conflict … do nothing`.
+
+**Verify after running:**
+
+```sql
+-- expect 7 (6 here + the prompt model from 0079)
+select count(*) from ai_models where kind in ('text','scrape');
+-- expect 7
+select count(*) from ai_model_prices where note in ('Published rate (D560).', 'Published rate after the introductory price (D560).', 'Apify reports each run''s cost in USD (D560).');
+```
+
+## Migration 0084 — each image and video model names its own adapter (D561, 2026-11-23)
+
+`supabase/migrations/0084_ai_models_adapters.sql`. Paste into the Supabase SQL editor → Run, after 0083.
+Apply **before** the 1b-i code deploys to Vercel and Trigger.dev. Without it every image and video row still has a
+family key (`image:openai`, `video:kling`, …) and no provider model name, so no adapter resolves and every image
+and video run is refused with "This model isn't available. Pick another."
+**Deploy:** until 0084 is applied, every image and video run is refused, and a voice preview reserves credits and then fails and refunds.
+It sets `adapter_key` and `provider_model_id` and re-writes label, params, rules and capabilities from the code.
+It never touches `status`, `replaced_by` or `sort_order`.
+**Safe to re-run:** an `update … where id = …`; running it again writes the same values.
+
+```sql
+-- expect the two numbers to be equal: every image and video row has its own adapter key
+select count(*), count(distinct adapter_key) from ai_models where kind in ('image','video');
+-- expect 0: no family key and no missing provider model name left
+select count(*) from ai_models
+where kind in ('image','video')
+  and (adapter_key in ('image:openai','image:gemini','image:seedream','video:kling','video:seedance','video:gemini','video:veo')
+       or provider_model_id is null);
+-- expect video:gemini-omni-1.2-flash / gemini-omni-1.2-flash, video:seedance-2-5 / dreamina-seedance-2-5-260628
+select id, adapter_key, provider_model_id from ai_models
+where id in ('gemini:gemini-omni-1.2-flash', 'seedance:seedance-2-5');
+```
+
+## Migration 0085 — per-model month stats for the admin (D570, 2026-11-23)
+
+`supabase/migrations/0085_ai_model_month_stats.sql`. Paste into the Supabase SQL editor → Run, after 0084.
+Apply **before** Plan 4 deploys to Vercel. Both admin model pages (the models list and a model's page) error without the function; nothing else uses it.
+It adds one index (`generations_created_at_idx`) and one read-only function (`ai_model_month_stats`) that returns, per model, the runs, provider cost, credits and unpriced runs in a date range.
+It changes no data.
+The index is built without `concurrently`, so it locks writes to `generations` while it builds. On a large `generations` table apply it at a quiet time, or first run `create index concurrently if not exists generations_created_at_idx on generations (created_at);` by hand (the migration's `if not exists` then skips it).
+**Safe to re-run:** `create index if not exists` and `create or replace function`.
+
+```sql
+-- expect 1 row
+select count(*) from pg_proc where proname = 'ai_model_month_stats';
+-- expect rows for models used this month (or none on a fresh database), never an error
+select * from ai_model_month_stats(date_trunc('month', now()), now() + interval '1 day') limit 5;
+```
+
+## Migration 0086 — credit settings in the database (D571, 2026-11-24)
+
+`supabase/migrations/0086_credit_settings.sql`. Paste into the Supabase SQL editor → Run, after 0085.
+Apply **before** Plan 5a deploys to Vercel. Without the `credit_settings` table the model catalog read fails, and every paid run is refused.
+It adds the `credit_settings` table (the margin and the rounding step that turn a run's cost into credits, as dated rows), a guard so a row is never edited and one that has started is never deleted, and one starting row: no margin, round up to the next 5 credits, from 2026-01-01. That is exactly how credits work today, so nothing changes until an admin adds a row.
+**Safe to re-run:** `create table if not exists`, `create or replace function`, `drop trigger if exists`, and the starting row is skipped if it is there.
+
+**Ordering:** apply before deploying the app code **and** the Trigger.dev tasks. Without it every client page shows "Could not load the models.", paid runs are refused, and runs that finish can't be settled.
+
+```sql
+-- expect 1 row: margin 0, step 5, from 2026-01-01
+select effective_from, margin_percent, round_step from credit_settings order by effective_from;
+-- expect an error: rows are never edited
+update credit_settings set round_step = 1;
+```
+
+## Migration 0087 — credit settings can't be cancelled at the last minute (D571, 2026-11-24)
+
+`supabase/migrations/0087_credit_settings_lead.sql`. Paste into the Supabase SQL editor → Run, after 0086.
+Apply with Plan 5a, before the super admin adds or cancels a credit setting. It replaces the guard function so a row can't be deleted in the 2 minutes before it starts (other servers keep the old catalog for up to a minute). The app also refuses it, and says so; this is the database's own check.
+**Safe to re-run:** `create or replace function`; the trigger from 0086 is unchanged.
+**Ordering:** apply before deploying the app code. If it lands later, only the database's check is missing; the app's check still works.
+
+```sql
+-- expect 1 row: true
+select prosrc like '%interval ''2 minutes''%' as has_lead from pg_proc where proname = 'credit_settings_guard';
+```
+
+## Migration 0088 — replace, reorder and agencies affected for the model admin; a 2-minute lead for prices (D572, 2026-11-24)
+
+`supabase/migrations/0088_admin_price_ops.sql`. Paste into the Supabase SQL editor → Run, after 0087.
+Apply before the plan 5b code deploys. It does five things:
+- `ai_model_prices_guard` (the 0076 trigger function) now refuses to delete a price in the 2 minutes before it starts, as 0087 does for credit settings. Other servers keep the old catalog for up to a minute, so a run may already be using that row. The app refuses the same window, and a new price set to start within 2 minutes is moved out to 2 minutes; a price that starts now is still allowed.
+- `replace_ai_model_price` deletes a price that starts more than 2 minutes from now and adds its replacement in one transaction. A price that has started, starts within 2 minutes, or belongs to another model is refused and nothing changes; so is a replacement that starts in the past.
+- `reorder_ai_models` writes the order of one kind's models in one statement and records who changed each row (`updated_by`, `updated_at`). The list must name every model of that kind once.
+- `ai_model_month_runs_by_org` returns this month's runs, cost and credits per agency per model, in one grouped query.
+- Execute on the three new functions and on 0085's `ai_model_month_stats` is taken away from public, anon and authenticated and granted to the service role only.
+
+**Safe to re-run:** `create or replace function` throughout, `drop function if exists` for a two-argument `reorder_ai_models` that never shipped, and the revokes and grants repeat harmlessly. No table changes.
+**Ordering:** apply before deploying the 5b code. If it lands later, replacing a price and reordering models fail with "Could not save. Try again." until it is applied. The models list, a model's page and the Credits page still open, but their agencies-affected lists show no agencies (the failed read is logged as `modelRunsByAgency failed`). The price lead is then enforced by the app only.
+
+```sql
+-- expect 4 rows, each with service_role_can = true and anon_can = false and authenticated_can = false
+select p.proname,
+       has_function_privilege('service_role', p.oid, 'execute') as service_role_can,
+       has_function_privilege('anon', p.oid, 'execute') as anon_can,
+       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_can
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in ('replace_ai_model_price', 'reorder_ai_models', 'ai_model_month_runs_by_org', 'ai_model_month_stats')
+order by p.proname;
+-- expect 1 row: true (the price guard has the 2-minute lead)
+select prosrc like '%interval ''2 minutes''%' as has_lead from pg_proc where proname = 'ai_model_prices_guard';
+-- expect 1 row: p_kind text, p_ids text[], p_updated_by uuid
+select pg_get_function_identity_arguments(oid) from pg_proc where proname = 'reorder_ai_models';
+-- expect 1 row: a number, no error (the grouped query runs)
+select count(*) from ai_model_month_runs_by_org(date_trunc('month', now()), now());
+```
+
+## Migration 0089 — replace a scheduled credit settings change (D572, 2026-11-24)
+
+`supabase/migrations/0089_replace_credit_settings.sql`. Paste into the Supabase SQL editor → Run, after 0088.
+Apply before the plan 5b code deploys. It does two things:
+- `replace_credit_settings` deletes a credit settings change that starts more than 2 minutes from now and adds the new settings in one transaction. The Credits page uses it when new settings start on the same IST day as a scheduled change. A change that has started, or starts within 2 minutes, is refused and nothing changes; so are new settings that start in the past. The table's own checks (margin 0 to 200, step 1, 5 or 10, one change per start) still apply.
+- Execute on it is taken away from public, anon and authenticated and granted to the service role only.
+
+**Safe to re-run:** `create or replace function`; the revoke and grant repeat harmlessly. No table changes.
+**Ordering:** apply before deploying the 5b code. If it lands later, saving new credit settings over a scheduled change fails with "Could not save. Try again." until it is applied, and so does the toast's Undo after such a replace (it puts the earlier change back with a second replace). Adding, cancelling and undoing other credit settings changes work.
+
+```sql
+-- expect 1 row: service_role_can = true, anon_can = false, authenticated_can = false
+select p.proname,
+       has_function_privilege('service_role', p.oid, 'execute') as service_role_can,
+       has_function_privilege('anon', p.oid, 'execute') as anon_can,
+       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_can
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname = 'replace_credit_settings';
+-- expect 1 row: p_cancel_id uuid, p_effective_from timestamp with time zone, p_margin_percent numeric, p_round_step integer, p_note text, p_created_by uuid
+select pg_get_function_identity_arguments(oid) from pg_proc where proname = 'replace_credit_settings';
+-- expect 1 row: true (a row inside the 2-minute lead is refused)
+select prosrc like '%interval ''2 minutes''%' as has_lead from pg_proc where proname = 'replace_credit_settings';
+```

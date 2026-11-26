@@ -5,6 +5,7 @@
 import { PROMPT_VALUE_MAX_CHARS } from "@/lib/journey/kb-copilot/constants";
 import { canStartBuild, isBuilding, sourcesSummary, type KbContext } from "@/lib/journey/kb-copilot/context";
 import { isEmpty, type ReviewField } from "@/lib/journey/kb-copilot/review";
+import { marketBlock } from "./market-copilot";
 
 function fieldLine(f: ReviewField): string {
   const raw = isEmpty(f.value) ? "(empty)" : Array.isArray(f.value) ? f.value.join(", ") : String(f.value);
@@ -80,9 +81,9 @@ While a build is running:
 - Ask nothing. If the person writes, answer briefly and say the build is still running. Do not ask for more sources.
 
 ${review ? reviewBlock(review) : fields && fields.length > 0 ? changeBlock(fields) : ""}
-
+${ctx.market?.open ? `\n${marketBlock(ctx.market)}\n` : ""}
 Always:
-- You never approve the brand KB and never mark it ready. Only the person can.
+- You never approve the brand KB or market research, and never mark either ready. Only the person can.
 - You never state a fact about the brand that is not in what you know above. If you do not know, say so.
 - If a tool answers with a refusal or an error, tell the person plainly what it said. Do not claim something was saved or started when the tool said it was not.
 - Short, plain sentences. No em dashes. No headings, no bullet lists, no markdown.`;

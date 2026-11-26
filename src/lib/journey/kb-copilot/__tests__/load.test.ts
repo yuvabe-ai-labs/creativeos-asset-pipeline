@@ -5,6 +5,8 @@ vi.mock("@/lib/db/kb", () => ({ listKBDocuments: vi.fn(), listBrandImages: vi.fn
 vi.mock("@/lib/db/kb-jobs", () => ({ getLatestKBJob: vi.fn() }));
 vi.mock("@/lib/db/brand-kit", () => ({ getBrandDetails: vi.fn() }));
 vi.mock("@/lib/jobs/db", () => ({ listRecentJobs: vi.fn(), failStaleJobs: vi.fn() }));
+vi.mock("@/lib/journey/market-copilot/load", () => ({ loadMarketContext: vi.fn() }));
+import { loadMarketContext } from "@/lib/journey/market-copilot/load";
 
 import { getBrandDetails } from "@/lib/db/brand-kit";
 import { listBrandImages, listKBDocuments, listUnreviewedFields } from "@/lib/db/kb";
@@ -29,6 +31,16 @@ describe("loadKbContext", () => {
     vi.mocked(getLatestKBJob).mockResolvedValue(null);
     vi.mocked(getBrandDetails).mockResolvedValue({ instagram: " acmeskin ", facebook: "" });
     jobsBy([], []);
+  });
+
+  it("reads market research only once the brand KB is approved (D530)", async () => {
+    vi.mocked(loadMarketContext).mockResolvedValue({ open: true, ownHandle: null } as never);
+    expect((await loadKbContext(client, NOW)).ctx.market).toBeUndefined();
+    expect(loadMarketContext).not.toHaveBeenCalled();
+    const ready = { ...(client as object), kb_status: "ready", active_kb_version_id: "v1", market_status: "pending" } as never;
+    // The client's own handle comes from the brand details read beside it, so nothing waits.
+    expect((await loadKbContext(ready, NOW)).ctx.market).toEqual({ open: true, ownHandle: "acmeskin" });
+    expect(loadMarketContext).toHaveBeenCalledWith(ready, NOW);
   });
 
   it("reads the basics from the client row and the brand details", async () => {

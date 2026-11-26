@@ -22,7 +22,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, async (clientId) => {
+  return withClient(req, params, { need: "edit" }, async (clientId) => {
     const fileResult = await parseFormFile(req);
     if (isApiError(fileResult)) return fileResult;
     const { file } = fileResult;
@@ -72,7 +72,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withClient(req, params, async (clientId) => {
+  return withClient(req, params, { need: "delete" }, async (clientId) => {
     const imageId = new URL(req.url).searchParams.get("imageId");
     if (!imageId) return apiError("imageId is required.", 400);
 

@@ -1,7 +1,38 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { VideoGenParamsPanel } from "../video-gen-params-panel";
-import { GEMINI_OMNI_MODEL_ID } from "@/lib/video-gen/client-models";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import { imageModelsFrom, videoModelsFrom } from "@/lib/ai-models/model-lists";
+
+vi.mock("@/hooks/queries/ai-models", async (orig) => ({
+  ...(await orig<typeof import("@/hooks/queries/ai-models")>()),
+  useImageModels: () => imageModelsFrom(seededModelCatalog()),
+  useVideoModels: () => videoModelsFrom(seededModelCatalog()),
+}));
+
+import { VideoGenParamsPanel, hasParamsInGroup } from "../video-gen-params-panel";
+import { GEMINI_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
+
+describe("hasParamsInGroup", () => {
+  const videos = videoModelsFrom(seededModelCatalog());
+  it("reads the spec it is given: one visible advanced param makes the group", () => {
+    const omni = videos.get(GEMINI_OMNI_MODEL_ID)!;
+    expect(hasParamsInGroup(omni, "advanced")).toBe(false);
+    const withAdvanced = {
+      ...omni,
+      params: [...omni.params, { ...omni.params[0], name: "seed", group: "advanced" as const, visible: true }],
+    };
+    expect(hasParamsInGroup(withAdvanced, "advanced")).toBe(true);
+    const hiddenAdvanced = {
+      ...omni,
+      params: [...omni.params, { ...omni.params[0], name: "seed", group: "advanced" as const, visible: false }],
+    };
+    expect(hasParamsInGroup(hiddenAdvanced, "advanced")).toBe(false);
+  });
+
+  it("is false for no model", () => {
+    expect(hasParamsInGroup(undefined, "advanced")).toBe(false);
+  });
+});
 
 type Fixed = Record<string, { value: string; note: string; onOpen?: () => void }>;
 const render = (fixedParams?: Fixed) =>

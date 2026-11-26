@@ -1,30 +1,36 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DEFAULT_VOICE_CHANGE_SETTINGS } from "@/lib/elevenlabs/voice-settings";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
-import { usdToFinalCredits } from "@/lib/credits/units";
+import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { seededSettingsRow } from "@/lib/ai-models/test-catalog";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock());
 const editorLock = vi.hoisted(() => ({ value: null as null | "editor" | "dub" }));
 vi.mock("@/lib/db/generation-lock", () => ({ getEditorGenerationLock: async () => editorLock.value }));
 const mocks = vi.hoisted(() => ({
   resolve: vi.fn(),
   getVoiceCached: vi.fn(),
-  insertGeneration: vi.fn(async () => ({ id: "gen-9" })),
+  insertGeneration: vi.fn(async () => ({ id: "gen-9", created_at: new Date().toISOString() })),
   failGeneration: vi.fn(async () => undefined),
   reserveCredits: vi.fn(async () => ({ ok: true })),
   refundReservation: vi.fn(async () => undefined),
   sign: vi.fn(async () => ({ putUrl: "https://put/r", url: "https://storage.googleapis.com/b/gen-9-revoiced.mp4" })),
   trigger: vi.fn(async () => ({ id: "run" })),
+  listClientVoiceIds: vi.fn(async (): Promise<string[]> => []),
 }));
 vi.mock("@/lib/api/route-helpers", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/route-helpers")>("@/lib/api/route-helpers");
-  return { ...actual, withNode: (_r: Request, _p: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", {}, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
+  return { ...actual, withNode: (_r: Request, _p: unknown, _guard: unknown, fn: (...a: unknown[]) => Promise<Response>) => fn("n1", {}, { userId: "u1", email: "u@x.com" }, "client-1", "org-1") };
 });
 vi.mock("@/lib/voice-change/source", async () => ({ ...(await vi.importActual<object>("@/lib/voice-change/source")), resolveVoiceChangeSource: mocks.resolve }));
 vi.mock("@/lib/elevenlabs/voices-cache", () => ({ getVoiceCached: mocks.getVoiceCached }));
 vi.mock("@/lib/db/generations", () => ({ insertGeneration: mocks.insertGeneration, failGeneration: mocks.failGeneration }));
 vi.mock("@/lib/db/credit-transactions", () => ({ reserveCredits: mocks.reserveCredits, refundReservation: mocks.refundReservation, CreditLimitError: class extends Error {} }));
 vi.mock("@/lib/db/versions", () => ({ getVersionById: vi.fn() }));
+vi.mock("@/lib/db/client-voices", () => ({ listClientVoiceIds: mocks.listClientVoiceIds }));
 vi.mock("@/lib/storage", () => ({ signRevoicedVideoUrl: mocks.sign }));
 vi.mock("@trigger.dev/sdk/v3", () => ({ tasks: { trigger: mocks.trigger } }));
 
@@ -48,7 +54,7 @@ describe("POST /api/nodes/[id]/voice-change", () => {
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ generationId: "gen-9" });
     expect(mocks.insertGeneration).toHaveBeenCalledWith(expect.objectContaining({
-      nodeId: "n1", orgId: "org-1", type: "voice", modelUsed: "gemini:omni",
+      nodeId: "n1", orgId: "org-1", type: "voice", modelUsed: "gemini:omni", modelPriceId: seededPrice(VOICE_CHANGE_PRICE_MODEL_ID).id,
       paramsSnapshot: { durationSeconds: 8, resolution: "720p" },
       inputsSnapshot: {
         prompt: "p",
@@ -58,7 +64,7 @@ describe("POST /api/nodes/[id]/voice-change", () => {
         },
       },
     }));
-    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-9", usdToFinalCredits(computeVoiceChangeCost(8, 2).usd));
+    expect(mocks.reserveCredits).toHaveBeenCalledWith("org-1", "gen-9", creditsFromUsd(voiceChangeEstimateUsd(seededPrice(VOICE_CHANGE_PRICE_MODEL_ID), 8, 2)!, seededSettingsRow()));
     expect(mocks.trigger).toHaveBeenCalledWith("video-voice-change", {
       generationId: "gen-9", sourceUrl: "https://storage.googleapis.com/b/v2.mp4", voiceId: "a1",
       settings: DEFAULT_VOICE_CHANGE_SETTINGS, revoicedPutUrl: "https://put/r",
@@ -78,12 +84,40 @@ describe("POST /api/nodes/[id]/voice-change", () => {
     expect(mocks.reserveCredits).not.toHaveBeenCalled();
   });
 
+  it("refuses with no voice-change price before anything is recorded or reserved (D558)", async () => {
+    const { priceForNewRun } = await import("@/lib/ai-models/run-price");
+    vi.mocked(priceForNewRun).mockResolvedValueOnce(null);
+    const res = await post(BODY);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This model has no price set, so it can't run right now." });
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
+  });
+
   it("fails and refunds if the trigger throws after reserving", async () => {
     mocks.trigger.mockRejectedValueOnce(new Error("trigger down"));
     const res = await post(BODY);
     expect(res.status).toBe(500);
     expect(mocks.failGeneration).toHaveBeenCalled();
     expect(mocks.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "gen-9" });
+  });
+
+  // The voice id comes from the body. Another client's cloned voice (any agency) is a 404,
+  // and nothing is recorded or billed.
+  it("404s on another client's custom voice and records nothing", async () => {
+    mocks.getVoiceCached.mockResolvedValueOnce({ voiceId: "b-clone", name: "Bata · Ravi", category: "cloned", priceMultiplier: 1 });
+    mocks.listClientVoiceIds.mockResolvedValueOnce(["a-clone"]);
+    const res = await post({ ...BODY, voiceId: "b-clone" });
+    expect(res.status).toBe(404);
+    expect(mocks.listClientVoiceIds).toHaveBeenCalledWith("client-1");
+    expect(mocks.insertGeneration).not.toHaveBeenCalled();
+    expect(mocks.reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it("allows this client's own custom voice", async () => {
+    mocks.getVoiceCached.mockResolvedValueOnce({ voiceId: "a-clone", name: "Acme · Asha", category: "cloned", priceMultiplier: 1 });
+    mocks.listClientVoiceIds.mockResolvedValueOnce(["a-clone"]);
+    expect((await post({ ...BODY, voiceId: "a-clone" })).status).toBe(202);
   });
 });
 

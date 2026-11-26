@@ -13,10 +13,19 @@ vi.mock("@/lib/db/script-generate", () => ({
 }));
 vi.mock("@/lib/db/scripts", () => ({ getScript: vi.fn() }));
 vi.mock("@/lib/scripts/visualise/board-server", () => ({ loadVisualiseBoard: vi.fn() }));
+// At Visualise the board is told with the panel model's reference limit, from the model catalog.
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: vi.fn(async () => seededModelCatalog()) };
+});
 vi.mock("@/lib/db/script-panels", () => ({ setPanelPick: vi.fn() }));
 vi.mock("@/lib/scripts/copilot/context", () => ({ loadCopilotContext: vi.fn() }));
 vi.mock("@/lib/scripts/copilot/model", () => ({ structuredCaller: vi.fn(), streamingCaller: vi.fn() }));
 vi.mock("@/lib/scripts/copilot/turn", () => ({ prepareTurn: vi.fn() }));
+vi.mock("@/lib/journey/market-copilot/from-script", () => ({ askMarketResearch: vi.fn() }));
+// Work the route asks the platform to finish after the answer has gone, kept so the tests can run it.
+const afterWork: Array<() => unknown> = [];
+vi.mock("next/server", async (original) => ({ ...(await original<typeof import("next/server")>()), after: vi.fn((work: () => unknown) => { afterWork.push(work); }) }));
 
 import { changeGenerateScript, changeVisualiseScript, getGenerateScript, insertScriptMessages, listScriptMessages, loadGenerateState } from "@/lib/db/script-generate";
 import { getScript } from "@/lib/db/scripts";
@@ -24,7 +33,8 @@ import { loadVisualiseBoard } from "@/lib/scripts/visualise/board-server";
 import { setPanelPick } from "@/lib/db/script-panels";
 import { loadCopilotContext } from "@/lib/scripts/copilot/context";
 import { prepareTurn } from "@/lib/scripts/copilot/turn";
-import { structuredCaller } from "@/lib/scripts/copilot/model";
+import { askMarketResearch } from "@/lib/journey/market-copilot/from-script";
+import { streamingCaller, structuredCaller } from "@/lib/scripts/copilot/model";
 import { allowClient, AVATAR_ID, generateScript, jsonRequest, runChangeAgainst, SCRIPT_ID, stateOf } from "@/lib/scripts/copilot/__tests__/route-mocks";
 
 const params = Promise.resolve({ id: "c1", scriptId: SCRIPT_ID });
@@ -35,10 +45,11 @@ const send = (body: unknown) => jsonRequest(`http://localhost/api/clients/c1/scr
 describe("POST .../turn", () => {
   beforeEach(async () => {
     vi.resetAllMocks();
+    afterWork.length = 0;
     await allowClient();
     vi.mocked(getGenerateScript).mockResolvedValue(generateScript());
     vi.mocked(listScriptMessages).mockResolvedValue([{ id: "m0", role: "assistant", content: "What format?", card: null, suggestions: [], createdAt: "t" }]);
-    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [], all: [] } });
     vi.mocked(changeGenerateScript).mockImplementation(runChangeAgainst(generateScript()) as never);
     vi.mocked(loadGenerateState).mockResolvedValue(stateOf(generateScript()));
   });
@@ -56,6 +67,10 @@ describe("POST .../turn", () => {
     expect(out.at(-1)).toMatchObject({ type: "state", state: { script: { id: SCRIPT_ID } } });
     // The writer for the draft and edits, a quicker model for reading, angles and the card.
     expect(vi.mocked(structuredCaller).mock.calls.map((c) => c[0]).sort()).toEqual(["gemini-3.1-pro-preview", "gpt-5.4-mini"]);
+    // D560 — every call's cost is recorded for the caller the route already resolved.
+    const recording = { recordFor: { orgId: "org-1", clientId: "c1", userId: "user-1", userEmail: undefined, scriptId: SCRIPT_ID }, recordType: "script" };
+    for (const c of vi.mocked(structuredCaller).mock.calls) expect(c[1]).toEqual(recording);
+    expect(vi.mocked(streamingCaller).mock.calls[0]).toEqual(["gemini-3.1-pro-preview", recording]);
   });
 
   // Final review, Important 5 (performance rule 8): market signals feed the brief's suggestions and
@@ -69,6 +84,55 @@ describe("POST .../turn", () => {
     vi.mocked(getGenerateScript).mockResolvedValue(written);
     await lines(await POST(send({ text: "Shorter hook" }) as never, { params }));
     expect(vi.mocked(loadCopilotContext).mock.calls[1][1]).toEqual({ signals: false });
+  });
+
+  it("loads market signals for an edit when the script is built from some, so a rewrite can read them (D531)", async () => {
+    vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
+    const { POST } = await import("./route");
+    const built = generateScript({ doc: scriptDocSchema.parse(reel01) });
+    vi.mocked(getGenerateScript).mockResolvedValue({ ...built, brief: { ...built.brief, signalIds: ["s1"] } });
+    await lines(await POST(send({ text: "Rewrite with these signals" }) as never, { params }));
+    expect(vi.mocked(loadCopilotContext).mock.calls[0][1]).toEqual({ signals: true });
+  });
+
+  it("hands research the turn asked for to market research, after the reply (D532)", async () => {
+    vi.mocked(prepareTurn).mockImplementation(async (_input, deps) => {
+      deps.onResearch?.("what competitors post for monsoon");
+      return () => ({ patch: null, result: [{ content: "Handed over.", card: null }] });
+    });
+    const { POST } = await import("./route");
+    await lines(await POST(send({ text: "research what competitors post for monsoon" }) as never, { params }));
+    expect(askMarketResearch).not.toHaveBeenCalled();
+    await Promise.all(afterWork.map((w) => w()));
+    expect(askMarketResearch).toHaveBeenCalledWith(expect.objectContaining({
+      client: expect.objectContaining({ id: "c1" }), userId: "user-1", question: "what competitors post for monsoon",
+    }));
+  });
+
+  it("registers the after-reply work in the handler itself, not from inside the stream (review fix)", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((r) => { release = r; });
+    vi.mocked(prepareTurn).mockImplementation(async (_input, deps) => {
+      await held;
+      deps.onResearch?.("q");
+      return () => ({ patch: null, result: [{ content: "ok", card: null }] });
+    });
+    const { POST } = await import("./route");
+    const res = await POST(send({ text: "research q" }) as never, { params });
+    // The turn is still running inside the stream, and the work is already registered.
+    expect(afterWork).toHaveLength(1);
+    release();
+    await lines(res);
+    await Promise.all(afterWork.map((w) => w()));
+    expect(askMarketResearch).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks nothing of market research when the turn asked for no research", async () => {
+    vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
+    const { POST } = await import("./route");
+    await lines(await POST(send({ text: "UGC" }) as never, { params }));
+    await Promise.all(afterWork.map((w) => w()));
+    expect(askMarketResearch).not.toHaveBeenCalled();
   });
 
   it("takes a pasted script longer than an ordinary message, up to 30,000 characters", async () => {
@@ -143,7 +207,7 @@ describe("POST .../turn while market research is pending", () => {
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Jackfruit365", org_id: "org-1", kb_status: "ready", market_status: "pending" } as never);
     vi.mocked(getGenerateScript).mockResolvedValue(generateScript());
     vi.mocked(listScriptMessages).mockResolvedValue([]);
-    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [], all: [] } });
     vi.mocked(changeGenerateScript).mockImplementation(runChangeAgainst(generateScript()) as never);
     vi.mocked(loadGenerateState).mockResolvedValue(stateOf(generateScript()));
     vi.mocked(prepareTurn).mockResolvedValue(() => ({ patch: null, result: [{ content: "ok", card: null }] }));
@@ -202,7 +266,7 @@ describe("POST .../turn at Visualise", () => {
     await allowClient();
     vi.mocked(getGenerateScript).mockResolvedValue(atVisualise);
     vi.mocked(listScriptMessages).mockResolvedValue([]);
-    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [] } });
+    vi.mocked(loadCopilotContext).mockResolvedValue({ clientName: "Jackfruit365", kbText: "KB", hasKb: true, library: [], avatars: [], today: "Wed 28 Oct 2026", signals: { brief: "", digest: "", list: [], all: [] } });
     vi.mocked(changeVisualiseScript).mockImplementation(runChangeAgainst(atVisualise) as never);
     vi.mocked(loadGenerateState).mockResolvedValue(stateOf(atVisualise));
     vi.mocked(getScript).mockResolvedValue(script as never);

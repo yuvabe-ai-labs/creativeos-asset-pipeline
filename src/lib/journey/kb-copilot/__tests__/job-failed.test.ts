@@ -4,11 +4,14 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/clients", () => ({ getClientById: vi.fn() }));
 vi.mock("@/lib/db/copilot-messages", () => ({ insertCopilotMessages: vi.fn() }));
 vi.mock("@/lib/journey/thread/opening", () => ({ ensureOpening: vi.fn() }));
+vi.mock("@/lib/journey/market-copilot/cards", () => ({ reopenBrandsCard: vi.fn() }));
+import { reopenBrandsCard } from "@/lib/journey/market-copilot/cards";
 
 import { getClientById } from "@/lib/db/clients";
 import { insertCopilotMessages } from "@/lib/db/copilot-messages";
 import { ensureOpening } from "@/lib/journey/thread/opening";
 import { failedLineMessage, jobFailedLine, sayJobFailed } from "../job-failed";
+import { RECONCILED_JOB_KINDS } from "@/lib/jobs/reconcile";
 
 const INSTAGRAM = "Could not collect images and video from Instagram. You can try again from Brand assets.";
 
@@ -23,6 +26,13 @@ describe("jobFailedLine", () => {
   });
   it("names the documents a reading of them failed for", () => {
     expect(jobFailedLine("kb-propose", { added: [{ id: "d1", name: "guide.pdf" }], removed: [] })).toBe("Could not read guide.pdf. Try again from Source files.");
+  });
+  it("says a market job failed and that nothing else changed (D530)", () => {
+    expect(jobFailedLine("market-fetch", {})).toBe("I could not finish bringing in their posts. Nothing else changed; ask me to try again.");
+    expect(jobFailedLine("market-draft", {})).toBe("I could not finish drafting signals. Nothing else changed; ask me to try again.");
+  });
+  it("the reconcile sweep covers the market jobs, so a dead run is said and settled", () => {
+    expect(RECONCILED_JOB_KINDS).toEqual(expect.arrayContaining(["market-fetch", "market-draft"]));
   });
   it("has nothing to say for a job the copilot does not speak about, or a collection with no source", () => {
     expect(jobFailedLine("editor-export", {})).toBeNull();
@@ -52,6 +62,12 @@ describe("sayJobFailed", () => {
     expect(insertCopilotMessages).toHaveBeenCalledTimes(1);
     expect(insertCopilotMessages).toHaveBeenCalledWith("client-1", "onboarding", null, [failedLineMessage(INSTAGRAM)]);
     expect(vi.mocked(ensureOpening).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(insertCopilotMessages).mock.invocationCallOrder[0]);
+  });
+  it("puts a failed fetch's list of brands back for the person (D530)", async () => {
+    await sayJobFailed({ client_id: "client-1", kind: "market-fetch", input: { messageId: "m1", brands: [] } });
+    expect(reopenBrandsCard).toHaveBeenCalledWith("client-1", "m1");
+    await sayJobFailed({ client_id: "client-1", kind: "market-draft", input: { focus: null } });
+    expect(reopenBrandsCard).toHaveBeenCalledTimes(1);
   });
   it("reads and writes nothing for a job with no client or nothing to say", async () => {
     await sayJobFailed({ client_id: null, kind: "asset-import", input: { source: "instagram" } });

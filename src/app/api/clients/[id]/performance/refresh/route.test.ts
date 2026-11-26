@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/dal", () => ({
   resolveCallerContext: vi.fn(async () => ({
-    userId: "user-1", platformRole: "member", orgId: "org-1", orgRole: "designer",
+    userId: "user-1", platformRole: "member", orgId: "org-1",
     mustChangePassword: false,
   })),
   resolveOrgId: vi.fn(async () => "org-1"),
@@ -22,9 +22,11 @@ vi.mock("@/lib/db/performance", () => ({
   getLatestSnapshot: vi.fn(),
 }));
 vi.mock("@/lib/market/snapshot", () => ({ snapshotHandle: vi.fn() }));
+vi.mock("@/lib/generations/record-for", () => ({ recordAfterResponse: vi.fn() }));
 
 import { isHandleTracked, getLatestSnapshot } from "@/lib/db/performance";
 import { snapshotHandle } from "@/lib/market/snapshot";
+import { recordAfterResponse } from "@/lib/generations/record-for";
 
 const params = Promise.resolve({ id: "client-1" });
 const req = (body: unknown = { handle: "prakritisattva" }) =>
@@ -36,6 +38,12 @@ const req = (body: unknown = { handle: "prakritisattva" }) =>
 const agoMinutes = (m: number) => new Date(Date.now() - m * 60 * 1000).toISOString();
 
 describe("POST /api/clients/[id]/performance/refresh", () => {
+  // The Apify run may use its full 280 s, then the dataset read and thumbnails follow.
+  it("allows the function 300 s", async () => {
+    const { maxDuration } = await import("./route");
+    expect(maxDuration).toBe(300);
+  });
+
   beforeEach(() => vi.resetAllMocks());
 
   it("requires a handle", async () => {
@@ -72,7 +80,7 @@ describe("POST /api/clients/[id]/performance/refresh", () => {
     const res = await POST(req({ handle: "other" }) as never, { params });
     expect(res.status).toBe(200);
     expect(vi.mocked(getLatestSnapshot)).toHaveBeenCalledWith("client-1", "other");
-    expect(vi.mocked(snapshotHandle)).toHaveBeenCalledWith("client-1", "other");
+    expect(vi.mocked(snapshotHandle)).toHaveBeenCalledWith("client-1", "other", expect.anything());
   });
 
   it("runs the snapshot when the latest is old enough", async () => {
@@ -83,6 +91,18 @@ describe("POST /api/clients/[id]/performance/refresh", () => {
     const res = await POST(req() as never, { params });
     expect(res.status).toBe(200);
     expect((await res.json()).postCount).toBe(12);
+  });
+
+  it("records the Apify run's cost for the client's org after the response (D560)", async () => {
+    vi.mocked(isHandleTracked).mockResolvedValue(true);
+    vi.mocked(getLatestSnapshot).mockResolvedValue(null);
+    vi.mocked(snapshotHandle).mockResolvedValue({ ok: true, handle: "prakritisattva", postCount: 1 });
+    const { POST } = await import("./route");
+    await POST(req() as never, { params });
+    expect(vi.mocked(snapshotHandle)).toHaveBeenCalledWith("client-1", "prakritisattva", {
+      recordFor: { orgId: "org-1", clientId: "client-1" },
+      record: recordAfterResponse,
+    });
   });
 
   it("maps no-data to 409", async () => {

@@ -2,31 +2,29 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Building2, LogOut, UserRound } from "lucide-react";
-import { useIdentity, resetIdentityCache } from "@/hooks/use-identity";
+import { useIdentity } from "@/hooks/use-identity";
+import { useQueryClient } from "@tanstack/react-query";
 import { logoutAction } from "@/lib/actions/auth";
 import { initials } from "@/lib/format/initials";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProfileCredits } from "./profile-credits";
-import type { OrgRole } from "@/lib/dal-logic";
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 type CreditTransactionRow = { amount: number };
 
-const ROLE_LABELS: Record<OrgRole, string> = {
-  owner: "Owner",
-  senior: "Senior",
-  designer: "Designer",
-};
-
 // Replaces IdentityChip's always-visible name pill + adjacent sign-out button, and the
-// header's standalone credits pill (HeaderCredits) — name, real role, credits, workspace and
-// sign out all live in one avatar-triggered popover now. See
+// header's standalone credits pill (HeaderCredits) — name, credits, the workspace with Owner or
+// Member, and sign out all live in one avatar-triggered popover now. See
 // docs/superpowers/specs/2026-08-09-profile-popover-header-design.md.
 export function ProfilePopover() {
-  const { hydrated, identity, orgId, orgName, orgRole, creditsUsed, monthlyCreditLimit } =
+  const { hydrated, identity, orgId, orgName, isOwner, creditsUsed, monthlyCreditLimit } =
     useIdentity();
+  // Null without view_credits: the server sends no figures to anyone but the owner, and nothing
+  // listens for them.
+  const showCredits = creditsUsed !== null;
+  const queryClient = useQueryClient();
   const [liveDelta, setLiveDelta] = useState(0);
 
   // This subscription lives HERE, in the always-mounted popover shell, and NOT in
@@ -38,7 +36,7 @@ export function ProfilePopover() {
   // close — the figure sat at its page-load value until a manual refresh. Keep it mounted at
   // this level; ProfileCredits renders what it's handed.
   useEffect(() => {
-    if (!hydrated || !orgId) return;
+    if (!hydrated || !orgId || !showCredits) return;
     let cancelled = false;
     let channel: RealtimeChannel | null = null;
     const supabase = createBrowserSupabase();
@@ -77,7 +75,7 @@ export function ProfilePopover() {
       cancelled = true;
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [hydrated, orgId]);
+  }, [hydrated, orgId, showCredits]);
 
   // Incrementing locally by each row's `amount` avoids a refetch per event. Settlement
   // writes two rows (refund of the reservation, then actual consumption), and
@@ -86,16 +84,13 @@ export function ProfilePopover() {
   // stale until the next full page load — accepted, not engineered around.
   const used = creditsUsed === null ? null : creditsUsed + liveDelta;
 
-  // A Server Action's redirect() is a soft, client-side transition — it would leave every
-  // module-level client cache (useIdentity's included) intact across sign-out, which was
-  // the root cause of a stale-identity-from-the-previous-account bug (sign out of org A,
-  // sign in as org B in the same tab, header keeps showing org A until a manual refresh).
-  // resetIdentityCache() closes that specific gap immediately; the hard window.location
-  // navigation below is the actual fix — it forces a full reload, guaranteeing every
-  // module-level cache in the app (not just identity's) starts clean for the next sign-in.
+  // A Server Action's redirect() is a soft, client-side transition, so every client cache would
+  // survive sign-out. Clearing the query cache drops this person's identity and access at once
+  // (it replaces resetIdentityCache()); the hard navigation below then starts every module-level
+  // cache in the app clean for the next sign-in.
   async function handleSignOut(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    resetIdentityCache();
+    queryClient.clear();
     await logoutAction();
     window.location.href = "/login";
   }
@@ -132,9 +127,6 @@ export function ProfilePopover() {
                 <span className="truncate text-base font-semibold text-foreground">
                   {identity.name}
                 </span>
-                {orgRole && (
-                  <span className="text-sm text-muted-foreground">{ROLE_LABELS[orgRole]}</span>
-                )}
               </div>
             </div>
             <div className="h-px bg-border" aria-hidden="true" />
@@ -153,7 +145,12 @@ export function ProfilePopover() {
               Workspace
             </span>
           </div>
-          <span className="text-base font-medium text-foreground">{orgName ?? "—"}</span>
+          <div className="flex flex-col">
+            <span className="text-base font-medium text-foreground">{orgName ?? "Your agency"}</span>
+            {isOwner !== null && (
+              <span className="text-sm text-muted-foreground">{isOwner ? "Owner" : "Member"}</span>
+            )}
+          </div>
         </div>
         <div className="h-px bg-border" aria-hidden="true" />
         <form onSubmit={handleSignOut}>

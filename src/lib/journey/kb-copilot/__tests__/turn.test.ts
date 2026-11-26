@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentModel } from "@/lib/journey/agent";
-import type { ThreadMessage } from "@/lib/journey/thread/schema";
+import type { ChangeCard, ThreadMessage } from "@/lib/journey/thread/schema";
 import { KB_CONVERSATION_WINDOW } from "../constants";
 import type { KbContext } from "../context";
 import { BuildAlreadyRunningError, runKbTurn, type KbActions } from "../turn";
@@ -88,6 +88,35 @@ describe("runKbTurn", () => {
     await turn({ ctx: { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "in_review" }, actions: a, model });
     expect(a.startBuild).not.toHaveBeenCalled();
     expect(outputs(seen)).toEqual(["The brand KB is already built. Changes to it come in a later step."]);
+  });
+
+  it("starts the build when the Start the build button is pressed, without asking the model (D519)", async () => {
+    // Seen on staging: the model re-saved the website and handles instead, which ends the turn.
+    const a = actions();
+    const { model, seen } = scripted([{ text: "", calls: [call("save_website", { url: "acme.com" })] }]);
+    const result = await turn({ ctx: { ...empty, websiteUrl: "https://acme.com" }, text: "Start the build", actions: a, model });
+    expect(seen).toHaveLength(0);
+    expect(a.saveWebsite).not.toHaveBeenCalled();
+    expect(a.startBuild).toHaveBeenCalledOnce();
+    expect(result.reply).toBe("Started the build.");
+    expect(result.changed).toBe(true);
+  });
+
+  it("says a build is running when Start the build is pressed again", async () => {
+    const a = actions();
+    const { model, seen } = scripted([say("never asked")]);
+    const ctx = { ...empty, websiteUrl: "https://acme.com", job: { status: "researching", phaseMessage: null } };
+    const result = await turn({ ctx, text: "Start the build", actions: a, model });
+    expect(seen).toHaveLength(0);
+    expect(a.startBuild).not.toHaveBeenCalled();
+    expect(result.reply).toBe("A build is already running.");
+  });
+
+  it("leaves Start the build with an attachment to the model", async () => {
+    const a = actions();
+    const { model, seen } = scripted([say("ok")]);
+    await turn({ ctx: { ...empty, websiteUrl: "https://acme.com" }, text: "Start the build", attachments: [{ kind: "document", name: "a.pdf", url: "u" }] as never, actions: a, model });
+    expect(seen).toHaveLength(1);
   });
 
   it("saves the website and starts the build in one turn on an empty client", async () => {
@@ -412,6 +441,9 @@ describe("runKbTurn, reporting as it goes", () => {
       save_website: "Saving the website…", save_socials: "Saving the handles…",
       answer_field: "Saving your answer…", confirm_field: "Saving your answer…", start_build: "Starting the build…",
       propose_change: "Preparing the change…",
+      // Market research (D530).
+      find_brands: "Searching the web…", update_brands: "Updating the list…",
+      fetch_posts: "Starting to bring in their posts…", draft_signals: "Starting to draft signals…",
     });
   });
 
@@ -473,7 +505,7 @@ describe("runKbTurn, changing reviewed fields", () => {
       call("propose_change", { changes: [{ field: WORDS, value: "cheap, chemical-free" }] }, "c2"),
     ] }]);
     const result = await turn({ ctx: approved, kb, model });
-    expect(result.card?.fields.map((f) => [f.path, f.after])).toEqual([[TONE, "Plain"], [WORDS, ["cheap", "chemical-free"]]]);
+    expect((result.card as ChangeCard | null)?.fields.map((f) => [f.path, f.after])).toEqual([[TONE, "Plain"], [WORDS, ["cheap", "chemical-free"]]]);
   });
 
   it("refuses a change that equals what is there, and makes no card", async () => {
@@ -557,7 +589,7 @@ describe("runKbTurn, a change that is only partly allowed (review fix)", () => {
     const result = await turn({ ctx: inReview, kb: { versionId: V1, output }, review: { fields: reviewFields(output), pending: null }, actions: actions({ setField }), model });
     expect(seen).toHaveLength(1);
     expect(setField).toHaveBeenCalledWith(AGE, expect.objectContaining({ value: "30 to 50", status: "edited" }));
-    expect(result.card?.fields.map((f) => f.path)).toEqual([TONE]);
+    expect((result.card as ChangeCard | null)?.fields.map((f) => f.path)).toEqual([TONE]);
     expect(result.reply).toMatch(/^Saved .+\. Here is the change. Nothing changes until you approve it.$/);
   });
 
@@ -571,7 +603,7 @@ describe("runKbTurn, a change that is only partly allowed (review fix)", () => {
     const result = await turn({ ctx: inReview, kb: { versionId: V1, output: both }, review: { fields: reviewFields(both), pending: null }, model });
     expect(seen).toHaveLength(2);
     expect(outputs(seen)[0]).toMatch(/^Error: Added .*Tone of Voice.* to the change. Not added: That is already the value.$/);
-    expect(result.card?.fields.map((f) => f.path)).toEqual([TONE]);
+    expect((result.card as ChangeCard | null)?.fields.map((f) => f.path)).toEqual([TONE]);
   });
 
   it("tells the model when a later call adds nothing, instead of saying it was added", async () => {
@@ -664,6 +696,47 @@ describe("runKbTurn, review fixes", () => {
     const { model } = scripted([say("never asked")]);
     await expect(turn({ ctx: inReview, review: { fields: reviewFields(output), pending: AGE }, actions: actions({ setField }), model, text: "Yes, that's right", trace: recorder })).rejects.toThrow("network down");
     expect(recorder.record().choice).toMatchObject({ tool: "confirm_field", output: "Error: network down" });
+  });
+});
+
+// ── Likely answers on an empty-field question (D533) ─────────────────────────
+
+describe("runKbTurn, a tapped likely answer", () => {
+  const AGE = "target_audience.age_range";
+  const PAIN = "target_audience.pain_points";
+  const inReview: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "in_review", unreviewed: [AGE, PAIN] };
+  const fields = () => reviewFields(kbWith({}));
+
+  it("saves the tapped answer as the person's own, without asking the model", async () => {
+    const setField = vi.fn(async () => true);
+    const { model, seen } = scripted([say("never asked")]);
+    const result = await turn({ ctx: inReview, review: { fields: fields(), pending: AGE, answers: ["25–34"] }, actions: actions({ setField }), model, text: "25–34" });
+    expect(seen).toHaveLength(0);
+    expect(setField).toHaveBeenCalledWith(AGE, expect.objectContaining({ value: "25–34", status: "edited" }));
+    expect(result.walk.settled).toEqual([AGE]);
+  });
+
+  it("saves a tapped answer to a list field as its items", async () => {
+    const setField = vi.fn(async () => true);
+    const { model } = scripted([say("never asked")]);
+    await turn({ ctx: inReview, review: { fields: fields(), pending: PAIN, answers: ["Warm, playful"] }, actions: actions({ setField }), model, text: "Warm, playful" });
+    expect(setField).toHaveBeenCalledWith(PAIN, expect.objectContaining({ value: ["Warm", "playful"] }));
+  });
+
+  it("shows a button's reply as soon as it is done, not when the turn ends (review fix, D514)", async () => {
+    const text = vi.fn();
+    const { model } = scripted([say("never asked")]);
+    await turn({ ctx: inReview, review: { fields: fields(), pending: AGE, answers: ["25–34"] }, model, text: "25–34", on: { text } });
+    expect(text).toHaveBeenCalledWith("Saved Age Range.");
+  });
+
+  it("writes nothing when the field was reviewed on the page meanwhile", async () => {
+    const setField = vi.fn(async () => false);
+    const { model, seen } = scripted([say("never asked")]);
+    const result = await turn({ ctx: inReview, review: { fields: fields(), pending: AGE, answers: ["25–34"] }, actions: actions({ setField }), model, text: "25–34" });
+    expect(seen).toHaveLength(0);
+    expect(result.walk.settled).toEqual([]);
+    expect(result.reply).toBe("That field is already reviewed. Use propose_change to suggest a new value; the person approves it.");
   });
 });
 

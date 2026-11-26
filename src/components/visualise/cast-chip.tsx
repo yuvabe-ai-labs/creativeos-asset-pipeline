@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { useImageModels } from "@/hooks/queries/ai-models";
 import { useCastAvatarMaker } from "@/hooks/use-cast-avatar-maker";
 import type { Avatar } from "@/lib/avatars/schema";
 import { castAnchor } from "@/lib/scripts/anchors";
@@ -37,7 +38,9 @@ export function CastChip({ clientId, scriptId, member, avatar, faceUrl, takenIds
   marker?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [modelId, setModelId] = useState(VISUALISE_AVATAR_MODEL_ID);
+  const images = useImageModels();
+  // D566 — the cast default while it is live, else the catalog's.
+  const [modelId, setModelId] = useState(() => images.liveOr(VISUALISE_AVATAR_MODEL_ID));
   const maker = useCastAvatarMaker({ clientId, scriptId, member, avatar, modelId });
   const status = castChipStatus(avatar, maker.step);
 

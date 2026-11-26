@@ -1,6 +1,8 @@
-import { apiError, apiOk } from "@/lib/api/route-helpers";
+import { apiError, apiOk, withBodyCanvas } from "@/lib/api/route-helpers";
 import { createOpenAI } from "@/lib/openai/server";
 import { buildCopilotContext } from "@/lib/copilot/context";
+import { copilotRecordFor } from "@/lib/copilot/record-for";
+import { openAiCost, recordAfterResponse } from "@/lib/generations/record-for";
 import { PLAYBOOKS, PLAYBOOK_NAMES } from "@/lib/copilot/playbooks";
 import { normalizeSlots } from "@/lib/copilot/runner";
 
@@ -207,74 +209,71 @@ export async function POST(req: Request) {
   const history = Array.isArray(body?.messages) ? body.messages : [];
   const canvasId = body?.canvasId;
   if (history.length === 0) return apiError("A 'messages' history is required.", 400);
-  if (!canvasId) return apiError("A 'canvasId' is required.", 400);
+  if (typeof canvasId !== "string" || !canvasId) return apiError("Open a canvas to use the copilot.", 400);
 
   // Same grounding as the other calls (handles + @-referenced nodes spotlighted) — so
   // "add a prompt like @PRM-A3F9" has the exact node in view.
-  const canvasContext = await buildCopilotContext(canvasId, body?.mentionedIds ?? []);
+  // The canvas must be in the caller's org before anything of it is read (withBodyCanvas).
+  return withBodyCanvas(req, canvasId, { need: "generate" }, async (canvas, caller) => {
+    const recordFor = copilotRecordFor(canvas, caller);
+    const model = "gpt-4o-mini";
 
-  // Elicitation fallback (runner spec §2.2): the client couldn't resolve a slot answer
-  // itself (no @-mention, not "none"), so the model extracts the handle from free text.
-  const elicit =
-    body?.elicit?.playbook && body?.elicit?.slotKey && body?.elicit?.question
-      ? { playbook: body.elicit.playbook, slotKey: body.elicit.slotKey, question: body.elicit.question }
-      : null;
+    // Elicitation fallback (runner spec §2.2): the client couldn't resolve a slot answer
+    // itself (no @-mention, not "none"), so the model extracts the handle from free text.
+    const elicit =
+      body?.elicit?.playbook && body?.elicit?.slotKey && body?.elicit?.question
+        ? { playbook: body.elicit.playbook, slotKey: body.elicit.slotKey, question: body.elicit.question }
+        : null;
 
-  try {
-    const openai = createOpenAI();
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      tools,
-      tool_choice: "auto", // the MODEL decides whether to call add_node
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are the copilot inside CreativeOS. Read the WHOLE conversation, especially your " +
-            "own last message. A short reply that confirms your last offer — 'yes', 'yeah', 'ok', " +
-            "'sure', 'do it', even misspelled ('reyes', 'yse') — means DO WHAT YOU JUST OFFERED, " +
-            "not create something new. If you offered to parse a script you just created, call " +
-            "parse_script and pass the handle from your 'Created a Script node …' message. " +
-            "Call create_script_node ONLY when the message itself contains an actual reel script " +
-            "(multiple lines / shot descriptions) to turn into a node — never for a short reply. " +
-            "If the user asks to add/create some other node, call add_node with the best-fitting " +
-            "type. If it is just a question about the canvas, do not call any tool.",
-        },
-        { role: "system", content: canvasContext },
-        ...(elicit
-          ? [
-              {
-                role: "system" as const,
-                content:
-                  `The user's latest message answers your question: "${elicit.question}". ` +
-                  `Work out which node(s) on the canvas above it refers to and call run_playbook ` +
-                  `with name "${elicit.playbook}" and ONLY the slot "${elicit.slotKey}" filled ` +
-                  `with the handle(s). If the message doesn't identify any node, call no tool.`,
-              },
-            ]
-          : []),
-        ...history,
-      ],
-    });
-
-    // The requested action lives in tool_calls, NOT in message.content. Arguments come
-    // back as a JSON *string* the model wrote — parse it defensively.
-    const call = completion.choices[0]?.message?.tool_calls?.[0];
-    if (!call || call.type !== "function") {
-      return apiOk({ action: null });
-    }
-
-    let args: {
-      type?: string;
-      title?: string;
-      handle?: string;
-      from?: string[];
-      to?: string;
-      name?: string;
-      slots?: unknown;
-    };
     try {
-      args = JSON.parse(call.function.arguments) as {
+      const canvasContext = await buildCopilotContext(canvas.id, body?.mentionedIds ?? []);
+      const openai = createOpenAI();
+      const completion = await openai.chat.completions.create({
+        model,
+        tools,
+        tool_choice: "auto", // the MODEL decides whether to call add_node
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are the copilot inside CreativeOS. Read the WHOLE conversation, especially your " +
+              "own last message. A short reply that confirms your last offer — 'yes', 'yeah', 'ok', " +
+              "'sure', 'do it', even misspelled ('reyes', 'yse') — means DO WHAT YOU JUST OFFERED, " +
+              "not create something new. If you offered to parse a script you just created, call " +
+              "parse_script and pass the handle from your 'Created a Script node …' message. " +
+              "Call create_script_node ONLY when the message itself contains an actual reel script " +
+              "(multiple lines / shot descriptions) to turn into a node — never for a short reply. " +
+              "If the user asks to add/create some other node, call add_node with the best-fitting " +
+              "type. If it is just a question about the canvas, do not call any tool.",
+          },
+          { role: "system", content: canvasContext },
+          ...(elicit
+            ? [
+                {
+                  role: "system" as const,
+                  content:
+                    `The user's latest message answers your question: "${elicit.question}". ` +
+                    `Work out which node(s) on the canvas above it refers to and call run_playbook ` +
+                    `with name "${elicit.playbook}" and ONLY the slot "${elicit.slotKey}" filled ` +
+                    `with the handle(s). If the message doesn't identify any node, call no tool.`,
+                },
+              ]
+            : []),
+          ...history,
+        ],
+      });
+
+      // D560 — paid once it answered, whether or not it asked for an action.
+      recordAfterResponse(openAiCost(recordFor, "copilot", model, completion.usage, "chat"));
+
+      // The requested action lives in tool_calls, NOT in message.content. Arguments come
+      // back as a JSON *string* the model wrote — parse it defensively.
+      const call = completion.choices[0]?.message?.tool_calls?.[0];
+      if (!call || call.type !== "function") {
+        return apiOk({ action: null });
+      }
+
+      let args: {
         type?: string;
         title?: string;
         handle?: string;
@@ -283,73 +282,85 @@ export async function POST(req: Request) {
         name?: string;
         slots?: unknown;
       };
-    } catch {
-      return apiOk({ action: null });
-    }
-
-    // parse_script: the target Script node already exists; the model may name it by handle,
-    // or leave it empty for the client to default to the most recent script node.
-    if (call.function.name === "parse_script") {
-      return apiOk({
-        action: {
-          name: "parse_script" as const,
-          args: { handle: args.handle?.trim() || undefined },
-        },
-      });
-    }
-
-    // open_node: needs an explicit handle — the client resolves it to a node id and opens
-    // that node's surface (Composer for a Shot, focus view otherwise) via setFocusedNodeId.
-    if (call.function.name === "open_node") {
-      const handle = args.handle?.trim();
-      if (!handle) return apiOk({ action: null });
-      return apiOk({ action: { name: "open_node" as const, args: { handle } } });
-    }
-
-    // create_script_node: nothing to guard — the source is the user's pasted text
-    // (the client passes it along), so the model only supplies an optional title.
-    if (call.function.name === "create_script_node") {
-      return apiOk({
-        action: {
-          name: "create_script_node" as const,
-          args: { title: args.title?.trim() || undefined },
-        },
-      });
-    }
-
-    if (call.function.name === "add_node") {
-      // Guard the enum on our side too — never trust the model's string blindly.
-      const type = args.type;
-      if (!type || !ADDABLE_NODE_TYPES.includes(type as (typeof ADDABLE_NODE_TYPES)[number])) {
+      try {
+        args = JSON.parse(call.function.arguments) as {
+          type?: string;
+          title?: string;
+          handle?: string;
+          from?: string[];
+          to?: string;
+          name?: string;
+          slots?: unknown;
+        };
+      } catch {
         return apiOk({ action: null });
       }
-      return apiOk({
-        action: {
-          name: "add_node" as const,
-          args: { type, title: args.title?.trim() || undefined },
-        },
-      });
-    }
 
-    if (call.function.name === "connect_nodes") {
-      const from = (args.from ?? []).map((h) => h.trim()).filter(Boolean);
-      const to = args.to?.trim();
-      if (!from.length || !to) return apiOk({ action: null });
-      return apiOk({ action: { name: "connect_nodes" as const, args: { from, to } } });
-    }
+      // parse_script: the target Script node already exists; the model may name it by handle,
+      // or leave it empty for the client to default to the most recent script node.
+      if (call.function.name === "parse_script") {
+        return apiOk({
+          action: {
+            name: "parse_script" as const,
+            args: { handle: args.handle?.trim() || undefined },
+          },
+        });
+      }
 
-    // run_playbook: guard the enum, defensively normalize the model-written slots,
-    // and pass through — frame completeness is the CLIENT's job (spec §2.2).
-    if (call.function.name === "run_playbook") {
-      const name = args.name?.trim();
-      if (!name || !PLAYBOOK_NAMES.includes(name)) return apiOk({ action: null });
-      return apiOk({
-        action: { name: "run_playbook" as const, args: { name, slots: normalizeSlots(args.slots) } },
-      });
-    }
+      // open_node: needs an explicit handle — the client resolves it to a node id and opens
+      // that node's surface (Composer for a Shot, focus view otherwise) via setFocusedNodeId.
+      if (call.function.name === "open_node") {
+        const handle = args.handle?.trim();
+        if (!handle) return apiOk({ action: null });
+        return apiOk({ action: { name: "open_node" as const, args: { handle } } });
+      }
 
-    return apiOk({ action: null });
-  } catch (e) {
-    return apiError(e instanceof Error ? e.message : "Actions lookup failed.", 500);
-  }
+      // create_script_node: nothing to guard — the source is the user's pasted text
+      // (the client passes it along), so the model only supplies an optional title.
+      if (call.function.name === "create_script_node") {
+        return apiOk({
+          action: {
+            name: "create_script_node" as const,
+            args: { title: args.title?.trim() || undefined },
+          },
+        });
+      }
+
+      if (call.function.name === "add_node") {
+        // Guard the enum on our side too — never trust the model's string blindly.
+        const type = args.type;
+        if (!type || !ADDABLE_NODE_TYPES.includes(type as (typeof ADDABLE_NODE_TYPES)[number])) {
+          return apiOk({ action: null });
+        }
+        return apiOk({
+          action: {
+            name: "add_node" as const,
+            args: { type, title: args.title?.trim() || undefined },
+          },
+        });
+      }
+
+      if (call.function.name === "connect_nodes") {
+        const from = (args.from ?? []).map((h) => h.trim()).filter(Boolean);
+        const to = args.to?.trim();
+        if (!from.length || !to) return apiOk({ action: null });
+        return apiOk({ action: { name: "connect_nodes" as const, args: { from, to } } });
+      }
+
+      // run_playbook: guard the enum, defensively normalize the model-written slots,
+      // and pass through — frame completeness is the CLIENT's job (spec §2.2).
+      if (call.function.name === "run_playbook") {
+        const name = args.name?.trim();
+        if (!name || !PLAYBOOK_NAMES.includes(name)) return apiOk({ action: null });
+        return apiOk({
+          action: { name: "run_playbook" as const, args: { name, slots: normalizeSlots(args.slots) } },
+        });
+      }
+
+      return apiOk({ action: null });
+    } catch (e) {
+      console.error("[copilot/actions]", e instanceof Error ? e.message : e);
+      return apiError("The copilot couldn't work out what to do. Please try again.", 500);
+    }
+  });
 }

@@ -1,0 +1,798 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`frozen service prices (0080) > pins every service price 1`] = `
+{
+  "dub 0.4s": {
+    "credits": 10,
+    "usd": 0.006961122132887822,
+  },
+  "dub 1s": {
+    "credits": 10,
+    "usd": 0.006961122132887822,
+  },
+  "dub 30s": {
+    "credits": 210,
+    "usd": 0.20883366398663467,
+  },
+  "dub 3s": {
+    "credits": 25,
+    "usd": 0.020883366398663467,
+  },
+  "dub 600s": {
+    "credits": 4180,
+    "usd": 4.176673279732693,
+  },
+  "dub 61s": {
+    "credits": 425,
+    "usd": 0.4246284501061572,
+  },
+  "dub 9.6s": {
+    "credits": 70,
+    "usd": 0.06961122132887823,
+  },
+  "kling:kling-3-0 6.4 units": {
+    "meters": {
+      "provider_unit": 6.4,
+    },
+    "source": "provider_charge",
+    "usd": 0.96512,
+  },
+  "kling:kling-3-0 lines": [
+    {
+      "meter": "video_second",
+      "unit_usd": 0.126,
+      "when": {
+        "audio": true,
+        "resolution": "720p",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.084,
+      "when": {
+        "audio": false,
+        "resolution": "720p",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.168,
+      "when": {
+        "audio": true,
+        "resolution": "1080p",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.112,
+      "when": {
+        "audio": false,
+        "resolution": "1080p",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.42,
+      "when": {
+        "audio": true,
+        "resolution": "4k",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.42,
+      "when": {
+        "audio": false,
+        "resolution": "4k",
+      },
+    },
+    {
+      "meter": "provider_unit",
+      "unit_usd": 0.1508,
+    },
+  ],
+  "kling:kling-3-0 no units": {
+    "meters": {
+      "video_second": 8,
+    },
+    "source": "request",
+    "usd": 1.344,
+  },
+  "kling:kling-3-0-omni 6.4 units": {
+    "meters": {
+      "provider_unit": 6.4,
+    },
+    "source": "provider_charge",
+    "usd": 0.96512,
+  },
+  "kling:kling-3-0-omni lines": [
+    {
+      "meter": "video_second",
+      "unit_usd": 0.112,
+      "when": {
+        "audio": true,
+        "resolution": "720p",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.084,
+      "when": {
+        "audio": false,
+        "resolution": "720p",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.14,
+      "when": {
+        "audio": true,
+        "resolution": "1080p",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.112,
+      "when": {
+        "audio": false,
+        "resolution": "1080p",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.42,
+      "when": {
+        "audio": true,
+        "resolution": "4k",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.42,
+      "when": {
+        "audio": false,
+        "resolution": "4k",
+      },
+    },
+    {
+      "meter": "provider_unit",
+      "unit_usd": 0.1508,
+    },
+  ],
+  "kling:kling-3-0-omni no units": {
+    "meters": {
+      "video_second": 8,
+    },
+    "source": "request",
+    "usd": 1.12,
+  },
+  "kling:kling-o1 6.4 units": {
+    "meters": {
+      "provider_unit": 6.4,
+    },
+    "source": "provider_charge",
+    "usd": 0.96512,
+  },
+  "kling:kling-o1 lines": [
+    {
+      "meter": "video_second",
+      "unit_usd": 0.112,
+      "when": {
+        "audio": true,
+        "resolution": "720p",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.112,
+      "when": {
+        "audio": false,
+        "resolution": "720p",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.112,
+      "when": {
+        "audio": true,
+        "resolution": "1080p",
+      },
+    },
+    {
+      "meter": "video_second",
+      "unit_usd": 0.112,
+      "when": {
+        "audio": false,
+        "resolution": "1080p",
+      },
+    },
+    {
+      "meter": "provider_unit",
+      "unit_usd": 0.1508,
+    },
+  ],
+  "kling:kling-o1 no units": {
+    "meters": {
+      "video_second": 8,
+    },
+    "source": "request",
+    "usd": 0.896,
+  },
+  "lipsync 0.4s": {
+    "credits": 35,
+    "usd": 0.03333333333333333,
+  },
+  "lipsync 1s": {
+    "credits": 85,
+    "usd": 0.08333333333333333,
+  },
+  "lipsync 30s": {
+    "credits": 2500,
+    "usd": 2.5,
+  },
+  "lipsync 3s": {
+    "credits": 250,
+    "usd": 0.25,
+  },
+  "lipsync 600s": {
+    "credits": 50000,
+    "usd": 50,
+  },
+  "lipsync 61s": {
+    "credits": 5085,
+    "usd": 5.083333333333333,
+  },
+  "lipsync 9.6s": {
+    "credits": 800,
+    "usd": 0.7999999999999999,
+  },
+  "prompt 0 attachments": {
+    "bill": {
+      "meters": {
+        "input_token": 8606,
+        "text_output_token": 160,
+      },
+      "source": "provider_usage",
+    },
+    "credits": 5,
+    "recordedUsd": 0.0071745,
+    "usd": 0.005,
+  },
+  "prompt 1 attachments": {
+    "bill": {
+      "meters": {
+        "input_token": 8606,
+        "text_output_token": 160,
+      },
+      "source": "provider_usage",
+    },
+    "credits": 7.5,
+    "recordedUsd": 0.0071745,
+    "usd": 0.0075,
+  },
+  "prompt 2 attachments": {
+    "bill": {
+      "meters": {
+        "input_token": 8606,
+        "text_output_token": 160,
+      },
+      "source": "provider_usage",
+    },
+    "credits": 10,
+    "recordedUsd": 0.0071745,
+    "usd": 0.01,
+  },
+  "prompt 5 attachments": {
+    "bill": {
+      "meters": {
+        "input_token": 8606,
+        "text_output_token": 160,
+      },
+      "source": "provider_usage",
+    },
+    "credits": 17.5,
+    "recordedUsd": 0.0071745,
+    "usd": 0.0175,
+  },
+  "transcribe charge 1 credits": {
+    "bill": {
+      "meters": {
+        "provider_credit": 1,
+      },
+      "source": "provider_charge",
+    },
+    "credits": 5,
+    "usd": 0.000182,
+  },
+  "transcribe charge 17 credits": {
+    "bill": {
+      "meters": {
+        "provider_credit": 17,
+      },
+      "source": "provider_charge",
+    },
+    "credits": 5,
+    "usd": 0.003094,
+  },
+  "transcribe charge 3 credits": {
+    "bill": {
+      "meters": {
+        "provider_credit": 3,
+      },
+      "source": "provider_charge",
+    },
+    "credits": 5,
+    "usd": 0.000546,
+  },
+  "transcribe charge 8 credits": {
+    "bill": {
+      "meters": {
+        "provider_credit": 8,
+      },
+      "source": "provider_charge",
+    },
+    "credits": 5,
+    "usd": 0.001456,
+  },
+  "transcribe estimate 0.4s": {
+    "credits": 5,
+    "usd": 0.000182,
+  },
+  "transcribe estimate 1s": {
+    "credits": 5,
+    "usd": 0.000182,
+  },
+  "transcribe estimate 30s": {
+    "credits": 5,
+    "usd": 0.0016380000000000001,
+  },
+  "transcribe estimate 3s": {
+    "credits": 5,
+    "usd": 0.000182,
+  },
+  "transcribe estimate 600s": {
+    "credits": 35,
+    "usd": 0.031122,
+  },
+  "transcribe estimate 61s": {
+    "credits": 5,
+    "usd": 0.0032760000000000003,
+  },
+  "transcribe estimate 9.6s": {
+    "credits": 5,
+    "usd": 0.000546,
+  },
+  "voice charge 1 credits": {
+    "bill": {
+      "meters": {
+        "provider_credit": 1,
+      },
+      "source": "provider_charge",
+    },
+    "credits": 5,
+    "usd": 0.000182,
+  },
+  "voice charge 17 credits": {
+    "bill": {
+      "meters": {
+        "provider_credit": 17,
+      },
+      "source": "provider_charge",
+    },
+    "credits": 5,
+    "usd": 0.003094,
+  },
+  "voice charge 3 credits": {
+    "bill": {
+      "meters": {
+        "provider_credit": 3,
+      },
+      "source": "provider_charge",
+    },
+    "credits": 5,
+    "usd": 0.000546,
+  },
+  "voice charge 8 credits": {
+    "bill": {
+      "meters": {
+        "provider_credit": 8,
+      },
+      "source": "provider_charge",
+    },
+    "credits": 5,
+    "usd": 0.001456,
+  },
+  "voice estimate 0.4s x1": {
+    "credits": 5,
+    "usd": 0.0008,
+  },
+  "voice estimate 0.4s x1.5": {
+    "credits": 5,
+    "usd": 0.0012000000000000001,
+  },
+  "voice estimate 0.4s x2": {
+    "credits": 5,
+    "usd": 0.0016,
+  },
+  "voice estimate 0.4s x3": {
+    "credits": 5,
+    "usd": 0.0024000000000000002,
+  },
+  "voice estimate 1s x1": {
+    "credits": 5,
+    "usd": 0.002,
+  },
+  "voice estimate 1s x1.5": {
+    "credits": 5,
+    "usd": 0.003,
+  },
+  "voice estimate 1s x2": {
+    "credits": 5,
+    "usd": 0.004,
+  },
+  "voice estimate 1s x3": {
+    "credits": 10,
+    "usd": 0.006,
+  },
+  "voice estimate 30s x1": {
+    "credits": 60,
+    "usd": 0.06,
+  },
+  "voice estimate 30s x1.5": {
+    "credits": 90,
+    "usd": 0.09,
+  },
+  "voice estimate 30s x2": {
+    "credits": 120,
+    "usd": 0.12,
+  },
+  "voice estimate 30s x3": {
+    "credits": 180,
+    "usd": 0.18,
+  },
+  "voice estimate 3s x1": {
+    "credits": 10,
+    "usd": 0.006,
+  },
+  "voice estimate 3s x1.5": {
+    "credits": 10,
+    "usd": 0.009000000000000001,
+  },
+  "voice estimate 3s x2": {
+    "credits": 15,
+    "usd": 0.012,
+  },
+  "voice estimate 3s x3": {
+    "credits": 20,
+    "usd": 0.018000000000000002,
+  },
+  "voice estimate 600s x1": {
+    "credits": 1200,
+    "usd": 1.2,
+  },
+  "voice estimate 600s x1.5": {
+    "credits": 1800,
+    "usd": 1.8,
+  },
+  "voice estimate 600s x2": {
+    "credits": 2400,
+    "usd": 2.4,
+  },
+  "voice estimate 600s x3": {
+    "credits": 3600,
+    "usd": 3.6,
+  },
+  "voice estimate 61s x1": {
+    "credits": 125,
+    "usd": 0.122,
+  },
+  "voice estimate 61s x1.5": {
+    "credits": 185,
+    "usd": 0.183,
+  },
+  "voice estimate 61s x2": {
+    "credits": 245,
+    "usd": 0.244,
+  },
+  "voice estimate 61s x3": {
+    "credits": 370,
+    "usd": 0.366,
+  },
+  "voice estimate 9.6s x1": {
+    "credits": 20,
+    "usd": 0.0192,
+  },
+  "voice estimate 9.6s x1.5": {
+    "credits": 30,
+    "usd": 0.0288,
+  },
+  "voice estimate 9.6s x2": {
+    "credits": 40,
+    "usd": 0.0384,
+  },
+  "voice estimate 9.6s x3": {
+    "credits": 60,
+    "usd": 0.0576,
+  },
+  "voice fallback 0.4s x1": {
+    "bill": {
+      "meters": {
+        "audio_second": 0.4,
+      },
+      "source": "request",
+    },
+    "credits": 5,
+    "usd": 0.0008,
+  },
+  "voice fallback 0.4s x1.5": {
+    "bill": {
+      "meters": {
+        "audio_second": 0.6000000000000001,
+      },
+      "source": "request",
+    },
+    "credits": 5,
+    "usd": 0.0012000000000000001,
+  },
+  "voice fallback 0.4s x2": {
+    "bill": {
+      "meters": {
+        "audio_second": 0.8,
+      },
+      "source": "request",
+    },
+    "credits": 5,
+    "usd": 0.0016,
+  },
+  "voice fallback 0.4s x3": {
+    "bill": {
+      "meters": {
+        "audio_second": 1.2000000000000002,
+      },
+      "source": "request",
+    },
+    "credits": 5,
+    "usd": 0.0024000000000000002,
+  },
+  "voice fallback 1s x1": {
+    "bill": {
+      "meters": {
+        "audio_second": 1,
+      },
+      "source": "request",
+    },
+    "credits": 5,
+    "usd": 0.002,
+  },
+  "voice fallback 1s x1.5": {
+    "bill": {
+      "meters": {
+        "audio_second": 1.5,
+      },
+      "source": "request",
+    },
+    "credits": 5,
+    "usd": 0.003,
+  },
+  "voice fallback 1s x2": {
+    "bill": {
+      "meters": {
+        "audio_second": 2,
+      },
+      "source": "request",
+    },
+    "credits": 5,
+    "usd": 0.004,
+  },
+  "voice fallback 1s x3": {
+    "bill": {
+      "meters": {
+        "audio_second": 3,
+      },
+      "source": "request",
+    },
+    "credits": 10,
+    "usd": 0.006,
+  },
+  "voice fallback 30s x1": {
+    "bill": {
+      "meters": {
+        "audio_second": 30,
+      },
+      "source": "request",
+    },
+    "credits": 60,
+    "usd": 0.06,
+  },
+  "voice fallback 30s x1.5": {
+    "bill": {
+      "meters": {
+        "audio_second": 45,
+      },
+      "source": "request",
+    },
+    "credits": 90,
+    "usd": 0.09,
+  },
+  "voice fallback 30s x2": {
+    "bill": {
+      "meters": {
+        "audio_second": 60,
+      },
+      "source": "request",
+    },
+    "credits": 120,
+    "usd": 0.12,
+  },
+  "voice fallback 30s x3": {
+    "bill": {
+      "meters": {
+        "audio_second": 90,
+      },
+      "source": "request",
+    },
+    "credits": 180,
+    "usd": 0.18,
+  },
+  "voice fallback 3s x1": {
+    "bill": {
+      "meters": {
+        "audio_second": 3,
+      },
+      "source": "request",
+    },
+    "credits": 10,
+    "usd": 0.006,
+  },
+  "voice fallback 3s x1.5": {
+    "bill": {
+      "meters": {
+        "audio_second": 4.5,
+      },
+      "source": "request",
+    },
+    "credits": 10,
+    "usd": 0.009000000000000001,
+  },
+  "voice fallback 3s x2": {
+    "bill": {
+      "meters": {
+        "audio_second": 6,
+      },
+      "source": "request",
+    },
+    "credits": 15,
+    "usd": 0.012,
+  },
+  "voice fallback 3s x3": {
+    "bill": {
+      "meters": {
+        "audio_second": 9,
+      },
+      "source": "request",
+    },
+    "credits": 20,
+    "usd": 0.018000000000000002,
+  },
+  "voice fallback 600s x1": {
+    "bill": {
+      "meters": {
+        "audio_second": 600,
+      },
+      "source": "request",
+    },
+    "credits": 1200,
+    "usd": 1.2,
+  },
+  "voice fallback 600s x1.5": {
+    "bill": {
+      "meters": {
+        "audio_second": 900,
+      },
+      "source": "request",
+    },
+    "credits": 1800,
+    "usd": 1.8,
+  },
+  "voice fallback 600s x2": {
+    "bill": {
+      "meters": {
+        "audio_second": 1200,
+      },
+      "source": "request",
+    },
+    "credits": 2400,
+    "usd": 2.4,
+  },
+  "voice fallback 600s x3": {
+    "bill": {
+      "meters": {
+        "audio_second": 1800,
+      },
+      "source": "request",
+    },
+    "credits": 3600,
+    "usd": 3.6,
+  },
+  "voice fallback 61s x1": {
+    "bill": {
+      "meters": {
+        "audio_second": 61,
+      },
+      "source": "request",
+    },
+    "credits": 125,
+    "usd": 0.122,
+  },
+  "voice fallback 61s x1.5": {
+    "bill": {
+      "meters": {
+        "audio_second": 91.5,
+      },
+      "source": "request",
+    },
+    "credits": 185,
+    "usd": 0.183,
+  },
+  "voice fallback 61s x2": {
+    "bill": {
+      "meters": {
+        "audio_second": 122,
+      },
+      "source": "request",
+    },
+    "credits": 245,
+    "usd": 0.244,
+  },
+  "voice fallback 61s x3": {
+    "bill": {
+      "meters": {
+        "audio_second": 183,
+      },
+      "source": "request",
+    },
+    "credits": 370,
+    "usd": 0.366,
+  },
+  "voice fallback 9.6s x1": {
+    "bill": {
+      "meters": {
+        "audio_second": 9.6,
+      },
+      "source": "request",
+    },
+    "credits": 20,
+    "usd": 0.0192,
+  },
+  "voice fallback 9.6s x1.5": {
+    "bill": {
+      "meters": {
+        "audio_second": 14.399999999999999,
+      },
+      "source": "request",
+    },
+    "credits": 30,
+    "usd": 0.0288,
+  },
+  "voice fallback 9.6s x2": {
+    "bill": {
+      "meters": {
+        "audio_second": 19.2,
+      },
+      "source": "request",
+    },
+    "credits": 40,
+    "usd": 0.0384,
+  },
+  "voice fallback 9.6s x3": {
+    "bill": {
+      "meters": {
+        "audio_second": 28.799999999999997,
+      },
+      "source": "request",
+    },
+    "credits": 60,
+    "usd": 0.0576,
+  },
+}
+`;

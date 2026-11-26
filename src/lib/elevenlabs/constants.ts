@@ -1,17 +1,20 @@
 // D282 — ElevenLabs voice change. Prices from the ElevenAPI pricing page, checked 2026-09-24.
 export const ELEVENLABS_API_BASE = "https://api.elevenlabs.io";
 export const VOICE_CHANGE_MODEL_ID = "eleven_multilingual_sts_v2";
-export const VOICE_CHANGE_USD_PER_MINUTE = 0.12;
 
 /** Voices we created on the account (cloned / designed / professional) — listed before stock. */
 export const CUSTOM_VOICE_CATEGORIES = new Set(["cloned", "generated", "professional"]);
 
-export const VOICE_NOT_SET_UP_MESSAGE =
-  "Voice change isn't set up — ELEVEN_LABS_API_KEY is missing.";
+// User-facing copy: plain words, no vendor or setting names (the server logs say which).
+export const VOICE_NOT_SET_UP_MESSAGE = "Voices aren't set up yet. Ask Yuvabe to turn them on.";
+export const VOICE_CHECK_FAILED_MESSAGE = "Could not check the voice. Try again.";
+export const VOICE_GONE_MESSAGE = "That voice is no longer available. Pick another voice.";
+export const VOICE_SAVE_PENDING_MESSAGE = "The voice was saved but isn't ready yet. Try again.";
+export const VOICE_SERVICE_FAILED_MESSAGE = "Could not reach the voice service. Try again.";
 
 // D292 — ElevenLabs answers `voice_limit_reached` when the plan's custom-voice slots are used up.
 export const VOICE_SLOTS_FULL_MESSAGE =
-  "The ElevenLabs account has no free voice slots. Remove an unused voice, or upgrade the plan.";
+  "There are no free voice slots. Remove a voice nobody uses, or ask Yuvabe for more.";
 
 // D283 — voice picker paging and caching.
 export const ACCOUNT_VOICES_PAGE_SIZE = 100;

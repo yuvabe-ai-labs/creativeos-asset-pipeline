@@ -20,7 +20,7 @@ describe("the Generate workspace's copilot", () => {
     queryClient.setQueryData(scriptKeys.generate("c1", "s1"), state("visualise"));
     const out = renderToStaticMarkup(
       <QueryClientProvider client={queryClient}>
-        <GenerateWorkspace client={{ id: "c1", name: "Chupps", slug: "chupps" }} initialState={state("generate")} initialReview={null} />
+        <GenerateWorkspace client={{ id: "c1", name: "Chupps", slug: "chupps" }} initialState={state("generate")} initialReview={null} signals={[]} />
       </QueryClientProvider>,
     );
     expect(out).not.toContain('aria-label="Show copilot"');

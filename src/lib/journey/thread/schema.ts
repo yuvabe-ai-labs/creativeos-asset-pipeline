@@ -43,17 +43,65 @@ export const changeCardSchema = z.object({
 });
 export type ChangeCard = z.infer<typeof changeCardSchema>;
 
+/** One brand the market agent proposes to look at (D530), in the tab it would fill. */
+export const marketBrandSchema = z.object({
+  /** An Instagram handle, normalised: lowercase, no "@". */
+  handle: z.string().min(1).max(30),
+  name: z.string(),
+  why: z.string(),
+  group: z.enum(["direct", "adjacent"]),
+  /** Whether the person keeps it for fetching. */
+  keep: z.boolean(),
+});
+export type MarketBrand = z.infer<typeof marketBrandSchema>;
+
+/** The brands to fetch posts from, reviewed by a person before anything is fetched (D530).
+ *  pending → fetching (a person confirmed; `jobId` is the fetch) → fetched; `stale` once a newer
+ *  brands card replaced it while it was still pending. */
+export const brandsCardSchema = z.object({
+  kind: z.literal("brands"),
+  status: z.enum(["pending", "fetching", "fetched", "stale"]),
+  /** What the person asked to look into, when they named something ("hooks for monsoon"). */
+  focus: z.string().nullable(),
+  brands: z.array(marketBrandSchema),
+  jobId: z.string().nullable(),
+});
+export type BrandsCard = z.infer<typeof brandsCardSchema>;
+
+/** A signal the agent drafted from fetched posts, saved only when a person keeps it (D530).
+ *  `thumbs` is what the card shows, so the thread needs no read per post. */
+export const signalDraftCardSchema = z.object({
+  kind: z.literal("signal-draft"),
+  status: z.enum(["pending", "kept", "dropped"]),
+  name: z.string(),
+  tags: z.array(z.string()),
+  description: z.string(),
+  itemIds: z.array(z.string()),
+  thumbs: z.array(z.object({ itemId: z.string(), url: z.string().nullable(), handle: z.string() })),
+  /** The signal it became once kept. */
+  signalId: z.string().nullable(),
+});
+export type SignalDraftCard = z.infer<typeof signalDraftCardSchema>;
+
+/** What a person decides about a draft: keep it (as edited), or drop it. */
+export type SignalDraftDecision =
+  | { decision: "keep"; name: string; tags: string[]; description: string; itemIds: string[] }
+  | { decision: "drop" };
+
 /** The structured part of an assistant message. The gate card is not here: it is worked out on
  *  each read, never stored (see `Waiting`). */
 export const threadCardSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("status"), lines: z.array(statusLineSchema) }),
   /** A question about one thing, named by `field`; `label` is shown above the words. */
-  z.object({ kind: z.literal("question"), field: z.string().min(1), label: z.string() }),
+  /** `answers`: likely answers offered on an empty field (D533), kept so a tap can be read in code. */
+  z.object({ kind: z.literal("question"), field: z.string().min(1), label: z.string(), answers: z.array(z.string()).optional() }),
   /** Who approved a stage or a card. The name is kept as it was that day. */
   z.object({ kind: z.literal("approval"), what: z.string(), by: z.string(), byId: z.string().uuid().nullable() }),
   /** Something that happened beside the chat, said in one line (a save on the page). */
   z.object({ kind: z.literal("note") }),
   changeCardSchema,
+  brandsCardSchema,
+  signalDraftCardSchema,
 ]);
 export type ThreadCard = z.infer<typeof threadCardSchema>;
 

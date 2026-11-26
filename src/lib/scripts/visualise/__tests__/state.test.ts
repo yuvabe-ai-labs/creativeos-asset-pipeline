@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Avatar } from "@/lib/avatars/schema";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+import { imageModelsFrom } from "@/lib/ai-models/model-lists";
 import { makeViews } from "@/lib/avatars/__tests__/fixtures";
 import type { ScriptDoc } from "@/lib/scripts/schema";
 import { panelInputs, panelReferenceCap, type PanelInputs } from "../panel-inputs";
@@ -14,12 +16,13 @@ import {
   avatarMap, HUSBAND_AVATAR, linkedDoc, makeTake, MEENAKSHI_AVATAR, readyAvatar, reel01Doc,
 } from "./fixtures";
 
+const images = imageModelsFrom(seededModelCatalog());
 const NOW = Date.parse("2026-10-08T12:00:00.000Z");
 const meenakshi = readyAvatar(MEENAKSHI_AVATAR, "meenakshi");
 const husband = readyAvatar(HUSBAND_AVATAR, "husband");
 
 function inputsFor(doc: ScriptDoc, avatars: Map<string, Avatar>): Map<string, PanelInputs> {
-  return new Map(doc.shots.map((shot) => [shot.id, panelInputs({ doc, shot, avatars, kits: [], cap: panelReferenceCap() })]));
+  return new Map(doc.shots.map((shot) => [shot.id, panelInputs({ doc, shot, avatars, kits: [], cap: panelReferenceCap(images) })]));
 }
 
 /** A drawn, picked take for every shot of `doc`, as the draw route would have stored it. */

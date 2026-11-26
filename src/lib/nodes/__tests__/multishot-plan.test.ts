@@ -16,7 +16,7 @@ import type { MultishotPlan } from "../multishot-plan";
 import type { MultishotCut } from "../multishot-cuts";
 import type { VoLine } from "../reel-script";
 import { multishotCapabilityFor } from "../multishot-models";
-import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/video-gen/client-models";
+import { GEMINI_OMNI_MODEL_ID, KLING_OMNI_MODEL_ID, SEEDANCE_MODEL_ID } from "@/lib/ai-models/model-ids";
 
 const OMNI = multishotCapabilityFor(GEMINI_OMNI_MODEL_ID);
 const KLING = multishotCapabilityFor(KLING_OMNI_MODEL_ID);

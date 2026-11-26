@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { evaluateConstraints } from "../constraints";
-import { videoGenClientModelMap } from "../client-models";
+import { videoModelsFrom } from "@/lib/ai-models/model-lists";
+import { seededModelCatalog } from "@/lib/ai-models/test-catalog";
+
 import type { ConstraintState } from "../types";
+
+const videoSpec = (id: string) => videoModelsFrom(seededModelCatalog()).get(id)!;
 
 function state(over: Partial<ConstraintState> = {}): ConstraintState {
   return {
@@ -15,16 +19,16 @@ function state(over: Partial<ConstraintState> = {}): ConstraintState {
 
 describe("Kling O1 on fal (D484)", () => {
   it("blocks an end frame together with references, with a reason the operator can act on", () => {
-    const rules = videoGenClientModelMap["kling:kling-o1"].rules;
+    const rules = videoSpec("kling:kling-o1").rules;
     const result = evaluateConstraints(rules, state({ hasEndFrame: true, referenceCount: 1 }));
     expect(result.disableGenerate).toBe(true);
     expect(result.disableGenerateReason).toMatch(/end frame together with reference images/);
   });
 
   it("allows a start frame with references, and does not apply to 3.0 Omni", () => {
-    expect(evaluateConstraints(videoGenClientModelMap["kling:kling-o1"].rules, state({ referenceCount: 2 })).disableGenerate).toBe(false);
+    expect(evaluateConstraints(videoSpec("kling:kling-o1").rules, state({ referenceCount: 2 })).disableGenerate).toBe(false);
     const omni = evaluateConstraints(
-      videoGenClientModelMap["kling:kling-3-0-omni"].rules,
+      videoSpec("kling:kling-3-0-omni").rules,
       state({ hasEndFrame: true, referenceCount: 1 }),
     );
     expect(omni.disableGenerate).toBe(false);
@@ -36,7 +40,7 @@ describe("Kling constraint rules", () => {
   // failed minutes later. As a rule it disables Generate up front.
   it("blocks generation when no start frame is assigned", () => {
     for (const id of ["kling:kling-3-0", "kling:kling-o1"]) {
-      const rules = videoGenClientModelMap[id].rules;
+      const rules = videoSpec(id).rules;
       const result = evaluateConstraints(rules, state({ hasStartFrame: false }));
       expect(result.disableGenerate).toBe(true);
       expect(result.disableGenerateReason).toMatch(/start frame/i);
@@ -45,27 +49,27 @@ describe("Kling constraint rules", () => {
 
   it("allows generation once a start frame is assigned", () => {
     for (const id of ["kling:kling-3-0", "kling:kling-o1"]) {
-      const rules = videoGenClientModelMap[id].rules;
+      const rules = videoSpec(id).rules;
       expect(evaluateConstraints(rules, state()).disableGenerate).toBe(false);
     }
   });
 
   // Multi-shot cuts between shots; an end frame asks for one continuous interpolated path.
   it("locks multi_shot off on Kling 3.0 when an end frame is set", () => {
-    const rules = videoGenClientModelMap["kling:kling-3-0"].rules;
+    const rules = videoSpec("kling:kling-3-0").rules;
     const result = evaluateConstraints(rules, state({ hasEndFrame: true }));
     expect(result.lockedParams.multi_shot).toBe(false);
     expect(result.lockedParamReasons.multi_shot).toMatch(/multi-shot/i);
   });
 
   it("leaves multi_shot unlocked on 3.0 without an end frame", () => {
-    const rules = videoGenClientModelMap["kling:kling-3-0"].rules;
+    const rules = videoSpec("kling:kling-3-0").rules;
     const result = evaluateConstraints(rules, state({ hasEndFrame: false }));
     expect(result.lockedParams).not.toHaveProperty("multi_shot");
   });
 
   it("does not lock multi_shot on O1, which has no such param", () => {
-    const rules = videoGenClientModelMap["kling:kling-o1"].rules;
+    const rules = videoSpec("kling:kling-o1").rules;
     const result = evaluateConstraints(rules, state({ hasEndFrame: true }));
     expect(result.lockedParams).not.toHaveProperty("multi_shot");
   });
@@ -75,14 +79,14 @@ describe("Kling reference capability", () => {
   // 7-image omni budget less both frames, conservatively — the docs do not say whether
   // first_frame/last_frame count toward the 7.
   it("O1 accepts references, 3.0 does not", () => {
-    expect(videoGenClientModelMap["kling:kling-o1"].imageInputs.maxReferenceImages).toBe(5);
-    expect(videoGenClientModelMap["kling:kling-3-0"].imageInputs.maxReferenceImages).toBe(0);
+    expect(videoSpec("kling:kling-o1").imageInputs.maxReferenceImages).toBe(5);
+    expect(videoSpec("kling:kling-3-0").imageInputs.maxReferenceImages).toBe(0);
   });
 
   it("both Kling models still accept start and end frames", () => {
     for (const id of ["kling:kling-3-0", "kling:kling-o1"]) {
-      expect(videoGenClientModelMap[id].imageInputs.startFrame).toBe(true);
-      expect(videoGenClientModelMap[id].imageInputs.endFrame).toBe(true);
+      expect(videoSpec(id).imageInputs.startFrame).toBe(true);
+      expect(videoSpec(id).imageInputs.endFrame).toBe(true);
     }
   });
 });

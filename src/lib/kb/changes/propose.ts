@@ -16,6 +16,8 @@ import { ONBOARDING } from "@/lib/journey/thread/schema";
 import { documentInput } from "@/lib/kb/document-input";
 import type { TraceableBrandKB } from "@/lib/kb/schema";
 import { createOpenAI } from "@/lib/openai/server";
+import { recordProviderCost } from "@/lib/generations/record-cost";
+import { openAiCost, type RecordFor } from "@/lib/generations/record-for";
 import { kbProposePrompt, kbProposeSystem } from "@/prompts/kb-propose";
 import { buildChangeCard, refusedKeys, type Proposal } from "./card";
 import { listNames, proposalCopy, readingWhat } from "./copy";
@@ -33,9 +35,9 @@ const answerSchema = z.object({
 const PROPOSE_TIMEOUT_MS = 480_000;
 
 /** The model's part, injected so the run is tested without it. */
-export type ProposeModel = (args: { system: string; content: unknown[] }) => Promise<z.infer<typeof answerSchema>>;
+export type ProposeModel = (args: { system: string; content: unknown[]; recordFor?: RecordFor }) => Promise<z.infer<typeof answerSchema>>;
 
-const openaiProposeModel: ProposeModel = async ({ system, content }) => {
+const openaiProposeModel: ProposeModel = async ({ system, content, recordFor }) => {
   // Its own limit, well inside the task's 10 minutes, and no retries: a run that times out still
   // reaches the catch below and says so in the thread, and a retry would bill twice.
   const response = await createOpenAI().responses.parse({
@@ -43,6 +45,9 @@ const openaiProposeModel: ProposeModel = async ({ system, content }) => {
     input: [{ role: "system", content: system }, { role: "user", content: content as never }],
     text: { format: zodTextFormat(answerSchema, "changes") },
   }, { timeout: PROPOSE_TIMEOUT_MS, maxRetries: 0 });
+  // D560: paid once it answered. A task has no request for after(), so the record is awaited.
+  const cost = openAiCost(recordFor, "kb", kbProposePrompt.model, response.usage, "responses");
+  if (cost) await recordProviderCost(cost);
   const parsed = response.output_parsed;
   if (!parsed) throw new Error("The model returned no changes list.");
   return parsed;
@@ -88,6 +93,7 @@ export async function runKbProposal(jobId: string, deps: { model?: ProposeModel 
         added: added.map((d) => d.filename), removed: input.removed, remaining: material.map((d) => d.filename),
       }),
       content,
+      recordFor: { orgId: job.org_id, clientId, userId: job.created_by },
     });
 
     const docIdByName = new Map(docs.map((d) => [d.filename, d.id]));

@@ -19,6 +19,17 @@ export const GENERATION_FEED_ROWS_PER_CHUNK = 300;
 /** The slice of the browser Supabase client this load uses. */
 export type GenerationFeedClient = Pick<ReturnType<typeof createBrowserSupabase>, "from">;
 
+/** Whether a Realtime row belongs in the feed: a job of a node on this canvas. A record-only row
+ *  (D560) records what a free feature cost us; it is not a job, so the tray and the node's status
+ *  never see it. */
+export function isLiveFeedRow(
+  row: Pick<GenerationRow, "id" | "node_id" | "record_only"> | null | undefined,
+  isOnCanvas: (nodeId: string) => boolean,
+): row is Pick<GenerationRow, "id" | "record_only"> & { node_id: string } {
+  if (!row?.id || row.record_only) return false;
+  return row.node_id !== null && isOnCanvas(row.node_id);
+}
+
 /** The recent generations of these nodes. Node ids go in chunks of 100 (a long `.in()` list
  *  overflows the gateway's URL limit, see reconcile.ts), fetched in parallel. Throws on any
  *  failed read: a failed load is never "no jobs". */
@@ -32,6 +43,8 @@ export async function loadGenerationFeed(
         .from("generations")
         .select(GENERATION_FEED_COLUMNS)
         .in("node_id", ids)
+        // D560: a record-only row is a cost record, not a job; it never shows in the tray or a status.
+        .eq("record_only", false)
         .order("created_at", { ascending: false })
         .limit(GENERATION_FEED_ROWS_PER_CHUNK);
       if (error) throw error;

@@ -1,13 +1,9 @@
 // D483 — Video Gen's Edit mode. Client-safe: the focus view, History and the route all read this.
-import { computeVideoCost } from "@/lib/video-gen/cost";
-import { usdToFinalCredits } from "@/lib/credits/units";
-import {
-  GEMINI_OMNI_11_MODEL_ID,
-  GEMINI_OMNI_12_MODEL_ID,
-  GEMINI_OMNI_MODEL_ID,
-  modelPickerLabel,
-  videoGenClientModelMap,
-} from "@/lib/video-gen/client-models";
+import { videoEstimateUsd } from "@/lib/ai-models/video-price";
+import type { AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
+import { creditsFromUsd } from "@/lib/credits/units";
+import { GEMINI_OMNI_11_MODEL_ID, GEMINI_OMNI_12_MODEL_ID, GEMINI_OMNI_MODEL_ID } from "@/lib/ai-models/model-ids";
+import { modelPickerLabel, type VideoModels } from "@/lib/ai-models/model-lists";
 
 export const VIDEO_EDIT_RESOLUTIONS = ["360p", "720p", "1080p", "4k"] as const;
 export type VideoEditResolution = (typeof VIDEO_EDIT_RESOLUTIONS)[number];
@@ -39,12 +35,26 @@ export function isVideoEditModelId(v: unknown): v is VideoEditModelId {
 }
 
 /**
- * What a model allows for an edit, read off its client spec so it can't drift from generation:
- * the longest take (1.2: 15 s, 1.1: 10 s) and the most references (1.2: 24, 1.1: 12). Edits were
- * tested on 3–6 s takes on 1.1; longer ones are untested.
+ * D563 — the model an edit of this take counts as its own (a hidden edit model keeps running
+ * there): the model the take was last edited with, else the node's. The route and the panel
+ * both read it, so they agree on what is offered.
  */
-export function videoEditLimitsFor(modelId: VideoEditModelId): { label: string; maxSeconds: number; maxReferences: number } {
-  const spec = videoGenClientModelMap[modelId];
+export function editOwnModelId(baseInputsUsed: unknown, nodeModelId: string | null): string | null {
+  const inputs = baseInputsUsed && typeof baseInputsUsed === "object" ? (baseInputsUsed as { videoEdit?: unknown }) : null;
+  return readVideoEdit(inputs?.videoEdit)?.modelId ?? nodeModelId;
+}
+
+/** D566 — the edit model to start on: the newest one offered on this take, else the default. */
+export function firstOfferedEditModel(videos: VideoModels, ownModelId: string | null): VideoEditModelId {
+  return VIDEO_EDIT_MODEL_IDS.find((id) => videos.isOffered(id, ownModelId)) ?? VIDEO_EDIT_DEFAULT_MODEL_ID;
+}
+
+/**
+ * What a model allows for an edit, read off its catalog row so it can't drift from generation:
+ * the longest take and the most references. Edits were tested on 3–6 s takes on 1.1.
+ */
+export function videoEditLimitsFor(videos: VideoModels, modelId: VideoEditModelId): { label: string; maxSeconds: number; maxReferences: number } {
+  const spec = videos.specOrDefault(modelId);
   return {
     label: modelPickerLabel(spec),
     maxSeconds: spec.maxDurationSeconds,
@@ -52,13 +62,13 @@ export function videoEditLimitsFor(modelId: VideoEditModelId): { label: string; 
   };
 }
 
-export function videoEditTooLongMessage(modelId: VideoEditModelId): string {
-  const { label, maxSeconds } = videoEditLimitsFor(modelId);
+export function videoEditTooLongMessage(videos: VideoModels, modelId: VideoEditModelId): string {
+  const { label, maxSeconds } = videoEditLimitsFor(videos, modelId);
   return `${label} edits takes up to ${maxSeconds} seconds.`;
 }
 
-export function videoEditTooManyReferencesMessage(modelId: VideoEditModelId): string {
-  const { label, maxReferences } = videoEditLimitsFor(modelId);
+export function videoEditTooManyReferencesMessage(videos: VideoModels, modelId: VideoEditModelId): string {
+  const { label, maxReferences } = videoEditLimitsFor(videos, modelId);
   return `${label} takes up to ${maxReferences} references. Untick some.`;
 }
 
@@ -115,13 +125,26 @@ export function readVideoEdit(value: unknown): VideoEditRecord | null {
   };
 }
 
-/** The one price both the panel's estimate and the route's reservation use. */
-export function videoEditEstimateCredits(durationSeconds: number, resolution: VideoEditResolution, modelId: VideoEditModelId): number {
-  const cost = computeVideoCost(modelId, durationSeconds, true, resolution);
-  return cost ? usdToFinalCredits(cost.usd) : 0;
+/**
+ * The one price both the panel's estimate and the route's reservation use. D551 — Omni also
+ * bills the take itself as input (as many tokens as the output) and any reference images.
+ * D557 — priced from the model's price row; null until it is known or when it has no price.
+ */
+export function videoEditEstimateCredits(
+  price: AiModelPrice | null,
+  durationSeconds: number,
+  resolution: VideoEditResolution,
+  referenceImages: number,
+  settings: CreditSettings | null,
+): number | null {
+  if (!price) return null;
+  const usd = videoEstimateUsd(price, {
+    durationSeconds, audioEnabled: true, resolution, images: referenceImages, editInputSeconds: durationSeconds,
+  });
+  return usd === null || !settings ? null : creditsFromUsd(usd, settings);
 }
 
-export function videoEditGate(a: {
+export function videoEditGate(videos: VideoModels, a: {
   sourceId: string | null;
   instruction: string;
   durationSeconds: number;
@@ -131,13 +154,13 @@ export function videoEditGate(a: {
   locked: string | null;
   submitting: boolean;
 }): { ok: true } | { ok: false; reason: string } {
-  const limits = videoEditLimitsFor(a.modelId);
+  const limits = videoEditLimitsFor(videos, a.modelId);
   if (a.locked) return { ok: false, reason: a.locked };
   if (!a.sourceId) return { ok: false, reason: "Generate a take first." };
   if (a.running) return { ok: false, reason: "Wait for the current job to finish." };
   if (!a.instruction.trim()) return { ok: false, reason: "Describe the change first." };
-  if (a.durationSeconds > limits.maxSeconds) return { ok: false, reason: videoEditTooLongMessage(a.modelId) };
-  if (a.referenceCount > limits.maxReferences) return { ok: false, reason: videoEditTooManyReferencesMessage(a.modelId) };
+  if (a.durationSeconds > limits.maxSeconds) return { ok: false, reason: videoEditTooLongMessage(videos, a.modelId) };
+  if (a.referenceCount > limits.maxReferences) return { ok: false, reason: videoEditTooManyReferencesMessage(videos, a.modelId) };
   if (a.submitting) return { ok: false, reason: "Starting…" };
   return { ok: true };
 }

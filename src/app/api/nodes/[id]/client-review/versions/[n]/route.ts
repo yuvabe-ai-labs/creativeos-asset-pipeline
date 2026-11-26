@@ -9,13 +9,14 @@ const TITLE_MAX = 200;
 
 // PATCH /api/nodes/:id/client-review/versions/:n — change one version: its Allow download switch
 // (D497) and/or its title. Body: { allowDownload?: boolean, title?: string }. Download takes effect
-// at once on the server; an open client page shows the change on its next load.
+// at once on the server; an open client page shows the change on its next load. Both change what
+// the client gets on their link, so this needs Share (D538), like uploading the version.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string; n: string }> }) {
   const { n } = await params;
   const versionNo = Number(n);
   if (!Number.isInteger(versionNo) || versionNo < 1) return apiError("Version not found.", 404);
   return withTryCatch("Could not change the version.", () =>
-    logClientReviewErrors("version-update", req, () => withNode(req, params, async (nodeId, node) => {
+    logClientReviewErrors("version-update", req, () => withNode(req, params, { need: "share" }, async (nodeId, node) => {
       if (node.type !== "client-review") return apiError("Node not found.", 404);
       const body = (await req.json().catch(() => null)) as { allowDownload?: unknown; title?: unknown } | null;
       if (body?.allowDownload !== undefined && typeof body.allowDownload !== "boolean") {

@@ -3,9 +3,21 @@ import { NextRequest } from "next/server";
 import { GENERATED, makeAvatar, makeImage } from "@/lib/avatars/__tests__/fixtures";
 import { AVATAR_VOICE_PREVIEW_SLOT } from "@/lib/avatars/constants";
 import { estimateVoicePreviewCredits, VOICE_PREVIEW_ENGINE } from "@/lib/avatars/voice-preview";
+import { seededPrice } from "@/lib/ai-models/test-prices";
+import { seededSettingsRow } from "@/lib/ai-models/test-catalog";
 import type { AvatarVoice } from "@/lib/avatars/schema";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/ai-models/run-price", async () => (await import("@/lib/ai-models/test-run-price")).runPriceMock());
+const cat = vi.hoisted(() => ({ value: null as import("@/lib/ai-models/types").AiCatalog | null }));
+vi.mock("@/lib/ai-models/catalog", async () => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  return { getAiCatalog: async () => cat.value ?? seededModelCatalog() };
+});
+vi.mock("@/lib/video-gen/adapters", async () => {
+  const { stubAdapters } = await import("@/lib/ai-models/test-catalog");
+  return { videoAdapters: stubAdapters("video", async () => { throw new Error("a route never generates"); }) };
+});
 vi.mock("@trigger.dev/sdk/v3", () => ({ tasks: { trigger: vi.fn() } }));
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: vi.fn(), resolveOrgId: vi.fn() }));
 vi.mock("@/lib/auth/impersonation", () => ({ resolveImpersonationState: vi.fn() }));
@@ -31,7 +43,10 @@ import { insertGeneration, failGeneration, getLatestAvatarVoicePreview } from "@
 import { reserveCredits, refundReservation } from "@/lib/db/credit-transactions";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
 import { signAvatarVoicePreviewUrl, signAvatarVoiceSampleUrl } from "@/lib/storage";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 
+const priceOf = (engine: "omni" | "seedance") => seededPrice(VOICE_PREVIEW_ENGINE[engine].modelId);
+const voicePriceRow = () => seededPrice(VOICE_CHANGE_PRICE_MODEL_ID);
 const params = Promise.resolve({ id: "c1", avatarId: "a1" });
 const url = "http://localhost/api/clients/c1/avatars/a1/voice-preview";
 const post = (body: unknown) =>
@@ -51,6 +66,7 @@ const row = (overrides: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.resetAllMocks();
+  cat.value = null;
   process.env.ELEVEN_LABS_API_KEY = "key";
   vi.mocked(resolveOrgId).mockResolvedValue("org-1");
   vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "user-9", email: "op@x.com", orgId: "org-1" } as never);
@@ -77,7 +93,7 @@ describe("GET voice-preview", () => {
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.preview).toMatchObject({ generationId: "g1", status: "succeeded", url: "https://storage.googleapis.com/b/p.mp4", line: "Hello there." });
-    expect(json.estimateCredits).toBe(estimateVoicePreviewCredits("named", "omni", 2));
+    expect(json.estimateCredits).toBe(estimateVoicePreviewCredits(priceOf("omni"), voicePriceRow(), "named", "omni", 2, seededSettingsRow()));
   });
 
   it("has no preview and no estimate for an avatar with no voice declared", async () => {
@@ -105,6 +121,44 @@ describe("GET voice-preview", () => {
 });
 
 describe("POST voice-preview", () => {
+  it("refuses a named preview with no voice-change price before anything is recorded (D558)", async () => {
+    const { seededModelCatalog, withoutPrice } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withoutPrice(seededModelCatalog(), VOICE_CHANGE_PRICE_MODEL_ID);
+    const { POST } = await import("./route");
+    const res = await POST(post({ line: "Hello there." }), { params });
+    expect(res.status).toBe(409);
+    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it.each(["hidden", "retired"] as const)(
+    "refuses a preview when the engine's model is %s, before anything is recorded (D565)",
+    async (status) => {
+      const { seededModelCatalog, withModel } = await import("@/lib/ai-models/test-catalog");
+      cat.value = withModel(seededModelCatalog(), VOICE_PREVIEW_ENGINE.omni.modelId, { status });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { POST } = await import("./route");
+      const res = await POST(post({ line: "Hello there." }), { params });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "Voice previews can't run right now. Try again later." });
+      expect(insertGeneration).not.toHaveBeenCalled();
+      expect(reserveCredits).not.toHaveBeenCalled();
+      expect(tasks.trigger).not.toHaveBeenCalled();
+      err.mockRestore();
+    },
+  );
+
+  it("refuses a preview whose model has no price before anything is recorded (D557)", async () => {
+    const { seededModelCatalog, withoutPrice } = await import("@/lib/ai-models/test-catalog");
+    cat.value = withoutPrice(seededModelCatalog(), VOICE_PREVIEW_ENGINE.omni.modelId);
+    const { POST } = await import("./route");
+    const res = await POST(post({ line: "Hello there." }), { params });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "This model has no price set, so it can't run right now." });
+    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(reserveCredits).not.toHaveBeenCalled();
+  });
+
   it("reserves the credits, signs the upload and queues the task with the front image and the voice", async () => {
     const { POST } = await import("./route");
     const res = await POST(post({ line: "  Hello there.  " }), { params });
@@ -113,9 +167,10 @@ describe("POST voice-preview", () => {
     expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({
       avatarId: "a1", orgId: "org-1", clientId: "c1", userId: "user-9", type: "video",
       modelUsed: VOICE_PREVIEW_ENGINE.omni.modelId,
+      modelPriceId: priceOf("omni").id,
       inputsSnapshot: expect.objectContaining({ ...inputs, prompt: expect.stringContaining('"Hello there."') }),
     }));
-    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits("named", "omni", 2));
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits(priceOf("omni"), voicePriceRow(), "named", "omni", 2, seededSettingsRow()));
     expect(tasks.trigger).toHaveBeenCalledWith("avatar-voice-preview", expect.objectContaining({
       mode: "named", generationId: "g1", frontUrl: FRONT, voiceId: "v1",
       revoicedPutUrl: "https://signed/put", revoicedUrl: "https://storage.googleapis.com/b/p.mp4",
@@ -194,7 +249,7 @@ describe("POST voice-preview — the engine's own voice (D296)", () => {
       paramsSnapshot: expect.objectContaining({ resolution: "480p", duration: 5, ratio: "9:16" }),
       inputsSnapshot: expect.objectContaining({ mode: "native", line: "Hi." }),
     }));
-    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits("native", "seedance"));
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits(priceOf("seedance"), null, "native", "seedance", 1, seededSettingsRow()));
     expect(tasks.trigger).toHaveBeenCalledWith("avatar-voice-preview", expect.objectContaining({
       mode: "native",
       clipPutUrl: "https://signed/put",
@@ -221,7 +276,7 @@ describe("POST voice-preview — the engine's own voice (D296)", () => {
     vi.mocked(getLatestAvatarVoicePreview).mockResolvedValue(null);
     const { GET } = await import("./route");
     const json = await (await GET(new NextRequest(url), { params })).json();
-    expect(json.estimateCredits).toBe(estimateVoicePreviewCredits("native", "seedance"));
+    expect(json.estimateCredits).toBe(estimateVoicePreviewCredits(priceOf("seedance"), null, "native", "seedance", 1, seededSettingsRow()));
   });
 
   it("makes the engine's own voice with Gemini Omni on a face Seedance won't take (D301)", async () => {
@@ -233,7 +288,7 @@ describe("POST voice-preview — the engine's own voice (D296)", () => {
       paramsSnapshot: expect.objectContaining({ resolution: "720p", aspect_ratio: "9:16" }),
       inputsSnapshot: expect.objectContaining({ mode: "native", engine: "omni" }),
     }));
-    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits("native", "omni"));
+    expect(reserveCredits).toHaveBeenCalledWith("org-1", "g1", estimateVoicePreviewCredits(priceOf("omni"), null, "native", "omni", 1, seededSettingsRow()));
     expect(tasks.trigger).toHaveBeenCalledWith("avatar-voice-preview", expect.objectContaining({
       mode: "native",
       engine: "omni",

@@ -7,7 +7,7 @@ import { forEachLimited } from "@/lib/for-each-limited";
 import { JOB_STOPPED_MESSAGE, type JobKind } from "./types";
 
 /** Kinds whose run always writes its own ending, so a live job after its run ended means the run died. */
-export const RECONCILED_JOB_KINDS: JobKind[] = ["asset-import", "image-analysis", "kb-propose"];
+export const RECONCILED_JOB_KINDS: JobKind[] = ["asset-import", "image-analysis", "kb-propose", "market-fetch", "market-draft"];
 
 /** Trigger.dev run statuses after which a run never writes again. */
 const RUN_ENDED = new Set(["COMPLETED", "CANCELED", "FAILED", "CRASHED", "SYSTEM_FAILURE", "EXPIRED", "TIMED_OUT"]);

@@ -16,6 +16,8 @@ import { insertCopilotMessages, type NewCopilotMessage } from "@/lib/db/copilot-
 import { buildFailedMessage, buildSucceededMessage } from "@/lib/journey/kb-copilot/build-messages";
 import { reviewAccount, reviewFields } from "@/lib/journey/kb-copilot/review";
 import { walkMessages } from "@/lib/journey/kb-copilot/walk";
+import { withAnswers } from "@/lib/journey/kb-copilot/answers";
+import { renderKbText } from "@/lib/scripts/copilot/prompt-context";
 import { ONBOARDING } from "@/lib/journey/thread/schema";
 
 const NON_TERMINAL = KB_JOB_NON_TERMINAL_STATUSES;
@@ -109,6 +111,23 @@ export async function POST(req: Request) {
 
     const docIdsForVersion = [...(job.doc_ids_used ?? [])];
 
+    // The first question, and likely answers for it when it is about an empty field (D533). Started
+    // now, beside the saves below, so the thread is not held up waiting for them (review fix). A KB
+    // this cannot read is announced without a question (step 5); failed answers leave the question plain.
+    let firstQuestions: { fields: ReturnType<typeof reviewFields>; answered: Promise<NewCopilotMessage[]> } | null = null;
+    try {
+      const fields = reviewFields(body.kbOutput);
+      const questions = walkMessages({ fields, walk: { asked: [], pending: null }, turn: null });
+      const recordFor = { orgId: job.org_id, clientId: job.client_id };
+      const answered = (async () => withAnswers(questions, fields, renderKbText(body.kbOutput as TraceableBrandKB), { recordFor }))().catch((e) => {
+        console.error("[webhooks/kb-build] could not suggest answers", e);
+        return questions;
+      });
+      firstQuestions = { fields, answered };
+    } catch (e) {
+      console.error("[webhooks/kb-build] could not count the KB for the copilot thread", e);
+    }
+
     // 1. Persist research Markdown as a kb document, if any.
     if (body.researchMarkdown) {
       const researchDocId = crypto.randomUUID();
@@ -158,18 +177,10 @@ export async function POST(req: Request) {
       documentCount: Math.max(0, (job.doc_ids_used ?? []).length - (body.skippedDocs ?? []).length),
       skipped: body.skippedDocs ?? [],
     };
-    let landed: NewCopilotMessage[];
-    try {
-      const fields = reviewFields(body.kbOutput);
-      landed = [
-        buildSucceededMessage({ ...built, account: reviewAccount(fields) }),
-        ...walkMessages({ fields, walk: { asked: [], pending: null }, turn: null }),
-      ];
-    } catch (e) {
-      // The KB is saved by now. A KB this cannot count must still be announced, never failed.
-      console.error("[webhooks/kb-build] could not count the KB for the copilot thread", e);
-      landed = [buildSucceededMessage(built)];
-    }
+    // The KB is saved by now. A KB that could not be counted is still announced, never failed.
+    const landed: NewCopilotMessage[] = firstQuestions
+      ? [buildSucceededMessage({ ...built, account: reviewAccount(firstQuestions.fields) }), ...(await firstQuestions.answered)]
+      : [buildSucceededMessage(built)];
     await tellThread(job.client_id, landed);
 
     return apiOk({ ok: true, versionId: version.id });

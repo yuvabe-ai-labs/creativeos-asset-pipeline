@@ -42,7 +42,7 @@ beforeEach(() => {
   vi.mocked(resolveOrgId).mockResolvedValue("org-1");
   vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
   vi.mocked(getClientById).mockResolvedValue({ id: "c1", name: "Client", org_id: "org-1" } as never);
-  vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", email: "u@x.com" } as never);
+  vi.mocked(resolveCallerContext).mockResolvedValue({ userId: "u1", email: "u@x.com", orgId: "org-1" } as never);
   vi.mocked(loadKbText).mockResolvedValue("");
   vi.mocked(getScript).mockResolvedValue(script());
   vi.mocked(runBilledImageGeneration).mockResolvedValue({ generation: { output_snapshot: "https://x/plate.png" }, creditsCharged: 1 } as never);
@@ -93,6 +93,16 @@ describe("POST …/locations/:locationId/plate", () => {
     vi.mocked(getScript).mockResolvedValue({ ...script(), stage: "approved" });
     expect((await POST(post(), { params })).status).toBe(409);
     expect(runBilledImageGeneration).not.toHaveBeenCalled();
+  });
+
+  it("is a 400 with the plain copy when the billed run refuses the model, and writes nothing", async () => {
+    const { ModelRefusedError, MODEL_UNAVAILABLE_MESSAGE } = await import("@/lib/ai-models/runnable");
+    vi.mocked(runBilledImageGeneration).mockRejectedValue(new ModelRefusedError(MODEL_UNAVAILABLE_MESSAGE));
+    const { POST } = await import("./route");
+    const res = await POST(post(), { params });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("This model isn't available. Pick another.");
+    expect(changeScriptAssets).not.toHaveBeenCalled();
   });
 
   it("says the credit limit plainly, and writes nothing when the draw fails", async () => {

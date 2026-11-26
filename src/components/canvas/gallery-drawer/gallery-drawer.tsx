@@ -18,6 +18,7 @@ import { useDriveBrowser } from "@/hooks/use-drive-browser";
 import { useCanvasGenerations } from "@/hooks/use-canvas-generations";
 import { useMoodboards } from "@/hooks/use-moodboards";
 import { useMarket } from "@/hooks/use-market";
+import { useCanvasEditable } from "@/components/canvas/canvas-editable-context";
 import { useGalleryDrawer as useGalleryCommit } from "@/hooks/use-gallery-drawer";
 import { useGalleryDrawer as useDrawerCtx } from "../gallery-drawer-context";
 import { GalleryHeader } from "./gallery-header";
@@ -39,6 +40,8 @@ import { GalleryStoryboard } from "./gallery-storyboard";
 import { filterStoryboardGroups, storyboardGroups } from "./storyboard-images";
 import { useCanvasStore } from "@/components/canvas/canvas-store-provider";
 import { cn } from "@/lib/utils";
+import { useAiCatalog } from "@/hooks/queries/ai-models";
+import { catalogModelLabel } from "@/lib/ai-models/model-lists";
 import type { GalleryImage, GalleryTab, ViewMode } from "./types";
 import type { DriveBrowseItem } from "@/hooks/use-drive-browser";
 
@@ -124,6 +127,7 @@ type Props = {
 export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Props) {
   const { open, options, closeDrawer } = useDrawerCtx();
   const { handleAdd } = useGalleryCommit();
+  const canEdit = useCanvasEditable();
   const reactFlow = useReactFlow();
 
   const [tab, setTab] = useState<GalleryTab>("references");
@@ -199,6 +203,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
       }));
   }, [browser.items]);
 
+  const catalog = useAiCatalog().data;
   const assets: GalleryImage[] = useMemo(
     () =>
       generations.items.map((item) => ({
@@ -206,11 +211,11 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
         imageUrl: item.imageUrl,
         previewUrl: item.imageUrl,
         filename: item.nodeName ?? "Image Gen",
-        subtitle: `${item.modelUsed ?? "unknown"} · ${new Date(item.createdAt).toLocaleDateString()}`,
+        subtitle: [catalogModelLabel(catalog, item.modelUsed), new Date(item.createdAt).toLocaleDateString()].filter(Boolean).join(" · "),
         source: "generated" as const,
         generationId: item.id,
       })),
-    [generations.items],
+    [generations.items, catalog],
   );
 
   const activeLoading = tab === "references" ? browser.loading : generations.loading;
@@ -320,6 +325,10 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
   }
 
   function handleDragStartImage(image: GalleryImage, e: React.DragEvent) {
+    if (!canEdit) {
+      e.preventDefault(); // browsing only: nothing can be dragged onto a canvas that is not editable
+      return;
+    }
     const isMulti = selectedIds.has(image.id) && selectedIds.size > 1;
     const payload = isMulti
       ? Array.from(selectedIds)
@@ -600,7 +609,7 @@ export function GalleryDrawer({ canvasId, clientId, initialDriveRootFolder }: Pr
               ))}
           </div>
 
-          {tab !== "avatars" && tab !== "scripts" && (
+          {canEdit && tab !== "avatars" && tab !== "scripts" && (
             <GalleryFooter
               selectedCount={selectedIds.size}
               maxSelection={MAX_SELECTION}

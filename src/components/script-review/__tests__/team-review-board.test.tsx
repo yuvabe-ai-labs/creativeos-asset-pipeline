@@ -3,10 +3,21 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { TeamScriptReview } from "@/lib/script-review/assemble";
 import { makeScript } from "@/lib/scripts/visualise/__tests__/fixtures";
+import { TestAccessProvider } from "@/components/permissions/test-access-provider";
 import { TeamReviewBoard } from "../team/team-review-board";
 import { VisualiseBoardProvider } from "@/components/visualise/visualise-board-context";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
+// D565 — Visualise reads the image models below the client layout's gate; here, the seeded catalog.
+vi.mock("@/hooks/queries/ai-models", async (orig) => {
+  const { seededModelCatalog } = await import("@/lib/ai-models/test-catalog");
+  const { imageModelsFrom, videoModelsFrom } = await import("@/lib/ai-models/model-lists");
+  return {
+    ...(await orig<typeof import("@/hooks/queries/ai-models")>()),
+    useImageModels: () => imageModelsFrom(seededModelCatalog()),
+    useVideoModels: () => videoModelsFrom(seededModelCatalog()),
+  };
+});
 
 const review = (over: Partial<TeamScriptReview>): TeamScriptReview => ({
   stage: "in_review", shareToken: "6f1c", latest: { number: 1, scope: "script", sharedAt: "2026-10-10T09:00:00.000Z" },
@@ -18,11 +29,13 @@ const render = (initialReview: TeamScriptReview) => {
   const initial = { script, board: { avatars: [], takes: [], picks: {}, kits: [] } };
   // Piece 5.1 — the board reads its state from the provider the copilot's panel shares.
   return renderToStaticMarkup(
-    <QueryClientProvider client={new QueryClient()}>
-      <VisualiseBoardProvider clientId="c1" initial={initial}>
-        <TeamReviewBoard clientId="c1" initial={initial} initialReview={initialReview} />
-      </VisualiseBoardProvider>
-    </QueryClientProvider>,
+    <TestAccessProvider>
+      <QueryClientProvider client={new QueryClient()}>
+        <VisualiseBoardProvider clientId="c1" initial={initial}>
+          <TeamReviewBoard clientId="c1" initial={initial} initialReview={initialReview} />
+        </VisualiseBoardProvider>
+      </QueryClientProvider>
+    </TestAccessProvider>,
   );
 };
 

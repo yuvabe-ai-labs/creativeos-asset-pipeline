@@ -45,7 +45,7 @@ describe("POST /api/clients/:id/copilot/changes/:messageId", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(resolveOrgId).mockResolvedValue("o1");
-    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: U1 } as never);
+    vi.mocked(resolveCallerContext).mockResolvedValue({ userId: U1, orgId: "o1" } as never);
     vi.mocked(resolveImpersonationState).mockResolvedValue({ isImpersonating: false } as never);
     vi.mocked(getClientById).mockResolvedValue({ id: "c1", slug: "acme", org_id: "o1", kb_status: "ready", active_kb_version_id: V1 } as never);
     vi.mocked(resolveDisplayNames).mockResolvedValue(new Map([[U1, "Cyril"]]));

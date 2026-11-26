@@ -1,13 +1,15 @@
+import type { Access } from "@/lib/permissions/model";
+
 export type PlatformRole = "super_admin" | "member";
-export type OrgRole = "owner" | "senior" | "designer";
 
 export type CallerContext = {
   userId: string;
   email: string | null;
   platformRole: PlatformRole;
   orgId: string;
-  orgRole: OrgRole;
   mustChangePassword: boolean;
+  /** D538: what this person may do. Read it through accessOf(), never directly. */
+  access: Access;
 };
 
 // Reads the platform role from a JWT's app_metadata. Anything that is not the exact
@@ -33,11 +35,4 @@ export function mapAppMetadataToMustChangePassword(appMetadata: unknown): boolea
     typeof appMetadata === "object" &&
     (appMetadata as Record<string, unknown>).must_change_password === true
   );
-}
-
-// The frozen Identity.role only distinguishes "can approve" (senior) from "cannot"
-// (designer). Owners get full access in the pilot, so they map to senior. (Pilot only
-// ever creates owner memberships — see D80/the Stage 1 index doc.)
-export function orgRoleToIdentityRole(orgRole: OrgRole): "senior" | "designer" {
-  return orgRole === "designer" ? "designer" : "senior";
 }

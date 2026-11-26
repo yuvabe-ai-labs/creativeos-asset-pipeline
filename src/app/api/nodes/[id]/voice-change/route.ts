@@ -5,11 +5,15 @@ import { apiError, apiOk, withNode } from "@/lib/api/route-helpers";
 import { getVersionById } from "@/lib/db/versions";
 import { insertGeneration, failGeneration } from "@/lib/db/generations";
 import { reserveCredits, refundReservation, CreditLimitError } from "@/lib/db/credit-transactions";
-import { usdToFinalCredits } from "@/lib/credits/units";
-import { computeVoiceChangeCost } from "@/lib/elevenlabs/cost";
+import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
+import { pricingForNewRun, NO_PRICE_MESSAGE } from "@/lib/ai-models/run-price";
+import { voiceChangeEstimateUsd } from "@/lib/ai-models/service-price";
+import { VOICE_CHANGE_PRICE_MODEL_ID } from "@/lib/ai-models/service-models";
 import { VoiceChangeSettingsSchema } from "@/lib/elevenlabs/voice-settings";
-import { VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
+import { VOICE_CHECK_FAILED_MESSAGE, VOICE_GONE_MESSAGE, VOICE_NOT_SET_UP_MESSAGE } from "@/lib/elevenlabs/constants";
 import { getVoiceCached } from "@/lib/elevenlabs/voices-cache";
+import { isVoiceAvailableToClient } from "@/lib/elevenlabs/client-voices";
+import { listClientVoiceIds } from "@/lib/db/client-voices";
 import { resolveVoiceChangeSource } from "@/lib/voice-change/source";
 import { signRevoicedVideoUrl } from "@/lib/storage";
 import type { VoiceChangeRecord } from "@/lib/voice-change/types";
@@ -22,7 +26,7 @@ const BodySchema = z.object({
 
 // D284 — Change voice on an existing version: a new `voice` generation that appends a version.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withNode(req, params, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
+  return withNode(req, params, { need: "generate" }, async (nodeId, _node, caller, clientId, effectiveOrgId) => {
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return apiError("Invalid voice change settings.", 400);
     const { baseVersionId, voiceId, settings } = parsed.data;
@@ -31,16 +35,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (locked) return locked;
     if (!process.env.ELEVEN_LABS_API_KEY) return apiError(VOICE_NOT_SET_UP_MESSAGE, 400);
 
-    const source = await resolveVoiceChangeSource(nodeId, baseVersionId, getVersionById);
+    // Independent reads run side by side (performance rule 5). D558 - ElevenLabs' row prices the
+    // voice change; the generation still records the video's model.
+    const [source, voiceRead, clientVoiceIds, { price, catalog }] = await Promise.all([
+      resolveVoiceChangeSource(nodeId, baseVersionId, getVersionById),
+      getVoiceCached(voiceId).then((voice) => ({ ok: true as const, voice }), () => ({ ok: false as const })),
+      listClientVoiceIds(clientId),
+      pricingForNewRun(VOICE_CHANGE_PRICE_MODEL_ID),
+    ]);
     if (!source.ok) return apiError(source.reason, 400);
-
-    let voice;
-    try {
-      voice = await getVoiceCached(voiceId);
-    } catch {
-      return apiError("Could not reach ElevenLabs to check the voice. Try again.", 400);
+    if (!voiceRead.ok) return apiError(VOICE_CHECK_FAILED_MESSAGE, 400);
+    const voice = voiceRead.voice;
+    if (!voice) return apiError(VOICE_GONE_MESSAGE, 400);
+    // The voice id comes from the body: a stock voice or one of this client's own, never another
+    // client's clone (any agency). A 404, as for the avatar voice, never confirming a foreign voice.
+    if (!isVoiceAvailableToClient(voice, clientVoiceIds)) {
+      return apiError("Voice not found.", 404);
     }
-    if (!voice) return apiError("That voice is no longer on the ElevenLabs account. Pick another voice.", 400);
 
     const voiceChange: VoiceChangeRecord = {
       baseVersionId,
@@ -51,6 +62,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       priceMultiplier: voice.priceMultiplier,
       settings,
     };
+    if (!price) return apiError(NO_PRICE_MESSAGE, 409);
+    const usd = voiceChangeEstimateUsd(price, source.durationSeconds, voice.priceMultiplier);
+    if (usd === null) return apiError(NO_PRICE_MESSAGE, 409);
+
     const generation = await insertGeneration({
       nodeId,
       orgId: effectiveOrgId,
@@ -59,12 +74,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       userEmail: caller.email,
       type: "voice",
       modelUsed: source.root.model_used ?? undefined,
+      modelPriceId: price.id,
       paramsSnapshot: source.root.params_used ?? {},
       inputsSnapshot: { ...(source.root.inputs_used ?? {}), voiceChange },
     });
 
     try {
-      const credits = usdToFinalCredits(computeVoiceChangeCost(source.durationSeconds, voice.priceMultiplier).usd);
+      const credits = creditsFromUsd(usd, creditSettingsAt(catalog, new Date(generation.created_at)));
       const reservation = await reserveCredits(effectiveOrgId, generation.id, credits);
       if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
       const upload = await signRevoicedVideoUrl({ nodeId, generationId: generation.id });

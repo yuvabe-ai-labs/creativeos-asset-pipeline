@@ -182,7 +182,7 @@ function promptFields(
   return {
     fields: {
       prompt: [prompt, ...opts.extra].filter((p) => p.trim()).join("\n\n"),
-      // The hidden multi_shot param (params/kling.ts): a node toggled on before D218 still asks
+      // The hidden multi_shot param (on the Kling catalog rows): a node toggled on before D218 still asks
       // Kling to choose its own cuts. Absent, fal's default `customize` with one prompt is one shot.
       ...(opts.multiShot ? { shot_type: "intelligent" } : {}),
     },
