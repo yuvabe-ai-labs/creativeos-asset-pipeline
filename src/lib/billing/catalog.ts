@@ -22,6 +22,20 @@ export type CatalogProduct = {
   prices: CatalogPrice[];
 };
 
+/** One price's running plans and money (admin_offer_health, migration 0102). */
+export type PriceHealth = {
+  /** Active, ending (cancelled) or payment due. */
+  agencies: number;
+  active: number;
+  ending: number;
+  due: number;
+  /** What the active plans pay each month, before GST. */
+  monthlyMinor: number;
+  /** Payments for the price this month, and their sum with GST. */
+  paidCount: number;
+  paidMinor: number;
+};
+
 export type BillingSettings = {
   id: string;
   inrPerUsd: number;

@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0101** (`supabase/migrations/0001_init.sql` … `0101_admin_agency_activity.sql`; the model catalog's 0076–0089 follow the copilot journey's 0067, billing's 0090–0100 follow the catalog, and the admin agencies list's 0101 follows billing). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied. 0063, 0064 and 0065 are pairs too: the permission work's `0063_close_views_and_count_resends`, `0064_lock_node_files_bucket`, `0065_client_scoped_reads`, and the copilot journey's `0063_client_market_status`, `0064_client_copilot_messages`, `0065_kb_review_writes` (then `0066_copilot_turn_traces`). A bare number below means the permission work's file; the copilot journey's are named in full.
+Generated from migrations up to **0103** (`supabase/migrations/0001_init.sql` … `0103_plan_price_moves.sql`; the model catalog's 0076–0089 follow the copilot journey's 0067, billing's 0090–0100 follow the catalog, the admin agencies list's 0101 follows billing, and Admin's plans and payments reads 0102 follow it, then the plan price moves 0103). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied. 0063, 0064 and 0065 are pairs too: the permission work's `0063_close_views_and_count_resends`, `0064_lock_node_files_bucket`, `0065_client_scoped_reads`, and the copilot journey's `0063_client_market_status`, `0064_client_copilot_messages`, `0065_kb_review_writes` (then `0066_copilot_turn_traces`). A bare number below means the permission work's file; the copilot journey's are named in full.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -196,7 +196,7 @@ The credit ledger: reservation, consumption, refund, adjustment. *0019* · org_i
 One row per Razorpay payment: the test top-up (D573), then plans, renewals and top-ups (0092). *0090, 0092* · org_id
 - `id` uuid PK · `org_id` → organizations cascade · `razorpay_order_id` text unique · `razorpay_payment_id` text unique (set when paid) · `amount_paise` integer > 0 (before discount and tax) · `credits` integer > 0 · `status` check created/paid/failed/refunded (default created) · `created_by` → auth.users set null · `created_at` · `paid_at`
 - 0092: `kind` check test/plan/renewal/topup (default test) · `price_id` → billing_prices set null · `subscription_id` → billing_subscriptions set null · `discount_id` → billing_discounts set null · `currency` (default INR) · `discount_minor`, `tax_minor` (default 0) · `total_minor` · `inr_per_usd` (the rate in force) · `razorpay_invoice_id`
-- Indexes: `(org_id, created_at desc)` (0100), `created_at desc` where status <> created and kind <> test (0100), `price_id`, `subscription_id`, `discount_id`
+- Indexes: `(org_id, created_at desc)` (0100), `created_at desc` where kind <> test (0102; replaces 0100's index that also left out status created), `price_id`, `subscription_id`, `discount_id`
 - RLS: select `owners read`, owners of the agency only. Written by the server (service role) and `record_razorpay_payment`.
 
 ### credit_grants
@@ -248,8 +248,8 @@ An agency’s billing details for Razorpay and GST invoices. *0092*
 
 ### billing_subscriptions
 An agency’s plan. One live subscription per agency. *0092* · org_id · *Realtime* (0099)
-- `id` uuid PK · `org_id` → organizations cascade · `price_id` → billing_prices · `next_price_id` → billing_prices (change from the next payment) · `discount_id` → billing_discounts set null · `discount_cycles_left` · `status` check created/active/payment_due/cancelling/ended · `current_period_start`, `current_period_end` · `next_credit_at` (next credit drop) · `cancel_at_period_end` · `razorpay_subscription_id` unique · `ended_at` · `payment_due_since` (0098; set when a payment first becomes due, cleared when paid)
-- Indexes: unique `org_id` where status <> ended, `org_id`, `status`, `next_credit_at`, `price_id`, `next_price_id`, `discount_id`, `payment_due_since` where set (0098), `(status, current_period_end)` (0100)
+- `id` uuid PK · `org_id` → organizations cascade · `price_id` → billing_prices · `next_price_id` → billing_prices (change from the next payment) · `discount_id` → billing_discounts set null · `discount_cycles_left` · `status` check created/active/payment_due/cancelling/ended · `current_period_start`, `current_period_end` · `next_credit_at` (next credit drop) · `cancel_at_period_end` · `razorpay_subscription_id` unique · `ended_at` · `payment_due_since` (0098; set when a payment first becomes due, cleared when paid) · `next_price_scheduled_at` (0103; when Razorpay agreed to charge `next_price_id` from the next renewal; null: not set up yet) · `next_price_refused` (0103; check upi/emandate/other: why Razorpay can't move it, so it keeps its price). Both only mean something while `next_price_id` is set; trigger `billing_subscriptions_next_price_reset` clears them when `next_price_id` changes unless the same update sets them (D593)
+- Indexes: unique `org_id` where status <> ended, `org_id`, `status`, `next_credit_at`, `price_id`, `next_price_id`, `discount_id`, `payment_due_since` where set (0098), `(status, current_period_end)` (0100), `updated_at` where a move is not set up yet (next_price_id set, not scheduled, not refused, not ended; 0103)
 - RLS: select `owners read`, owners of the agency only.
 
 ### razorpay_events
@@ -491,10 +491,14 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `admin_save_product` | id (null adds), kind, name, description, sort, active, actor → uuid (logs) | definer, service role | 0093 |
 | `admin_add_price` | product_id, amount, list amount, interval, credits, cadence, valid_days, replaces, actor, reason → (new_price_id, moved_count) (replacing hides the old price and moves live subscriptions to the new one from the next payment; logs) | definer, service role | 0093 |
 | `admin_set_price_active` | price_id, active, actor → bool (logs) | definer, service role | 0093 |
-| `admin_save_offer` | product_id (null adds), kind, name, description, active, amount, credits, interval, actor, reason → (product_id, price_changed, moved_count) (a plan or pack and its price in one step; a changed price is a new row replacing the old for its subscribers; logs) | definer, service role | 0094 |
+| `admin_save_offer` | product_id (null adds), kind, name, description, active, amount, credits, interval, actor, reason → (product_id, price_changed, moved_count) (a plan or pack and its price in one step; a changed price is a new row replacing the old: plans on the old price that are created, active or payment due move to it from their next renewal, a cancelled one or an owner's own choice is left; moved_count counts active and payment due; logs) | definer, service role | 0094, 0103 |
 | `billing_price_subscriber_counts` | → (price_id, subscribers) live subscriptions per price | definer, service role | 0093 |
 | `admin_set_grant_end` | grant_id, ends_at, actor, reason → text (`ok`/`not_found`; kept after the start; logs) | definer, service role | 0091 |
 | `admin_agency_activity` | → (org_id, owner_email, member_count, last_run_at) for every agency: the owner's login email, its memberships, its newest generation (null: never ran). Admin › Agencies (D590) | definer, service role | 0101 |
+| `record_plan_move` | subscription, price, refused (null: scheduled) → bool: saves Razorpay's answer for a plan's move to that price once, only while it still moves there, and logs `plan_move` on the agency (D593) | definer, service role | 0103 |
+| `admin_price_moves` | → (price_id, next_price_id, state scheduled/waiting/refused, refused, agencies, first_renewal, last_renewal, orgs) running plans (active, payment due) marked to move, grouped; orgs names the refused ones. Admin › Plans and prices (D593) | definer, service role | 0103 |
+| `admin_offer_health` | since → (price_id, agencies, active, ending, due, monthly_minor, paid_count, paid_minor) per price: running plans (active, cancelling, payment due; never created or ended), what the active ones pay a month before GST, and paid payments since then with GST. Admin › Plans and prices and Payments (D592) | definer, service role | 0102 |
+| `admin_payment_totals` | from, to, query → (status, payments, total_minor) payments by status started in [from, to) (null: no bound), for agencies whose name contains the query (caller escapes it); test top-ups left out. Admin › Payments tabs (D592) | definer, service role | 0102 |
 
 ### Used by RLS
 - `auth_org_ids()` → setof uuid: the caller's agencies. Definer; executable by `authenticated` and `service_role` (0062).
@@ -518,6 +522,7 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `keep_edge_on_its_canvas` (definer) | `edges_keep_canvas` | 0062 |
 | `ai_model_prices_guard` | `ai_model_prices_guard` | 0076, 0088 |
 | `credit_settings_guard` | `credit_settings_guard` | 0086, 0087 |
+| `billing_subscriptions_next_price_reset` | `billing_subscriptions_next_price_reset` (before update of next_price_id) | 0103 |
 
 Dropped: `org_review_counts_for_types` (created 0062, dropped 0063).
 

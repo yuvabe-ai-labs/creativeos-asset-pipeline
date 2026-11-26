@@ -1,80 +1,50 @@
-import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
-import { countRenewingWithin, listPlansNeedingAttention, listRecentPayments, sumPaidSince } from "@/lib/db/billing-admin-payments";
+import { countRenewingWithin, listAdminPaymentsPage, listPlansNeedingAttention } from "@/lib/db/billing-admin-payments";
+import { getOfferHealth } from "@/lib/db/billing-catalog";
+import { DEFAULT_PAYMENT_FILTERS } from "@/lib/billing/admin-payments-filters";
 import { usageRange } from "@/lib/billing/usage-period";
-import { formatRupees } from "@/lib/billing/pricing";
-import { AdminPaymentsList } from "@/components/admin/payments/admin-payments-list";
+import { withGst } from "@/lib/billing/gst";
+import { paymentAttentionItems } from "@/lib/admin/payments-page";
+import { NeedsALookCard } from "@/components/admin/models/needs-a-look-card";
+import { PaymentsLedger } from "@/components/admin/payments/payments-ledger";
+import { PaymentsStatLine } from "@/components/admin/payments/payments-stat-line";
 import { adminPageClass } from "@/components/admin/admin-page";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Payments · Admin" };
+export const metadata = { title: "Payments — Admin" };
 
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-
-// Admin › Payments (spec 2026-11-21-admin-payments-design.md, D584): what agencies paid, what needs
-// attention, and every payment, a page at a time (D588). Four reads in parallel, each bounded.
+// Admin › Payments, needs a look then the ledger (D592). One round of parallel reads, each bounded
+// or grouped in the database: plans that need a person, renewals this week, what plans bring each
+// month, and the ledger's first page with this month's totals by status (which the line above it
+// reuses, as the ledger opens on this month).
 export default async function AdminPaymentsPage() {
   await requireSuperAdmin();
-  const [paid, attention, renewing, payments] = await Promise.all([
-    sumPaidSince(usageRange("this_month").from),
+  const now = new Date();
+  const [attention, renewing, health, ledger] = await Promise.all([
     listPlansNeedingAttention(7),
     countRenewingWithin(7),
-    listRecentPayments(1),
+    getOfferHealth(usageRange("this_month", now).from),
+    listAdminPaymentsPage(DEFAULT_PAYMENT_FILTERS),
   ]);
-  const due = attention.filter((a) => a.status === "payment_due");
+  const monthly = Object.values(health).reduce((n, h) => n + h.monthlyMinor, 0);
+  const { counts, amounts } = ledger.totals;
 
   return (
     <main className={adminPageClass()}>
-      <div className="mb-6 flex flex-col gap-1">
+      <div className="mb-5 flex flex-col gap-1">
         <h1 className="font-display text-2xl font-semibold tracking-tight">Payments</h1>
         <p className="text-sm text-muted-foreground">What agencies paid, and what needs a look. Amounts include GST.</p>
       </div>
-
-      <div className="flex flex-col gap-10">
-        <Card className="grid grid-cols-1 gap-6 p-6 shadow-card sm:grid-cols-3">
-          <Stat label="Paid this month" value={formatRupees(paid.totalMinor)} note={paid.count === 1 ? "1 payment" : `${paid.count} payments`} />
-          <Stat label="Payments due" value={String(due.length)} note={due.length ? "AI runs are paused for these" : "None"} warn={due.length > 0} />
-          <Stat label="Renewing in 7 days" value={renewing.toLocaleString("en-IN")} note={renewing ? "Renew on their own" : "None this week"} />
-        </Card>
-
-        {/* The list fills the width; Needs a look sits beside it on wide screens, as Credits' History does. */}
-        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <AdminPaymentsList initial={payments} />
-          <aside aria-labelledby="needs-title" className="flex flex-col gap-2 lg:order-last">
-            <h2 id="needs-title" className="font-display text-base font-semibold tracking-tight">Needs a look</h2>
-            {attention.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing right now: no payment due and no plan ending in the next 7 days.</p>
-            ) : (
-              <ul className="flex flex-col divide-y divide-border">
-                {attention.map((a) => (
-                  <li key={a.orgId} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                    <span className="flex flex-col">
-                      <Link href={`/admin/orgs/${a.orgId}?tab=billing`} className="text-sm font-medium hover:underline">{a.orgName}</Link>
-                      <span className="text-xs text-muted-foreground">{a.planName ?? "Plan"}</span>
-                    </span>
-                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {a.status === "payment_due" ? <Badge variant="destructive">Payment due</Badge> : <Badge variant="outline">Ends</Badge>}
-                      {a.periodEnd ? day(a.periodEnd) : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </aside>
-        </div>
-      </div>
+      <NeedsALookCard items={paymentAttentionItems(attention, now)} />
+      <PaymentsStatLine
+        paidMinor={amounts.paid}
+        paidCount={counts.paid}
+        plansMonthlyMinor={withGst(monthly)}
+        renewing={renewing}
+        failed={counts.failed}
+        refundedMinor={amounts.refunded}
+      />
+      <PaymentsLedger initial={ledger} />
     </main>
-  );
-}
-
-function Stat({ label, value, note, warn }: { label: string; value: string; note: string; warn?: boolean }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-eyebrow text-muted-foreground/80">{label}</span>
-      <span className={warn ? "font-display text-2xl font-semibold tracking-tight text-destructive" : "font-display text-2xl font-semibold tracking-tight"}>{value}</span>
-      <span className="text-xs text-muted-foreground/70">{note}</span>
-    </div>
   );
 }

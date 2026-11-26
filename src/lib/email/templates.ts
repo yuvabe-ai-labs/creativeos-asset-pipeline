@@ -1,7 +1,9 @@
 import { formatDay } from "@/lib/billing/dates";
+import { formatRupees } from "@/lib/billing/pricing";
+import { formatIstDate } from "@/lib/admin/ist";
 import type { Email } from "./send";
 
-// The four emails of spec §6.7. Plain text first; the html is the same words laid out as a card
+// The four emails of spec §6.7, and the plan price notice (D593). Plain text first; the html is the same words laid out as a card
 // (the "B · Card" design of 18 Nov): wordmark, a white card with a heading, the message, one
 // button, a small note, the link written out, and a footer. Tables and inline styles only, and
 // Arial, because email apps don't load web fonts or style sheets.
@@ -118,5 +120,37 @@ export function accessReadyEmail(a: { to: string; agency: string; link: string }
     heading: "You're in",
     lines: [`Your access to ${a.agency} on CreativeOS is ready. Your clients are waiting for you.`],
     action: { label: "Open CreativeOS", link: a.link },
+  });
+}
+
+/** To the owners when Yuvabe's new price for their plan is set up to start at the next renewal
+ *  (D593). Amounts with GST, as the owner is charged. */
+export function planPriceChangeEmail(a: {
+  to: string[];
+  agency: string;
+  plan: string;
+  /** The plan they are on now (false: a plan they chose earlier, whose price changed). */
+  samePlan: boolean;
+  fromMinor: number | null;
+  toMinor: number;
+  credits: number;
+  startsAt: string | null;
+  link: string;
+}): Email {
+  const when = a.startsAt ? `From your renewal on ${formatIstDate(new Date(a.startsAt))}` : "From your next renewal";
+  const price = `${formatRupees(a.toMinor)} a month with GST, for ${a.credits.toLocaleString("en-IN")} credits every month`;
+  const lines = [
+    a.samePlan
+      ? `${when}, the ${a.plan} plan for ${a.agency} is ${price}.${a.fromMinor !== null ? ` You pay ${formatRupees(a.fromMinor)} now.` : ""}`
+      : `${when}, ${a.plan}, the plan ${a.agency} moves to, is ${price}.`,
+    "Until then nothing changes. You can change or cancel your plan on the Billing page before that day.",
+  ];
+  return compose({
+    to: a.to,
+    subject: `The price of your ${a.plan} plan is changing`,
+    preview: `${when}: ${formatRupees(a.toMinor)} a month with GST.`,
+    heading: "Your plan's price is changing",
+    lines,
+    action: { label: "Open Billing", link: a.link },
   });
 }

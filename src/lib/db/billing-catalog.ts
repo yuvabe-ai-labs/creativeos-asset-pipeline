@@ -1,6 +1,6 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { CatalogPrice, CatalogProduct, BillingSettings } from "@/lib/billing/catalog";
+import type { CatalogPrice, CatalogProduct, BillingSettings, PriceHealth } from "@/lib/billing/catalog";
 
 // The plans, packs, prices and pricing settings (migrations 0092, 0093). Reads are three calls
 // whatever the number of agencies; writes go through the 0093 functions, which log each change.
@@ -72,14 +72,36 @@ export async function getBillingSettings(): Promise<BillingSettings | null> {
   };
 }
 
-/** Live subscriptions per price, grouped in the database. */
-export async function getSubscriberCounts(): Promise<Record<string, number>> {
+type HealthRow = {
+  price_id: string;
+  agencies: number | string;
+  active: number | string;
+  ending: number | string;
+  due: number | string;
+  monthly_minor: number | string;
+  paid_count: number | string;
+  paid_minor: number | string;
+};
+
+/** Every price's running plans and money since `since` (migration 0102, D592), grouped in the
+ *  database: one call whatever the number of agencies. */
+export async function getOfferHealth(since: string): Promise<Record<string, PriceHealth>> {
   const supabase = createServerSupabase();
-  const { data, error } = await supabase.rpc("billing_price_subscriber_counts");
+  const { data, error } = await supabase.rpc("admin_offer_health", { p_since: since });
   if (error) throw error;
-  const counts: Record<string, number> = {};
-  for (const r of (data ?? []) as { price_id: string; subscribers: number }[]) counts[r.price_id] = Number(r.subscribers);
-  return counts;
+  const health: Record<string, PriceHealth> = {};
+  for (const r of (data ?? []) as HealthRow[]) {
+    health[r.price_id] = {
+      agencies: Number(r.agencies),
+      active: Number(r.active),
+      ending: Number(r.ending),
+      due: Number(r.due),
+      monthlyMinor: Number(r.monthly_minor),
+      paidCount: Number(r.paid_count),
+      paidMinor: Number(r.paid_minor),
+    };
+  }
+  return health;
 }
 
 export async function saveBillingSettings(

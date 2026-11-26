@@ -1,53 +1,51 @@
 "use client";
 
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import type { BillingSettings, CatalogProduct } from "@/lib/billing/catalog";
+import { AddChip } from "@/components/admin/models/add-chip";
+import type { BillingSettings, PriceHealth } from "@/lib/billing/catalog";
+import { sectionSummary, sortOffers, type OfferView } from "@/lib/admin/plans-page";
+import { AgencyOfferCard } from "./agency-offer-card";
 import { OfferCard } from "./offer-card";
 import { OfferDialog } from "./offer-dialog";
 
 const COPY = {
-  plan: { title: "Plans", hint: "Paid monthly. Credits arrive every month.", add: "Add a plan" },
-  topup: { title: "Top-up packs", hint: "Paid once, for an agency on a plan. Credits last until the plan month ends.", add: "Add a top-up pack" },
+  plan: { title: "Plans", hint: "Paid monthly. Credits arrive every month.", add: "Add a plan", none: "No plans yet." },
+  topup: { title: "Top-up packs", hint: "For agencies on a plan. The credits last until the plan month ends.", add: "Add a top-up pack", none: "No top-up packs yet." },
 } as const;
 
-// Plans or packs as a grid of cards, ending with a dashed Add tile (spec "One step").
+// Plans or packs as cards (D592): a heading with what they bring in and Add, then one card each,
+// hidden ones last. "What agencies see" shows only what owners can buy, as they see it.
 export function OffersSection({
   kind,
-  products,
-  counts,
+  views,
+  health,
   settings,
+  agency = false,
 }: {
   kind: "plan" | "topup";
-  products: CatalogProduct[];
-  counts: Record<string, number>;
+  views: OfferView[];
+  health: Record<string, PriceHealth>;
   settings: BillingSettings | null;
+  agency?: boolean;
 }) {
   const copy = COPY[kind];
+  const shown = agency ? views.filter((v) => v.product.active && v.price) : sortOffers(views);
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-col gap-0.5">
-        <h2 className="font-display text-xl font-semibold tracking-tight">{copy.title}</h2>
-        <p className="text-sm text-muted-foreground">{copy.hint}</p>
+    <section aria-labelledby={`offers-${kind}`} className="mt-7">
+      <div className="mb-2.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+        <h2 id={`offers-${kind}`} className="font-display text-lg font-semibold tracking-tight">
+          {copy.title}
+        </h2>
+        <p className="text-xs text-muted-foreground">{agency ? copy.hint : sectionSummary(views, kind)}</p>
+        <span className="flex-1" />
+        {!agency && <OfferDialog kind={kind} settings={settings} trigger={<AddChip label={copy.add} />} />}
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {products.map((product) => (
-          <OfferCard key={product.id} product={product} counts={counts} settings={settings} />
-        ))}
-        <OfferDialog
-          kind={kind}
-          settings={settings}
-          trigger={
-            <Button
-              variant="ghost"
-              className="flex h-auto min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 text-primary hover:bg-primary/5"
-            >
-              <Plus className="size-5" strokeWidth={1.5} />
-              {copy.add}
-            </Button>
-          }
-        />
-      </div>
+      {shown.length ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
+          {shown.map((v) => (agency ? <AgencyOfferCard key={v.product.id} view={v} /> : <OfferCard key={v.product.id} view={v} health={health} settings={settings} />))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">{copy.none}</p>
+      )}
     </section>
   );
 }

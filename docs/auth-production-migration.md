@@ -2002,6 +2002,106 @@ drop function if exists admin_agency_activity();
 notify pgrst, 'reload schema';
 ```
 
+## Migration 0102 — Admin plans and payments (D592, 2026-11-26)
+
+Apply after 0101, **before** the code: Admin › Plans and prices and Admin › Payments call the two
+new functions on every load and show "Couldn't load" until they exist.
+
+- Adds `admin_offer_health(p_since)`: every price's running plans (active, cancelling, payment due),
+  what the active ones pay each month before GST, and the payments for it since `p_since`. One
+  grouped read for the Plans page and the Payments line "a month from plans". Service role only.
+- Adds `admin_payment_totals(p_from, p_to, p_query)`: payments by status for a date range and an
+  agency search, for the Payments tabs and totals. Service role only.
+- Adds `billing_payments_admin_created_at_idx` (`created_at desc` where kind <> test) and drops
+  0100's `billing_payments_listed_created_at_idx`, which left out started checkouts ("Not finished"
+  is now a tab).
+- Safe to apply: re-runnable (`create or replace`, `if not exists`, `if exists`); no table or row
+  changes.
+
+**Verify after running:**
+
+```sql
+-- expect one row per price with a running plan or a payment this month
+select * from admin_offer_health(date_trunc('month', now())) limit 5;
+-- expect one row per status that has payments this month
+select * from admin_payment_totals(date_trunc('month', now()), null, null);
+-- expect billing_payments_admin_created_at_idx only
+select indexname from pg_indexes
+ where indexname in ('billing_payments_admin_created_at_idx', 'billing_payments_listed_created_at_idx');
+-- expect false, false, false, false
+select has_function_privilege('anon', 'admin_offer_health(timestamptz)', 'execute'),
+       has_function_privilege('authenticated', 'admin_offer_health(timestamptz)', 'execute'),
+       has_function_privilege('anon', 'admin_payment_totals(timestamptz, timestamptz, text)', 'execute'),
+       has_function_privilege('authenticated', 'admin_payment_totals(timestamptz, timestamptz, text)', 'execute');
+```
+
+**Rollback:**
+
+```sql
+create index if not exists billing_payments_listed_created_at_idx on billing_payments (created_at desc)
+  where status <> 'created' and kind <> 'test';
+drop index if exists billing_payments_admin_created_at_idx;
+drop function if exists admin_offer_health(timestamptz);
+drop function if exists admin_payment_totals(timestamptz, timestamptz, text);
+notify pgrst, 'reload schema';
+```
+
+## Migration 0103 — plan price moves (D593, 2026-11-26)
+
+Apply after 0102, **before** the code: Admin › Plans and prices calls `admin_price_moves()` on every
+load, and Billing reads the two new columns.
+
+- Adds `billing_subscriptions.next_price_scheduled_at` (when Razorpay agreed to charge the next
+  price from the next renewal) and `next_price_refused` (upi / emandate / other: why it can't move),
+  with a check on the refusal and a partial index on the moves not set up yet.
+- Adds trigger `billing_subscriptions_next_price_reset`: a new `next_price_id` (or none, as a renewal
+  clears it) clears both unless the same update sets them.
+- Replaces `admin_save_offer`: a changed price moves plans that are created, active or payment due
+  (no longer cancelled ones), resets their answer, and counts only active and payment due in
+  `moved_count`. An owner's own choice is still left alone.
+- Adds `record_plan_move(subscription, price, refused)` (saves Razorpay's answer once, logs
+  `plan_move` on the agency) and `admin_price_moves()` (the moves grouped for Admin). Service role
+  only.
+- Safe to apply: re-runnable (`if not exists`, guarded constraint, `create or replace`, `drop trigger
+  if exists`). Existing rows get null in both columns, so every plan already marked by 0094 shows as
+  "not set up yet" until the nightly check (or the next price change) sets it up on Razorpay.
+
+**Then deploy the Trigger.dev tasks** (`npx trigger.dev deploy`, staging and production): the new
+`move-plan-price` task, and `reconcile-billing-plans`, which now also sets up moves left waiting. The
+task sends the owner email, so `RESEND_API_KEY`, `EMAIL_FROM` and `APP_URL` must be set in the
+Trigger.dev environment as well as Razorpay's keys.
+
+**Verify after running:**
+
+```sql
+-- expect two rows
+select column_name from information_schema.columns
+ where table_name = 'billing_subscriptions' and column_name in ('next_price_scheduled_at', 'next_price_refused');
+-- expect one row per (price, next price, state) with a running plan marked to move
+select * from admin_price_moves();
+-- expect the trigger
+select tgname from pg_trigger where tgname = 'billing_subscriptions_next_price_reset';
+-- expect false, false, false, false
+select has_function_privilege('anon', 'record_plan_move(uuid, uuid, text)', 'execute'),
+       has_function_privilege('authenticated', 'record_plan_move(uuid, uuid, text)', 'execute'),
+       has_function_privilege('anon', 'admin_price_moves()', 'execute'),
+       has_function_privilege('authenticated', 'admin_price_moves()', 'execute');
+```
+
+**Rollback** (then re-apply 0094 to restore its `admin_save_offer`):
+
+```sql
+drop function if exists admin_price_moves();
+drop function if exists record_plan_move(uuid, uuid, text);
+drop trigger if exists billing_subscriptions_next_price_reset on billing_subscriptions;
+drop function if exists billing_subscriptions_next_price_reset();
+drop index if exists billing_subscriptions_pending_move_idx;
+alter table billing_subscriptions drop constraint if exists billing_subscriptions_next_price_refused_check;
+alter table billing_subscriptions drop column if exists next_price_refused;
+alter table billing_subscriptions drop column if exists next_price_scheduled_at;
+notify pgrst, 'reload schema';
+```
+
 ## Razorpay setup for each environment (D589, 2026-11-23) — no migration
 
 Razorpay keeps test mode and live mode apart: each has its own keys, webhooks and webhook secrets.

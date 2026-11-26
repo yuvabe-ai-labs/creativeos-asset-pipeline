@@ -1,5 +1,8 @@
 import { formatDay, lastDayOf } from "./dates";
 import type { BillingMode, GrantKind } from "./grants";
+import { formatIstDate } from "@/lib/admin/ist";
+import { refusalWords, type MoveRefusal } from "./plan-move-copy";
+import { formatRupees } from "./pricing";
 
 // The agency page's billing log, one line per change (billing_log, migration 0091).
 
@@ -31,6 +34,18 @@ export function describeBillingChange(c: Change): string {
       const endedNow = new Date(String(after.ends_at)).getTime() - new Date(c.createdAt).getTime() < 60_000;
       if (endedNow) return `Ended ${kindWords(after.kind)}`;
       return `${capital(kindWords(after.kind))} now end after ${formatDay(lastDayOf(String(after.ends_at)))}`;
+    }
+    case "plan_move": {
+      // A new plan price set up on Razorpay for the next renewal, or why it couldn't be (D593).
+      const to = `${formatRupees(Number(after.amount_minor ?? 0))} a month`;
+      const refused = after.refused as MoveRefusal | null | undefined;
+      if (refused) {
+        return refused === "other"
+          ? `Couldn't move the plan to ${to}. It stays at ${formatRupees(Number(before.amount_minor ?? 0))} until it changes plan`
+          : `Couldn't move the plan to ${to}: it ${refusalWords(refused, 1).replace(/^pays/, "is paid")}. It stays at ${formatRupees(Number(before.amount_minor ?? 0))} until it changes plan`;
+      }
+      const from = typeof after.starts_at === "string" ? ` from the renewal on ${formatIstDate(new Date(after.starts_at))}` : " from the next renewal";
+      return `Plan moves from ${formatRupees(Number(before.amount_minor ?? 0))} to ${to}${from}`;
     }
     default:
       return "Billing changed";

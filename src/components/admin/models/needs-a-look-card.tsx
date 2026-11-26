@@ -20,8 +20,12 @@ function ItemIcon({ item }: { item: AttentionItem }) {
 /** "Kling 3.1 Omni has no price yet" reads on; "Omni: prices drop 31%" takes a colon. */
 const needsColon = (item: AttentionItem) => item.tone === "next" || /^[A-Z]/.test(item.text);
 
-/** Problems and scheduled changes above the models catalog, one line and one action each. Nothing when there are none. */
-export function NeedsALookCard({ items }: { items: AttentionItem[] }) {
+/**
+ * Problems and scheduled changes above an admin list (Models, Plans and prices, Payments), one line
+ * and one action each. Nothing when there are none. The action links to `href`, unless
+ * `renderAction` gives an item its own control (a dialog that opens in place).
+ */
+export function NeedsALookCard({ items, renderAction }: { items: AttentionItem[]; renderAction?: (item: AttentionItem) => React.ReactNode }) {
   if (!items.length) return null;
   return (
     <section aria-labelledby="needs-a-look" className="mb-5 overflow-hidden rounded-xl border bg-card shadow-card">
@@ -42,7 +46,9 @@ export function NeedsALookCard({ items }: { items: AttentionItem[] }) {
                 {item.detail && <span className="text-muted-foreground"> {item.detail}</span>}
               </p>
               <span className="max-sm:ml-7">
-                {item.action === "Add prices" ? (
+                {renderAction ? (
+                  renderAction(item)
+                ) : item.action === "Add prices" ? (
                   <AddChip label={item.action} nativeButton={false} render={link} />
                 ) : (
                   <Button variant="outline" size="sm" nativeButton={false} render={link}>

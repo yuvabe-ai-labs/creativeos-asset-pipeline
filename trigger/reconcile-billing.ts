@@ -3,7 +3,8 @@
 // disables a webhook after 24 hours of failures, so two schedules bring our records in line:
 //   - hourly: top-ups whose payment went through but whose order.paid never arrived;
 //   - nightly (02:00 India time): every live plan's status, any charge we missed, and plans unpaid
-//     for 30 days, which are ended.
+//     for 30 days, which are ended; then any move to a new price not yet set up on Razorpay
+//     (D593: a move-plan-price run that never happened, a payment that was due, Razorpay down).
 // Both use the webhook's once-only functions, so a repeat changes nothing.
 //
 // Every @/lib import is dynamic: those modules carry `import "server-only"`, which Trigger.dev's
@@ -28,8 +29,12 @@ export const reconcileBillingPlansTask = schedules.task({
   maxDuration: 900,
   run: async () => {
     const { reconcileSubscriptions } = await import("@/lib/billing/reconcile");
+    const { movePendingPlans } = await import("@/lib/billing/plan-moves");
     const report = await reconcileSubscriptions();
     logger.info("Checked plans against Razorpay", report);
-    return report;
+    // After the statuses, so a plan that was paid today is active and can move.
+    const moves = await movePendingPlans();
+    if (moves.checked > 0) logger.info("Set up moves to a new price", moves);
+    return { ...report, moves };
   },
 });

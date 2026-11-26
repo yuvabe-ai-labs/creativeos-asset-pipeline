@@ -4,16 +4,20 @@ vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
   getOrgById: vi.fn(), getLive: vi.fn(), getPrice: vi.fn(), insert: vi.fn(), savePlan: vi.fn(), update: vi.fn(),
   createPlan: vi.fn(), createSubscription: vi.fn(), cancel: vi.fn(), change: vi.fn(), getSubscription: vi.fn(),
+  scheduled: vi.fn(), cancelScheduled: vi.fn(),
 }));
 vi.mock("@/lib/db/organizations", () => ({ getOrgById: m.getOrgById }));
 vi.mock("@/lib/db/billing-subscriptions", () => ({
   getLiveSubscription: m.getLive, getPurchasablePrice: m.getPrice, insertSubscription: m.insert, savePriceRazorpayPlan: m.savePlan, updateSubscription: m.update,
 }));
-vi.mock("../razorpay", () => ({
+vi.mock("../razorpay", async (importOriginal) => ({
+  RazorpayError: (await importOriginal<typeof import("../razorpay")>()).RazorpayError,
   createPlan: m.createPlan, createSubscription: m.createSubscription, cancelSubscription: m.cancel, changeSubscriptionPlan: m.change, getSubscription: m.getSubscription, razorpayKeyId: () => "rzp_test_id",
+  getScheduledPlan: m.scheduled, cancelScheduledChange: m.cancelScheduled,
 }));
 
 import { startSubscription, cancelPlan, changePlan, payNowLink } from "../subscriptions";
+import { RazorpayError } from "../razorpay";
 
 const price = (over: Partial<Record<string, unknown>> = {}) => ({
   id: "price_1", amountMinor: 1_200_000, credits: 100_000, intervalMonths: 1, active: true, razorpayPlanId: null,
@@ -98,9 +102,27 @@ describe("cancelPlan and changePlan", () => {
 
   it("changes the plan from the next payment", async () => {
     m.getLive.mockResolvedValue(live());
+    m.getSubscription.mockResolvedValue({ id: "sub_old", status: "active", plan_id: "plan_old", has_scheduled_changes: false });
     await expect(changePlan("org", "price_1")).resolves.toEqual({ ok: true, value: { from: "2026-12-21T00:00:00Z" } });
     expect(m.change).toHaveBeenCalledWith("sub_old", "plan_new");
     expect(m.update).toHaveBeenCalledWith("row_1", { nextPriceId: "price_1" });
+  });
+
+  it("replaces a price change Yuvabe set up: the owner's choice is the last one (D593)", async () => {
+    m.getLive.mockResolvedValue(live());
+    m.getSubscription.mockResolvedValue({ id: "sub_old", status: "active", plan_id: "plan_old", has_scheduled_changes: true });
+    m.scheduled.mockResolvedValue("plan_admin");
+    await expect(changePlan("org", "price_1")).resolves.toMatchObject({ ok: true });
+    expect(m.cancelScheduled).toHaveBeenCalledWith("sub_old");
+    expect(m.change).toHaveBeenCalledWith("sub_old", "plan_new");
+  });
+
+  it("says plainly that a plan paid by UPI or bank mandate can't be changed", async () => {
+    m.getLive.mockResolvedValue(live());
+    m.getSubscription.mockResolvedValue({ id: "sub_old", status: "active", plan_id: "plan_old", has_scheduled_changes: false });
+    m.change.mockRejectedValue(new RazorpayError("Could not change the plan.", 400, "subscriptions cannot be updated when payment mode is emandate"));
+    await expect(changePlan("org", "price_1")).resolves.toEqual({ ok: false, status: 409, error: "A plan paid by bank mandate can't be changed. Cancel it, then pick the new plan when it ends." });
+    expect(m.update).not.toHaveBeenCalled();
   });
 
   it("refuses to change a cancelled plan or to the same price", async () => {

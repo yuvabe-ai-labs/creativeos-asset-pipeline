@@ -8,8 +8,10 @@ import {
   updateSubscription,
   type PurchasablePrice,
 } from "@/lib/db/billing-subscriptions";
-import { cancelSubscription, changeSubscriptionPlan, createPlan, createSubscription, getSubscription, razorpayKeyId } from "./razorpay";
+import { cancelSubscription, createPlan, createSubscription, getSubscription, razorpayKeyId } from "./razorpay";
 import { withGst } from "./gst";
+import { schedulePlanChange } from "./plan-change";
+import type { MoveRefusal } from "./plan-move-copy";
 
 // The owner's plan steps (spec 2026-11-21-monthly-plans-design.md). Each answers either what the
 // browser needs next, or a refusal in plain words. Credits only ever come from the webhook.
@@ -29,7 +31,7 @@ function checkPlanPrice(price: PurchasablePrice | null, orgId: string): string |
 }
 
 /** The Razorpay plan for a price, made on first use (one per price row; prices never change). */
-async function razorpayPlanFor(price: PurchasablePrice): Promise<string> {
+export async function razorpayPlanFor(price: PurchasablePrice): Promise<string> {
   if (price.razorpayPlanId) return price.razorpayPlanId;
   const plan = await createPlan({
     amountPaise: withGst(price.amountMinor),
@@ -76,7 +78,15 @@ export async function cancelPlan(orgId: string): Promise<StepResult<{ endsAt: st
   return { ok: true, value: { endsAt: live.currentPeriodEnd } };
 }
 
-/** Moves the plan to another price from the next payment. */
+/** Why the owner's own change can't be made, in their words. */
+const CHANGE_REFUSED: Record<MoveRefusal, string> = {
+  upi: "A plan paid by UPI can't be changed. Cancel it, then pick the new plan when it ends.",
+  emandate: "A plan paid by bank mandate can't be changed. Cancel it, then pick the new plan when it ends.",
+  other: "Could not change the plan. Try again later.",
+};
+
+/** Moves the plan to another price from the next payment. The latest choice wins: one Yuvabe set up
+ *  after a price change is replaced, on Razorpay too (D593). */
 export async function changePlan(orgId: string, priceId: string): Promise<StepResult<{ from: string | null }>> {
   const [live, price] = await Promise.all([getLiveSubscription(orgId), getPurchasablePrice(priceId)]);
   if (!live || !live.razorpaySubscriptionId || live.status === "created") return refuse(404, "You don't have a plan to change.");
@@ -86,7 +96,9 @@ export async function changePlan(orgId: string, priceId: string): Promise<StepRe
   if (unavailable || !price) return refuse(400, unavailable ?? "That plan isn't available.");
   if (price.id === live.priceId) return refuse(409, "You're already on this plan.");
   const planId = await razorpayPlanFor(price);
-  await changeSubscriptionPlan(live.razorpaySubscriptionId, planId);
+  const outcome = await schedulePlanChange(live.razorpaySubscriptionId, planId);
+  if (outcome.kind === "refused") return refuse(409, CHANGE_REFUSED[outcome.refused]);
+  if (outcome.kind === "waiting") return refuse(409, "Your plan can't be changed right now. Try again later.");
   await updateSubscription(live.id, { nextPriceId: price.id });
   return { ok: true, value: { from: live.currentPeriodEnd } };
 }
