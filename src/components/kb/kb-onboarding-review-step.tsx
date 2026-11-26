@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
@@ -10,7 +9,7 @@ import {
   CheckCircle2Icon,
   CheckIcon,
   ImageIcon,
-  ImagesIcon,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- TEMPORARY: Source files button commented out
   FolderPenIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,13 +37,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getModuleStatus } from "@/components/kb/kb-module-card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ClientIdentity } from "@/components/clients/client-identity";
-import { isImportLive, useAssetImports } from "@/hooks/queries/asset-imports";
 import { useImageAnalysisStatus } from "@/hooks/queries/image-analysis";
 import { mergeImageAnalysis } from "@/lib/image-analysis/merge";
 import { KBImageAnalysisStatus } from "@/components/kb/kb-image-analysis-status";
-import { KBFieldRow } from "@/components/kb/kb-field-row";
+import { KBFieldCard } from "@/components/kb/kb-field-card";
+import { KBSectionNav } from "@/components/kb/kb-section-nav";
 import { CopilotTarget } from "@/components/journey/copilot-target";
 import { useKbReviewFollow } from "@/hooks/use-kb-review-follow";
 import { KBSourcePanel } from "@/components/kb/kb-source-panel";
@@ -66,6 +63,7 @@ import type { ModuleKey, FieldPath, StagedChanges } from "@/lib/kb/types";
 import {
   MODULES,
   FIELD_LABELS,
+  COLOUR_FIELD_KEYS,
   DOC_EXTENSIONS,
   IMG_EXTENSIONS,
 } from "@/lib/kb/constants";
@@ -74,9 +72,14 @@ import {
   getFieldPath,
   buildChangeSummary,
   findNextModuleNeedingReview,
+  layoutFieldCards,
 } from "@/lib/kb/utils";
 
-/** The header's quiet card-style buttons (Brand assets, Source files). */
+/** The header's quiet card-style button (Source files). */
+/** Grid-column span on the 6-column card grid (wide screens; cards stack below `lg`). */
+const CARD_SPAN = { 2: "lg:col-span-2", 3: "lg:col-span-3", 6: "lg:col-span-6" } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- TEMPORARY: Source files button commented out
 const HEADER_BUTTON =
   "h-auto gap-2 border-border bg-card px-3 py-2 text-muted-foreground shadow-card hover:bg-card hover:text-foreground dark:hover:bg-card";
 
@@ -96,7 +99,6 @@ type Props = {
   initialWebsiteUrl?: string | null;
   docIdsAtExtraction?: string[];
   clientName: string;
-  clientLogoUrl: string | null;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -113,7 +115,6 @@ export function KBOnboardingReviewStep({
   initialWebsiteUrl = null,
   docIdsAtExtraction = [],
   clientName,
-  clientLogoUrl,
 }: Props) {
   const router = useRouter();
   // The copilot beside the page shows what it is reading as soon as Save & re-analyze is pressed.
@@ -149,10 +150,6 @@ export function KBOnboardingReviewStep({
     setKB(next.draft);
     setSavedKB(next.saved);
   }
-  // Brand assets (D302) live on their own page; the header links there with a live count.
-  const { data: importStatus } = useAssetImports(clientId);
-  const importing = (importStatus?.imports ?? []).some(isImportLive);
-  const assetTotal = importStatus?.counts.total ?? 0;
   const [markingReady, setMarkingReady] = useState(false);
 
   // Document management state
@@ -216,11 +213,17 @@ export function KBOnboardingReviewStep({
     committedDocIds.size !== extractedDocIds.size ||
     [...committedDocIds].some((id) => !extractedDocIds.has(id)) ||
     [...extractedDocIds].some((id) => !committedDocIds.has(id));
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- TEMPORARY: Source files button commented out
   const showChangeIndicator = hasPendingChanges || docsChangedFromBaseline;
 
   const currentFields = getModuleFields(kb, selectedModule);
   const hasNeedsReview = Object.values(currentFields).some((f) => f.status === "needs_review");
   const needsReviewCount = Object.values(currentFields).filter((f) => f.status === "needs_review").length;
+  const fieldCount = Object.keys(currentFields).length;
+  const fieldCards = layoutFieldCards(currentFields, (key) => COLOUR_FIELD_KEYS.has(key));
+  const moduleLabel = MODULES.find((m) => m.key === selectedModule)?.label;
+  // The section on screen's own progress: its fields reviewed (approved, edited or rejected) of all.
+  const reviewedCount = fieldCount - needsReviewCount;
   const allImageAnalysisNull =
     selectedModule === "image_analysis" &&
     Object.values(currentFields).every((f) => f.value === null);
@@ -499,33 +502,22 @@ export function KBOnboardingReviewStep({
         </DialogContent>
       </Dialog>
 
-      {/* Title + source-files drawer trigger */}
-      <header className="mb-5 mt-2 flex shrink-0 items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-eyebrow mb-3 text-muted-foreground">Brand Knowledge Base</h1>
-          <ClientIdentity clientId={clientId} name={clientName} logoUrl={clientLogoUrl} size="md" />
-          <p className="mt-3 text-sm text-muted-foreground">
+      {/* Title row (artifact): the page's name and what to do, then its actions pinned to the right
+         (they never wrap under the text). The client's name is in the client bar above, so it is not
+         repeated here; Brand assets has its own tab there. */}
+      <header className="mb-4 flex shrink-0 items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-xl font-semibold tracking-[-0.01em]">Brand KB</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {isEditMode
-              ? "Your brand KB is live. Add or remove source documents and re-extract, or edit fields directly."
-              : "Review the extracted brand knowledge and approve, edit, or reject each field."}
+              ? "Your brand KB is live. Add or remove source documents and re-analyze, or edit fields directly."
+              : `Review the fields extracted from ${clientName}’s sources, edit anything that’s off, then mark the KB ready.`}
           </p>
         </div>
-        <div className="mt-1 flex shrink-0 items-center gap-2">
-          <Button
-            variant="ghost"
-            nativeButton={false}
-            title="Images and videos imported from the website and socials"
-            className={HEADER_BUTTON}
-            render={<Link href={`/clients/${clientSlug}/brand-assets`} />}
-          >
-            <ImagesIcon className="size-4" strokeWidth={1.5} />
-            <span className="hidden sm:inline">Brand assets</span>
-            {importing ? (
-              <span className="size-3 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
-            ) : assetTotal > 0 ? (
-              <span className="rounded-full bg-muted px-1.5 text-[0.65rem] tabular-nums">{assetTotal}</span>
-            ) : null}
-          </Button>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {/* TEMPORARILY REMOVED: the Source files button. Restore by uncommenting it (and the
+              TEMPORARY lint exceptions on FolderPenIcon, HEADER_BUTTON and showChangeIndicator).
+
           <Button
             type="button"
             variant="ghost"
@@ -533,12 +525,38 @@ export function KBOnboardingReviewStep({
             title="Edit source documents & images"
             className={cn("relative", HEADER_BUTTON)}
           >
-            <FolderPenIcon className="size-4" />
+            <FolderPenIcon className="size-4" strokeWidth={1.5} />
             <span className="hidden sm:inline">Source files</span>
             {showChangeIndicator && (
-              <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-amber-500 ring-2 ring-background" />
+              <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-warning ring-2 ring-background" />
             )}
           </Button>
+          */}
+          {dirty && (
+            <Button variant="outline" onClick={handleDiscard} disabled={saving} className="h-auto py-2">
+              Discard changes
+            </Button>
+          )}
+          {/* Single dynamic action: "Save changes" while dirty, otherwise Mark KB Ready
+             (or its edit-mode/in-flight variants) — see the footerAction derivation above. */}
+          {footerAction.tooltip ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-block" />}>
+                  <Button disabled={footerAction.disabled} className="h-auto py-2">
+                    <CheckCircle2Icon className="size-4" strokeWidth={1.5} />
+                    {footerAction.label}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{footerAction.tooltip}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <Button onClick={footerAction.onClick} disabled={footerAction.disabled} className="h-auto py-2">
+              <CheckCircle2Icon className="size-4" strokeWidth={1.5} />
+              {footerAction.label}
+            </Button>
+          )}
         </div>
       </header>
 
@@ -575,148 +593,90 @@ export function KBOnboardingReviewStep({
         </SheetContent>
       </Sheet>
 
-      {/* Fixed header — global actions + module tabs */}
-      <div className="shrink-0">
-        <div className="mb-2 flex items-center justify-end gap-3">
-          {dirty && (
-            <Button variant="outline" size="sm" onClick={handleDiscard} disabled={saving}>
-              Discard changes
-            </Button>
-          )}
-          {/* Single dynamic action: "Save changes" while dirty, otherwise Mark KB Ready
-             (or its edit-mode/in-flight variants) — see the footerAction derivation above. */}
-          {footerAction.tooltip ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger render={<span className="inline-block" />}>
-                  <Button size="sm" disabled={footerAction.disabled}>
-                    <CheckCircle2Icon className="size-4" />
-                    {footerAction.label}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">{footerAction.tooltip}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : (
-            <Button size="sm" onClick={footerAction.onClick} disabled={footerAction.disabled}>
-              <CheckCircle2Icon className="size-4" />
-              {footerAction.label}
-            </Button>
-          )}
-        </div>
-        <Tabs
-          value={selectedModule}
-          onValueChange={(v) => setSelectedModule(v as ModuleKey)}
-        >
-          <TabsList
-            variant="line"
-            className="scrollbar-thin h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto border-b border-border bg-transparent p-0 group-data-horizontal/tabs:h-auto"
-          >
-            {MODULES.map(({ key, label }) => {
-              const ready = getModuleStatus(getModuleFields(kb, key)) === "ready";
-              return (
-                <TabsTrigger
-                  key={key}
-                  value={key}
-                  className="h-auto flex-none gap-1 rounded-none px-2 py-2.5 after:bg-primary group-data-horizontal/tabs:after:bottom-0"
-                >
-                  {label}
-                  {ready && (
-                    <CheckCircle2Icon className="size-3 shrink-0 text-emerald-500 dark:text-emerald-400" />
-                  )}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-        </Tabs>
-      </div>
+      {/* The review box (artifact): the section rail on the left, the selected section's cards on the right. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card md:flex-row">
+        <KBSectionNav sections={MODULES} value={selectedModule} onChange={setSelectedModule} />
 
-      {/* Scrolling tab body — fills the viewport below the fixed header. Keyed by
-         module so it remounts (resets scroll) and slides in on switch. */}
-      <div
-        key={selectedModule}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-      >
-        <motion.div
-          initial={{ opacity: 0, x: 8 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ ease: [0.22, 1, 0.36, 1], duration: 0.6 }}
-          className="space-y-4 pt-5 pb-12"
-        >
-          {/* Module header — repeats the tab title with its module-scoped action */}
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-lg font-semibold">
-              {MODULES.find((m) => m.key === selectedModule)?.label}
-            </h2>
-            {/* The generic counter/approve-all only makes sense against visible fields —
-               when the module has no real content (allImageAnalysisNull), the empty state
-               below carries its own "mark reviewed" action instead. */}
-            {!allImageAnalysisNull && (
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground">
-                  {Object.values(currentFields).filter((f) => f.status !== "needs_review").length}
-                  {" / "}
-                  {Object.values(currentFields).length} reviewed
-                </span>
-                {hasNeedsReview && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleApproveAll(selectedModule)}
-                  >
-                    <CheckIcon className="size-3.5" />
-                    Approve all ({needsReviewCount})
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {selectedModule === "image_analysis" && <KBImageAnalysisStatus clientId={clientId} />}
-
-          {allImageAnalysisNull ? (
-            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-10 text-center">
-              <ImageIcon className="size-8 text-muted-foreground/40" />
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  No image analysis yet
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  It fills in from the brand&apos;s uploaded images and the ones brought in from its
-                  website and social accounts.
-                </p>
-              </div>
-              {hasNeedsReview && (
+        <div role="tabpanel" aria-label={moduleLabel} className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* Section header: its title and field count, review progress, approve-all. */}
+          <div className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-2.5">
+            <div className="flex items-center gap-2.5">
+              <h2 className="font-display text-base font-semibold">{moduleLabel}</h2>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground tabular-nums">
+                {fieldCount} {fieldCount === 1 ? "field" : "fields"}
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <span title="Fields reviewed in this section" className="text-xs text-muted-foreground tabular-nums">
+                {reviewedCount} / {fieldCount} reviewed
+              </span>
+              {/* The generic approve-all only makes sense against visible fields: when the module
+                 has no real content (allImageAnalysisNull), the empty state below carries its own
+                 "mark reviewed" action instead. */}
+              {!allImageAnalysisNull && hasNeedsReview && (
                 <Button
                   variant="outline"
                   size="sm"
+                  title="Approve every field in this section and go to the next one"
                   onClick={() => handleApproveAll(selectedModule)}
                 >
-                  <CheckIcon className="size-3.5" />
-                  Mark this section reviewed
+                  <CheckIcon className="size-3.5" strokeWidth={1.5} />
+                  Approve all ({needsReviewCount})
                 </Button>
               )}
             </div>
-          ) : (
-            <div className="grid gap-10">
-              {Object.entries(currentFields).map(([fieldKey, field]) => {
-                const target = follow.fieldTarget(selectedModule, fieldKey);
-                return (
-                  <CopilotTarget key={fieldKey} id={target} state={follow.stateOf(target)} className="-mx-3 px-3 py-2">
-                    <KBFieldRow
-                      fieldKey={fieldKey}
-                      label={FIELD_LABELS[fieldKey] ?? fieldKey}
-                      field={field}
-                      onEdit={(val) => handleEdit(selectedModule, fieldKey, val)}
-                      onApprove={() => handleApprove(selectedModule, fieldKey)}
-                      onReject={() => handleReject(selectedModule, fieldKey)}
-                    />
-                  </CopilotTarget>
-                );
-              })}
-            </div>
-          )}
-        </motion.div>
+          </div>
+
+          {/* Scrolling section body. Keyed by module so it remounts (resets scroll) and slides in on switch. */}
+          <div key={selectedModule} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-muted/30">
+            <motion.div
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ ease: [0.22, 1, 0.36, 1], duration: 0.5 }}
+              className="space-y-4 p-5"
+            >
+              {selectedModule === "image_analysis" && <KBImageAnalysisStatus clientId={clientId} />}
+
+              {allImageAnalysisNull ? (
+                <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-card py-10 text-center">
+                  <ImageIcon className="size-8 text-muted-foreground/40" strokeWidth={1.5} />
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">No image analysis yet</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      It fills in from the brand&apos;s uploaded images and the ones brought in from its
+                      website and social accounts.
+                    </p>
+                  </div>
+                  {hasNeedsReview && (
+                    <Button variant="outline" size="sm" onClick={() => handleApproveAll(selectedModule)}>
+                      <CheckIcon className="size-3.5" strokeWidth={1.5} />
+                      Mark this section reviewed
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-6">
+                  {fieldCards.map(({ fieldKey, field, span }) => {
+                    const target = follow.fieldTarget(selectedModule, fieldKey);
+                    return (
+                      // The page follows the copilot (D520): each card is a target it can mark and fill.
+                      <CopilotTarget key={fieldKey} id={target} state={follow.stateOf(target)} className={CARD_SPAN[span]}>
+                        <KBFieldCard
+                          fieldKey={fieldKey}
+                          label={FIELD_LABELS[fieldKey] ?? fieldKey}
+                          field={field}
+                          onEdit={(val) => handleEdit(selectedModule, fieldKey, val)}
+                          onApprove={() => handleApprove(selectedModule, fieldKey)}
+                          onReject={() => handleReject(selectedModule, fieldKey)}
+                        />
+                      </CopilotTarget>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          </div>
+        </div>
       </div>
     </div>
   );

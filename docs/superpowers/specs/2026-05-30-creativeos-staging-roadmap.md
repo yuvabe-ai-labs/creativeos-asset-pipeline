@@ -9254,6 +9254,15 @@ Frame rates and lengths come from each take's measured facts (D392), never a con
 
 **Originated →** as D524.
 
+### D528 — The Brand KB review is one box: a section rail and field cards *(recorded 2026-11-23)*
+
+**Decision.** The Brand KB review step is a title row ("Brand KB", what to do, then Source files, Discard and Save / Mark KB ready pinned to the right; Brand assets is reached from its own tab) over one bordered box: a section rail on the left (names only, no ticks; a scrolling strip on narrow screens), the section's header ("N fields", "X / N reviewed": that section's own fields, Approve all) and its fields as cards on a 6-column grid (colours share a row, long values take a full row, short ones pair up; `layoutFieldCards`). Each card is still a copilot target (D520); its actions show on hover or focus. The client bar and the copilot panel are unchanged, and nothing about saving, approving or the copilot changed.
+
+**Why.** User, 23 Nov 2026: match the shared Brand KB artifact's approval area, leaving the header and side panel as they are.
+
+**Rejected.** Also restyling the client bar and copilot panel to the artifact (tried the same day, undone at the user's request). The artifact's fonts and colours (the Yuvabe system's stay). A separate form layout for Visual Identity (one card grid for every section).
+
+**Originated →** this log.
 ### D528 — A field is marked only when the copilot changes it, not while it asks about it *(recorded 2026-11-23; refines D520)*
 
 **Decision.** A target the copilot is asking about carries no mark: no "Copilot is asking" label, no tint, no ring. It shows the copilot's work only when its value changes: the sweep while it is written, then the landed highlight. The page still brings the asked field into view; that is a move, not a mark. This holds everywhere CopilotTarget is used (brand KB review fields, the pre-build form, Visualise's cast slots).
