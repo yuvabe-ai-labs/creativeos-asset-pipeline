@@ -1,6 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { AgenciesTableHead } from "@/components/admin/agencies/agencies-table-head";
 import { AGENCY_WIDE, AGENCY_WIDEST } from "@/components/admin/agencies/agency-row";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 const ROWS = 6;
 
@@ -8,7 +9,7 @@ const ROWS = 6;
 // search and chips, then the table with its real headers and a footer saying it is loading.
 export function AgenciesListSkeleton() {
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
+    <main className={adminPageClass()}>
       <div className="mb-5 flex items-end justify-between gap-4">
         <Skeleton className="h-8 w-32" />
         <Skeleton className="h-10 w-36 rounded-lg" />

@@ -1,9 +1,10 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 // The catalog's shape: title and subtitle, the toolbar, then kinds of cards.
 export default function Loading() {
   return (
-    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-10 md:px-6 md:py-14">
+    <main className={adminPageClass()}>
       <Skeleton className="mb-2 h-8 w-32" />
       <Skeleton className="mb-1.5 h-4 w-full max-w-2xl" />
       <Skeleton className="mb-6 h-4 w-2/3 max-w-md" />

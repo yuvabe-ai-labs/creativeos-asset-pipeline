@@ -8,6 +8,7 @@ import { monthTotals } from "@/lib/admin/models-catalog";
 import { Button } from "@/components/ui/button";
 import { ModelsCatalog } from "@/components/admin/models/models-catalog";
 import { Money } from "@/components/admin/models/money";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Models — Admin" };
@@ -41,7 +42,7 @@ export default async function AdminModelsPage() {
   const monthName = now.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
 
   return (
-    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-10 md:px-6 md:py-14">
+    <main className={adminPageClass()}>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="max-w-2xl">
           <h1 className="font-display text-2xl font-semibold tracking-tight">Models</h1>

@@ -66,11 +66,16 @@ describe("people screens: one header, a trail and a way back", () => {
   });
 
   it("gives every people screen the same page box and header", () => {
-    for (const page of ["src/app/team/page.tsx", "src/app/clients/[id]/members/page.tsx", "src/app/admin/orgs/[id]/page.tsx"]) {
+    for (const page of ["src/app/team/page.tsx", "src/app/clients/[id]/members/page.tsx"]) {
       const source = read(page);
       expect(source).toContain("<main className={PAGE_CONTAINER}>");
       expect(source).not.toContain("<Breadcrumb");
     }
+    // The agency page sits under the admin tabs, so it takes the admin box (tabs and title line up);
+    // its header is the same one.
+    const agency = read("src/app/admin/orgs/[id]/page.tsx");
+    expect(agency).toContain('<main className={adminPageClass("wide")}>');
+    expect(agency).not.toContain("<Breadcrumb");
     expect(read("src/components/team/client-members.tsx")).toContain("<PageHeader");
     expect(read("src/components/team/team-people.tsx")).toContain("<PageHeader");
     expect(read("src/app/admin/orgs/[id]/page.tsx")).toContain("<PageHeader");

@@ -6,6 +6,7 @@ import { countRenewingWithin, listPlansNeedingAttention, listRecentPayments, sum
 import { usageRange } from "@/lib/billing/usage-period";
 import { formatRupees } from "@/lib/billing/pricing";
 import { AdminPaymentsList } from "@/components/admin/payments/admin-payments-list";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Payments · Admin" };
@@ -25,7 +26,7 @@ export default async function AdminPaymentsPage() {
   const due = attention.filter((a) => a.status === "payment_due");
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-14">
+    <main className={adminPageClass()}>
       <div className="mb-6 flex flex-col gap-1">
         <h1 className="font-display text-2xl font-semibold tracking-tight">Payments</h1>
         <p className="text-sm text-muted-foreground">What agencies paid, and what needs a look. Amounts include GST.</p>
@@ -38,27 +39,31 @@ export default async function AdminPaymentsPage() {
           <Stat label="Renewing in 7 days" value={renewing.toLocaleString("en-IN")} note={renewing ? "Renew on their own" : "None this week"} />
         </Card>
 
-        {attention.length > 0 && (
-          <section className="flex flex-col gap-2">
-            <h2 className="text-eyebrow text-muted-foreground">Needs a look</h2>
-            <ul className="flex flex-col divide-y divide-border">
-              {attention.map((a) => (
-                <li key={a.orgId} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <span className="flex flex-col">
-                    <Link href={`/admin/orgs/${a.orgId}?tab=billing`} className="text-sm font-medium hover:underline">{a.orgName}</Link>
-                    <span className="text-xs text-muted-foreground">{a.planName ?? "Plan"}</span>
-                  </span>
-                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                    {a.status === "payment_due" ? <Badge variant="destructive">Payment due</Badge> : <Badge variant="outline">Ends</Badge>}
-                    {a.periodEnd ? day(a.periodEnd) : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <AdminPaymentsList initial={payments} />
+        {/* The list fills the width; Needs a look sits beside it on wide screens, as Credits' History does. */}
+        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <AdminPaymentsList initial={payments} />
+          <aside aria-labelledby="needs-title" className="flex flex-col gap-2 lg:order-last">
+            <h2 id="needs-title" className="font-display text-base font-semibold tracking-tight">Needs a look</h2>
+            {attention.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing right now: no payment due and no plan ending in the next 7 days.</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-border">
+                {attention.map((a) => (
+                  <li key={a.orgId} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <span className="flex flex-col">
+                      <Link href={`/admin/orgs/${a.orgId}?tab=billing`} className="text-sm font-medium hover:underline">{a.orgName}</Link>
+                      <span className="text-xs text-muted-foreground">{a.planName ?? "Plan"}</span>
+                    </span>
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {a.status === "payment_due" ? <Badge variant="destructive">Payment due</Badge> : <Badge variant="outline">Ends</Badge>}
+                      {a.periodEnd ? day(a.periodEnd) : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </aside>
+        </div>
       </div>
     </main>
   );

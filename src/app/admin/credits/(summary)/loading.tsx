@@ -1,8 +1,9 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 export default function Loading() {
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 md:px-6 md:py-14">
+    <main className={adminPageClass()}>
       <Skeleton className="mb-2 h-8 w-32" />
       <Skeleton className="mb-6 h-4 w-80 max-w-full" />
       <Skeleton className="mb-6 h-24 w-full rounded-2xl" />

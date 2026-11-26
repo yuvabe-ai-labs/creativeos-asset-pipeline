@@ -5,6 +5,7 @@ import { creditSettingsAt } from "@/lib/credits/units";
 import { creditHistory, creditsSummary, keptOnCancel, modelTypicalRuns, typicalCreditRuns } from "@/lib/admin/credits-page";
 import { CreditHistory } from "@/components/admin/credits/credit-history";
 import { CreditsWorkspace } from "@/components/admin/credits/credits-workspace";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Credits — Admin" };
@@ -35,7 +36,7 @@ export default async function AdminCreditsPage() {
   const agencyRuns = agencyRows.map((r) => ({ modelId: r.modelId, orgId: r.orgId, orgName: r.orgName, runs: r.runs }));
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 md:px-6 md:py-14">
+    <main className={adminPageClass()}>
       <div className="mb-6">
         <h1 className="font-display text-2xl font-semibold tracking-tight">Credits</h1>
         <p className="mt-1 text-sm text-muted-foreground">How the cost of a run becomes credits, for every model and every agency.</p>

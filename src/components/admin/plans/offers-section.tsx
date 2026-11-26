@@ -30,7 +30,7 @@ export function OffersSection({
         <h2 className="font-display text-xl font-semibold tracking-tight">{copy.title}</h2>
         <p className="text-sm text-muted-foreground">{copy.hint}</p>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {products.map((product) => (
           <OfferCard key={product.id} product={product} counts={counts} settings={settings} />
         ))}

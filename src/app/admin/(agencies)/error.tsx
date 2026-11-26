@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AgenciesState } from "@/components/admin/agencies/agencies-state";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 // A failed load never looks like an empty list (D590). unstable_retry (not reset) re-fetches the
 // server-rendered page; reset() would only re-render the same failed result (Next 16 docs,
@@ -20,7 +21,7 @@ export default function AgenciesError({
   }, [error]);
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
+    <main className={adminPageClass()}>
       <h1 className="font-display mb-5 text-2xl font-semibold tracking-tight">Agencies</h1>
       <div className="rounded-xl border bg-card shadow-card">
         <AgenciesState
