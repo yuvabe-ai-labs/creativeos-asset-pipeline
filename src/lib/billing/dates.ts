@@ -35,3 +35,9 @@ export function formatDay(day: string): string {
   const [y, m, d] = day.split("-").map(Number);
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
+
+/** `3 Dec`, for a short figure where the year goes without saying. */
+export function formatShortDay(day: string): string {
+  const [, m, d] = day.split("-").map(Number);
+  return `${d} ${MONTHS[m - 1]}`;
+}

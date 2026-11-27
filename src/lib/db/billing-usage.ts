@@ -1,94 +1,86 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { UsageBy } from "@/lib/billing/usage-period";
+import { getAiCatalog } from "@/lib/ai-models/catalog";
+import { catalogModelLabel } from "@/lib/ai-models/model-lists";
+import { previousRange, usageRange, type UsageBy, type UsagePeriod } from "@/lib/billing/usage-period";
 import { USAGE_RUNS_PAGE_SIZE } from "@/lib/billing/usage-page-size";
+import { buildUsageOverview, type OverviewDbRow, type UsageOverview } from "@/lib/billing/usage-overview";
+import { typesOf, type UsageKind } from "@/lib/billing/usage-kinds";
 
-// Who used what (spec 2026-11-21-usage-by-design.md, D583). Two calls per view: the grouped sums
-// (org_credit_usage_by, 0097) and the names for those keys.
+// The owner's Usage page (D597): one read for everything about a period (org_usage_overview,
+// 0106) and one for a group's runs a page at a time (org_usage_runs). Both read the credit ledger's
+// charges, so the runs listed add up to the totals shown. Model names come from the catalog, which
+// is kept in memory (no query of its own most of the time).
 
-export type UsageRow = { key: string | null; name: string; detail: string | null; credits: number; runs: number };
-export type UsageRun = { id: string; type: string; model: string | null; credits: number; createdAt: string; memberName: string | null };
+export type UsageRun = {
+  id: string;
+  type: string;
+  /** The model's name, never its id. */
+  model: string | null;
+  credits: number;
+  createdAt: string;
+  memberName: string | null;
+  clientName: string | null;
+  canvasName: string | null;
+};
 export type UsageRunsPage = { runs: UsageRun[]; total: number };
 
-
-const NO_KEY_NAME: Record<UsageBy, string> = {
-  member: "Someone no longer in the agency",
-  client: "No client",
-  canvas: "Outside a canvas (avatars, scripts)",
-};
-
-async function namesFor(by: UsageBy, ids: string[]): Promise<Map<string, { name: string; detail: string | null }>> {
-  const names = new Map<string, { name: string; detail: string | null }>();
-  if (ids.length === 0) return names;
-  const supabase = createServerSupabase();
-  if (by === "member") {
-    const { data, error } = await supabase.from("profiles").select("user_id, display_name").in("user_id", ids);
-    if (error) throw error;
-    for (const r of (data ?? []) as { user_id: string; display_name: string | null }[]) names.set(r.user_id, { name: r.display_name ?? "Unnamed", detail: null });
-  } else if (by === "client") {
-    const { data, error } = await supabase.from("clients").select("id, name").in("id", ids);
-    if (error) throw error;
-    for (const r of (data ?? []) as { id: string; name: string }[]) names.set(r.id, { name: r.name, detail: null });
-  } else {
-    const { data, error } = await supabase.from("canvases").select("id, name, client:clients(name)").in("id", ids);
-    if (error) throw error;
-    for (const r of (data ?? []) as unknown as { id: string; name: string | null; client: { name: string } | null }[]) {
-      names.set(r.id, { name: r.name || "Untitled canvas", detail: r.client?.name ?? null });
-    }
-  }
-  return names;
-}
-
-/** Credits charged in the period, per member, client or canvas, most first. */
-export async function getUsageBy(orgId: string, by: UsageBy, range: { from: string; to: string }): Promise<UsageRow[]> {
-  const { data, error } = await createServerSupabase().rpc("org_credit_usage_by", { p_org_id: orgId, p_from: range.from, p_to: range.to, p_by: by });
-  if (error) throw error;
-  const rows = (data ?? []) as { key: string | null; credits: number | string; runs: number }[];
-  const names = await namesFor(by, rows.map((r) => r.key).filter((k): k is string => !!k));
-  return rows.map((r) => {
-    const named = r.key ? names.get(r.key) : null;
-    return { key: r.key, name: named?.name ?? (r.key ? "Removed" : NO_KEY_NAME[by]), detail: named?.detail ?? null, credits: Number(r.credits), runs: r.runs };
+/** Everything the Usage page shows about credits used in the period. */
+export async function getUsageOverview(orgId: string, period: UsagePeriod, now: Date = new Date()): Promise<UsageOverview> {
+  const range = usageRange(period, now);
+  const before = previousRange(period, now);
+  const [res, catalog] = await Promise.all([
+    createServerSupabase().rpc("org_usage_overview", { p_org_id: orgId, p_from: range.from, p_to: range.to, p_prev_from: before.from }),
+    getAiCatalog(),
+  ]);
+  if (res.error) throw res.error;
+  return buildUsageOverview((res.data ?? []) as OverviewDbRow[], {
+    period,
+    ...range,
+    now,
+    modelLabel: (id) => catalogModelLabel(catalog, id),
   });
 }
 
-type RunRow = { id: string; type: string; model_used: string | null; credits_charged: number | string; created_at: string; user_id: string | null };
+type RunRow = {
+  id: string;
+  type: string;
+  model: string | null;
+  credits: number | string;
+  created_at: string;
+  member_name: string | null;
+  client_name: string | null;
+  canvas_name: string | null;
+  total: number;
+};
 
-/** One group's charged runs in the period, newest first, a page at a time. `key` null is the
- *  group with no member, client or canvas. */
-export async function listUsageRuns(
-  orgId: string,
-  by: UsageBy,
-  key: string | null,
-  range: { from: string; to: string },
-  page: number,
-): Promise<UsageRunsPage> {
-  const supabase = createServerSupabase();
-  const columns = "id, type, model_used, credits_charged, created_at, user_id";
-  // A canvas is reached through the run's node, so that filter needs the node joined.
-  let q = supabase
-    .from("generations")
-    .select(by === "canvas" && key ? `${columns}, node:nodes!inner(canvas_id)` : columns, { count: "exact" })
-    .eq("org_id", orgId)
-    .gt("credits_charged", 0)
-    .gte("created_at", range.from)
-    .lt("created_at", range.to);
-  if (by === "member") q = key ? q.eq("user_id", key) : q.is("user_id", null);
-  else if (by === "client") q = key ? q.eq("client_id", key) : q.is("client_id", null);
-  else q = key ? q.eq("node.canvas_id", key) : q.is("node_id", null);
-  const from = (page - 1) * USAGE_RUNS_PAGE_SIZE;
-  const { data, count, error } = await q.order("created_at", { ascending: false }).range(from, from + USAGE_RUNS_PAGE_SIZE - 1);
+/** One group's charged runs in the period, newest first, a page at a time. `key` null is the group
+ *  with no member, client, canvas or model; for `kind` it is the kind. */
+export async function listUsageRuns(orgId: string, by: UsageBy, key: string | null, period: UsagePeriod, page: number): Promise<UsageRunsPage> {
+  const range = usageRange(period);
+  const [{ data, error }, catalog] = await Promise.all([createServerSupabase().rpc("org_usage_runs", {
+    p_org_id: orgId,
+    p_from: range.from,
+    p_to: range.to,
+    p_by: by,
+    p_key: by === "kind" ? null : key,
+    p_types: by === "kind" && key ? typesOf(key as UsageKind) : [],
+    p_offset: (page - 1) * USAGE_RUNS_PAGE_SIZE,
+    p_limit: USAGE_RUNS_PAGE_SIZE,
+  }), getAiCatalog()]);
   if (error) throw error;
-  const rows = (data ?? []) as unknown as RunRow[];
-  const people = await namesFor("member", [...new Set(rows.map((r) => r.user_id).filter((u): u is string => !!u))]);
+  const rows = (data ?? []) as RunRow[];
   return {
     runs: rows.map((r) => ({
       id: r.id,
       type: r.type,
-      model: r.model_used,
-      credits: Number(r.credits_charged),
+      model: r.model ? catalogModelLabel(catalog, r.model) ?? "Older model" : null,
+      credits: Number(r.credits),
       createdAt: r.created_at,
-      memberName: r.user_id ? people.get(r.user_id)?.name ?? null : null,
+      memberName: r.member_name,
+      clientName: r.client_name,
+      canvasName: r.canvas_name,
     })),
-    total: count ?? 0,
+    total: rows[0]?.total ?? 0,
   };
 }

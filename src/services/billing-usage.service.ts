@@ -1,12 +1,11 @@
 import { readJson } from "./read-json";
 import type { UsageBy, UsagePeriod } from "@/lib/billing/usage-period";
-import type { UsageRow, UsageRunsPage } from "@/lib/db/billing-usage";
+import type { UsageOverview } from "@/lib/billing/usage-overview";
+import type { UsageRunsPage } from "@/lib/db/billing-usage";
 
-export type UsageSummary = { rows: UsageRow[]; total: number };
-
-// Who used what (D583): one call per route, typed through readJson.
-export async function fetchUsage(by: UsageBy, period: UsagePeriod): Promise<UsageSummary> {
-  return readJson<UsageSummary>(await fetch(`/api/billing/usage?by=${by}&period=${period}`), "Could not load usage.");
+// The Usage page (D597): one call per route, typed through readJson.
+export async function fetchUsageOverview(period: UsagePeriod): Promise<UsageOverview> {
+  return readJson<UsageOverview>(await fetch(`/api/billing/usage?period=${period}`), "Could not load usage.");
 }
 
 export async function fetchUsageRuns(by: UsageBy, key: string | null, period: UsagePeriod, page: number): Promise<UsageRunsPage> {
