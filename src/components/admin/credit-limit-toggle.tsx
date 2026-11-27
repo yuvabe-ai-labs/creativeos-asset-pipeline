@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 export type CreditLimitMode = "unlimited" | "set";
 
 // The Unlimited / Set limit choice for an agency's monthly credit limit: one unambiguous default,
-// and an amount box only once Set limit is chosen. Shared by the agency page's CreditLimitEditor
-// and the Add an agency popup (CreditLimitField), so the two look and behave the same.
+// and an amount box only once Set limit is chosen. Used by the agency page's CreditLimitEditor.
 export function CreditLimitToggle({
   mode,
   disabled,

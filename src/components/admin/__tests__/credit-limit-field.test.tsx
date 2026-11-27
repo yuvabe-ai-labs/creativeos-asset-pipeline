@@ -5,13 +5,12 @@ import { CreditLimitField } from "../credit-limit-field";
 import { CreditLimitToggle } from "../credit-limit-toggle";
 
 describe("CreditLimitField (Add an agency)", () => {
-  it("starts Unlimited: the two choices, no amount box, and a blank limit sent with the form", () => {
+  it("is one field, empty for unlimited", () => {
     const html = renderToStaticMarkup(<CreditLimitField />);
     expect(html).toContain("Monthly credit limit");
-    expect(html).toContain("Unlimited");
-    expect(html).toContain("Set limit");
-    expect(html).not.toContain("e.g. 500");
-    expect(html).toMatch(/<input[^>]*type="hidden"[^>]*name="creditLimit"[^>]*value=""|<input[^>]*name="creditLimit"[^>]*type="hidden"[^>]*value=""/);
+    expect(html).toContain('placeholder="Unlimited"');
+    expect(html).toMatch(/<input[^>]*name="creditLimit"[^>]*>/);
+    expect(html).not.toContain("Set limit");
   });
 });
 

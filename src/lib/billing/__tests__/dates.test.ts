@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { endsAtFromDay, lastDayOf, todayIst, formatDay, isDay } from "../dates";
+import { endsAtFromDay, lastDayOf, todayIst, formatDay, isDay, daysFromTodayIst } from "../dates";
 
 describe("billing dates (India time)", () => {
   it("ends a chosen day at midnight India time", () => {
@@ -25,5 +25,13 @@ describe("billing dates (India time)", () => {
     expect(isDay("2026-12-03")).toBe(true);
     expect(isDay("2026-02-30")).toBe(false);
     expect(isDay("3 Dec")).toBe(false);
+  });
+});
+
+describe("daysFromTodayIst", () => {
+  it("counts from today in India, across a month end", () => {
+    // 20:00 UTC on 30 Nov is already 1 Dec in India.
+    expect(daysFromTodayIst(14, new Date("2026-11-30T20:00:00Z"))).toBe("2026-12-15");
+    expect(daysFromTodayIst(14, new Date("2026-11-27T06:00:00Z"))).toBe("2026-12-11");
   });
 });

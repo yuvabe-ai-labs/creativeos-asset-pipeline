@@ -3,35 +3,31 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { todayIst } from "@/lib/billing/dates";
-import { SegmentedChoice } from "./segmented-choice";
+import { daysFromTodayIst, todayIst } from "@/lib/billing/dates";
 
-// Add an agency's "Free credits to start", sent with the form as freeGive / freeCredits /
-// freeUntil (createAgencyAction parses them with FreeCreditsFormSchema). No default amount or day.
+/** Free credits last two weeks unless the admin picks another day. */
+const DEFAULT_FREE_DAYS = 14;
+
+// Add an agency's free credits, sent with the form as freeGive / freeCredits / freeUntil
+// (createAgencyAction parses them with FreeCreditsFormSchema). Left empty, the agency starts with
+// none; once an amount is typed, Expires at appears, set 14 days from today.
 export function FreeCreditsField() {
-  const [give, setGive] = useState<"none" | "give">("none");
+  const [credits, setCredits] = useState("");
+  const [until, setUntil] = useState(() => daysFromTodayIst(DEFAULT_FREE_DAYS));
+  const giving = credits.trim() !== "";
   return (
-    <div className="flex flex-col gap-1.5">
-      <Label>Free credits to start</Label>
-      <SegmentedChoice
-        value={give}
-        options={[{ value: "none", label: "None" }, { value: "give", label: "Give free credits" }]}
-        onChange={setGive}
-      />
-      {give === "give" && (
-        <div className="mt-1 grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="freeCredits" className="text-xs text-muted-foreground">Credits</Label>
-            <Input id="freeCredits" name="freeCredits" inputMode="numeric" placeholder="e.g. 50,000" autoFocus />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="freeUntil" className="text-xs text-muted-foreground">Last day they work</Label>
-            <Input id="freeUntil" name="freeUntil" type="date" min={todayIst()} />
-          </div>
+    <div className="grid grid-cols-2 gap-3">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="freeCredits">Free credits</Label>
+        <Input id="freeCredits" name="freeCredits" inputMode="numeric" placeholder="None" value={credits} onChange={(e) => setCredits(e.target.value)} />
+      </div>
+      {giving && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="freeUntil">Expires at</Label>
+          <Input id="freeUntil" name="freeUntil" type="date" min={todayIst()} value={until} onChange={(e) => setUntil(e.target.value)} />
         </div>
       )}
-      <Input type="hidden" name="freeGive" value={give === "give" ? "1" : ""} />
-      {give === "give" && <p className="text-xs text-muted-foreground">Used before plan credits. What is left after the last day is gone.</p>}
+      <Input type="hidden" name="freeGive" value={giving ? "1" : ""} />
     </div>
   );
 }

@@ -17,12 +17,18 @@ describe("Add an agency: billing", () => {
     expect(html).not.toContain("Free credits to start");
   });
 
-  it("starts free credits at None, with no amount or day filled in", () => {
+  it("starts with no free credits: an empty amount, no date until an amount is typed, nothing given", () => {
     const html = renderToStaticMarkup(<FreeCreditsField />);
-    expect(html).toContain("Give free credits");
+    expect(html).toContain("Free credits");
+    expect(html).toContain('placeholder="None"');
+    expect(html).not.toContain("Expires at");
     expect(html).toMatch(hidden("freeGive", ""));
-    expect(html).not.toContain('name="freeCredits"');
-    expect(html).not.toContain('name="freeUntil"');
+    expect(html).not.toContain("Last day");
+  });
+
+  it("explains nothing under the fields", () => {
+    const html = renderToStaticMarkup(<BillingModeField />);
+    expect(html).not.toContain("Yuvabe pays. The agency is never charged.");
   });
 
   it("marks the chosen option", () => {

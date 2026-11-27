@@ -30,6 +30,11 @@ export function todayIst(now: Date = new Date()): string {
   return new Date(now.getTime() + IST_MS).toISOString().slice(0, 10);
 }
 
+/** A day in India `days` days from today. */
+export function daysFromTodayIst(days: number, now: Date = new Date()): string {
+  return todayIst(new Date(now.getTime() + days * 86_400_000));
+}
+
 /** `3 Dec 2026`. */
 export function formatDay(day: string): string {
   const [y, m, d] = day.split("-").map(Number);

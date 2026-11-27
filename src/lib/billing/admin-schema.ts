@@ -44,7 +44,7 @@ export const FreeCreditsFormSchema = z
       return z.NEVER;
     }
     if (!v.day) {
-      ctx.addIssue({ code: "custom", message: "Pick the last day the free credits work." });
+      ctx.addIssue({ code: "custom", message: "Pick when the free credits expire." });
       return z.NEVER;
     }
     const day = DayField.safeParse(v.day);

@@ -38,6 +38,6 @@ describe("admin billing forms", () => {
     expect(FreeCreditsFormSchema.parse({ give: "", credits: "", day: "" })).toBeNull();
     expect(FreeCreditsFormSchema.parse({ give: "1", credits: "50000", day: "2026-12-03" })).toEqual({ credits: 50000, day: "2026-12-03" });
     expect(first(FreeCreditsFormSchema.safeParse({ give: "1", credits: "", day: "2026-12-03" }))).toBe("Enter the credits as a whole number above 0.");
-    expect(first(FreeCreditsFormSchema.safeParse({ give: "1", credits: "5", day: "" }))).toBe("Pick the last day the free credits work.");
+    expect(first(FreeCreditsFormSchema.safeParse({ give: "1", credits: "5", day: "" }))).toBe("Pick when the free credits expire.");
   });
 });
