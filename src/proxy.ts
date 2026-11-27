@@ -75,7 +75,8 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-// Run on everything EXCEPT: /login, webhooks (server-to-server, no session), the
+// Run on everything EXCEPT: /login and everything under it (so /login/forgot and /login/reset,
+// D598, open signed out, and the reset link still works for someone signed in), webhooks (server-to-server, no session), the
 // public client review page + API (/r/*, /api/r/* — D309, token-scoped via
 // withShareToken), the invite sign-up page (/invite/*, token-scoped: the person has no
 // account yet), Next internals, and static assets.

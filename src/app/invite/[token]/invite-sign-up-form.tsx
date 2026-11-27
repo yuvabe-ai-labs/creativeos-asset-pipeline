@@ -23,6 +23,10 @@ export function InviteSignUpForm({ token, email, agency }: { token: string; emai
         <Label htmlFor="password">Password</Label>
         <PasswordInput id="password" name="password" autoComplete="new-password" />
       </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="confirmPassword">Confirm password</Label>
+        <PasswordInput id="confirmPassword" name="confirmPassword" autoComplete="new-password" />
+      </div>
       {state?.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
       <Button type="submit" disabled={pending}>{pending ? "Creating your account…" : "Create account"}</Button>
       <p className="text-xs text-muted-foreground">You&apos;re joining {agency}.</p>

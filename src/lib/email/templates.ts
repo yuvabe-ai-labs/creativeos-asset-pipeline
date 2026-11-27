@@ -3,7 +3,7 @@ import { formatRupees } from "@/lib/billing/pricing";
 import { formatIstDate } from "@/lib/admin/ist";
 import type { Email } from "./send";
 
-// The four emails of spec §6.7, the plan price notices (D593, D595) and the credit notices (D596). Plain text first; the html is the same words laid out as a card
+// The four emails of spec §6.7, the password reset link (D598), the plan price notices (D593, D595) and the credit notices (D596). Plain text first; the html is the same words laid out as a card
 // (the "B · Card" design of 18 Nov): wordmark, a white card with a heading, the message, one
 // button, a small note, the link written out, and a footer. Tables and inline styles only, and
 // Arial, because email apps don't load web fonts or style sheets.
@@ -96,6 +96,20 @@ export function ownerInviteEmail(a: { to: string; agency: string; link: string; 
     lines,
     action: { label: `Set up ${a.agency}`, link: a.link },
     note: "The link works for 7 days.",
+  });
+}
+
+/** Forgot password (D598). Goes only to an email that has an account; the link opens a form and
+ *  nothing is used up until that form is sent. */
+export function passwordResetEmail(a: { to: string; link: string }): Email {
+  return compose({
+    to: [a.to],
+    subject: "Set a new password for CreativeOS",
+    preview: "Use this link to set a new password.",
+    heading: "Set a new password",
+    lines: ["Someone asked to set a new password for your CreativeOS account. Use the button below to choose one."],
+    action: { label: "Set a new password", link: a.link },
+    note: "The link works for 1 hour. If you didn't ask for this, ignore this email and your password stays the same.",
   });
 }
 

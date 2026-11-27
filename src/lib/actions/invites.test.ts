@@ -14,10 +14,11 @@ vi.mock("next/navigation", () => ({ redirect: m.redirect }));
 
 import { acceptInviteAction } from "./invites";
 
-const form = (name: string, password: string, email?: string) => {
+const form = (name: string, password: string, email?: string, confirmPassword = password) => {
   const f = new FormData();
   f.set("name", name);
   f.set("password", password);
+  f.set("confirmPassword", confirmPassword);
   if (email) f.set("email", email);
   return f;
 };
@@ -87,6 +88,15 @@ describe("acceptInviteAction (spec §6.3)", () => {
     expect(await acceptInviteAction("tok", undefined, form("Ravi", "short"))).toEqual({ error: "Password must be at least 8 characters." });
     expect(await acceptInviteAction("tok", undefined, form("", "longenough"))).toEqual({ error: "Enter your name." });
     expect(m.createLogin).not.toHaveBeenCalled();
+  });
+
+  it("refuses a confirmation that doesn't match, before anything is created (D598)", async () => {
+    expect(await acceptInviteAction("tok", undefined, form("Ravi", "longenough", undefined, "longenougH"))).toEqual({ error: "Passwords don't match." });
+    const missing = form("Ravi", "longenough");
+    missing.delete("confirmPassword");
+    expect(await acceptInviteAction("tok", undefined, missing)).toEqual({ error: "Passwords don't match." });
+    expect(m.createLogin).not.toHaveBeenCalled();
+    expect(m.getInvitationByToken).not.toHaveBeenCalled();
   });
 
   it("refuses a link that is no longer valid", async () => {
