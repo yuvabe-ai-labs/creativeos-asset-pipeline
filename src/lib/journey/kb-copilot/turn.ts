@@ -67,6 +67,13 @@ const answerPatch = (value: ReviewField["value"]): KBFieldPatch["patch"] => ({ v
 const NO_KB = "There is no brand KB to change yet.";
 const ALREADY_THE_VALUE = "That is already the value.";
 const CHANGE_READY = "Here is the change. Nothing changes until you approve it.";
+/** Words that tell the person a change card is waiting. Only a turn that made a card may say them. */
+const CLAIMS_CHANGE = /\bhere is the change\b|\bchange card\b/i;
+/** What the model is told when it said a change is ready but called no tool. */
+const CLAIMED_WITHOUT_CARD = "You said a change is ready, but you did not call propose_change, so no change card was made. If the person asked to change a field, call propose_change now. Otherwise answer without saying a change is ready.";
+const ASKED_AGAIN = "Said a change was ready without calling propose_change; asked again.";
+/** The reply when the model still claims a change it never proposed. */
+const NO_CHANGE_MADE = "No change was prepared that time. Ask again and I will make the change card.";
 /** Where a value the person states in the chat came from, as a change card shows it. */
 export const FROM_CHAT = "You, in this chat";
 const EMPTY_ANSWER = "No value was given.";
@@ -82,7 +89,9 @@ const fieldArg = z.enum(REVIEW_FIELD_PATHS as [string, ...string[]]);
 
 
 /** A stored message's words for the model. A status line stored on its own (a failed job, D518) has
- *  no words, so the model reads its lines instead. */
+ *  no words, so the model reads its lines instead. A change card is not written out: written as
+ *  "[propose_change made a change card…]", the model copied that line as its reply instead of
+ *  calling the tool (2026-11-26). */
 function storedWords(m: ThreadMessage): string {
   if (m.content || m.card?.kind !== "status") return m.content;
   return m.card.lines.map((l) => l.text).join("\n");
@@ -141,9 +150,28 @@ export async function runKbTurn(input: {
   // ends on that call ends on code's words: the model wrote its own expecting a card (review fix).
   let modelCalls = 0;
   let savedOnlyAt = -1;
-  const counted: AgentModel = (i) => {
+  let askedAgain = false;
+  /** Words that say a change card is waiting, in a turn that made none. Only where a turn can make
+   *  a card: a built KB. */
+  const claimsMissingCard = (text: string) => input.kb != null && proposals.length === 0 && CLAIMS_CHANGE.test(text);
+  const counted: AgentModel = async (i) => {
     modelCalls += 1;
-    return model(i);
+    const started = Date.now();
+    const out = await model(i);
+    // The model said a change is ready but called no tool, so no card exists (2026-11-26: it copied
+    // "Here is the change…" from earlier turns). Asked once more, told why, with propose_change
+    // forced: only asked, it ignored the request twice. The tool's own code still decides what is
+    // allowed. The words it already streamed are cleared first. A second false claim (the tool was
+    // not offered, so nothing could be forced) is replaced after the loop.
+    if (askedAgain || out.calls.length > 0 || !claimsMissingCard(out.text)) return out;
+    askedAgain = true;
+    input.trace?.round({ text: out.text, calls: [], results: [], ms: Date.now() - started });
+    input.trace?.refused(ASKED_AGAIN);
+    input.on?.reset?.();
+    return model({
+      ...i, force: "propose_change",
+      messages: [...i.messages, { role: "assistant", content: out.text }, { role: "user", content: CLAIMED_WITHOUT_CARD }],
+    });
   };
   /** The field a tool may write, or the sentence that refuses it. */
   const open = (path: string): ReviewField | string => {
@@ -415,7 +443,12 @@ export async function runKbTurn(input: {
   // sometimes it just says nothing. Say what the tools said, never a bare "Done." that could follow
   // a refusal, and while sources are still being collected, what comes next.
   const codeWords = text === EMPTY_AGENT_REPLY || savedOnlyAt === modelCalls;
-  const reply = codeWords && said.length > 0 ? [said.join(" "), nextStep(ctx)].filter(Boolean).join("\n\n") : text;
+  // Asked again and still claiming a card that was never made: never stored as if it were true.
+  const falseClaim = !codeWords && claimsMissingCard(text);
+  if (falseClaim) input.trace?.refused(NO_CHANGE_MADE);
+  const reply = falseClaim
+    ? NO_CHANGE_MADE
+    : codeWords && said.length > 0 ? [said.join(" "), nextStep(ctx)].filter(Boolean).join("\n\n") : text;
   const card = input.kb && proposals.length > 0
     ? buildChangeCard({ versionId: input.kb.versionId, current: input.kb.output, proposals, refused: new Set() })
     : brandsCard;

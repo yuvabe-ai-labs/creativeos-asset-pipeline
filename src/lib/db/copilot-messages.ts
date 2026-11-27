@@ -51,7 +51,10 @@ export async function insertCopilotMessages(
   if (messages.length === 0) return;
   const supabase = createServerSupabase();
   // One insert keeps them in order: `seq` is assigned row by row in array order.
-  const { error } = await supabase.from("client_copilot_messages").insert(messages.map((m) => toRow(clientId, thread, userId, m)));
+  // Rows without an id take the table's default, not null (which would fail the whole insert).
+  const { error } = await supabase
+    .from("client_copilot_messages")
+    .insert(messages.map((m) => toRow(clientId, thread, userId, m)), { defaultToNull: false });
   if (error) throw error;
 }
 
