@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { accessReadyEmail, appLink, freeCreditsEndingEmail, lowCreditsEmail, memberInviteEmail, ownerInviteEmail, signedUpEmail } from "./templates";
+import { accessReadyEmail, appLink, passwordResetEmail, freeCreditsEndingEmail, lowCreditsEmail, memberInviteEmail, ownerInviteEmail, signedUpEmail } from "./templates";
 
 describe("emails (spec §6.3, §6.7)", () => {
   beforeEach(() => { process.env.APP_URL = "https://app.example/"; });
@@ -35,6 +35,18 @@ describe("emails (spec §6.3, §6.7)", () => {
     expect(e.subject).toBe("Ravi signed up to Acme");
     expect(e.text).toContain("Ravi signed up to Acme.");
     expect(e.text).not.toContain("Team page");
+  });
+
+  it("sends the reset link in the same card, plainly, with how long it works (D598)", () => {
+    const e = passwordResetEmail({ to: "p@x.com", link: "https://app.example/login/reset?token_hash=t" });
+    expect(e.to).toEqual(["p@x.com"]);
+    expect(e.subject).toBe("Set a new password for CreativeOS");
+    expect(e.html).toContain(">Set a new password</h1>");
+    expect(e.html).toContain(">Set a new password</a>");
+    expect(e.text).toContain("Set a new password: https://app.example/login/reset?token_hash=t");
+    expect(e.text).toContain("The link works for 1 hour. If you didn't ask for this, ignore this email and your password stays the same.");
+    expect(e.html).toContain('href="https://app.example/login/reset?token_hash=t"');
+    expect(e.text).not.toMatch(/supabase|resend|—/i);
   });
 
   it("tells the person their access is ready", () => {

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { FlashToast } from "@/components/layout/flash-toast";
 import { QueryProvider } from "@/components/layout/query-provider";
 import { AppHeader } from "@/components/layout/app-header";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
@@ -78,6 +79,7 @@ export default async function RootLayout({
         <BillingBar />
         {children}
         <Toaster />
+        <FlashToast />
         </AccessProvider>
         </QueryProvider>
       </body>

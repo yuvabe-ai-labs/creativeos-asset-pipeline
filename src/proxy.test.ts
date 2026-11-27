@@ -24,6 +24,10 @@ describe("proxy matcher (D309)", () => {
     expect(runsProxy("/login")).toBe(false);
     expect(runsProxy("/api/webhooks/trigger")).toBe(false);
   });
+  it("opens the forgot-password and reset pages signed out (D598)", () => {
+    expect(runsProxy("/login/forgot")).toBe(false);
+    expect(runsProxy("/login/reset")).toBe(false);
+  });
   it("skips the session check for the invite sign-up page only (spec 6.3)", () => {
     expect(runsProxy("/invite/abc")).toBe(false);
     expect(runsProxy("/invite")).toBe(true);
