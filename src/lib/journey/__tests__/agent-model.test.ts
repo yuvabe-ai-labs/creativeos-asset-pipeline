@@ -5,6 +5,7 @@ const create = vi.fn();
 const stream = vi.fn();
 vi.mock("@/lib/openai/server", () => ({ createOpenAI: () => ({ responses: { create, stream } }) }));
 
+import { z } from "zod";
 import { openaiAgentModel } from "../agent-model";
 
 const RESPONSE = { output: [], output_text: "Hi" };
@@ -94,5 +95,15 @@ describe("openaiAgentModel", () => {
   it("gives a streamed call a limit that covers the whole reply, not only the start of it", async () => {
     await openaiAgentModel("m")({ ...base, onText: vi.fn() });
     expect(stream.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("makes the model call a tool only when asked, and only while that tool is offered", async () => {
+    const tool = { description: "d", schema: z.object({}), run: async () => "ok" };
+    await openaiAgentModel("m")({ ...base, tools: { propose_change: tool } });
+    expect(create.mock.calls[0][0].tool_choice).toBeUndefined();
+    await openaiAgentModel("m")({ ...base, tools: { propose_change: tool }, force: "propose_change" });
+    expect(create.mock.calls[1][0].tool_choice).toEqual({ type: "function", name: "propose_change" });
+    await openaiAgentModel("m")({ ...base, tools: { other: tool }, force: "propose_change" });
+    expect(create.mock.calls[2][0].tool_choice).toBeUndefined();
   });
 });

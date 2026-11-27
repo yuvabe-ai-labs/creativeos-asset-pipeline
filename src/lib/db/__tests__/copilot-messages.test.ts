@@ -16,7 +16,7 @@ const update = vi.fn(() => {
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase: () => ({ from: () => ({ insert, update }) }) }));
 
 import { claimCopilotCard, insertCopilotMessages } from "../copilot-messages";
-import type { BrandsCard } from "@/lib/journey/thread/schema";
+import type { BrandsCard, ChangeCard } from "@/lib/journey/thread/schema";
 
 beforeEach(() => {
   insert.mockReset();
@@ -30,6 +30,26 @@ describe("insertCopilotMessages", () => {
   it("stores a person's message under them and the copilot's under nobody", async () => {
     await insertCopilotMessages("c1", "onboarding", "u1", [{ role: "user", content: "hi" }, { role: "assistant", content: "hello" }]);
     expect(insert.mock.calls[0][0].map((r: { created_by: string | null }) => r.created_by)).toEqual(["u1", null]);
+  });
+
+  it("lets the table make the ids a reply's next question and change card do not carry", async () => {
+    const card: ChangeCard = {
+      kind: "change", versionId: "v1", status: "pending", decision: null,
+      fields: [{ path: "brand_profile.tagline", label: "Tagline", before: "Old", after: "Fresh, every single day", from: "You, in this chat", docId: null }],
+    };
+    // The same shape the brand KB turn route stores: the reply named by the trace, then rows without an id.
+    await insertCopilotMessages("c1", "onboarding", "u1", [
+      { id: "reply-1", role: "assistant", content: "Proposed.", suggestions: [] },
+      { role: "assistant", content: "What is the brand's mission?", suggestions: ["Skip"] },
+      { role: "assistant", content: "", card, suggestions: [] },
+    ]);
+    const [rows, options] = insert.mock.calls[0] as [{ id?: string; card: unknown }[], { defaultToNull?: boolean }];
+    expect(rows[0].id).toBe("reply-1");
+    // No id key at all, never id: null, and the insert asks for the column default where a key is missing.
+    expect("id" in rows[1]).toBe(false);
+    expect("id" in rows[2]).toBe(false);
+    expect(options).toEqual({ defaultToNull: false });
+    expect(rows[2].card).toEqual(card);
   });
 
   it("stores an assistant message under the person it is about when told to", async () => {

@@ -37,6 +37,8 @@ export type AgentModel = (input: {
   answer?: z.ZodType;
   /** When set, the model's words are passed here piece by piece as it writes them. */
   onText?: (delta: string) => void;
+  /** A tool the model must call in this one answer. The loop never sets it; a stage's own retry may. */
+  force?: string;
 }) => Promise<{ text: string; calls: ToolCall[]; answer?: unknown }>;
 
 /** A tool as the model is told about it: its name, description and JSON schema. The adapter sends

@@ -42,7 +42,7 @@ export function openaiAgentModel(modelId: string): AgentModel {
   let roundsSent = 0;
   let lastTools: FunctionTool[] = [];
 
-  return async ({ system, messages, tools, rounds, answer, onText }) => {
+  return async ({ system, messages, tools, rounds, answer, onText, force }) => {
     if (rounds.length === 0) {
       carried.length = 0;
       roundsSent = 0;
@@ -69,6 +69,8 @@ export function openaiAgentModel(modelId: string): AgentModel {
       // The loop takes the tools away to force an answer. Earlier calls in the input still refer to
       // them, so they stay declared and the model is told to call none.
       ...(functionTools.length > 0 ? { tools: functionTools } : lastTools.length > 0 ? { tools: lastTools, tool_choice: "none" as const } : {}),
+      // The model must call this tool. Only while it is offered: the API refuses a tool it was not given.
+      ...(force && functionTools.some((t) => t.name === force) ? { tool_choice: { type: "function" as const, name: force } } : {}),
       ...(answer ? { text: { format: zodTextFormat(answer, "answer") } } : {}),
     };
     const options = { timeout: CALL_TIMEOUT_MS, maxRetries: 0 };

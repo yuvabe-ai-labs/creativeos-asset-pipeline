@@ -716,3 +716,71 @@ describe("runKbTurn, naming what it changes", () => {
     expect(target.mock.calls).toEqual([["kb-form:instagram", "writing"], ["kb-form:instagram", "written"]]);
   });
 });
+
+// ── A change claimed without a card (2026-11-26) ─────────────────────────────
+
+describe("runKbTurn, a change claimed but never proposed", () => {
+  const V1 = "0b7d7a0e-6a4f-4c0e-9a55-1f1f8f3a2c11";
+  const NAME = "brand_profile.brand_name";
+  const approved: KbContext = { ...empty, websiteUrl: "https://acme.com", hasVersion: true, kbStatus: "ready", unreviewed: [] };
+  const kb = { versionId: V1, output: kbWith({ [NAME]: { value: "basics", status: "approved" } }) };
+  const CLAIM = "Here is the change. Nothing changes until you approve it.";
+  const card: ChangeCard = {
+    kind: "change", versionId: V1, status: "applied", decision: null,
+    fields: [{ path: NAME, label: "Brand Name", before: "Cookd", after: "basics", from: "You, in this chat", docId: null }],
+  };
+  const msg = (id: string, role: "user" | "assistant", content: string, c: ThreadMessage["card"] = null): ThreadMessage =>
+    ({ id, role, content, card: c, attachments: [], suggestions: [], createdAt: "" });
+  // The thread the model copied the sentence from: a request, the fixed reply, the card, the same request again.
+  const history = [
+    msg("m1", "user", "change the brand name to basics"),
+    msg("m2", "assistant", CLAIM),
+    msg("m3", "assistant", "", card),
+    msg("m4", "user", "change the brand name to basics"),
+    msg("m5", "assistant", "That is already the value."),
+  ];
+
+  it("never writes an earlier change card into the conversation as text the model could copy", async () => {
+    const { model, seen } = scripted([say("ok")]);
+    await turn({ ctx: approved, kb, history, model });
+    expect(seen[0].messages[2]).toEqual({ role: "assistant", content: "" });
+    expect(seen[0].messages.some((m) => m.content.includes("[propose_change"))).toBe(false);
+  });
+
+  it("asks again when the model says a change is ready but called no tool, and makes the card then", async () => {
+    const recorder = traceRecorder();
+    const order: string[] = [];
+    const { model, seen } = scripted([
+      say(CLAIM),
+      { text: "", calls: [call("propose_change", { changes: [{ field: NAME, value: "basic" }] })] },
+    ]);
+    const result = await turn({ ctx: approved, kb, history, model, text: "change the brand name to basic", trace: recorder, on: { reset: () => order.push("reset") } });
+    expect(seen).toHaveLength(2);
+    // The first try is left to the model; the retry must call propose_change.
+    expect(seen[0].force).toBeUndefined();
+    expect(seen[1].force).toBe("propose_change");
+    const retried = seen[1].messages;
+    expect(retried[retried.length - 2]).toEqual({ role: "assistant", content: CLAIM });
+    expect(retried[retried.length - 1].content).toMatch(/did not call propose_change/);
+    expect(order).toContain("reset");
+    expect(result.card).toMatchObject({ kind: "change", fields: [{ path: NAME, before: "basics", after: "basic" }] });
+    expect(result.reply).toBe(CLAIM);
+    expect(recorder.record().refusals).toEqual(["Said a change was ready without calling propose_change; asked again."]);
+    expect(recorder.record().rounds[0].text).toBe(CLAIM);
+  });
+
+  it("never stores a claimed change when the model claims it again with no tool", async () => {
+    const { model, seen } = scripted([say(CLAIM), say(CLAIM)]);
+    const result = await turn({ ctx: approved, kb, history, model, text: "change the brand name to basic" });
+    expect(seen).toHaveLength(2);
+    expect(result.card).toBeNull();
+    expect(result.reply).toBe("No change was prepared that time. Ask again and I will make the change card.");
+  });
+
+  it("leaves the reply alone where no change card can be made yet", async () => {
+    const { model, seen } = scripted([say(CLAIM)]);
+    const result = await turn({ model });
+    expect(seen).toHaveLength(1);
+    expect(result.reply).toBe(CLAIM);
+  });
+});
