@@ -59,6 +59,12 @@ export function describeBillingChange(c: Change): string {
       const on = typeof after.ends_at === "string" ? ` on ${formatIstDate(new Date(after.ends_at))}` : "";
       return `Plan ended${on}: the owner didn't approve ${formatRupees(Number(after.amount_minor ?? 0))} a month`;
     }
+    case "owner_email": {
+      // An email the hourly check sent the owners (D596).
+      if (after.email === "low_credits") return `Told the owner credits are running low (${Number(after.used_percent ?? 0)}% used)`;
+      if (after.email === "free_ending") return `Told the owner free credits end after ${formatDay(lastDayOf(String(after.ends_at)))}`;
+      return "Emailed the owner about billing";
+    }
     default:
       return "Billing changed";
   }

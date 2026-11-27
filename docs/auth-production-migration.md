@@ -2180,6 +2180,57 @@ alter table billing_subscriptions drop column if exists ends_unless_approved_at;
 notify pgrst, 'reload schema';
 ```
 
+## Migration 0105 — owner credit emails (D596, 2026-11-27)
+
+Apply after 0104, **before** the code: the hourly task calls `billing_owner_emails_due` and the claim
+functions, which don't exist until then (each run would log a failure and send nothing).
+
+- Adds `organizations.low_credits_warned_at` (when the owners were last told credits are running low;
+  credits that arrive after it start a new credit period) and `credit_grants.ending_warned_at` (a free
+  grant told it ends in 3 days, once per grant), plus a partial index on free grants not yet told.
+- Adds `billing_owner_emails_due(numeric, interval, integer)`: everything due now for every paying
+  agency in one read, with the open grants, the live plan and the owners' login emails.
+- Adds `claim_low_credits_email(uuid, timestamptz)`, `release_low_credits_email(uuid, timestamptz,
+  timestamptz)`, `claim_free_ending_email(uuid)` and `release_free_ending_email(uuid, timestamptz)`:
+  each send is taken once before it goes and given back if it fails.
+- Safe to apply: re-runnable (`if not exists`, `create or replace`), new nullable columns only, no
+  existing row changes. Nothing is backfilled: on the first run, agencies already at 80% or more and
+  free grants already within 3 days of their end get their email once.
+
+**Then deploy the Trigger.dev tasks** (`npx trigger.dev deploy`, staging and production):
+`reconcile-billing-orders` (hourly) now sends the emails. It needs `RESEND_API_KEY`, `EMAIL_FROM` and
+`APP_URL` in each Trigger.dev environment (already required by the approval emails); without the
+email settings nothing is sent and each run tries again.
+
+**Verify after running:**
+
+```sql
+-- expect two rows
+select table_name, column_name from information_schema.columns
+ where (table_name, column_name) in (('organizations', 'low_credits_warned_at'), ('credit_grants', 'ending_warned_at'));
+-- expect the index
+select indexname from pg_indexes where indexname = 'credit_grants_free_ending_idx';
+-- expect false, false
+select has_function_privilege('anon', 'billing_owner_emails_due(numeric, interval, integer)', 'execute'),
+       has_function_privilege('authenticated', 'claim_low_credits_email(uuid, timestamptz)', 'execute');
+-- what the next hourly run would look at (read-only; the code still applies Billing's "low" rule)
+select kind, agency, owner_emails, grant_id from billing_owner_emails_due(0.8, '72 hours', 200);
+```
+
+**Rollback** (deploy the previous `reconcile-billing-orders` first):
+
+```sql
+drop function if exists release_free_ending_email(uuid, timestamptz);
+drop function if exists claim_free_ending_email(uuid);
+drop function if exists release_low_credits_email(uuid, timestamptz, timestamptz);
+drop function if exists claim_low_credits_email(uuid, timestamptz);
+drop function if exists billing_owner_emails_due(numeric, interval, integer);
+drop index if exists credit_grants_free_ending_idx;
+alter table credit_grants drop column if exists ending_warned_at;
+alter table organizations drop column if exists low_credits_warned_at;
+notify pgrst, 'reload schema';
+```
+
 ## Razorpay setup for each environment (D589, 2026-11-23) — no migration
 
 Razorpay keeps test mode and live mode apart: each has its own keys, webhooks and webhook secrets.

@@ -50,4 +50,11 @@ describe("billing log in plain words", () => {
   it("names anything else plainly", () => {
     expect(describeBillingChange(entry("something_new", null, null))).toBe("Billing changed");
   });
+
+  it("says which email the owner was sent", () => {
+    expect(describeBillingChange(entry("owner_email", null, { email: "low_credits", used_percent: 82, left: 18000, total: 100000 })))
+      .toBe("Told the owner credits are running low (82% used)");
+    expect(describeBillingChange(entry("owner_email", null, { email: "free_ending", left: 30000, ends_at: "2026-12-03T18:30:00Z" })))
+      .toBe("Told the owner free credits end after 3 Dec 2026");
+  });
 });

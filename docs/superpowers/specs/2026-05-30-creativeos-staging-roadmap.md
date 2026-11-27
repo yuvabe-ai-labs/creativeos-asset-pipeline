@@ -9731,3 +9731,16 @@ Migration 0103 adds the two columns, a trigger that clears them when `next_price
 - Cancelling at cycle end as soon as the owner is asked (Razorpay's cycle-end cancel only covers the cycle running now, so an earlier call would end the plan too soon).
 - A separate approvals table (the approval is a subscription with its own lifecycle; it belongs in `billing_subscriptions`, linked to the agency by the one-scheduled index rather than a `replaces_subscription_id` column).
 - Letting the approval start the day of the change with less than 7 days' notice.
+
+
+### D596 — Owners are emailed when credits run low and 3 days before free credits end *(recorded 2026-11-27; refines D574, D582)*
+
+**Decision.** The hourly billing task (`reconcile-billing-orders`, after the top-ups) sends paying agencies' owners two emails. *Credits running low*: Billing's own "low" state (`summarizeBilling`, 80% or more of the open credits used, `LOW_CREDITS_SHARE`), with what is left, when the soonest credits end, and a top-up or a bigger plan when a plan is running (top-ups end with the plan month), otherwise "pick a plan". Sent once per credit period: `organizations.low_credits_warned_at` records the send, and credits that arrive after it (a renewal, a top-up, credits Yuvabe adds: an open grant whose `greatest(created_at, starts_at)` is later) let it warn again for the new total. *Free credits ending*: a free grant with credits left, ending within 3 days, on an agency with no live plan (no subscription active, cancelling, payment due or scheduled), once per grant (`credit_grants.ending_warned_at`); a grant given with less than 3 days left gets nothing (the welcome email told them). Managed agencies get neither. One read finds both for every agency (`billing_owner_emails_due`, with the open grants, the live plan and the owners' login emails); each send is claimed in SQL before it goes (`claim_low_credits_email` compares with the value read, `claim_free_ending_email` takes a null), a failed send gives the claim back for the next hour, and each email sent writes one `owner_email` row to `billing_log` ("Told the owner credits are running low (82% used)"). Migration 0105.
+
+**Why.** An owner should hear that runs are about to stop before they stop, and a free trial shouldn't end in silence. The scan is hourly and set-based so nothing is added to each run's charge, and one column per agency and one per grant are all the state needed: Admin's history of the sends is in `billing_log`.
+
+**Rejected.**
+- Checking after every run's charge (work per run, and a burst of runs would race to send).
+- A sent-emails table (the only questions are "told for this period?" and "told for this grant?", one value per row; history is in `billing_log`).
+- Storing the credit total the warning was for (the total also changes when a grant ends or credits are taken back, which isn't new credits; the arrival of new credits is the period boundary).
+- Warning agencies on free credits without a plan at 80% (Billing shows them "free", not "low"; their notice is the free-credits-ending email).
