@@ -63,7 +63,7 @@ export function ImpersonationAudit({
   if (total === 0) {
     return (
       <p className="py-14 text-center text-sm text-muted-foreground">
-        No support sessions recorded for this organization.
+        No support sessions for this agency yet.
       </p>
     );
   }

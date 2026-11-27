@@ -15,10 +15,13 @@ import { countGenerationsForOrg, listGenerationsForOrgPage } from "@/lib/db/gene
 import { listImpersonationSessionPage } from "@/lib/db/impersonation-audit";
 import { listAgencyPeople, listOpenInvites } from "@/lib/db/people";
 import { listClientNames } from "@/lib/db/clients";
+import { listOpenGrants } from "@/lib/db/credit-grants";
+import { listBillingLog } from "@/lib/db/billing-admin";
+import { getLiveSubscription } from "@/lib/db/billing-subscriptions";
 import { OrgDetailTabs } from "./org-detail-tabs";
 import { EnterImpersonationButton } from "./enter-impersonation-button";
-import { OrgCrumbs } from "./org-crumbs";
-import { PAGE_CONTAINER, PageHeader } from "@/components/shared/page-header";
+import { PageHeader } from "@/components/shared/page-header";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +56,9 @@ export default async function OrgDetailPage({
     breakdownByType,
     breakdownByModel,
     impersonationSessions,
+    grants,
+    billingLog,
+    subscription,
   ] = await Promise.all([
     listAgencyPeople(id),
     listOpenInvites(id),
@@ -66,22 +72,24 @@ export default async function OrgDetailPage({
     getOrgCreditBreakdownByType(id, monthStart, monthEnd),
     getOrgCreditBreakdownByModel(id, monthStart, monthEnd),
     listImpersonationSessionPage(id, { page: 1, pageSize: 20 }),
+    listOpenGrants(id),
+    listBillingLog(id),
+    getLiveSubscription(id),
   ]);
 
   return (
-    <main className={PAGE_CONTAINER}>
+    <main className={adminPageClass()}>
       <div className="mb-6">
         <PageHeader
-          breadcrumb={<OrgCrumbs org={{ id: org.id, name: org.name }} />}
           title={org.name}
           actions={
             isViewingThisOrg ? (
-              // Offering "Enter as this org" while already inside it is the kind of dead
+              // Offering "Enter as this agency" while already inside it is the kind of dead
               // control that makes the whole feature feel unresponsive. Exit lives in the
               // banner, so this is a status, not an action.
               <span className="flex items-center gap-1.5 text-sm text-neutral-500">
                 <Eye className="size-3.5" strokeWidth={1.5} />
-                You&rsquo;re viewing as this org
+                You&rsquo;re viewing as this agency
               </span>
             ) : (
               <EnterImpersonationButton orgId={org.id} orgName={org.name} />
@@ -103,6 +111,9 @@ export default async function OrgDetailPage({
         breakdownByType={breakdownByType}
         breakdownByModel={breakdownByModel}
         impersonationSessions={impersonationSessions}
+        grants={grants}
+        billingLog={billingLog}
+        subscription={subscription}
       />
     </main>
   );

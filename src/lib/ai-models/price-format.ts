@@ -31,6 +31,30 @@ export function formatUsd(n: number | null | undefined): string {
   return `${sign}$${grouped}.${frac.padEnd(2, "0")}`;
 }
 
+const CENTS = { minimumFractionDigits: 2, maximumFractionDigits: 2 } as const;
+
+/**
+ * Money rounded for reading on a list ("$15.16", "<$0.01", "$0"). The exact amount is
+ * formatUsd, shown beside it on hover.
+ */
+export function formatUsdShort(n: number): string {
+  if (n === 0) return "$0";
+  const a = Math.abs(n);
+  const sign = n < 0 ? "−" : "";
+  if (a < 0.01) return `${sign}<$0.01`;
+  return `${sign}$${a.toLocaleString("en-US", CENTS)}`;
+}
+
+/**
+ * A unit price rounded for reading: cents from $0.10 up ("$1.25", "$2.00"), otherwise 2
+ * significant figures ("$0.084", "$0.034"). The exact price is formatUsd, shown on hover.
+ */
+export function formatPriceShort(n: number): string {
+  const a = Math.abs(n);
+  const body = a >= 0.1 ? a.toLocaleString("en-US", CENTS) : plainDecimal(Number(a.toPrecision(2)));
+  return `${n < 0 ? "−" : ""}$${body}`;
+}
+
 /** The amount a person reads and types for a line: token prices per 1M, every other meter per unit. */
 export function displayAmount(meter: Meter, unitUsd: number): number {
   return isTokenMeter(meter) ? Number((unitUsd * 1e6).toPrecision(12)) : unitUsd;

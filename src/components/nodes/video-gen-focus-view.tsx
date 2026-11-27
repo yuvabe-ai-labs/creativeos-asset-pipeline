@@ -63,7 +63,7 @@ import {
 } from "@/lib/video-gen/constraints";
 import { videoGenApi } from "@/lib/video-gen/api";
 import { VideoGenApiError } from "@/lib/video-gen/api";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { creditRefusalMessage } from "@/lib/billing/refusal-copy";
 import { isVideoAudioEnabled, asResolutionString } from "@/lib/video-gen/cost";
 import { videoEstimateUsd } from "@/lib/ai-models/video-price";
 import { useCreditSettings, useModelPrice, useVideoModels } from "@/hooks/queries/ai-models";
@@ -1193,7 +1193,7 @@ export function VideoGenFocusView({
       setGenerating(false);
       const msg =
         e instanceof VideoGenApiError && e.status === 402
-          ? CREDIT_LIMIT_TOAST_MESSAGE
+          ? creditRefusalMessage(e.message)
           : e instanceof Error
             ? e.message
             : "Generation failed";

@@ -15,6 +15,7 @@ import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { DUB_ENGINE } from "@/lib/dubbing/providers";
 import { DUBBING_NOT_SET_UP_MESSAGE } from "@/lib/dubbing/copy";
 import { DEFAULT_DUB_PACE, DEFAULT_DUB_STYLE, DUB_SOURCE_LANGUAGE, PRESENTER_VOICE, isDubLanguage, isDubPace, isDubStyle, isDubVoice, type DubRecord } from "@/lib/dubbing/types";
+import { creditLimitError } from "@/lib/billing/credit-limit-error";
 
 // `style` is optional: a client without the picker gets the default (Everyday).
 // D379 — `voice`: "presenter" (default) or a preset name; `pace` only matters with a preset.
@@ -83,7 +84,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       try {
         const reservation = await reserveCredits(effectiveOrgId, generation.id, creditsFromUsd(usd, creditSettingsAt(catalog, new Date(generation.created_at))));
-        if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
+        if (!reservation.ok) throw creditLimitError(reservation.reason);
         const uploads = await signDubbingUploads({ nodeId, generationId: generation.id });
         await tasks.trigger("video-dub", {
           generationId: generation.id,

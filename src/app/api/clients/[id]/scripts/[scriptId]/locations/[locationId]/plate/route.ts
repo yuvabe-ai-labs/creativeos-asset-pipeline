@@ -3,7 +3,6 @@ import { apiError, apiOk, withClient, withTryCatch } from "@/lib/api/route-helpe
 import { getScript } from "@/lib/db/scripts";
 import { changeScriptAssets } from "@/lib/db/script-assets";
 import { CreditLimitError } from "@/lib/db/credit-transactions";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
 import { runBilledImageGeneration } from "@/lib/image-gen/billed-run";
 import { ModelRefusedError } from "@/lib/ai-models/runnable";
 import { uploadScriptAsset } from "@/lib/storage";
@@ -77,7 +76,7 @@ export async function POST(req: Request, { params }: Ctx) {
         // D563 — a refused model is refused before anything is recorded or reserved: a 400.
         if (e instanceof ModelRefusedError) return apiError(e.message, 400);
         const capped = e instanceof CreditLimitError;
-        return apiError(capped ? CREDIT_LIMIT_TOAST_MESSAGE : e instanceof Error ? e.message : "The location could not be drawn.", capped ? 402 : 502);
+        return apiError(e instanceof Error ? e.message : "The location could not be drawn.", capped ? 402 : 502);
       }
 
       const result = await changeScriptAssets(clientId, scriptId, () => ({

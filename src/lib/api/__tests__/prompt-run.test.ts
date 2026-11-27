@@ -185,7 +185,7 @@ describe("runPromptGeneration", () => {
 
   it("propagates a CreditLimitError when the reservation is rejected, refunding what little was reserved", async () => {
     insertGeneration.mockResolvedValue({ id: "gen-3" });
-    reserveCredits.mockResolvedValue({ ok: false });
+    reserveCredits.mockResolvedValue({ ok: false, reason: "used_up" });
     failGeneration.mockResolvedValue(undefined);
     refundReservation.mockResolvedValue(undefined);
 
@@ -199,7 +199,8 @@ describe("runPromptGeneration", () => {
     expect(insertGeneration).toHaveBeenCalledTimes(1);
     expect(call).not.toHaveBeenCalled();
     expect(insertVersion).not.toHaveBeenCalled();
-    expect(failGeneration).toHaveBeenCalledWith({ generationId: "gen-3", error: "Monthly credit limit reached" });
+    // The refusal's plain message (D582) is what the failed row carries.
+    expect(failGeneration).toHaveBeenCalledWith({ generationId: "gen-3", error: "AI runs are paused. Your agency has used its credits. Ask your agency owner." });
     expect(refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "gen-3" });
   });
 

@@ -101,23 +101,26 @@ describe("buildCreditReview", () => {
     expect(r.confirm).toBe("Schedule for 25 Nov");
     expect(r.canSave).toBe(true);
     expect(r.rows).toHaveLength(runs.length);
-    expect(r.holdNote).toEqual({ tone: "warn", text: "Credits agencies already hold will buy fewer runs." });
+    expect(r.holdNote?.tone).toBe("warn");
+    expect(r.holdNote?.text).toMatch(/^Credits agencies hold buy about \d+% fewer runs\.$/);
+    expect(r.examples).toHaveLength(3);
+    expect(r.agencySummary).toBeNull();
   });
   it("says a Now change starts 2 minutes after saving", () => {
     const r = review({ marginPercent: 10, roundStep: 5 }, { when: { ...tomorrow, mode: "now" } });
     expect(r.startText).toBe("starting 2 minutes after you save.");
     expect(r.confirm).toBe("Apply new settings");
   });
-  it("warns when typical runs rise 20% or more, naming a margin of 50% or above", () => {
-    expect(review({ marginPercent: 10, roundStep: 10 }).warnings.filter((w) => w.tone === "warn")).toEqual([]);
+  it("warns only when the margin looks like a typo, not because runs rise with the margin", () => {
+    expect(review({ marginPercent: 10, roundStep: 5 }).warnings.filter((w) => w.tone === "warn")).toEqual([]);
+    expect(review({ marginPercent: 30, roundStep: 5 }).warnings.filter((w) => w.tone === "warn" && /margin/.test(w.text))).toEqual([]);
     const typo = review({ marginPercent: 100, roundStep: 5 }).warnings.find((w) => w.tone === "warn")!;
-    expect(typo.text).toMatch(new RegExp(`^\\d+ of ${runs.length} typical runs cost 20% or more extra\\. Check the margin: you entered 100%\\.$`));
-    const below = review({ marginPercent: 30, roundStep: 5 }).warnings.find((w) => w.tone === "warn")!;
-    expect(below.text).toMatch(/cost 20% or more extra\. Check that's what you meant\.$/);
+    expect(typo.text).toBe("A 100% margin puts every run up by at least that much. Check that's what you meant.");
   });
   it("a cut says held credits buy more runs; the same settings have nothing to save", () => {
     const cut = buildCreditReview({ settings: [row("a", LIVE.effectiveFrom, 20, 5)], draft: { marginPercent: 0, roundStep: 5 }, when: tomorrow, now: NOW, runs, agencyRuns: [], modelRuns: {} });
-    expect(cut.holdNote).toEqual({ tone: "info", text: "Credits agencies already hold will buy more runs." });
+    expect(cut.holdNote?.tone).toBe("info");
+    expect(cut.holdNote?.text).toMatch(/^Credits agencies hold buy about \d+% more runs\.$/);
     const same = review({ marginPercent: 0, roundStep: 5 });
     expect(same).toMatchObject({ canSave: false, summary: "No change", holdNote: null, confirm: "Nothing new to save" });
     expect(same.warnings[0].text).toBe("These are the settings in force then. Nothing new to save.");
@@ -136,6 +139,14 @@ describe("buildCreditReview", () => {
   it("works out each agency's month before and after", () => {
     const r = review({ marginPercent: 10, roundStep: 1 }, { agencyRuns: [{ modelId: "m", orgId: "o1", orgName: "Acme", runs: 3 }], modelRuns: { m: { usd: 0.0123, flat: null } } });
     expect(r.agencies).toEqual([{ name: "Acme", runs: 3, before: 45, after: 42, percent: ((42 - 45) / 45) * 100 }]);
+    // Held credits follow this month's runs by model, not the typical runs: 45 → 42 is about 7% more runs.
+    expect(r.agencySummary).toBe("The one agency with runs this month would have used about 7% fewer credits for the same work.");
+    expect(r.holdNote).toEqual({ tone: "info", text: "Credits agencies hold buy about 7% more runs." });
+  });
+  it("names typical runs that rounding pushes up more than the rest", () => {
+    const push = review({ marginPercent: 0, roundStep: 10 }, { settings: [row("a", LIVE.effectiveFrom, 0, 1)] }).warnings.find((w) => w.text.includes("rounding weighs more on cheap runs"));
+    expect(push?.tone).toBe("warn");
+    expect(push?.text).toMatch(/^GPT Image 2, low quality square image, no reference \(\+43%\)/);
   });
 });
 

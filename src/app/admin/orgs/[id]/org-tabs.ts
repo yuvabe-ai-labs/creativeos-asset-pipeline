@@ -2,11 +2,12 @@ import type { Crumb } from "@/lib/people/nav";
 
 // The admin agency page's tabs, kept in the URL (?tab=) so a link can open one (Set permissions
 // opens People with ?person=). Anything else falls back to Overview.
-export const ORG_TABS = ["overview", "people", "clients", "generations", "support"] as const;
+export const ORG_TABS = ["overview", "billing", "people", "clients", "generations", "support"] as const;
 export type OrgTab = (typeof ORG_TABS)[number];
 
 export const ORG_TAB_LABEL: Record<OrgTab, string> = {
   overview: "Overview",
+  billing: "Billing",
   people: "People",
   clients: "Clients",
   generations: "Generations",
@@ -31,13 +32,6 @@ export function orgTabUrl(
   if (next.client) params.set("client", next.client);
   if (next.person) params.set("person", next.person);
   return `${pathname}?${params.toString()}`;
-}
-
-// Agencies › {Agency}, then the tab when it isn't Overview (the agency crumb goes back to it).
-export function adminOrgCrumbs(org: { id: string; name: string }, tab: OrgTab): Crumb[] {
-  const agencies: Crumb = { label: "Agencies", href: "/admin" };
-  if (tab === "overview") return [agencies, { label: org.name }];
-  return [agencies, { label: org.name, href: `/admin/orgs/${org.id}?tab=overview` }, { label: ORG_TAB_LABEL[tab] }];
 }
 
 // The Clients tab with a client open: All clients › {Client}.

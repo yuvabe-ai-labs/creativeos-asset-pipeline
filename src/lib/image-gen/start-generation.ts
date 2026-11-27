@@ -12,8 +12,9 @@ import { prepareImageGenUploads } from "@/lib/storage";
 import { apiError, apiOk } from "@/lib/api/route-helpers";
 import type { CallerContext } from "@/lib/dal-logic";
 import { IMAGE_GEN_MASK_MIME, type ImageGenerateTaskPayload } from "@/lib/image-gen/task-payload";
-import { CREDIT_LIMIT_MESSAGE, START_FAILED_MESSAGE } from "@/lib/image-gen/failure-copy";
+import { START_FAILED_MESSAGE } from "@/lib/image-gen/failure-copy";
 import { IMAGE_RUN_QUEUE_TTL } from "@/lib/image-gen/constants";
+import { creditLimitError } from "@/lib/billing/credit-limit-error";
 
 export type StartImageGenerationInput = {
   nodeId: string;
@@ -77,7 +78,7 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
       reserveCredits(orgId, generation.id, creditsFromUsd(costUsd, creditSettingsAt(catalog, new Date(generation.created_at)))),
       prepareImageGenUploads({ nodeId, generationId: generation.id, mask }),
     ]);
-    if (!reservation.ok) throw new CreditLimitError(CREDIT_LIMIT_MESSAGE);
+    if (!reservation.ok) throw creditLimitError(reservation.reason);
 
     const payload: ImageGenerateTaskPayload = {
       generationId: generation.id,
@@ -99,7 +100,7 @@ export async function startImageGeneration(input: StartImageGenerationInput): Pr
     console.error("[startImageGeneration] start failed", { generationId: generation.id, error: reason });
     // Users see plain copy, and the row carries the same words: the canvas feed recognises them
     // and leaves the toast to this request (one toast, not two). The raw reason is in the log.
-    const userMessage = isCreditLimit ? CREDIT_LIMIT_MESSAGE : START_FAILED_MESSAGE;
+    const userMessage = isCreditLimit ? (e as Error).message : START_FAILED_MESSAGE;
     // Close the run first: a row left `running` would refuse this node's next start until it ages
     // out (hasRunningGeneration), so a failure here is logged, never hidden.
     await failGeneration({ generationId: generation.id, error: userMessage }).catch((err: unknown) => {

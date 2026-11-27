@@ -6,7 +6,7 @@ import { CREDIT_SETTINGS_LEAD_MS } from "@/lib/credits/settings-edit";
 import { formatUsd } from "@/lib/ai-models/price-format";
 import { undoTarget } from "@/lib/ai-models/model-edit";
 import { creditSettingsAt, creditsFromUsd, rawCreditsFromUsd, USD_TO_CREDITS } from "@/lib/credits/units";
-import type { AiCatalog, CreditSettings } from "@/lib/ai-models/types";
+import type { AiCatalog, AiModelKind, CreditSettings } from "@/lib/ai-models/types";
 import { formatIstDate, formatIstWhen, formatUtcBeside, relativeIstDay } from "./ist";
 import { percentChange } from "./percent-edit";
 import type { PriceTimeline, TimelineItem } from "./price-sheet";
@@ -97,12 +97,13 @@ export type PricedRun = { usd: number; flat: number | null };
 /** What a run is charged under these settings: the same sum runCredits does. */
 export const creditsFor = (run: PricedRun, s: Settings): number => run.flat ?? creditsFromUsd(run.usd, s);
 
-export type CreditRun = PricedRun & { key: string; name: string; label: string };
+export type CreditRun = PricedRun & { key: string; kind: AiModelKind; name: string; label: string };
 
 /** TYPICAL_RUNS at the prices live at `at`, each with what it needs to be charged under any settings. */
 export function typicalCreditRuns(catalog: Pick<AiCatalog, "models" | "prices">, at: Date): CreditRun[] {
   return typicalRunRows(catalog, at).map((r, i) => ({
     key: `${r.model.id}:${i}`,
+    kind: r.model.kind,
     name: r.model.label,
     label: r.label,
     usd: r.usd,
@@ -199,17 +200,7 @@ export function agencyCreditImpact(
 }
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
-// ─── Summary and history ───────────────────────────────────────────────────────
-
-/** The summary card: the live settings and the next change. */
-export function creditsSummary(rows: readonly CreditSettings[], live: Settings, now: Date): { line: string; next: { when: string; utc: string; text: string } | null } {
-  const next = [...rows].filter((r) => Date.parse(r.effectiveFrom) > now.getTime()).sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))[0];
-  const at = next ? new Date(next.effectiveFrom) : null;
-  return {
-    line: `1 credit = $0.001 · margin ${live.marginPercent}% · rounds up to ${stepWords(live.roundStep)}`,
-    next: next && at ? { when: formatIstWhen(at), utc: formatUtcBeside(at), text: `${settingsWords(next)}.` } : null,
-  };
-}
+// ─── History ───────────────────────────────────────────────────────
 
 /**
  * For each scheduled change, the settings runs keep if it is cancelled (the ones in force at its start

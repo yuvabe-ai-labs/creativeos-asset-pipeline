@@ -1,35 +1,38 @@
 "use client";
 
 import { useState } from "react";
+import { Pencil } from "lucide-react";
 import { buildCreditReview, settingsBefore } from "@/lib/admin/credits-change";
 import { changeWhenProblem, replacedRow } from "@/lib/admin/change-prices-when";
+import { exampleRuns, type NextChange } from "@/lib/admin/credits-overview";
 import { creditRunRows, type AgencyModelRuns, type CreditRun, type PricedRun, type Settings } from "@/lib/admin/credits-page";
+import { istDate, istTime } from "@/lib/admin/ist";
+import type { PriceTimeline } from "@/lib/admin/price-sheet";
 import type { CreditSettings } from "@/lib/ai-models/types";
+import { Button } from "@/components/ui/button";
 import { ChangeCreditSettingsDialog } from "./change-credit-settings-dialog";
-import { CreditEditBar } from "./credit-edit-bar";
-import { CreditSettingsCard } from "./credit-settings-card";
-import { CreditsSummary } from "./credits-summary";
-import { HowWorkedOutDialog } from "./how-worked-out-dialog";
-import { TypicalRunsTable } from "./typical-runs-table";
+import { CreditsCard } from "./credits-card";
 import { creditDraft, useChangeCreditSettings } from "./use-change-credit-settings";
 import { useSaveCreditSettings } from "./use-save-credit-settings";
 
 /**
- * The Credits page's summary, typical runs and side column, with the change flow: Change credit
- * settings opens the settings on the page with an edit bar; When and Review are dialogs; saving goes
- * through the server checks and refreshes the page.
+ * The Credits page (D594): the title with its one action, the settings card, and the change flow in
+ * one dialog. Saving goes through the server checks and refreshes the page.
  */
 export function CreditsWorkspace({
-  summary,
+  now: nowRow,
+  next,
+  history,
   live,
   settings,
   starts,
   runs,
   agencyRuns,
   modelRuns,
-  aside,
 }: {
-  summary: { line: string; next: { when: string; utc: string; text: string } | null };
+  now: { line: string; since: string };
+  next: NextChange | null;
+  history: { timeline: PriceTimeline; kept: Record<string, string> };
   live: Settings;
   /** The settings rows that pass their check. */
   settings: CreditSettings[];
@@ -38,14 +41,12 @@ export function CreditsWorkspace({
   runs: CreditRun[];
   agencyRuns: AgencyModelRuns[];
   modelRuns: Record<string, PricedRun>;
-  aside: React.ReactNode;
 }) {
   const [flow, dispatch] = useChangeCreditSettings();
   const [now, setNow] = useState(() => new Date());
-  const [howOpen, setHowOpen] = useState(false);
+  const [filledIn, setFilledIn] = useState<string | null>(null);
   const save = useSaveCreditSettings();
 
-  const editing = flow.stage !== "closed";
   const draft = creditDraft(flow, live);
   const inDialog = flow.stage === "when" || flow.stage === "review";
   const replaced = inDialog ? replacedRow(settings, flow.when, now) : null;
@@ -60,9 +61,13 @@ export function CreditsWorkspace({
   function start() {
     const at = new Date();
     setNow(at);
-    dispatch({ type: "start", live, now: at });
-    // The margin takes focus once the settings show.
-    requestAnimationFrame(() => document.getElementById("credits-margin")?.focus());
+    // A scheduled change the server would still replace is filled in, at its own start.
+    const scheduled = next?.canCancel ? settings.find((s) => s.id === next.id) : undefined;
+    const from = scheduled
+      ? { settings: scheduled, when: { mode: "date" as const, date: istDate(new Date(scheduled.effectiveFrom)), time: istTime(new Date(scheduled.effectiveFrom)) } }
+      : undefined;
+    setFilledIn(from && next ? next.name : null);
+    dispatch({ type: "start", live, now: at, from });
   }
 
   function go(stage: "when" | "review") {
@@ -82,52 +87,35 @@ export function CreditsWorkspace({
 
   return (
     <>
-      <CreditsSummary line={summary.line} next={summary.next} onHow={() => setHowOpen(true)} onStart={editing ? null : start} />
-      {editing && (
-        <CreditEditBar
-          summary={draft.summary}
-          invalid={draft.settings === null}
-          canGoOn={draft.canGoOn}
-          onCancel={() => dispatch({ type: "cancel" })}
-          onNext={() => go("when")}
-        />
-      )}
-      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="flex flex-col gap-6">
-          {editing && (
-            <CreditSettingsCard
-              margin={flow.margin}
-              step={flow.step}
-              draft={draft.settings}
-              live={live}
-              onMargin={(text) => dispatch({ type: "margin", text })}
-              onStep={(step) => dispatch({ type: "step", step })}
-            />
-          )}
-          <section aria-labelledby="runs-title" className="rounded-2xl border bg-card px-5 py-5 shadow-card md:px-[22px]">
-            <h2 id="runs-title" className="mb-3 font-display text-lg font-semibold tracking-tight">
-              {editing ? "Typical runs, before and after" : "What typical runs cost in credits"}
-            </h2>
-            <TypicalRunsTable rows={creditRunRows(runs, live, editing ? draft.settings : null)} />
-          </section>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Credits</h1>
+          <p className="mt-1 text-sm text-muted-foreground">What runs cost agencies in credits. One setting for every agency.</p>
         </div>
-        {aside}
+        <Button id="credits-change-start" onClick={start} className="max-sm:w-full">
+          <Pencil aria-hidden strokeWidth={1.5} />
+          Change credit settings
+        </Button>
       </div>
+      <CreditsCard now={nowRow} live={live} next={next} history={history} />
 
-      <HowWorkedOutDialog open={howOpen} settings={live} onOpenChange={setHowOpen} />
       <ChangeCreditSettingsDialog
-        stage={flow.stage === "when" || flow.stage === "review" ? flow.stage : null}
-        when={flow.when}
+        flow={flow}
+        invalid={draft.settings === null}
+        canGoOn={draft.canGoOn}
+        examples={creditRunRows(exampleRuns(runs), live, draft.settings ?? live)}
+        filledIn={filledIn}
         now={now}
         scheduled={settings.filter((s) => new Date(s.effectiveFrom) > now).map((s) => new Date(s.effectiveFrom))}
         whenProblem={whenProblem}
         keptUntil={keptUntil}
         review={review}
-        saving={flow.saving}
+        onMargin={(text) => dispatch({ type: "margin", text })}
+        onStep={(step) => dispatch({ type: "step", step })}
         onWhen={(when) => dispatch({ type: "when", when })}
         onBack={() => dispatch({ type: "back" })}
         onClose={() => dispatch({ type: "close" })}
-        onNext={() => (flow.stage === "review" ? void confirm() : go("review"))}
+        onNext={() => (flow.stage === "review" ? void confirm() : go(flow.stage === "when" ? "review" : "when"))}
       />
     </>
   );

@@ -2,6 +2,9 @@
 // The raw reason (a vendor message, a missing key, a webhook status naming the paid image) stays in
 // server logs only. No `server-only`: the canvas feed (node-status.ts) reads the start messages.
 
+import { CREDIT_REFUSALS } from "@/lib/billing/grants";
+import { refusalToast } from "@/lib/billing/refusal-copy";
+
 export const IMAGE_GENERATION_FAILED_MESSAGE = "The generation failed. Please try again.";
 export const IMAGE_PROMPT_DECLINED_MESSAGE = "The model declined this prompt. Try rewording it.";
 
@@ -9,7 +12,12 @@ export const IMAGE_PROMPT_DECLINED_MESSAGE = "The model declined this prompt. Tr
 export const START_FAILED_MESSAGE = "Couldn't start the generation. Please try again.";
 export const CREDIT_LIMIT_MESSAGE = "Monthly credit limit reached";
 
-const START_FAILURE_MESSAGES: ReadonlySet<string> = new Set([START_FAILED_MESSAGE, CREDIT_LIMIT_MESSAGE]);
+// A refused run stores the members' refusal wording (D582), so those count as start failures too.
+const START_FAILURE_MESSAGES: ReadonlySet<string> = new Set([
+  START_FAILED_MESSAGE,
+  CREDIT_LIMIT_MESSAGE,
+  ...CREDIT_REFUSALS.map((r) => refusalToast(r, false)),
+]);
 
 /** Whether a failed image row's error is one its start request already reported. */
 export function isImageStartFailure(error: string | null | undefined): boolean {

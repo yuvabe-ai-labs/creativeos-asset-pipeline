@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
@@ -7,7 +7,9 @@ const m = vi.hoisted(() => ({
   getOrgById: vi.fn(), getDisplayName: vi.fn(), logImpersonationEvent: vi.fn(),
   createAgency: vi.fn(), resendOwnerInvite: vi.fn(), inviteOwner: vi.fn(),
   revalidatePath: vi.fn(), updateOrgCreditLimit: vi.fn(), resetMemberPassword: vi.fn(),
+  setBillingMode: vi.fn(), grantCredits: vi.fn(),
 }));
+vi.mock("@/lib/db/billing-admin", () => ({ setBillingMode: m.setBillingMode, grantCredits: m.grantCredits }));
 vi.mock("@/lib/dal", () => ({ resolveCallerContext: m.resolveCallerContext }));
 vi.mock("next/navigation", () => ({ notFound: m.notFound }));
 vi.mock("next/cache", () => ({ revalidatePath: m.revalidatePath }));
@@ -163,5 +165,57 @@ describe("the other admin writes are audit-logged", () => {
     m.updateOrgCreditLimit.mockResolvedValue(undefined);
     expect(await updateOrgCreditLimitAction(ORG, " 500 ")).toEqual({});
     expect(m.logImpersonationEvent).toHaveBeenCalledWith({ operatorId: "admin-1", targetOrgId: ORG, eventType: "admin_action", detail: { action: "credit_limit", limit: 500 } });
+  });
+});
+
+describe("createAgencyAction billing (piece 2)", () => {
+  const created = { ok: true, value: { orgId: ORG, link: "https://app.example/invite/tok", emailed: true } };
+  const paying = (free?: { credits: string; day: string }) => {
+    const f = form("Acme", "o@x.com");
+    f.set("billingMode", "plans");
+    f.set("creditLimit", "500");
+    if (free) { f.set("freeGive", "1"); f.set("freeCredits", free.credits); f.set("freeUntil", free.day); }
+    return f;
+  };
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-20T06:00:00Z"));
+    m.createAgency.mockResolvedValue(created);
+    m.setBillingMode.mockResolvedValue(true);
+    m.grantCredits.mockResolvedValue("g1");
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("keeps a new agency managed unless paying is chosen", async () => {
+    await createAgencyAction(undefined, form("Acme", "o@x.com"));
+    expect(m.setBillingMode).not.toHaveBeenCalled();
+    expect(m.grantCredits).not.toHaveBeenCalled();
+  });
+
+  it("makes a paying agency without a credit limit or free credits", async () => {
+    expect(await createAgencyAction(undefined, paying())).toEqual({ result: { ...created.value, email: "o@x.com" } });
+    expect(m.setBillingMode).toHaveBeenCalledWith(ORG, "plans", "admin-1", "Added as paying for a plan");
+    expect(m.updateOrgCreditLimit).not.toHaveBeenCalled();
+    expect(m.grantCredits).not.toHaveBeenCalled();
+    expect(m.createAgency).toHaveBeenCalledWith("Acme", "o@x.com", { userId: "admin-1", name: "Yuva" });
+  });
+
+  it("gives the free credits after setting billing, and mentions them in the invite", async () => {
+    await createAgencyAction(undefined, paying({ credits: "50,000", day: "2026-12-03" }));
+    expect(m.grantCredits).toHaveBeenCalledWith(ORG, "free", 50000, "2026-12-03", "admin-1", "Free credits to start");
+    expect(m.grantCredits.mock.invocationCallOrder[0]).toBeGreaterThan(m.setBillingMode.mock.invocationCallOrder[0]);
+    expect(m.createAgency).toHaveBeenCalledWith("Acme", "o@x.com", { userId: "admin-1", name: "Yuva" }, { freeCredits: { credits: 50000, day: "2026-12-03" } });
+  });
+
+  it("refuses bad free credits before making anything", async () => {
+    expect(await createAgencyAction(undefined, paying({ credits: "0", day: "2026-12-03" }))).toEqual({ error: "Enter the credits as a whole number above 0." });
+    expect(await createAgencyAction(undefined, paying({ credits: "10", day: "2026-11-01" }))).toEqual({ error: "Pick today or a later day." });
+    expect(m.createAgency).not.toHaveBeenCalled();
+  });
+
+  it("reports billing not saved beside the link when a write fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    m.grantCredits.mockRejectedValue(new Error("down"));
+    expect(await createAgencyAction(undefined, paying({ credits: "10", day: "2026-12-03" }))).toEqual({ result: { ...created.value, email: "o@x.com", billingNotSaved: true } });
   });
 });

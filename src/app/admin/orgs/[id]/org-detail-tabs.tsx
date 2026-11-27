@@ -2,10 +2,11 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { usePeople } from "@/hooks/queries/people";
-import { orgTabFrom, orgTabUrl } from "./org-tabs";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ORG_TAB_LABEL, orgTabFrom, orgTabUrl } from "./org-tabs";
+import { Tabs, TabsList, TabsContent } from "@/components/ui/tabs";
+import { COUNT_TABS_LIST, CountTabTrigger } from "@/components/shared/count-tab-trigger";
+import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
-import { CreditLimitEditor } from "./credit-limit-editor";
 import { GenerationsTable } from "@/components/admin/generations-table";
 import { UsageTrendChart } from "@/components/admin/usage-trend-chart";
 import { CreditBreakdownList } from "@/components/admin/credit-breakdown-list";
@@ -24,9 +25,10 @@ import type {
 } from "@/lib/db/organizations";
 import type { GenerationsPage } from "@/lib/db/generations";
 import type { ImpersonationSessionPage } from "@/lib/db/impersonation-audit";
-
-const triggerClass =
-  "flex-none px-0 py-0 font-display text-xl font-semibold tracking-tight text-foreground/40 data-active:text-foreground";
+import type { OpenGrant } from "@/lib/billing/grants";
+import type { BillingLogPage } from "@/lib/db/billing-admin";
+import type { LiveSubscription } from "@/lib/db/billing-subscriptions";
+import { BillingTab } from "@/components/admin/billing/billing-tab";
 
 function StatTile({
   label,
@@ -39,7 +41,7 @@ function StatTile({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-eyebrow text-muted-foreground/80">{label}</span>
+      <span className="text-sm text-muted-foreground">{label}</span>
       <span className="font-display text-2xl font-semibold tracking-tight">
         {value}
       </span>
@@ -62,6 +64,9 @@ export function OrgDetailTabs({
   breakdownByType,
   breakdownByModel,
   impersonationSessions,
+  grants,
+  billingLog,
+  subscription,
 }: {
   org: OrgRow;
   people: AgencyPerson[];
@@ -76,6 +81,9 @@ export function OrgDetailTabs({
   breakdownByType: CreditBreakdownRow[];
   breakdownByModel: CreditBreakdownRow[];
   impersonationSessions: ImpersonationSessionPage;
+  grants: OpenGrant[];
+  billingLog: BillingLogPage;
+  subscription: LiveSubscription | null;
 }) {
   // The tab and the focused person live in the URL (Set permissions in the Clients tab links to
   // ?tab=people&person=). Switching tabs pushes the URL with the History API, which Next keeps in
@@ -103,38 +111,41 @@ export function OrgDetailTabs({
     window.history.pushState(null, "", orgTabUrl(pathname, searchParams, { tab: nextTab }));
   }
 
+  const peopleCount = (team ?? { people }).people.length;
+
   return (
     <Tabs value={tab} onValueChange={selectTab}>
-      <TabsList variant="line" className="mb-8 h-auto w-auto gap-6 p-0">
-        <TabsTrigger value="overview" className={triggerClass}>
-          Overview
-        </TabsTrigger>
-        <TabsTrigger value="people" className={triggerClass}>
-          People
-        </TabsTrigger>
-        <TabsTrigger value="clients" className={triggerClass}>
-          Clients
-        </TabsTrigger>
-        <TabsTrigger value="generations" className={triggerClass}>
-          Generations
-        </TabsTrigger>
-        <TabsTrigger value="support" className={triggerClass}>
-          Support activity
-        </TabsTrigger>
-      </TabsList>
+      {/* The shared line tabs with counts, as on every other admin page. */}
+      <div className="mb-8 border-b border-border">
+        <TabsList variant="line" aria-label="Agency sections" className={cn(COUNT_TABS_LIST, "justify-start self-start")}>
+          <CountTabTrigger value="overview" label={ORG_TAB_LABEL.overview} />
+          <CountTabTrigger value="billing" label={ORG_TAB_LABEL.billing} />
+          <CountTabTrigger value="people" label={ORG_TAB_LABEL.people} count={peopleCount} />
+          <CountTabTrigger value="clients" label={ORG_TAB_LABEL.clients} count={clients.length} />
+          <CountTabTrigger value="generations" label={ORG_TAB_LABEL.generations} count={generationCount} />
+          <CountTabTrigger value="support" label={ORG_TAB_LABEL.support} />
+        </TabsList>
+      </div>
 
-      {/* Overview: agency identity and the credit limit. The roster lives in People. */}
+      {/* Overview: agency identity. Billing and the credit limit live in Billing; the roster in People. */}
       <TabsContent value="overview" className="animate-rise flex flex-col gap-8">
         <Card className="grid grid-cols-2 gap-6 p-6 shadow-card sm:grid-cols-3">
-          <StatTile label="People" value={String((team ?? { people }).people.length)} />
+          <StatTile label="People" value={String(peopleCount)} />
           <StatTile label="Total generations" value={String(generationCount)} />
           <StatTile label="Created" value={formatRelativeTime(org.created_at)} />
         </Card>
+      </TabsContent>
 
-        <Card className="p-6 shadow-card">
-          <h2 className="text-eyebrow mb-3">Monthly credit limit</h2>
-          <CreditLimitEditor orgId={org.id} initial={org.monthly_credit_limit} />
-        </Card>
+      <TabsContent value="billing" className="animate-rise">
+        <BillingTab
+          orgId={org.id}
+          mode={org.billing_mode}
+          planType={org.plan_type}
+          monthlyLimit={org.monthly_credit_limit}
+          grants={grants}
+          log={billingLog}
+          subscription={subscription}
+        />
       </TabsContent>
 
       {/* People: the owner's Team page, with the owner's powers, plus Make owner and reset password. */}

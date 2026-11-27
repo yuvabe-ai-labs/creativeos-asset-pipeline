@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useMe } from "@/hooks/queries/me";
 import type { Identity } from "@/lib/identity";
 import type { PlatformRole } from "@/lib/dal-logic";
+import type { MePayload } from "@/lib/me/types";
 
 // The signed-in person, read from the one /api/me query. Kept as a hook so its consumers don't
 // change. `hydrated` is false until something is known (a seeded payload, a fetch result or a
@@ -18,6 +19,7 @@ export function useIdentity(): {
   creditsUsed: number | null;
   monthlyCreditLimit: number | null;
   signedUpCount: number | null;
+  billing: MePayload["billing"];
 } {
   const { data, status } = useMe();
   return useMemo(
@@ -31,6 +33,7 @@ export function useIdentity(): {
       creditsUsed: data?.creditsUsed ?? null,
       monthlyCreditLimit: data?.monthlyCreditLimit ?? null,
       signedUpCount: data?.signedUpCount ?? null,
+      billing: data?.billing ?? null,
     }),
     [data, status],
   );

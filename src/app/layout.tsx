@@ -1,3 +1,4 @@
+import { BillingBar } from "@/components/billing/billing-bar";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import localFont from "next/font/local";
@@ -74,6 +75,7 @@ export default async function RootLayout({
         <OnboardingGuard />
         <ImpersonationBanner />
         <AppHeader className={headerTopClass(isImpersonating)} />
+        <BillingBar />
         {children}
         <Toaster />
         </AccessProvider>

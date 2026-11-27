@@ -1,16 +1,18 @@
-// The admin models list (prototype v3, "Models list"): one row per model with its price range, the
-// credits for a typical run at the credit settings live now, the next scheduled price change and this
-// month's runs; and the "Needs a look" items above it. The server builds it once; the list filters it
-// in the browser. Client-safe.
+// The admin models catalog (D591, prototype "model-list-catalog-v2"): one entry per model with what it
+// costs us at its cheapest setting, the credits for a typical run at the credit settings live now, the
+// next scheduled price change, a recent one, and this month's runs; and the "Needs a look" items above
+// it. The server builds it once; models-catalog.ts searches, groups and orders it in the browser.
+// Client-safe.
 import { currentPrice } from "@/lib/ai-models/pricing";
-import { formatUsd } from "@/lib/ai-models/price-format";
 import { creditSettingsAt } from "@/lib/credits/units";
 import type { AiModel, AiModelPrice, CreditSettings } from "@/lib/ai-models/types";
-import { lineKey, priceRange, type PriceRange } from "./price-grid";
+import { lineKey, startingPrice, type StartingPrice } from "./price-grid";
 import { runCredits, runSpec, specLabel } from "./typical-runs";
 import { formatIstDate, formatIstWhen, relativeIstDay } from "./ist";
 import { BIG_CHANGE_PERCENT, percentChange, percentChipText } from "./percent-edit";
 import { settingsWords } from "./credits-page";
+
+type PercentTone = "down" | "up" | "big" | "new";
 
 export const LIST_GROUPS = ["Video", "Image", "Text", "Audio & lip sync", "Other"] as const;
 export type ListGroup = (typeof LIST_GROUPS)[number];
@@ -29,34 +31,59 @@ const KIND_GROUP: Record<string, ListGroup> = {
 
 export const groupOfKind = (kind: string): ListGroup => KIND_GROUP[kind] ?? "Other";
 
+/** Where a stored kind sits within its group: the catalog lists image before edit, dub before voice. */
+export const kindRank = (kind: string): number => {
+  const i = Object.keys(KIND_GROUP).indexOf(kind);
+  return i < 0 ? Object.keys(KIND_GROUP).length : i;
+};
+
 export const modelHref = (id: string) => `/admin/models/${encodeURIComponent(id)}`;
 /** The model page with the change-prices flow open: "Add prices" and a scheduled change's "Review". */
 export const changePricesHref = (id: string) => `${modelHref(id)}?change=1`;
 export const CREDITS_HREF = "/admin/credits";
 
+/** A scheduled price change as a card shows it: "−31% · 560 credits from 3 Dec". */
+export type NextChange = {
+  chip: string;
+  tone: PercentTone;
+  /** "3 Dec". */
+  date: string;
+  /** "Starts 3 Dec 2026, 13:30 IST." */
+  when: string;
+  /** A typical run's credits once it starts, at the credit settings live now; null with no typical run. */
+  credits: number | null;
+};
+
 export type ModelListRow = {
   id: string;
   label: string;
   provider: string;
+  /** The stored kind ("edit", "dub"); each one is its own picker. */
+  kind: string;
   group: ListGroup;
   status: string;
   /** The row fails its check (D570): shown, but with no price or run worked out. */
   broken: boolean;
-  price: PriceRange | null;
+  /** Its place in the list the server read (sort_order, then id): the picker order within a kind. */
+  order: number;
+  price: StartingPrice | null;
   typical: { credits: number; label: string } | null;
   /** Priced, but with no typical run to work out (charged at what the provider reports). */
   atCost: boolean;
-  next: { chip: string; tone: "down" | "up" | "big" | "new"; date: string } | null;
-  month: { runs: number; cost: string } | null;
+  next: NextChange | null;
+  /** "23 Nov": the price live now replaced an earlier one within the last CHANGED_DAYS days. */
+  changed: string | null;
+  month: { runs: number; costUsd: number } | null;
 };
 
 export type AttentionItem = {
   key: string;
   modelId: string | null;
-  tone: "bad" | "info" | "next";
+  tone: "bad" | "warn" | "info" | "next";
   /** Shown bold before the text; null for the credit settings item. */
   name: string | null;
   text: string;
+  /** A second sentence; empty when the text says it all. */
   detail: string;
   action: string;
   href: string;
@@ -121,7 +148,7 @@ export function changeWords(d: PriceDiff | null): string {
   return bits.join(", ") || "no price changes";
 }
 
-function nextChip(d: PriceDiff | null): { chip: string; tone: "down" | "up" | "big" | "new" } {
+function nextChip(d: PriceDiff | null): { chip: string; tone: PercentTone } {
   const p = d ? uniformPercent(d) : null;
   const text = p === null ? null : percentChipText(p);
   if (p === null || text === null) return { chip: "Change", tone: "new" };
@@ -131,7 +158,21 @@ function nextChip(d: PriceDiff | null): { chip: string; tone: "down" | "up" | "b
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
-const TONE_ORDER: Record<AttentionItem["tone"], number> = { bad: 0, info: 1, next: 2 };
+const TONE_ORDER: Record<AttentionItem["tone"], number> = { bad: 0, warn: 1, info: 2, next: 3 };
+
+/** How long a card says "Price changed …" after a new price starts. */
+export const CHANGED_DAYS = 14;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const credits = (n: number) => `${n.toLocaleString("en-US")} credits`;
+
+/** What a scheduled change does to a typical run, in one sentence; empty when neither side has one. */
+export function typicalRunWords(before: number | null, after: number | null): string {
+  if (after === null) return "";
+  if (before === null) return `A typical run will be ${credits(after)}.`;
+  if (before === after) return `A typical run stays at ${credits(after)}.`;
+  return `A typical run goes from ${before.toLocaleString("en-US")} to ${credits(after)}.`;
+}
 
 export function buildModelsList(input: ModelsListInput): { rows: ModelListRow[]; attention: AttentionItem[]; settingsLine: string } {
   const { now } = input;
@@ -144,11 +185,11 @@ export function buildModelsList(input: ModelsListInput): { rows: ModelListRow[];
   const rows: ModelListRow[] = [];
   const items: AttentionItem[] = [];
 
-  for (const { model: m, raw } of input.models) {
+  input.models.forEach(({ model: m, raw }, order) => {
     const id = m?.id ?? str(raw.id) ?? "";
     const label = m?.label ?? str(raw.label) ?? id;
     const s = stats.get(id);
-    const month = s && s.runs > 0 ? { runs: s.runs, cost: formatUsd(s.costUsd) } : null;
+    const month = s && s.runs > 0 ? { runs: s.runs, costUsd: s.costUsd } : null;
     const item = (tone: AttentionItem["tone"], text: string, detail: string, action: string) =>
       items.push({
         key: `${id}:${text}`, modelId: id, tone, name: label, text, detail, action,
@@ -156,44 +197,63 @@ export function buildModelsList(input: ModelsListInput): { rows: ModelListRow[];
       });
 
     if (!m) {
+      const kind = str(raw.kind) ?? "";
       rows.push({
-        id, label, provider: str(raw.provider_label) ?? str(raw.provider) ?? "", group: groupOfKind(str(raw.kind) ?? ""),
-        status: str(raw.status) ?? "draft", broken: true, price: null, typical: null, atCost: false, next: null, month,
+        id, label, provider: str(raw.provider_label) ?? str(raw.provider) ?? "", kind, group: groupOfKind(kind),
+        status: str(raw.status) ?? "draft", broken: true, order, price: null, typical: null, atCost: false, next: null, changed: null, month,
       });
       item("bad", "fails its check", "Runs can't use it until it is fixed.", "Open");
-      continue;
+      return;
     }
 
     const own = { prices: pricesOf.get(id) ?? [] };
     const live = currentPrice(own, id, now);
     const spec = live ? runSpec(m, live) : null;
-    const credits = live && spec ? runCredits(m, live, spec, settings) : null;
-    const typical = live && spec && credits !== null ? { credits, label: specLabel(m, live, spec) } : null;
+    const runCr = live && spec ? runCredits(m, live, spec, settings) : null;
+    const typical = live && spec && runCr !== null ? { credits: runCr, label: specLabel(m, live, spec) } : null;
+
+    let changed: string | null = null;
+    if (live) {
+      const at = new Date(live.effectiveFrom);
+      const replaced = currentPrice(own, id, new Date(at.getTime() - 1)) !== null;
+      if (replaced && now.getTime() - at.getTime() <= CHANGED_DAYS * DAY_MS) changed = formatIstDate(at, false);
+    }
+
     const next = own.prices
       .filter((p) => new Date(p.effectiveFrom) > now)
       .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))[0] ?? null;
-    let nextCell: ModelListRow["next"] = null;
+    let nextCell: NextChange | null = null;
     if (next) {
       const at = new Date(next.effectiveFrom);
       const prev = currentPrice(own, id, new Date(at.getTime() - 1));
       const d = prev ? priceDiff(prev, next) : null;
-      nextCell = { ...nextChip(d), date: formatIstDate(at, false) };
-      item("next", `${changeWords(d)} on ${formatIstDate(at, false)}`, `Starts ${formatIstWhen(at)}, ${relativeIstDay(at, now)}.`, "Review");
+      // The same typical run at the new price, at the credit settings live now, so the two numbers differ by the price alone.
+      const nextSpec = runSpec(m, next);
+      const after = nextSpec ? runCredits(m, next, nextSpec, settings) : null;
+      const date = formatIstDate(at, false);
+      nextCell = { ...nextChip(d), date, when: `Starts ${formatIstWhen(at)}.`, credits: after };
+      item(
+        "next",
+        `${changeWords(d)} on ${date}, ${relativeIstDay(at, now)}`,
+        typicalRunWords(typical?.credits ?? null, after) || `Starts ${formatIstWhen(at)}.`,
+        "Review",
+      );
     }
     if (!own.prices.length && brokenPrices.has(id)) item("bad", "has a price that fails its check", "Runs can't be charged until it is fixed.", "Open");
-    else if (!own.prices.length) item("bad", "has no price yet", "Runs can't be charged, so it stays a draft until it has one.", "Add prices");
+    else if (!own.prices.length) item("warn", "has no price, so agencies can't use it yet", "", "Add prices");
     else if (m.status === "draft") item("info", "is a draft", "Only super admins can pick it.", "Open");
     if (m.status === "retired" && !m.replacedBy) item("bad", "is retired with no replacement", "Nodes using it have nothing to switch to.", "Pick one");
 
     rows.push({
-      id, label, provider: m.providerLabel, group: groupOfKind(m.kind), status: m.status, broken: false,
-      price: live ? priceRange(m, live) : null,
+      id, label, provider: m.providerLabel, kind: m.kind, group: groupOfKind(m.kind), status: m.status, broken: false, order,
+      price: live ? startingPrice(m, live) : null,
       typical,
       atCost: !typical && live !== null,
       next: nextCell,
+      changed,
       month,
     });
-  }
+  });
 
   const attention = items.sort((a, b) => TONE_ORDER[a.tone] - TONE_ORDER[b.tone]);
   const upcoming = [...input.creditSettings]
@@ -227,28 +287,4 @@ export function buildModelsList(input: ModelsListInput): { rows: ModelListRow[];
   }
 
   return { rows, attention, settingsLine: `1 credit = $0.001, ${settingsWords(settings)}` };
-}
-
-export type ListFilter = { group: ListGroup | "all"; onlyRuns: boolean; query: string };
-
-/** The kind tab, "Only with runs this month" and the search (name and maker). */
-export function filterModelRows(rows: readonly ModelListRow[], f: ListFilter): ModelListRow[] {
-  const q = f.query.trim().toLowerCase();
-  return rows.filter(
-    (r) =>
-      (f.group === "all" || r.group === f.group) &&
-      (!f.onlyRuns || r.month !== null) &&
-      (!q || `${r.label} ${r.provider}`.toLowerCase().includes(q)),
-  );
-}
-
-/** Rows by group in the prototype's order, with each group's live count; retired rows only when shown. */
-export function groupModelRows(rows: readonly ModelListRow[], showRetired: boolean) {
-  const retired = rows.filter((r) => r.status === "retired").length;
-  const shown = showRetired ? rows : rows.filter((r) => r.status !== "retired");
-  const groups = LIST_GROUPS.map((group) => {
-    const list = shown.filter((r) => r.group === group);
-    return { group, rows: list, live: list.filter((r) => r.status === "live").length };
-  }).filter((g) => g.rows.length);
-  return { groups, retired };
 }

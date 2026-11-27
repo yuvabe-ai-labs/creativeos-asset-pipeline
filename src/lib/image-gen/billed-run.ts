@@ -16,6 +16,7 @@ import {
 } from "@/lib/db/credit-transactions";
 import type { GenerationRow } from "@/lib/db/types";
 import { avatarImageParams, estimateAvatarImageCostUsd } from "@/lib/avatars/generation";
+import { creditLimitError } from "@/lib/billing/credit-limit-error";
 
 /** D291, D338 — who a generation belongs to: an avatar (Studio images) or a script (panels). */
 export type GenerationOwner = { avatarId: string } | { scriptId: string };
@@ -83,7 +84,7 @@ export async function runBilledImageGeneration(
     }
     const reservedCredits = creditsFromUsd(estimateUsd, creditSettingsAt(catalog, new Date(generation.created_at)));
     const reservation = await reserveCredits(args.orgId, generation.id, reservedCredits);
-    if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
+    if (!reservation.ok) throw creditLimitError(reservation.reason);
 
     const result = await run.generate({
       prompt: args.prompt, referenceUrls: args.referenceUrls, params: validatedParams,

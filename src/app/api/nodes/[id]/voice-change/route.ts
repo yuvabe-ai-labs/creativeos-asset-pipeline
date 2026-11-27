@@ -17,6 +17,7 @@ import { listClientVoiceIds } from "@/lib/db/client-voices";
 import { resolveVoiceChangeSource } from "@/lib/voice-change/source";
 import { signRevoicedVideoUrl } from "@/lib/storage";
 import type { VoiceChangeRecord } from "@/lib/voice-change/types";
+import { creditLimitError } from "@/lib/billing/credit-limit-error";
 
 const BodySchema = z.object({
   baseVersionId: z.string().min(1),
@@ -82,7 +83,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     try {
       const credits = creditsFromUsd(usd, creditSettingsAt(catalog, new Date(generation.created_at)));
       const reservation = await reserveCredits(effectiveOrgId, generation.id, credits);
-      if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
+      if (!reservation.ok) throw creditLimitError(reservation.reason);
       const upload = await signRevoicedVideoUrl({ nodeId, generationId: generation.id });
       await tasks.trigger("video-voice-change", {
         generationId: generation.id,

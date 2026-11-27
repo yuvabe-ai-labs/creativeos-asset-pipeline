@@ -37,10 +37,10 @@ describe("admin agency page: the tab lives in the URL (Task 13 review)", () => {
     expect(clients).toContain("adminClientCrumbs(orgId, open)");
   });
 
-  it("shows the tab in the page's trail", () => {
-    const crumbs = read("src/app/admin/orgs/[id]/org-crumbs.tsx");
-    expect(crumbs).toContain("adminOrgCrumbs(org, tab)");
-    expect(read("src/app/admin/orgs/[id]/page.tsx")).toContain("<OrgCrumbs");
+  it("has no breadcrumb under the admin tabs: the Agencies tab is the way back", () => {
+    const page = read("src/app/admin/orgs/[id]/page.tsx");
+    expect(page).not.toContain("breadcrumb=");
+    expect(read("src/app/admin/models/[id]/page.tsx")).not.toContain("<Breadcrumb");
   });
 
   it("keeps the Overview People count on the shared people read", () => {

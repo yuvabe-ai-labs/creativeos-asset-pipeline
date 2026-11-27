@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { Wallet } from "lucide-react";
+import { Coins } from "lucide-react";
 import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 import { listAdminModels, listAdminPrices, modelMonthStats } from "@/lib/db/ai-models-admin";
 import { listAdminCreditSettings } from "@/lib/db/credit-settings-admin";
 import { CREDITS_HREF, buildModelsList } from "@/lib/admin/models-list";
-import { ModelsList } from "@/components/admin/models/models-list";
-import { NeedsALookCard } from "@/components/admin/models/needs-a-look-card";
+import { monthTotals } from "@/lib/admin/models-catalog";
+import { Button } from "@/components/ui/button";
+import { ModelsCatalog } from "@/components/admin/models/models-catalog";
+import { Money } from "@/components/admin/models/money";
+import { adminPageClass } from "@/components/admin/admin-page";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Models — Admin" };
@@ -35,27 +38,38 @@ export default async function AdminModelsPage() {
     brokenCreditSettings: creditRows.some((r) => !r.settings),
     now,
   });
+  const month = monthTotals(rows);
+  const monthName = now.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 md:px-6 md:py-14">
-      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-end">
-        <div className="flex-1">
+    <main className={adminPageClass()}>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="max-w-2xl">
           <h1 className="font-display text-2xl font-semibold tracking-tight">Models</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            What each model costs us and what agencies pay. Runs and cost are for this month.
+            What agencies can pick, by kind. Credits are for a typical run: one run at the picker&apos;s default settings, shown
+            under each number. {monthName} so far:{" "}
+            {month.runs ? (
+              <>
+                <span className="text-foreground tabular-nums">
+                  {month.runs.toLocaleString("en-US")} {month.runs === 1 ? "run" : "runs"}
+                </span>
+                , <Money usd={month.costUsd} className="text-foreground" /> provider cost.
+              </>
+            ) : (
+              "no runs yet."
+            )}
           </p>
         </div>
-        <Link
-          href={CREDITS_HREF}
-          prefetch={false}
-          className="-mx-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          <Wallet aria-hidden strokeWidth={1.5} className="size-3.5" />
+        <p className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <Coins aria-hidden strokeWidth={1.5} className="size-3.5" />
           {settingsLine}
-        </Link>
+          <Button variant="link" size="xs" className="h-auto px-0" nativeButton={false} render={<Link href={CREDITS_HREF} prefetch={false} />}>
+            Credit settings
+          </Button>
+        </p>
       </div>
-      <NeedsALookCard items={attention} />
-      <ModelsList rows={rows} />
+      <ModelsCatalog rows={rows} attention={attention} />
     </main>
   );
 }

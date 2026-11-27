@@ -15,6 +15,7 @@ export function testMePayload(over: Partial<MePayload> = {}): MePayload {
     creditsUsed: null,
     monthlyCreditLimit: null,
     signedUpCount: null,
+    billing: null,
     ...over,
   };
 }

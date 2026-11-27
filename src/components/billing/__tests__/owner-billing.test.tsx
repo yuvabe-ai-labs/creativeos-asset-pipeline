@@ -1,0 +1,150 @@
+import { describe, it, expect, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/" }));
+vi.mock("@/hooks/queries/billing", () => {
+  const m = () => ({ mutateAsync: vi.fn(), isPending: false });
+  return { useSubscribe: m, useConfirmSubscription: m, useStartTopUp: m, useConfirmTopUp: m, useCancelPlan: m, useChangePlan: m, usePayNow: m, useApproveNewPrice: m };
+});
+vi.mock("@/hooks/queries/billing-history", () => ({ useOwnerPaymentsPage: () => ({ data: undefined, isFetching: false, isError: false }) }));
+
+import { ownerLine } from "../billing-bar";
+import { PlansGrid } from "../owner/plans-grid";
+import { PaymentsList } from "../owner/payments-list";
+import { PlanSummary } from "../owner/plan-summary";
+import { PriceApprovalBanner } from "../owner/price-approval-banner";
+import { CreditGrantList } from "../credit-grant-list";
+import { ProfileCredits } from "@/components/identity/profile-credits";
+import type { OwnerBillingSummary } from "@/lib/billing/summary";
+
+const summary = (over: Partial<OwnerBillingSummary>): OwnerBillingSummary => ({ mode: "plans", state: "ok", left: 0, total: 0, freeLeft: 0, freeEndsAt: null, planEndsAt: null, ...over });
+const plans = [
+  { priceId: "p1", productId: "a", name: "Starter", description: null, amountMinor: 1_200_000, credits: 100_000 },
+  { priceId: "p2", productId: "b", name: "Studio", description: "For growing teams", amountMinor: 2_400_000, credits: 200_000 },
+];
+const sub = { id: "s", status: "active" as const, priceId: "p1", nextPriceId: null, planName: "Starter", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1", paymentDueSince: null, next: null, approval: null };
+const moving = (state: "scheduled" | "waiting" | "refused") => ({
+  ...sub,
+  nextPriceId: "p1b",
+  next: { priceId: "p1b", planName: "Starter", amountMinor: 1_400_000, credits: 100_000, state, refused: state === "refused" ? ("upi" as const) : null },
+});
+
+describe("the workspace bar", () => {
+  it("shows free credits and when they end, with a way to the plans", () => {
+    expect(ownerLine(summary({ state: "free", freeLeft: 48_000, freeEndsAt: "2026-12-03T18:30:00.000Z" }))).toMatchObject({
+      text: "You have 48,000 free credits until 3 Dec 2026.",
+      action: { label: "See plans", href: "/billing/plans" },
+    });
+  });
+
+  it("warns about a due payment and credits used up; nudges at 80%", () => {
+    expect(ownerLine(summary({ state: "payment_due" }))).toMatchObject({ tone: "warn", action: { href: "/billing" } });
+    expect(ownerLine(summary({ state: "used_up" }))).toMatchObject({ tone: "warn", action: { label: "Top up" } });
+    expect(ownerLine(summary({ state: "low", left: 20_000 }))?.text).toBe("You've used 80% of this month's credits. 20,000 left.");
+  });
+
+  it("says nothing when all is well or the agency is managed", () => {
+    expect(ownerLine(summary({ state: "ok" }))).toBeNull();
+    expect(ownerLine(summary({ mode: "managed", state: "managed" }))).toBeNull();
+  });
+});
+
+describe("the owner's plans page", () => {
+  it("offers to pick a plan when there is none", () => {
+    const html = renderToStaticMarkup(<PlansGrid plans={plans} subscription={null} />);
+    expect(html).toContain("Pick Starter");
+    expect(html).toContain("₹12,000");
+    expect(html).toContain("1,00,000 credits every month");
+  });
+
+  it("marks the current plan and offers to change to the others", () => {
+    const html = renderToStaticMarkup(<PlansGrid plans={plans} subscription={sub} />);
+    expect(html).toContain("Your plan");
+    expect(html).toContain("Current plan");
+    expect(html).toContain("Change to Studio");
+    expect(html).not.toContain("Pick Studio");
+  });
+});
+
+describe("the owner's billing page", () => {
+  it("says when the plan renews, and offers change and cancel", () => {
+    const html = renderToStaticMarkup(<PlanSummary subscription={sub} />);
+    expect(html).toContain("Starter");
+    expect(html).toContain("Renews 21 Dec 2026.");
+    expect(html).toContain("Change plan");
+    expect(html).toContain("Cancel plan");
+  });
+
+  it("shows a new price and the day it starts only once it is set up (D593)", () => {
+    const scheduled = renderToStaticMarkup(<PlanSummary subscription={moving("scheduled")} />);
+    expect(scheduled).toContain("Renews 21 Dec 2026. From then your plan is ₹14,000 a month + GST for 1,00,000 credits.");
+    for (const state of ["waiting", "refused"] as const) {
+      const html = renderToStaticMarkup(<PlanSummary subscription={moving(state)} />);
+      expect(html).toContain("Renews 21 Dec 2026.");
+      expect(html).not.toContain("₹14,000");
+      expect(html).not.toMatch(/new plan starts/i);
+    }
+  });
+
+  it("marks the plan coming next on the plans page only once it is set up", () => {
+    const next = [{ ...plans[0], priceId: "p1b", amountMinor: 1_400_000 }];
+    expect(renderToStaticMarkup(<PlansGrid plans={next} subscription={moving("scheduled")} />)).toContain("From next payment");
+    expect(renderToStaticMarkup(<PlansGrid plans={next} subscription={moving("refused")} />)).not.toContain("From next payment");
+  });
+
+  it("marks a due payment on the plan without naming the payment company (Pay now is the page's notice)", () => {
+    const html = renderToStaticMarkup(<PlanSummary subscription={{ ...sub, status: "payment_due", paymentDueSince: "2026-11-21T06:00:00Z" }} />);
+    expect(html).toContain("Payment due");
+    expect(html).toContain("AI runs are paused until the payment goes through.");
+    expect(html).not.toContain("Pay now");
+    expect(html).not.toMatch(/razorpay/i);
+  });
+
+  it("lists credits by kind with their end, and payments with GST", () => {
+    const grants = renderToStaticMarkup(<CreditGrantList grants={[{ id: "g", kind: "topup", credits: 25_000, used: 5_000, left: 20_000, endsAt: "2026-12-20T18:30:00.000Z" }]} empty="none" />);
+    expect(grants).toContain("Top-up");
+    expect(grants).toContain("20,000 of 25,000 left");
+    expect(grants).toContain("until 20 Dec 2026");
+    const emptied = { id: "e", kind: "free" as const, credits: 0, used: 0, left: 0, endsAt: "2026-12-01T18:30:00.000Z" };
+    expect(renderToStaticMarkup(<CreditGrantList grants={[emptied]} empty="No credits right now." />)).toContain("No credits right now.");
+    expect(renderToStaticMarkup(<CreditGrantList grants={[emptied, { ...emptied, id: "f", credits: 2_000, left: 2_000 }]} empty="none" />)).not.toContain("0 of 0 left");
+    const payment = { id: "x", kind: "renewal" as const, status: "paid" as const, amountMinor: 1_200_000, taxMinor: 216_000, totalMinor: 1_416_000, credits: 100_000, paidAt: "2026-11-21T06:00:00Z", createdAt: "2026-11-21T06:00:00Z", name: "Starter" };
+    const payments = renderToStaticMarkup(<PaymentsList initial={{ payments: [payment], total: 1 }} />);
+    expect(payments).not.toContain("Page 1 of");
+    expect(renderToStaticMarkup(<PaymentsList initial={{ payments: [payment], total: 25 }} />)).toContain("Page 1 of 3");
+    const few = renderToStaticMarkup(<PaymentsList initial={{ payments: [payment, { ...payment, id: "y" }], total: 25 }} limit={1} />);
+    expect(few).not.toContain("Page 1 of");
+    expect(few.match(/Monthly renewal/g)).toHaveLength(1);
+    expect(payments).toContain("Monthly renewal · Starter");
+    expect(payments).toContain("₹14,160");
+    expect(payments).toContain("incl. GST");
+  });
+
+  it("shows a paying owner credits left in the profile popover, with a way to Billing", () => {
+    const html = renderToStaticMarkup(<ProfileCredits used={0} monthlyCreditLimit={null} paying={{ left: 48_000, total: 50_000 }} />);
+    expect(html).toContain("48,000");
+    expect(html).toContain("left");
+    expect(html).toContain('href="/billing"');
+  });
+});
+
+describe("a new price to approve (D595)", () => {
+  const asked = { state: "asked" as const, priceId: "p1b", planName: "Starter", amountMinor: 1_400_000, credits: 100_000, endsAt: "2026-12-21T00:00:00Z" };
+
+  it("asks the owner to approve before the plan's end date, with the ₹5 check, and no vendor names", () => {
+    const html = renderToStaticMarkup(<PriceApprovalBanner approval={asked} />);
+    expect(html).toContain("The Starter price changes to ₹14,000 a month + GST. Approve the new price before 21 Dec 2026, or your plan ends then.");
+    expect(html).toContain("₹5 check that&#x27;s refunded");
+    expect(html).toContain("Approve new price");
+    expect(html).not.toMatch(/razorpay|upi|mandate/i);
+  });
+
+  it("says it continues once approved, and the plan line says so too", () => {
+    const approved = { state: "approved" as const, priceId: "p1b", planName: "Starter", amountMinor: 1_400_000, credits: 100_000, startsAt: "2026-12-21T00:00:00Z" };
+    expect(renderToStaticMarkup(<PriceApprovalBanner approval={approved} />)).toContain("New price approved. Your plan continues on 21 Dec 2026 at ₹14,000 a month.");
+    const html = renderToStaticMarkup(<PlanSummary subscription={{ ...sub, status: "cancelling", approval: asked }} />);
+    expect(html).toContain("Ends 21 Dec 2026 unless you approve the new price.");
+    expect(html).not.toContain(">Cancelled<");
+    expect(html).toContain("Cancel plan");
+  });
+});

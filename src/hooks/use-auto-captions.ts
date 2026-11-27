@@ -9,7 +9,7 @@ import { useStartTranscribe, useTranscribeStatus, useTranscripts } from "@/hooks
 import { autoCaptionCost, captionsFollowSound, fillFromTranscripts, pieceSound, staleAutoPieces, uncaptionedPieces } from "@/lib/editor/auto-captions";
 import { setSound } from "@/lib/editor/pieces";
 import type { Caption, SoundChoice } from "@/lib/editor/types";
-import { CREDIT_LIMIT_TOAST_MESSAGE } from "@/lib/credits/units";
+import { creditRefusalMessage } from "@/lib/billing/refusal-copy";
 import { JOB_LIVE_STATUSES } from "@/lib/jobs/types";
 import type { TranscribeFailureReason, Transcript } from "@/lib/transcribe/types";
 import { ApiError } from "@/services/read-json";
@@ -24,7 +24,7 @@ export const failureCopy = (r: TranscribeFailureReason) => FAILURE_COPY[r];
 type Run = { pieces: string[]; added: string[]; replaced: Caption[]; failed: number; error?: string };
 /** The route's 409 is either no price row or a run already holding the lock; its own message is plain. */
 export function startErrorMessage(err: unknown): string {
-  if (err instanceof ApiError && err.status === 402) return CREDIT_LIMIT_TOAST_MESSAGE;
+  if (err instanceof ApiError && err.status === 402) return creditRefusalMessage(err.message);
   if (err instanceof ApiError && err.status === 409) return err.message === NO_PRICE_MESSAGE ? NO_PRICE_REASON : err.message;
   return "Couldn't start captions. Try again.";
 }

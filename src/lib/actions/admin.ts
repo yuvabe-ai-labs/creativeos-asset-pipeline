@@ -16,6 +16,8 @@ import { AgencyIdSchema, CreateAgencySchema } from "@/lib/people/schema";
 import { createAgency, inviteOwner, resendOwnerInvite } from "@/lib/people/ops";
 import { getDisplayName } from "@/lib/db/profiles";
 import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
+import { setBillingMode, grantCredits } from "@/lib/db/billing-admin";
+import { FreeCreditsFormSchema } from "@/lib/billing/admin-schema";
 
 // This file's actions are deliberately NOT gated by withAction() (Stage 4's
 // impersonation write-gate). They're /admin platform-administration actions
@@ -34,8 +36,9 @@ import { logImpersonationEvent } from "@/lib/db/impersonation-audit";
 export type CreateAgencyState =
   | {
       error?: string;
-      /** limitNotSaved: the agency and its invite were made but the chosen credit limit wasn't saved. */
-      result?: { orgId: string; email: string; link: string; emailed: boolean; limitNotSaved?: true };
+      /** limitNotSaved / billingNotSaved: the agency and its invite were made but the chosen credit
+       *  limit, or the billing and free credits, weren't saved. */
+      result?: { orgId: string; email: string; link: string; emailed: boolean; limitNotSaved?: true; billingNotSaved?: true };
     }
   | undefined;
 
@@ -46,16 +49,32 @@ export async function createAgencyAction(_prev: CreateAgencyState, formData: For
   const admin = await requireSuperAdmin();
   const parsed = CreateAgencySchema.safeParse({ name: formData.get("name"), email: formData.get("email") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the name and email." };
+  // Billing (piece 2): managed by Yuvabe (the default, with the credit limit) or paying for a plan,
+  // optionally with free credits. Everything is checked before the agency is made.
+  const paying = formData.get("billingMode") === "plans";
+  const free = FreeCreditsFormSchema.safeParse({
+    give: paying ? String(formData.get("freeGive") ?? "") : "",
+    credits: String(formData.get("freeCredits") ?? ""),
+    day: String(formData.get("freeUntil") ?? ""),
+  });
+  if (!free.success) return { error: free.error.issues[0]?.message ?? "Check the free credits." };
+  const freeCredits = free.data;
   // The same parsing as the agency page's credit limit editor; blank (the default) is Unlimited.
-  let limit: number | null;
-  try {
-    limit = parseCreditLimit(String(formData.get("creditLimit") ?? ""));
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Invalid credit limit." };
+  // A paying agency has no monthly limit: its credits are what it is given or buys.
+  let limit: number | null = null;
+  if (!paying) {
+    try {
+      limit = parseCreditLimit(String(formData.get("creditLimit") ?? ""));
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Invalid credit limit." };
+    }
   }
   try {
     const name = (await getDisplayName(admin.userId)) ?? "Yuvabe";
-    const result = await createAgency(parsed.data.name, parsed.data.email, { userId: admin.userId, name });
+    const by = { userId: admin.userId, name };
+    const result = freeCredits
+      ? await createAgency(parsed.data.name, parsed.data.email, by, { freeCredits })
+      : await createAgency(parsed.data.name, parsed.data.email, by);
     if (!result.ok) return { error: result.error };
     const orgId = result.value.orgId;
     // A new agency starts Unlimited, so only a set limit is written. The agency and its invite
@@ -71,9 +90,27 @@ export async function createAgencyAction(_prev: CreateAgencyState, formData: For
         limitNotSaved = true;
       }
     }
+    // Billing and free credits go the same way as the limit: reported beside the link if they fail.
+    let billingNotSaved = false;
+    if (paying) {
+      try {
+        await setBillingMode(orgId, "plans", admin.userId, "Added as paying for a plan");
+        if (freeCredits) await grantCredits(orgId, "free", freeCredits.credits, freeCredits.day, admin.userId, "Free credits to start");
+      } catch (e) {
+        console.error("[admin] could not save the new agency's billing", e);
+        billingNotSaved = true;
+      }
+    }
     await logImpersonationEvent({ operatorId: admin.userId, targetOrgId: orgId, eventType: "admin_action", detail: { action: "create_agency", email: parsed.data.email, limit: savedLimit } });
     revalidatePath("/admin");
-    return { result: { ...result.value, email: parsed.data.email, ...(limitNotSaved ? { limitNotSaved: true as const } : {}) } };
+    return {
+      result: {
+        ...result.value,
+        email: parsed.data.email,
+        ...(limitNotSaved ? { limitNotSaved: true as const } : {}),
+        ...(billingNotSaved ? { billingNotSaved: true as const } : {}),
+      },
+    };
   } catch (e) {
     console.error("[admin] could not create the agency", e);
     return { error: "Could not create the agency." };

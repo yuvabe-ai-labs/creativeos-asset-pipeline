@@ -125,12 +125,13 @@ describe("POST generations", () => {
     expect(runAvatarGeneration).not.toHaveBeenCalled();
   });
 
-  it("answers 402 with the actionable message at the credit cap", async () => {
-    vi.mocked(runAvatarGeneration).mockRejectedValue(new CreditLimitError("Monthly credit limit reached"));
+  it("answers 402 with the refusal's plain message at the credit cap (D582)", async () => {
+    const message = "AI runs are paused. Your agency has used its credits. Ask your agency owner.";
+    vi.mocked(runAvatarGeneration).mockRejectedValue(new CreditLimitError(message));
     const { POST } = await import("./route");
     const res = await POST(post(body), { params });
     expect(res.status).toBe(402);
-    expect((await res.json()).error).toMatch(/Monthly credit limit reached\. Contact your admin/);
+    expect((await res.json()).error).toBe(message);
   });
 
   it("passes a provider failure through as a 500 with its message", async () => {

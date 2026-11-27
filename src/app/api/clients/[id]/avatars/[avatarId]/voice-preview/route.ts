@@ -21,6 +21,7 @@ import {
 } from "@/lib/avatars/voice-preview";
 import { loadVoicePreviewState, readLatestPreview } from "@/lib/avatars/studio-server";
 import type { AvatarVoicePreviewTaskPayload } from "@/lib/avatars/voice-preview-run";
+import { creditLimitError } from "@/lib/billing/credit-limit-error";
 
 export const dynamic = "force-dynamic";
 
@@ -125,7 +126,7 @@ export async function POST(req: Request, { params }: Ctx) {
         const credits = estimateVoicePreviewCredits(price, voiceChangePrice, mode, engine, voice?.priceMultiplier ?? 1, creditSettingsAt(catalog, new Date(generation.created_at)));
         if (credits === null) throw new Error("No cost estimate available for the voice preview.");
         const reservation = await reserveCredits(client.org_id, generation.id, credits);
-        if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
+        if (!reservation.ok) throw creditLimitError(reservation.reason);
 
         // The task has no GCS credentials, so every upload it makes is signed here. A native
         // preview writes two objects: the clip, and the voice extracted from it.
@@ -164,7 +165,7 @@ export async function POST(req: Request, { params }: Ctx) {
         const message = e instanceof Error ? e.message : "Voice preview failed";
         await failGeneration({ generationId: generation.id, error: message }).catch(() => null);
         await refundReservation({ orgId: client.org_id, generationId: generation.id }).catch(() => null);
-        if (e instanceof CreditLimitError) return apiError(CREDIT_LIMIT_TOAST_MESSAGE, 402);
+        if (e instanceof CreditLimitError) return apiError(e.message, 402);
         return apiError(message, 500);
       }
     }),

@@ -1,26 +1,30 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { adminPageClass } from "@/components/admin/admin-page";
 
+// The page's shape while it loads: the title row and the one card, Now, Next and the footer (D594).
 export default function Loading() {
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 md:px-6 md:py-14">
-      <Skeleton className="mb-2 h-8 w-32" />
-      <Skeleton className="mb-6 h-4 w-80 max-w-full" />
-      <Skeleton className="mb-6 h-24 w-full rounded-2xl" />
-      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="overflow-hidden rounded-2xl border bg-card px-5 py-5 shadow-card">
-          <Skeleton className="mb-4 h-6 w-64" />
-          {Array.from({ length: 8 }, (_, i) => (
-            <div key={i} className="flex items-center gap-4 border-b py-3.5 last:border-b-0">
-              <Skeleton className="h-5 flex-[3]" />
-              <Skeleton className="h-5 w-16" />
-              <Skeleton className="h-5 w-20" />
-            </div>
-          ))}
+    <main className={adminPageClass()}>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div>
+          <Skeleton className="mb-2 h-8 w-32" />
+          <Skeleton className="h-4 w-80 max-w-full" />
         </div>
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-5 w-20" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-9 w-48 max-sm:w-full" />
+      </div>
+      <div className="max-w-4xl overflow-hidden rounded-xl border bg-card shadow-card">
+        {[0, 1].map((i) => (
+          <div key={i} className="grid grid-cols-1 items-center gap-x-5 gap-y-1.5 border-b border-border/60 px-4 py-4 md:grid-cols-[200px_minmax(0,1fr)_auto] md:px-5">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-5 w-full max-w-md" />
+            <Skeleton className="h-5 w-20" />
+          </div>
+        ))}
+        <div className="flex flex-wrap items-center gap-5 bg-muted/40 px-4 py-3 md:px-5">
+          <Skeleton className="h-4 w-64" />
+          <span className="flex-1" />
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-4 w-16" />
         </div>
       </div>
     </main>

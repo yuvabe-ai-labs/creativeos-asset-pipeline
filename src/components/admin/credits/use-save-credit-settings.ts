@@ -8,7 +8,7 @@ import { creditUndoPlan, restoredMessage, savedCreditMessage } from "@/lib/admin
 import { settingsWords, type Settings } from "@/lib/admin/credits-page";
 import type { CreditSettings } from "@/lib/ai-models/types";
 
-const SAVE_ERROR = "Could not save. Try again.";
+export const SAVE_ERROR = "Could not save. Try again.";
 
 /**
  * Saves new credit settings through the server's checks: a replace (one transaction) when they start

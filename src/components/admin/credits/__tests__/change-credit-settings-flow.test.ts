@@ -14,13 +14,17 @@ describe("changeCreditsReducer", () => {
     const s = run(open, { type: "margin", text: "10" }, { type: "step", step: 10 });
     expect(s).toMatchObject({ margin: "10", step: 10 });
   });
-  it("goes to When and Review, Back steps back, and Esc returns to the settings", () => {
+  it("fills in a scheduled change when given one", () => {
+    const from = { settings: { marginPercent: 10, roundStep: 10 as const }, when: { mode: "date" as const, date: "2026-12-01", time: "00:00" } };
+    expect(run(closedCreditFlow, { type: "start", live: LIVE, now: NOW, from })).toMatchObject({ stage: "settings", margin: "10", step: 10, when: from.when });
+  });
+  it("goes to When and Review, Back steps back, and Esc closes the flow", () => {
     const review = run(open, { type: "go", stage: "when" }, { type: "go", stage: "review" });
     expect(review.stage).toBe("review");
     expect(run(review, { type: "back" }).stage).toBe("when");
     expect(run(review, { type: "back" }, { type: "back" }).stage).toBe("settings");
-    expect(run(review, { type: "close" }).stage).toBe("settings");
-    expect(run(open, { type: "close" }).stage).toBe("settings");
+    expect(run(review, { type: "close" })).toEqual(closedCreditFlow);
+    expect(run(open, { type: "close" })).toEqual(closedCreditFlow);
   });
   it("changes the When by parts", () => {
     expect(run(open, { type: "when", when: { mode: "now" } }).when).toEqual({ mode: "now", date: "2026-11-25", time: "00:00" });
@@ -28,10 +32,9 @@ describe("changeCreditsReducer", () => {
   it("holds still while saving, then closes; a stale start returns to When", () => {
     const saving = run(open, { type: "go", stage: "review" }, { type: "saving", on: true });
     expect(run(saving, { type: "back" })).toBe(saving);
-    expect(run(saving, { type: "cancel" })).toBe(saving);
+    expect(run(saving, { type: "close" })).toBe(saving);
     expect(run(saving, { type: "done" })).toEqual(closedCreditFlow);
     expect(run(saving, { type: "stale" })).toMatchObject({ stage: "when", saving: false });
-    expect(run(open, { type: "cancel" })).toEqual(closedCreditFlow);
   });
 });
 

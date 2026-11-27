@@ -1583,3 +1583,761 @@ select pg_get_function_identity_arguments(oid) from pg_proc where proname = 'rep
 -- expect 1 row: true (a row inside the 2-minute lead is refused)
 select prosrc like '%interval ''2 minutes''%' as has_lead from pg_proc where proname = 'replace_credit_settings';
 ```
+
+## Migration 0090 — billing_payments (D573, 2026-11-19)
+
+Apply after 0089, in any order with the code: nothing reads the table until the test page is on.
+
+**Renumbered 2026-11-25.** The billing migrations were 0066–0076 on the Razorpay branch and became
+0090–0100 when it took in staging, whose copilot and model catalog migrations already use 0066, 0067
+and 0076. Each file's SQL is unchanged. A database that ran them under the old numbers (dev) needs
+nothing more; an environment that has not run them applies 0090–0100 in order, after 0089.
+
+- Adds the `billing_payments` table (one row per Razorpay order; owners of the agency can read their
+  own rows, only the server writes) and the `record_razorpay_payment` function, which the Razorpay
+  webhook calls to mark an order paid and add its credits once.
+- Safe to apply: a new table and a new function only. No existing table, column or row changes.
+- It can go to production even though the test page stays off there (`RAZORPAY_TEST_PAGE` is set
+  only on a developer's machine and the dev deployment): with no orders, the table stays empty.
+
+**Verify after running:**
+
+```sql
+-- expect one row: billing_payments, RLS on
+select relname, relrowsecurity from pg_class where relname = 'billing_payments';
+
+-- expect one row, security definer
+select proname, prosecdef from pg_proc where proname = 'record_razorpay_payment';
+```
+
+**Rollback:**
+
+```sql
+drop function if exists record_razorpay_payment(text, text);
+drop table if exists billing_payments;
+notify pgrst, 'reload schema';
+```
+
+Dropping the table and function leaves any `adjustment` rows already written in `credit_transactions`, so the credits stay granted. To remove them too, run this for the affected org(s):
+
+```sql
+delete from credit_transactions
+where type = 'adjustment' and generation_id is null and org_id = '<org id>';
+```
+
+## Migration 0091 — credit_grants (D574, 2026-11-20)
+
+Apply after 0090 and **before** the release that calls the new functions. The code before that
+release still calls `reserve_credits`, which 0091 leaves in place (0092 drops it).
+
+- Adds `billing_mode` (default `managed`) and `plan_type` (default `standard`) to `organizations`.
+  Every existing agency becomes managed and behaves as before.
+- Adds `credit_grants` (a paying agency's credits, each with an end date; owners can read their
+  own), `credit_grant_uses` and `billing_log` (server only).
+- Adds `reserve_credits_v2`, `settle_credits`, `refund_credits` and `credit_balance` (service role
+  only). From the release, every run's hold and settlement goes through them.
+- Adds Admin's billing changes (`admin_set_billing_mode`, `admin_grant_credits`,
+  `admin_take_back_credits`, `admin_set_grant_end`), each writing its `billing_log` row in the same
+  transaction. The agency page's Billing tab reads grants and the log, so the page needs 0091.
+- Safe to apply: new columns with defaults, new tables, new functions. No existing row changes.
+
+**Verify after running:**
+
+```sql
+-- expect three rows, RLS on
+select relname, relrowsecurity from pg_class
+ where relname in ('credit_grants', 'credit_grant_uses', 'billing_log');
+
+-- expect eight rows, security definer
+select proname, prosecdef from pg_proc
+ where proname in ('reserve_credits_v2', 'settle_credits', 'refund_credits', 'credit_balance',
+                   'admin_set_billing_mode', 'admin_grant_credits', 'admin_take_back_credits', 'admin_set_grant_end');
+
+-- expect every agency managed
+select billing_mode, count(*) from organizations group by 1;
+```
+
+**Check on staging after the release** (spec `2026-11-20-credit-grants-design.md`, "Checking the
+SQL"): set one test agency to `billing_mode = 'plans'`, write grants by hand, and run the seven
+cases there (no grants; one free grant; free plus plan; refund; repeated settle; free ended; a
+managed agency with a limit). Then set the test agency back to `managed` and delete its grants.
+
+Then in Admin (piece 2): add a paying agency with free credits (the invite email has the free
+credits line); on its Billing tab take some back, move the end date, end them now, add credits,
+switch to managed and back. The billing log shows each change with its reason.
+
+**Rollback** (only with the code from before the release deployed, since the release calls the
+new functions):
+
+```sql
+drop function if exists admin_set_grant_end(uuid, timestamptz, uuid, text);
+drop function if exists admin_take_back_credits(uuid, numeric, uuid, text);
+drop function if exists admin_grant_credits(uuid, text, numeric, timestamptz, uuid, text);
+drop function if exists admin_set_billing_mode(uuid, text, uuid, text);
+drop function if exists credit_balance(uuid);
+drop function if exists refund_credits(uuid, uuid);
+drop function if exists settle_credits(uuid, uuid, numeric);
+drop function if exists reserve_credits_v2(uuid, uuid, numeric);
+drop table if exists billing_log;
+drop table if exists credit_grant_uses;
+drop table if exists credit_grants;
+alter table organizations drop column if exists plan_type, drop column if exists billing_mode;
+notify pgrst, 'reload schema';
+```
+
+## Migration 0092 — billing catalog (D577, 2026-11-21)
+
+Apply after 0091, in any order with the code: nothing reads these tables until piece 3.
+
+- Adds the catalog and billing tables: `billing_products` (plans and top-up packs; a custom plan
+  has an agency), `billing_prices` (fixed once written, one per interval and currency),
+  `billing_settings` (planning rate and margins over time, seeded with one row),
+  `billing_discounts`, `billing_accounts` (GSTIN, Razorpay customer), `billing_subscriptions`
+  (one live per agency) and `razorpay_events` (each webhook once).
+- `billing_payments` gains what each payment was charged with (kind, price, subscription,
+  discount, currency, discount, tax, total, rate, invoice); existing rows become `kind = 'test'`.
+  Its status also allows `failed` and `refunded`.
+- `credit_grants` gains `price_id` and `subscription_id`.
+- Safe to apply: new tables, nullable columns or columns with defaults, a wider status check.
+
+**Verify after running:**
+
+```sql
+-- expect seven rows, RLS on
+select relname, relrowsecurity from pg_class
+ where relname in ('billing_products', 'billing_prices', 'billing_settings', 'billing_discounts',
+                   'billing_accounts', 'billing_subscriptions', 'razorpay_events');
+
+-- expect one row: 100
+select inr_per_usd from billing_settings;
+
+-- a price can't change: the update must fail
+insert into billing_products (kind, name) values ('plan', 'Check') returning id;
+insert into billing_prices (product_id, amount_minor, interval_months, credits, credits_every_months)
+values ('<product id>', 1000000, 1, 100000, 1) returning id;
+update billing_prices set amount_minor = 1 where id = '<price id>';
+delete from billing_products where name = 'Check';
+```
+
+**Rollback:**
+
+```sql
+drop index if exists credit_grants_subscription_id_idx;
+drop index if exists credit_grants_price_id_idx;
+alter table credit_grants drop column if exists subscription_id, drop column if exists price_id;
+alter table billing_payments drop constraint if exists billing_payments_status_check;
+alter table billing_payments add constraint billing_payments_status_check check (status in ('created', 'paid'));
+alter table billing_payments
+  drop column if exists razorpay_invoice_id, drop column if exists inr_per_usd,
+  drop column if exists total_minor, drop column if exists tax_minor,
+  drop column if exists discount_minor, drop column if exists currency,
+  drop column if exists discount_id, drop column if exists subscription_id,
+  drop column if exists price_id, drop column if exists kind;
+drop table if exists razorpay_events;
+drop table if exists billing_subscriptions;
+drop table if exists billing_accounts;
+drop table if exists billing_discounts;
+drop table if exists billing_settings;
+drop table if exists billing_prices;
+drop function if exists billing_prices_fixed();
+drop table if exists billing_products;
+notify pgrst, 'reload schema';
+```
+
+## Migration 0093 — Admin writes the catalog (D578, 2026-11-21)
+
+Apply after 0092 and **before** the release with Admin's Plans and prices page (the page calls
+`billing_price_subscriber_counts`).
+
+- `billing_log.org_id` becomes nullable: catalog and settings changes are logged with no agency.
+- Adds a `billing_settings` row: ₹100 to the dollar, plan margin 20%, top-up margin 25%, minimum
+  margin 15%. The margins are examples until the real prices are set.
+- Adds `admin_save_billing_settings`, `admin_save_product`, `admin_add_price`,
+  `admin_set_price_active` (each logs in the same transaction) and
+  `billing_price_subscriber_counts`. Service role only.
+- Safe to apply: one relaxed column, one inserted row, new functions.
+
+**Verify after running:**
+
+```sql
+-- expect 15
+select min_margin_pct from billing_settings order by effective_from desc limit 1;
+
+-- expect five rows, security definer
+select proname, prosecdef from pg_proc
+ where proname in ('admin_save_billing_settings', 'admin_save_product', 'admin_add_price',
+                   'admin_set_price_active', 'billing_price_subscriber_counts');
+```
+
+**Check in Admin after the release:** Plans and prices opens with the settings; add a plan and a
+monthly price (the margin shows; a price below 15% shows the warning); add a top-up pack and a
+price; give the plan a new price (the old one shows Hidden); hide and show a price.
+
+**Rollback:**
+
+```sql
+drop function if exists billing_price_subscriber_counts();
+drop function if exists admin_set_price_active(uuid, boolean, uuid);
+drop function if exists admin_add_price(uuid, bigint, bigint, integer, numeric, integer, integer, uuid, uuid, text);
+drop function if exists admin_save_product(uuid, text, text, text, integer, boolean, uuid);
+drop function if exists admin_save_billing_settings(numeric, numeric, numeric, numeric, uuid, text);
+delete from billing_settings where min_margin_pct = 15 and created_by is null;
+delete from billing_log where org_id is null;
+alter table billing_log alter column org_id set not null;
+notify pgrst, 'reload schema';
+```
+
+## Migration 0094 — one-step plan save (D579, 2026-11-21)
+
+Apply after 0093 and **before** the release with the redesigned Plans and prices page (adding or
+editing a plan calls `admin_save_offer`).
+
+- Adds `admin_save_offer`: adds a plan or top-up pack with its price, or edits it. A changed
+  amount or credits becomes a new price; the old one is hidden and its live subscriptions move to
+  the new one from their next payment. Logged in the same transaction. Service role only.
+- Safe to apply: one new function.
+
+**Verify after running:**
+
+```sql
+-- expect one row, security definer
+select proname, prosecdef from pg_proc where proname = 'admin_save_offer';
+```
+
+**Rollback:**
+
+```sql
+drop function if exists admin_save_offer(uuid, text, text, text, boolean, bigint, numeric, integer, uuid, text);
+notify pgrst, 'reload schema';
+```
+
+## Migration 0095 — monthly plans (D580, 2026-11-21)
+
+Apply after 0094, then release. It replaces `reserve_credits_v2` (same arguments) with one more
+refusal, `payment_due`. Code from before the release would treat that answer as unknown and fail
+the run, but no agency has a subscription before the release, so it can't occur.
+
+- Adds `record_subscription_charge` (Razorpay's `subscription.charged`: records the payment once,
+  sets the paid period and the plan charged, writes the month's plan grant) and
+  `set_subscription_status` (the other subscription events). Service role only.
+- `reserve_credits_v2` refuses a paying agency whose plan payment is due, before its credits.
+- Safe to apply: new functions and a replaced one with the same behaviour for every agency today.
+
+**Razorpay setup for this release:** in the Razorpay Dashboard (test mode), the webhook must send
+`subscription.activated`, `subscription.charged`, `subscription.pending`,
+`subscription.halted`, `subscription.cancelled`, `subscription.completed`,
+`subscription.resumed` and `order.paid`.
+
+**Verify after running:**
+
+```sql
+-- expect two rows, security definer
+select proname, prosecdef from pg_proc
+ where proname in ('record_subscription_charge', 'set_subscription_status');
+```
+
+**Check after the release (test mode):** on `/billing-test` as the owner of a paying agency,
+subscribe to a plan with a test card; after the webhook, Admin's Billing tab shows the plan as
+Active with its renewal date and a Plan grant. Cancel shows Cancelled and the end date.
+
+**Rollback:** re-run the `reserve_credits_v2` definition from 0091, then:
+
+```sql
+drop function if exists set_subscription_status(text, text, timestamptz, timestamptz);
+drop function if exists record_subscription_charge(text, text, text, text, bigint, timestamptz, timestamptz);
+notify pgrst, 'reload schema';
+```
+
+## Migration 0096 — top-ups (D581, 2026-11-21)
+
+Apply after 0095, in any order with the code: it replaces `record_razorpay_payment` (same
+arguments). A test payment behaves exactly as before; a top-up payment (only made by the new code)
+writes a top-up grant.
+
+- A paid top-up writes a `topup` grant ending when the plan's paid month ends (or after the
+  price's `valid_days`); if the plan has no paid month left, the credits last 30 days.
+- Safe to apply: one replaced function, unchanged for every payment that exists today.
+
+**Verify after running:**
+
+```sql
+-- expect the new body: it mentions 'topup'
+select position('topup' in prosrc) > 0 from pg_proc where proname = 'record_razorpay_payment';
+```
+
+**Check after the release (test mode):** with an active plan on `/billing-test`, buy a top-up
+pack; after the webhook, Admin's Billing tab lists a Top-up grant ending with the plan month.
+
+**Rollback:** re-run the `record_razorpay_payment` definition from 0090.
+
+## Migration 0097 — who used what (D583, 2026-11-21)
+
+Apply after 0096 and before the release with "Who used what" on Billing.
+
+- Adds the index `generations (org_id, created_at)` and `org_credit_usage_by` (credits charged in a
+  period per member, client or canvas; service role only, read-only).
+- Safe to apply: an index and a read-only function. On a large `generations` table the index build
+  locks writes to it briefly; apply at a quiet time, or build it with `create index concurrently`
+  by hand first (the migration's `if not exists` then skips it).
+
+**Verify after running:**
+
+```sql
+select indexname from pg_indexes where indexname = 'generations_org_id_created_at_idx';
+select proname, prosecdef from pg_proc where proname = 'org_credit_usage_by';
+```
+
+**Rollback:**
+
+```sql
+drop function if exists org_credit_usage_by(uuid, timestamptz, timestamptz, text);
+drop index if exists generations_org_id_created_at_idx;
+notify pgrst, 'reload schema';
+```
+
+## Migration 0098 — failed payment rules (D585, 2026-11-21)
+
+Apply after 0097, in any order with the code (the code before it never reads the new column).
+
+- Adds `billing_subscriptions.payment_due_since` (indexed where set).
+- Replaces `set_subscription_status` and `record_subscription_charge` (same arguments) with
+  forward-only rules: an ended plan stays ended; a late payment-due for a period already paid is
+  ignored; an older charge found late is recorded without moving the paid period back.
+- Safe to apply: a nullable column, a partial index, two replaced functions.
+
+**Trigger.dev:** the release adds two scheduled tasks, `reconcile-billing-orders` (hourly) and
+`reconcile-billing-plans` (nightly, 02:00 India time). They need `RAZORPAY_KEY_ID` and
+`RAZORPAY_KEY_SECRET` in the Trigger.dev environment, as the app has.
+
+**Verify after running:**
+
+```sql
+select column_name from information_schema.columns
+ where table_name = 'billing_subscriptions' and column_name = 'payment_due_since';
+```
+
+**Rollback:** re-run the two function definitions from 0095, then:
+
+```sql
+drop index if exists billing_subscriptions_payment_due_since_idx;
+alter table billing_subscriptions drop column if exists payment_due_since;
+notify pgrst, 'reload schema';
+```
+
+## Migration 0099 — live credits after a payment (D586, 2026-11-21)
+
+Apply after 0098, in any order with the code.
+
+- Adds `credit_grants` and `billing_subscriptions` to the `supabase_realtime` publication, so an
+  owner's popover and workspace bar update when credits arrive or the plan changes. Owners receive
+  the rows through the "owners read" policies; members receive nothing.
+- Safe to apply: re-runnable; no table or row changes.
+
+**Verify after running:**
+
+```sql
+-- expect two rows
+select tablename from pg_publication_tables
+ where pubname = 'supabase_realtime' and tablename in ('credit_grants', 'billing_subscriptions');
+```
+
+**Rollback:**
+
+```sql
+alter publication supabase_realtime drop table credit_grants, billing_subscriptions;
+```
+
+## Migration 0100 — billing history a page at a time (D588, 2026-11-23)
+
+Apply after 0099, before or with the code (the paged lists work without it, only slower).
+
+- Adds indexes for the paged billing lists: an agency's billing log and payments newest first,
+  Admin › Payments across agencies, and plans renewing or ending soon.
+- Drops `billing_log_org_id_idx` and `billing_payments_org_id_idx`; the new indexes lead with
+  `org_id` and serve the same lookups.
+- Safe to apply: re-runnable; no table or row changes.
+
+**Verify after running:**
+
+```sql
+-- expect four rows
+select indexname from pg_indexes
+ where indexname in ('billing_log_org_id_created_at_idx', 'billing_payments_org_id_created_at_idx',
+                     'billing_payments_listed_created_at_idx', 'billing_subscriptions_status_period_end_idx');
+```
+
+**Rollback:**
+
+```sql
+create index if not exists billing_log_org_id_idx on billing_log (org_id);
+create index if not exists billing_payments_org_id_idx on billing_payments (org_id);
+drop index if exists billing_log_org_id_created_at_idx, billing_payments_org_id_created_at_idx,
+  billing_payments_listed_created_at_idx, billing_subscriptions_status_period_end_idx;
+```
+
+## Migration 0101 — the admin agencies list (D590, 2026-11-26)
+
+Apply after 0100, before or with the code. The page works without it: owner emails, people counts
+and last activity show as "—" until it is applied, and the server log says
+`[admin] could not read agency activity`.
+
+- Adds `admin_agency_activity()`: for every agency, the owner's login email, how many people it has
+  and when it last ran anything. One read for the whole Admin › Agencies list. Service role only.
+- Safe to apply: re-runnable (`create or replace`); no table or row changes.
+
+**Verify after running:**
+
+```sql
+-- expect one row per agency; last_run_at null for an agency that never ran
+select * from admin_agency_activity() limit 5;
+-- expect false, false
+select has_function_privilege('anon', 'admin_agency_activity()', 'execute'),
+       has_function_privilege('authenticated', 'admin_agency_activity()', 'execute');
+```
+
+**Rollback:**
+
+```sql
+drop function if exists admin_agency_activity();
+notify pgrst, 'reload schema';
+```
+
+## Migration 0102 — Admin plans and payments (D592, 2026-11-26)
+
+Apply after 0101, **before** the code: Admin › Plans and prices and Admin › Payments call the two
+new functions on every load and show "Couldn't load" until they exist.
+
+- Adds `admin_offer_health(p_since)`: every price's running plans (active, cancelling, payment due),
+  what the active ones pay each month before GST, and the payments for it since `p_since`. One
+  grouped read for the Plans page and the Payments line "a month from plans". Service role only.
+- Adds `admin_payment_totals(p_from, p_to, p_query)`: payments by status for a date range and an
+  agency search, for the Payments tabs and totals. Service role only.
+- Adds `billing_payments_admin_created_at_idx` (`created_at desc` where kind <> test) and drops
+  0100's `billing_payments_listed_created_at_idx`, which left out started checkouts ("Not finished"
+  is now a tab).
+- Safe to apply: re-runnable (`create or replace`, `if not exists`, `if exists`); no table or row
+  changes.
+
+**Verify after running:**
+
+```sql
+-- expect one row per price with a running plan or a payment this month
+select * from admin_offer_health(date_trunc('month', now())) limit 5;
+-- expect one row per status that has payments this month
+select * from admin_payment_totals(date_trunc('month', now()), null, null);
+-- expect billing_payments_admin_created_at_idx only
+select indexname from pg_indexes
+ where indexname in ('billing_payments_admin_created_at_idx', 'billing_payments_listed_created_at_idx');
+-- expect false, false, false, false
+select has_function_privilege('anon', 'admin_offer_health(timestamptz)', 'execute'),
+       has_function_privilege('authenticated', 'admin_offer_health(timestamptz)', 'execute'),
+       has_function_privilege('anon', 'admin_payment_totals(timestamptz, timestamptz, text)', 'execute'),
+       has_function_privilege('authenticated', 'admin_payment_totals(timestamptz, timestamptz, text)', 'execute');
+```
+
+**Rollback:**
+
+```sql
+create index if not exists billing_payments_listed_created_at_idx on billing_payments (created_at desc)
+  where status <> 'created' and kind <> 'test';
+drop index if exists billing_payments_admin_created_at_idx;
+drop function if exists admin_offer_health(timestamptz);
+drop function if exists admin_payment_totals(timestamptz, timestamptz, text);
+notify pgrst, 'reload schema';
+```
+
+## Migration 0103 — plan price moves (D593, 2026-11-26)
+
+Apply after 0102, **before** the code: Admin › Plans and prices calls `admin_price_moves()` on every
+load, and Billing reads the two new columns.
+
+- Adds `billing_subscriptions.next_price_scheduled_at` (when Razorpay agreed to charge the next
+  price from the next renewal) and `next_price_refused` (upi / emandate / other: why it can't move),
+  with a check on the refusal and a partial index on the moves not set up yet.
+- Adds trigger `billing_subscriptions_next_price_reset`: a new `next_price_id` (or none, as a renewal
+  clears it) clears both unless the same update sets them.
+- Replaces `admin_save_offer`: a changed price moves plans that are created, active or payment due
+  (no longer cancelled ones), resets their answer, and counts only active and payment due in
+  `moved_count`. An owner's own choice is still left alone.
+- Adds `record_plan_move(subscription, price, refused)` (saves Razorpay's answer once, logs
+  `plan_move` on the agency) and `admin_price_moves()` (the moves grouped for Admin). Service role
+  only.
+- Safe to apply: re-runnable (`if not exists`, guarded constraint, `create or replace`, `drop trigger
+  if exists`). Existing rows get null in both columns, so every plan already marked by 0094 shows as
+  "not set up yet" until the nightly check (or the next price change) sets it up on Razorpay.
+
+**Then deploy the Trigger.dev tasks** (`npx trigger.dev deploy`, staging and production): the new
+`move-plan-price` task, and `reconcile-billing-plans`, which now also sets up moves left waiting. The
+task sends the owner email, so `RESEND_API_KEY`, `EMAIL_FROM` and `APP_URL` must be set in the
+Trigger.dev environment as well as Razorpay's keys.
+
+**Verify after running:**
+
+```sql
+-- expect two rows
+select column_name from information_schema.columns
+ where table_name = 'billing_subscriptions' and column_name in ('next_price_scheduled_at', 'next_price_refused');
+-- expect one row per (price, next price, state) with a running plan marked to move
+select * from admin_price_moves();
+-- expect the trigger
+select tgname from pg_trigger where tgname = 'billing_subscriptions_next_price_reset';
+-- expect false, false, false, false
+select has_function_privilege('anon', 'record_plan_move(uuid, uuid, text)', 'execute'),
+       has_function_privilege('authenticated', 'record_plan_move(uuid, uuid, text)', 'execute'),
+       has_function_privilege('anon', 'admin_price_moves()', 'execute'),
+       has_function_privilege('authenticated', 'admin_price_moves()', 'execute');
+```
+
+**Rollback** (then re-apply 0094 to restore its `admin_save_offer`):
+
+```sql
+drop function if exists admin_price_moves();
+drop function if exists record_plan_move(uuid, uuid, text);
+drop trigger if exists billing_subscriptions_next_price_reset on billing_subscriptions;
+drop function if exists billing_subscriptions_next_price_reset();
+drop index if exists billing_subscriptions_pending_move_idx;
+alter table billing_subscriptions drop constraint if exists billing_subscriptions_next_price_refused_check;
+alter table billing_subscriptions drop column if exists next_price_refused;
+alter table billing_subscriptions drop column if exists next_price_scheduled_at;
+notify pgrst, 'reload schema';
+```
+
+## Migration 0104 — price approvals (D595, 2026-11-26)
+
+Apply after 0103, **before** the code: Billing reads the four new columns, the approve route inserts
+a `scheduled` row (refused by the old status check), and Admin › Plans and prices reads
+`admin_price_moves()`'s new columns.
+
+- Adds `billing_subscriptions.ends_unless_approved_at`, `approval_reminded_at`, `approved_at` and
+  `starts_at`, and the `scheduled` status (an approval subscription at a new price, waiting beside
+  the live plan until it starts).
+- Replaces the "one live plan" unique index so it leaves out `scheduled`, and adds one allowing at
+  most one `scheduled` row per agency, plus a partial index on `ends_unless_approved_at`.
+- Replaces `record_plan_move` (a UPI or mandate refusal gets an end date: the first renewal at least
+  7 days away), `set_subscription_status` and `record_subscription_charge` (an approval that starts
+  becomes the plan and ends the one it replaces), `admin_save_offer` (also marks `scheduled` rows on a
+  replaced price) and the 0103 reset trigger function (also clears the reminder). Drops and recreates
+  `admin_price_moves()` (new return columns `first_end`, `last_end`).
+- Adds `record_price_approval(text)`, `billing_end_replaced_subscription(uuid, uuid)` and trigger
+  `billing_subscriptions_on_end` (logs `price_not_approved`, ends unfinished approvals).
+- Clears `next_price_refused` on plans 0103 refused as UPI or bank mandate, so the next run asks
+  their owners (with the email and a fair end date) instead of leaving them on the old price.
+- Safe to apply: re-runnable (`if not exists`, `drop … if exists`, `create or replace`). The index is
+  dropped and recreated inside the same migration; no existing row is `scheduled`, so it cannot fail.
+
+**Then deploy the Trigger.dev tasks** (`npx trigger.dev deploy`, staging and production):
+`move-plan-price` (asks for approval after a UPI or mandate refusal and stops a final cycle at once)
+and `reconcile-billing-plans` (stops old subscriptions in their final cycle, sends the 3-day
+reminder, and checks approval subscriptions against Razorpay).
+
+**And in each Razorpay webhook** (test mode for dev and staging, live mode for production), turn on
+`subscription.authenticated`, so the list in "Razorpay setup" below becomes 9 events. Without it an
+approval is only seen by the nightly check.
+
+**Verify after running:**
+
+```sql
+-- expect four rows
+select column_name from information_schema.columns
+ where table_name = 'billing_subscriptions'
+   and column_name in ('ends_unless_approved_at', 'approval_reminded_at', 'approved_at', 'starts_at');
+-- expect the two unique indexes with their new conditions
+select indexname, indexdef from pg_indexes
+ where indexname in ('billing_subscriptions_one_live_idx', 'billing_subscriptions_one_scheduled_idx');
+-- expect the trigger
+select tgname from pg_trigger where tgname = 'billing_subscriptions_on_end';
+-- expect zero: every 0103 UPI or mandate refusal is waiting to be asked again
+select count(*) from billing_subscriptions
+ where next_price_refused in ('upi', 'emandate') and ends_unless_approved_at is null and status in ('active', 'payment_due');
+-- expect false, false
+select has_function_privilege('anon', 'record_price_approval(text)', 'execute'),
+       has_function_privilege('authenticated', 'record_price_approval(text)', 'execute');
+select * from admin_price_moves();
+```
+
+**Rollback** (only while no row is `scheduled`; end them first. Then re-apply 0103 for
+`record_plan_move`, `admin_save_offer`, `admin_price_moves` and the reset trigger function, and 0098
+for `set_subscription_status` and `record_subscription_charge`):
+
+```sql
+update billing_subscriptions set status = 'ended', ended_at = coalesce(ended_at, now()) where status = 'scheduled';
+drop trigger if exists billing_subscriptions_on_end on billing_subscriptions;
+drop function if exists billing_subscriptions_on_end();
+drop function if exists record_price_approval(text);
+drop function if exists billing_end_replaced_subscription(uuid, uuid);
+drop function if exists admin_price_moves();
+drop index if exists billing_subscriptions_ends_unless_approved_idx;
+drop index if exists billing_subscriptions_one_scheduled_idx;
+drop index if exists billing_subscriptions_one_live_idx;
+create unique index billing_subscriptions_one_live_idx on billing_subscriptions (org_id) where status <> 'ended';
+alter table billing_subscriptions drop constraint if exists billing_subscriptions_status_check;
+alter table billing_subscriptions add constraint billing_subscriptions_status_check
+  check (status in ('created', 'active', 'payment_due', 'cancelling', 'ended'));
+alter table billing_subscriptions drop column if exists starts_at;
+alter table billing_subscriptions drop column if exists approved_at;
+alter table billing_subscriptions drop column if exists approval_reminded_at;
+alter table billing_subscriptions drop column if exists ends_unless_approved_at;
+notify pgrst, 'reload schema';
+```
+
+## Migration 0105 — owner credit emails (D596, 2026-11-27)
+
+Apply after 0104, **before** the code: the hourly task calls `billing_owner_emails_due` and the claim
+functions, which don't exist until then (each run would log a failure and send nothing).
+
+- Adds `organizations.low_credits_warned_at` (when the owners were last told credits are running low;
+  credits that arrive after it start a new credit period) and `credit_grants.ending_warned_at` (a free
+  grant told it ends in 3 days, once per grant), plus a partial index on free grants not yet told.
+- Adds `billing_owner_emails_due(numeric, interval, integer)`: everything due now for every paying
+  agency in one read, with the open grants, the live plan and the owners' login emails.
+- Adds `claim_low_credits_email(uuid, timestamptz)`, `release_low_credits_email(uuid, timestamptz,
+  timestamptz)`, `claim_free_ending_email(uuid)` and `release_free_ending_email(uuid, timestamptz)`:
+  each send is taken once before it goes and given back if it fails.
+- Safe to apply: re-runnable (`if not exists`, `create or replace`), new nullable columns only, no
+  existing row changes. Nothing is backfilled: on the first run, agencies already at 80% or more and
+  free grants already within 3 days of their end get their email once.
+
+**Then deploy the Trigger.dev tasks** (`npx trigger.dev deploy`, staging and production):
+`reconcile-billing-orders` (hourly) now sends the emails. It needs `RESEND_API_KEY`, `EMAIL_FROM` and
+`APP_URL` in each Trigger.dev environment (already required by the approval emails); without the
+email settings nothing is sent and each run tries again.
+
+**Verify after running:**
+
+```sql
+-- expect two rows
+select table_name, column_name from information_schema.columns
+ where (table_name, column_name) in (('organizations', 'low_credits_warned_at'), ('credit_grants', 'ending_warned_at'));
+-- expect the index
+select indexname from pg_indexes where indexname = 'credit_grants_free_ending_idx';
+-- expect false, false
+select has_function_privilege('anon', 'billing_owner_emails_due(numeric, interval, integer)', 'execute'),
+       has_function_privilege('authenticated', 'claim_low_credits_email(uuid, timestamptz)', 'execute');
+-- what the next hourly run would look at (read-only; the code still applies Billing's "low" rule)
+select kind, agency, owner_emails, grant_id from billing_owner_emails_due(0.8, '72 hours', 200);
+```
+
+**Rollback** (deploy the previous `reconcile-billing-orders` first):
+
+```sql
+drop function if exists release_free_ending_email(uuid, timestamptz);
+drop function if exists claim_free_ending_email(uuid);
+drop function if exists release_low_credits_email(uuid, timestamptz, timestamptz);
+drop function if exists claim_low_credits_email(uuid, timestamptz);
+drop function if exists billing_owner_emails_due(numeric, interval, integer);
+drop index if exists credit_grants_free_ending_idx;
+alter table credit_grants drop column if exists ending_warned_at;
+alter table organizations drop column if exists low_credits_warned_at;
+notify pgrst, 'reload schema';
+```
+
+## Migration 0106 — the owner's Usage page reads (D597, 2026-11-27)
+
+Apply after 0105, **before** the code: the Usage page (`/billing`) and its two routes
+(`/api/billing/usage`, `/api/billing/usage/runs`) call `org_usage_overview` and `org_usage_runs`,
+which don't exist until then (the page would show its error state).
+
+- Adds `org_usage_overview(uuid, timestamptz, timestamptz, timestamptz)`: everything the page shows
+  for a month in one read, from the ledger's `consumption` rows: credits by India day and run type,
+  by model, member, client and canvas (named), the month before in all, and the last 7 days and the
+  7 before for the pace. A charge whose run was deleted later comes back as `removed`.
+- Adds `org_usage_runs(uuid, timestamptz, timestamptz, text, text, text[], integer, integer)`: one
+  group's runs from the same rows, newest first, with who made each and on which canvas and client.
+- Both are read-only, `security definer`, service role only. No new index: they filter
+  `credit_transactions` by `(org_id, created_at)`, which 0019 indexed, and join by primary keys.
+- `org_credit_usage_by` (0097) stays but nothing in the app calls it after this release.
+- Safe to apply: `create or replace` only, nothing written.
+
+**Verify after running:**
+
+```sql
+-- expect two rows, both true
+select proname, prosecdef from pg_proc where proname in ('org_usage_overview', 'org_usage_runs');
+-- expect false, false
+select has_function_privilege('anon', 'org_usage_overview(uuid, timestamptz, timestamptz, timestamptz)', 'execute'),
+       has_function_privilege('authenticated', 'org_usage_runs(uuid, timestamptz, timestamptz, text, text, text[], integer, integer)', 'execute');
+-- one agency's month: the 'day' rows add up to the same total as the 'member' rows (read-only)
+select section, sum(credits) from org_usage_overview('<org id>', date_trunc('month', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata', now() + interval '1 day', now() - interval '2 months')
+ where section in ('day', 'member', 'model') group by section;
+```
+
+**Rollback** (deploy the previous page first):
+
+```sql
+drop function if exists org_usage_runs(uuid, timestamptz, timestamptz, text, text, text[], integer, integer);
+drop function if exists org_usage_overview(uuid, timestamptz, timestamptz, timestamptz);
+notify pgrst, 'reload schema';
+```
+
+## Razorpay setup for each environment (D589, 2026-11-23) — no migration
+
+Razorpay keeps test mode and live mode apart: each has its own keys, webhooks and webhook secrets.
+Production uses live mode; dev and staging share test mode. Every environment calls the same route,
+`/api/webhooks/razorpay`.
+
+| Environment | Razorpay mode | Keys | `RAZORPAY_LIVE` | Webhook |
+|---|---|---|---|---|
+| Local | Test | `rzp_test_…` | not set | Only while testing, through a tunnel (Razorpay needs https, never localhost); delete it afterwards |
+| Dev | Test | `rzp_test_…` | not set | Dev address + `/api/webhooks/razorpay` |
+| Staging | Test | `rzp_test_…` | not set | Staging address + `/api/webhooks/razorpay` |
+| Production | Live | `rzp_live_…` | `1` | Production address + `/api/webhooks/razorpay` (the only live webhook) |
+
+**Settings in each environment:**
+
+- App (Vercel): `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (that
+  environment's own webhook secret), and `RAZORPAY_LIVE=1` in production only. `RAZORPAY_TEST_PAGE=1`
+  stays on local and dev only.
+- Trigger.dev, the same environment: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and
+  `RAZORPAY_LIVE=1` in production only (the hourly and nightly checks call Razorpay).
+- A key that doesn't match `RAZORPAY_LIVE` is refused: top-ups, plans and the checks stop with a
+  plain error ("Could not start the payment.", "Could not start the plan.") and the log names the
+  setting. Fix the setting, not the code.
+
+**Each webhook in the Razorpay Dashboard** (Account & Settings › Webhooks, in the right mode):
+
+- The environment's address, its own secret (generated, not reused across environments), and an
+  alert email that reaches the team.
+- These 9 events: `order.paid`, `subscription.authenticated` (0104, D595), `subscription.activated`,
+  `subscription.charged`, `subscription.pending`, `subscription.halted`, `subscription.cancelled`,
+  `subscription.completed`, `subscription.resumed`.
+
+**Expected behaviour:**
+
+- Both test-mode webhooks receive every test-mode event, so dev gets staging's payments and the other
+  way round. Each answers 200 and ignores an order or plan it doesn't have; the only trace is a row in
+  `razorpay_events`.
+- Razorpay sends an event again until it gets a 2xx, for up to 24 hours, then turns the webhook off
+  and emails the alert address. After fixing the cause, turn the webhook back on in the Dashboard;
+  the hourly top-up check and the nightly plan check record the payments missed meanwhile.
+
+**Check before the first live payment:**
+
+- Vercel's deployment protection, if on for staging or production, must let
+  `/api/webhooks/razorpay` through, or every event is refused before it reaches the route.
+- Send a test event from the Dashboard's webhook page and confirm a new row in `razorpay_events`
+  with `processed_at` set.
+
+**After copying the production database into staging:** the copy holds live-mode Razorpay ids
+that test mode doesn't have, so subscribing fails and the nightly check errors on every plan.
+Run this on **staging only**, right after the copy:
+
+```sql
+-- staging only: drop the live-mode Razorpay ids copied from production
+update billing_prices set razorpay_plan_id = null where razorpay_plan_id is not null;
+update billing_accounts set razorpay_customer_id = null where razorpay_customer_id is not null;
+update billing_subscriptions
+   set status = 'ended', ended_at = coalesce(ended_at, now()), razorpay_subscription_id = null
+ where razorpay_subscription_id is not null;
+update billing_payments set status = 'failed' where status = 'created';
+```
+
+Copied agencies on a plan then show no plan on staging; their credit grants and payment history stay.
+Staging makes its own test-mode Razorpay plans the first time someone subscribes.
+
+**Verify:**
+
+```sql
+-- expect 0
+select count(*) from billing_prices where razorpay_plan_id is not null;
+select count(*) from billing_subscriptions where razorpay_subscription_id is not null;
+```

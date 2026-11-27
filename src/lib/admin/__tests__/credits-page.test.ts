@@ -9,7 +9,6 @@ import {
   creditHistory,
   creditRunRows,
   creditsFor,
-  creditsSummary,
   keptOnCancel,
   modelTypicalRuns,
   parseMargin,
@@ -130,17 +129,6 @@ describe("agencyCreditImpact", () => {
 const setting = (id: string, effectiveFrom: string, marginPercent: number, roundStep: 1 | 5 | 10, note: string | null = null): CreditSettings => ({ id, effectiveFrom, marginPercent, roundStep, note });
 const hist = (s: CreditSettings | null, over: Partial<CreditHistoryRow> & { id: string; effectiveFrom: string }): CreditHistoryRow => ({
   createdAt: "2026-11-24T05:00:00Z", createdBy: "u1", createdByName: "Arun", settings: s, problems: s ? [] : ["bad step"], ...over,
-});
-
-describe("creditsSummary", () => {
-  it("says the live settings and the next change", () => {
-    const rows = [setting("a", "2026-01-01T00:00:00Z", 0, 5), setting("b", "2026-11-24T18:30:00Z", 10, 10)];
-    expect(creditsSummary(rows, ZERO, NOW)).toEqual({
-      line: "1 credit = $0.001 · margin 0% · rounds up to the next 5 credits",
-      next: { when: "25 Nov 2026, 00:00 IST", utc: "18:30 UTC on 24 Nov", text: "margin 10%, rounds up to the next 10 credits." },
-    });
-    expect(creditsSummary(rows.slice(0, 1), ZERO, NOW).next).toBeNull();
-  });
 });
 
 describe("creditHistory", () => {

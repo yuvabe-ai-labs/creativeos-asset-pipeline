@@ -14,6 +14,7 @@ import { creditsFromUsd, creditSettingsAt } from "@/lib/credits/units";
 import { LIP_SYNC_ENGINE } from "@/lib/dubbing/providers";
 import { DUBBING_NOT_SET_UP_MESSAGE } from "@/lib/dubbing/copy";
 import { readDubbingOutput, type LipSyncRecord } from "@/lib/dubbing/types";
+import { creditLimitError } from "@/lib/billing/credit-limit-error";
 
 // editorSessionId: the open editor starting it (D408).
 const BodySchema = z.object({ versionId: z.string().min(1), editorSessionId: z.string().min(1).optional() });
@@ -63,7 +64,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       try {
         const reservation = await reserveCredits(effectiveOrgId, generation.id, creditsFromUsd(usd, creditSettingsAt(catalog, new Date(generation.created_at))));
-        if (!reservation.ok) throw new CreditLimitError("Monthly credit limit reached");
+        if (!reservation.ok) throw creditLimitError(reservation.reason);
         const upload = await signLipSyncedUpload({ nodeId, generationId: generation.id });
         await tasks.trigger("video-lip-sync", {
           generationId: generation.id,

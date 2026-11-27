@@ -105,12 +105,13 @@ describe("startImageGeneration (D366)", () => {
   });
 
   it("answers 402 and refunds when the credit limit is reached, without starting the task", async () => {
-    m.reserveCredits.mockResolvedValueOnce({ ok: false });
+    m.reserveCredits.mockResolvedValueOnce({ ok: false, reason: "used_up" } as never);
     const res = await startImageGeneration(input);
     expect(res.status).toBe(402);
-    expect((await res.json()).error).toBe("Monthly credit limit reached");
+    // The refusal's plain message (D582), stored on the row too so the feed knows not to toast.
+    expect((await res.json()).error).toBe("AI runs are paused. Your agency has used its credits. Ask your agency owner.");
     expect(m.trigger).not.toHaveBeenCalled();
-    expect(m.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: CREDIT_LIMIT_MESSAGE });
+    expect(m.failGeneration).toHaveBeenCalledWith({ generationId: "g1", error: "AI runs are paused. Your agency has used its credits. Ask your agency owner." });
     expect(m.refundReservation).toHaveBeenCalledWith({ orgId: "org-1", generationId: "g1" });
   });
 

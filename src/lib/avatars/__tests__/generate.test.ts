@@ -96,7 +96,7 @@ describe("runAvatarGeneration", () => {
   });
 
   it("refuses at the cap without calling the provider, and refunds nothing it did not take", async () => {
-    vi.mocked(reserveCredits).mockResolvedValue({ ok: false });
+    vi.mocked(reserveCredits).mockResolvedValue({ ok: false, reason: "limit" });
     await expect(runAvatarGeneration(args)).rejects.toBeInstanceOf(CreditLimitError);
     expect(generate).not.toHaveBeenCalled();
     expect(failGeneration).toHaveBeenCalledWith(expect.objectContaining({ generationId: "g1" }));
