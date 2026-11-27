@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { loginAction, type AuthActionState } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,9 @@ export function LoginForm() {
     loginAction,
     undefined,
   );
+  // Only so "Forgot password?" can carry the email typed so far to the next page.
+  const [email, setEmail] = useState("");
+  const forgotHref = email.trim() ? `/login/forgot?email=${encodeURIComponent(email.trim())}` : "/login/forgot";
   return (
     <form action={action} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
@@ -24,11 +28,21 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           required
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="password">Password</Label>
+        <div className="flex items-baseline justify-between gap-3">
+          <Label htmlFor="password">Password</Label>
+          <Link
+            href={forgotHref}
+            className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <PasswordInput id="password" name="password" autoComplete="current-password" required />
       </div>
       {/* Base UI's Checkbox renders a span plus its own hidden input, so it posts with

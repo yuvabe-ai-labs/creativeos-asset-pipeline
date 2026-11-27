@@ -28,7 +28,11 @@ async function removeLogin(userId: string): Promise<void> {
 // Spec §6.3. Runs before any account exists: the token is the capability (allowlisted in
 // with-action-coverage.test.ts). The email comes from the invitation, never the form.
 export async function acceptInviteAction(token: string, _prev: AcceptInviteState, formData: FormData): Promise<AcceptInviteState> {
-  const parsed = AcceptInviteSchema.safeParse({ name: formData.get("name") ?? "", password: formData.get("password") ?? "" });
+  const parsed = AcceptInviteSchema.safeParse({
+    name: formData.get("name") ?? "",
+    password: formData.get("password") ?? "",
+    confirmPassword: formData.get("confirmPassword") ?? "",
+  });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check your name and password." };
 
   const supabase = await createSSRServerClient();

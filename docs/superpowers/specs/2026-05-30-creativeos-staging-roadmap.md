@@ -9779,3 +9779,21 @@ Every number comes from the ledger's `consumption` rows (`credit_transactions`),
 - `org_credit_usage` for a managed agency's "left": it includes holds and counts by UTC month; the limit check (`reserve_credits_v2`) still uses it, and the page can differ from it by the holds in flight and the hours around the 1st.
 - Storing the pace or a forecast: derived on read in a few lines.
 - A CSV export of runs: not for now.
+
+### D598 — Forgot password sends our own link, and invite sign-up confirms the password *(recorded 2026-11-27; refines the change-password flow and spec §6.3, §6.7)*
+
+**Decision.** Invite sign-up has a Confirm password field. Change password, invite sign-up and the reset link share one rule (`NewPasswordField`: 8 to 72 characters) and one match check ("Passwords don't match."), in `src/lib/auth/change-password-schema.ts`.
+
+"Forgot password?" on the sign-in page opens `/login/forgot` (with the email typed so far). One email field; the answer is always "If an account exists for that email, we've sent a link to set a new password. It works for 1 hour." The server makes a one-time recovery token with the admin API (`generateLink`, type `recovery`), builds our own link `${APP_URL}/login/reset?token_hash=…` and sends it with the app's own email sender in the invite emails' card layout. No account: nothing is sent. The link is made and sent in `after()`, once the answer has gone, so neither the words nor the time taken differ. The token is never logged.
+
+Opening `/login/reset` only shows New password and Confirm password. The token is checked and used up on submit (`verifyOtp` on the session client, so the person is signed in), after the password passes the rule, then the password is set through the same `setOwnPassword` as change password (which clears a pending must-change flag first), and the person goes to `/` like any sign-in, with the toast "Your password is set." (a one-minute flash cookie read by `FlashToast` in the root layout). A refused token: "This link has expired or was already used." with a button for a new one. If the token worked but the password was refused, the must-change flag is set and the change-password page takes over. Everything after sign-in applies as usual: a person waiting for access goes to onboarding, a removed login has no account for the token to belong to, and an earlier impersonation cookie and "Keep me signed in" choice in that browser are cleared. Both pages sit under `/login`, which the proxy already skips, so they work signed out and signed in.
+
+Limit: one reset email per address per minute, applied to every request whether or not an account exists, kept in the server's memory (each instance its own; loose with several running, accepted at our size). Inside the minute the page says "We've just sent a link. Check your inbox, or try again in a minute."
+
+**Why.** People locked out had to ask Yuvabe for an admin reset. A link from the sign-in service's own email would carry its domain and look, and its verify URL is used up the moment an email scanner opens it; our link opens a form and uses nothing until it is sent. The sign-in service's email limits don't apply because it never sends this email, so the app keeps its own wait. A minute per address in memory stops one inbox being flooded, which is the only harm the form allows: the link reaches only the account's owner.
+
+**Rejected.**
+- The sign-in service's `resetPasswordForEmail`: its own email template and domain, and its link is consumed on open.
+- Verifying the token when the page opens: link scanners would use it up.
+- A different answer for an unknown email, or sending the email before answering: both tell whether an account exists.
+- A counter table (`auth_throttle`) with per-email and per-network-address limits: a migration and an RPC for little risk in an invite-only tool, and the network address is unreliable behind a load balancer, where every caller would share one limit.

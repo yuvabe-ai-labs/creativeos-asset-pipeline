@@ -25,6 +25,8 @@ const ALLOWLIST: Record<string, string> = {
   loginAction: "runs before any session/impersonation state exists",
   acceptInviteAction: "runs before any account exists; the invite token is the capability (spec 6.3)",
   logoutAction: "runs after signOut(); also directly calls endImpersonation() itself",
+  requestPasswordResetAction: "runs signed out, like loginAction; throttled per email and address (D598)",
+  resetPasswordAction: "runs signed out; the reset link's one-time token is the capability, and it calls endImpersonation() itself (D598)",
   enterImpersonationAction: "impersonation session-control, not tenant data",
   enterElevatedModeAction: "impersonation session-control, not tenant data",
   exitImpersonationAction: "impersonation session-control, not tenant data",
