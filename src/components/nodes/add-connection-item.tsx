@@ -27,7 +27,7 @@ export function AddConnectionItem({
 }) {
   const label = (
     <span className="block min-w-0 px-0.5">
-      <span className="text-eyebrow block text-[9px] leading-3 text-muted-foreground">{handle}</span>
+      <span className="text-eyebrow block text-[9px]! leading-3! tracking-[0.14em]! text-muted-foreground!">{handle}</span>
       <span className="mt-0.5 block truncate text-[13px] leading-snug text-foreground">{name}</span>
     </span>
   );

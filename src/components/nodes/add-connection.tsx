@@ -168,7 +168,9 @@ export function AddConnection({
                   key={type}
                   heading={
                     <span className="flex items-center gap-1.5">
-                      <span className="text-eyebrow text-[11px] text-primary">{label}</span>
+                      {/* .text-eyebrow is unlayered CSS, so its own color and size beat plain
+                          utilities: the purple heading of the design needs them marked important. */}
+                      <span className="text-eyebrow text-[11px]! font-semibold! tracking-[0.14em]! text-primary!">{label}</span>
                       <span className="ml-auto text-xs font-medium text-muted-foreground">{items.length}</span>
                     </span>
                   }
