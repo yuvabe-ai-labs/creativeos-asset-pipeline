@@ -74,7 +74,7 @@ describe("people screens: one header, a trail and a way back", () => {
     // The agency page sits under the admin tabs, so it takes the admin box (tabs and title line up);
     // its header is the same one.
     const agency = read("src/app/admin/orgs/[id]/page.tsx");
-    expect(agency).toContain('<main className={adminPageClass("wide")}>');
+    expect(agency).toContain("<main className={adminPageClass()}>");
     expect(agency).not.toContain("<Breadcrumb");
     expect(read("src/components/team/client-members.tsx")).toContain("<PageHeader");
     expect(read("src/components/team/team-people.tsx")).toContain("<PageHeader");

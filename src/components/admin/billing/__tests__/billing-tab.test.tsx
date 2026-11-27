@@ -63,7 +63,17 @@ describe("Billing tab", () => {
     expect(html).toContain("Yuva · Trial");
   });
 
-  const sub = { id: "s", status: "active" as const, priceId: "p", nextPriceId: null, planName: "Studio", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1", paymentDueSince: null, next: null };
+  const sub = { id: "s", status: "active" as const, priceId: "p", nextPriceId: null, planName: "Studio", amountMinor: 1_200_000, credits: 100_000, currentPeriodEnd: "2026-12-21T00:00:00Z", razorpaySubscriptionId: "sub_1", paymentDueSince: null, next: null, approval: null };
+
+  it("says where a new price waiting for approval stands, and a plan that ended without it (D595)", () => {
+    const asked = { state: "asked" as const, priceId: "p2", planName: "Studio", amountMinor: 1_400_000, credits: 100_000, endsAt: "2026-12-21T00:00:00Z" };
+    const html = renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} subscription={{ ...sub, status: "cancelling", approval: asked }} />);
+    expect(html).toContain("Waiting for approval");
+    expect(html).toContain("Waiting for the owner to approve ₹14,000 a month until 21 Dec 2026. The plan ends then if they don&#x27;t.");
+    const log = [{ id: "l1", action: "price_not_approved", before: null, after: { amount_minor: 1_400_000, ends_at: "2026-12-21T00:00:00Z" }, reason: null, createdAt: "2026-12-21T00:00:00Z", actorName: null }];
+    const ended = renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} log={{ entries: log, total: 1 }} />);
+    expect(ended).toContain("Ended 21 Dec 2026: the owner didn&#x27;t approve the new price.");
+  });
 
   it("shows a paying agency's plan, its price and when it renews", () => {
     const html = renderToStaticMarkup(<BillingTab {...base} mode="plans" grants={[]} subscription={sub} />);

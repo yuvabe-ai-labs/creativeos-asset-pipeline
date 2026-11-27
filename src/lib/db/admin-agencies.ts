@@ -45,7 +45,8 @@ export async function listAgencySources(now: Date): Promise<AgencySource[]> {
     db
       .from("billing_subscriptions")
       .select("org_id, status, payment_due_since, price:billing_prices!billing_subscriptions_price_id_fkey(interval_months, product:billing_products(name))")
-      .neq("status", "ended"),
+      // The live plan only: an approval of a new price waiting beside it isn't the plan (D595).
+      .not("status", "in", "(ended,scheduled)"),
   ]);
   for (const res of [orgsRes, ownersRes, invitesRes, usageRes, grantsRes, subsRes]) if (res.error) throw res.error;
 

@@ -4,8 +4,10 @@ vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
   getOrgById: vi.fn(), getLive: vi.fn(), getPrice: vi.fn(), insert: vi.fn(), savePlan: vi.fn(), update: vi.fn(),
   createPlan: vi.fn(), createSubscription: vi.fn(), cancel: vi.fn(), change: vi.fn(), getSubscription: vi.fn(),
-  scheduled: vi.fn(), cancelScheduled: vi.fn(),
+  scheduled: vi.fn(), cancelScheduled: vi.fn(), drop: vi.fn(), newer: vi.fn(),
 }));
+vi.mock("../price-approval", () => ({ dropPendingApproval: m.drop }));
+vi.mock("@/lib/db/billing-approvals", () => ({ getNewerPrice: m.newer }));
 vi.mock("@/lib/db/organizations", () => ({ getOrgById: m.getOrgById }));
 vi.mock("@/lib/db/billing-subscriptions", () => ({
   getLiveSubscription: m.getLive, getPurchasablePrice: m.getPrice, insertSubscription: m.insert, savePriceRazorpayPlan: m.savePlan, updateSubscription: m.update,
@@ -16,7 +18,7 @@ vi.mock("../razorpay", async (importOriginal) => ({
   getScheduledPlan: m.scheduled, cancelScheduledChange: m.cancelScheduled,
 }));
 
-import { startSubscription, cancelPlan, changePlan, payNowLink } from "../subscriptions";
+import { startSubscription, cancelPlan, changePlan, payNowLink, approveNewPrice } from "../subscriptions";
 import { RazorpayError } from "../razorpay";
 
 const price = (over: Partial<Record<string, unknown>> = {}) => ({
@@ -37,6 +39,8 @@ beforeEach(() => {
   m.createSubscription.mockResolvedValue({ id: "sub_new", status: "created", plan_id: "plan_new" });
   m.cancel.mockResolvedValue({});
   m.change.mockResolvedValue({});
+  m.drop.mockResolvedValue("none");
+  m.newer.mockResolvedValue(null);
 });
 
 describe("startSubscription", () => {
@@ -153,5 +157,53 @@ describe("a payment due (D585)", () => {
     await expect(payNowLink("org")).resolves.toEqual({ ok: true, value: { url: "https://rzp.io/i/abc" } });
     m.getLive.mockResolvedValue(live());
     await expect(payNowLink("org")).resolves.toEqual({ ok: false, status: 409, error: "Nothing is due right now." });
+  });
+});
+
+describe("approveNewPrice (D595)", () => {
+  const NOW = Date.parse("2026-11-26T00:00:00Z");
+  const asked = (over: Partial<Record<string, unknown>> = {}) =>
+    live({ currentPeriodEnd: "2026-12-03T00:00:00Z", approval: { state: "asked", priceId: "price_1", planName: "Studio", amountMinor: 1_200_000, credits: 100_000, endsAt: "2026-12-03T00:00:00Z" }, ...over });
+
+  it("subscribes to the new price from the plan's end date, quietly, and saves it as scheduled", async () => {
+    m.getLive.mockResolvedValue(asked());
+    await expect(approveNewPrice("org", NOW)).resolves.toEqual({ ok: true, value: { subscriptionId: "sub_new", keyId: "rzp_test_id", startsAt: "2026-12-03T00:00:00.000Z" } });
+    expect(m.drop).toHaveBeenCalledWith("org", { unapprovedOnly: true });
+    expect(m.createSubscription).toHaveBeenCalledWith({
+      planId: "plan_new", totalCount: 120, notifyCustomer: false, startAt: Date.parse("2026-12-03T00:00:00Z") / 1000,
+      notes: { org_id: "org", price_id: "price_1", replaces: "row_1" },
+    });
+    expect(m.insert).toHaveBeenCalledWith({ orgId: "org", priceId: "price_1", razorpaySubscriptionId: "sub_new", scheduled: { startsAt: "2026-12-03T00:00:00.000Z", nextPriceId: null } });
+  });
+
+  it("starts at once when the end date has passed, stopping a due plan first", async () => {
+    m.getLive.mockResolvedValue(asked({ status: "payment_due", currentPeriodEnd: "2026-11-03T00:00:00Z", approval: { state: "asked", priceId: "price_1", planName: "Studio", amountMinor: 1, credits: 1, endsAt: "2026-11-20T00:00:00Z" } }));
+    await expect(approveNewPrice("org", NOW)).resolves.toMatchObject({ ok: true, value: { startsAt: null } });
+    expect(m.cancel).toHaveBeenCalledWith("sub_old", false);
+    expect(m.createSubscription.mock.calls[0][0]).not.toHaveProperty("startAt");
+  });
+
+  it("marks an approval of a replaced price to move to the newest one", async () => {
+    m.getLive.mockResolvedValue(asked());
+    m.newer.mockResolvedValue("price_2");
+    await approveNewPrice("org", NOW);
+    expect(m.insert.mock.calls[0][0].scheduled.nextPriceId).toBe("price_2");
+  });
+
+  it("refuses when nothing is asked, or it is already approved", async () => {
+    m.getLive.mockResolvedValue(live({ approval: null }));
+    await expect(approveNewPrice("org", NOW)).resolves.toMatchObject({ ok: false, status: 409 });
+    m.getLive.mockResolvedValue(asked());
+    m.drop.mockResolvedValue("approved");
+    await expect(approveNewPrice("org", NOW)).resolves.toMatchObject({ ok: false, error: "You've already approved the new price." });
+    expect(m.createSubscription).not.toHaveBeenCalled();
+  });
+
+  it("drops a waiting approval when the owner cancels or changes plan", async () => {
+    m.getLive.mockResolvedValue(asked());
+    await cancelPlan("org");
+    expect(m.drop).toHaveBeenCalledWith("org");
+    expect(m.update).toHaveBeenCalledWith("row_1", { endsUnlessApprovedAt: null });
+    expect(m.cancel).toHaveBeenCalledWith("sub_old", true);
   });
 });

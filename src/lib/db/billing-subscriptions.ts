@@ -1,15 +1,18 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { moveState, type MoveRefusal, type NextPrice } from "@/lib/billing/plan-move-copy";
+import type { PriceApproval } from "@/lib/billing/price-approval-copy";
 
 // An agency's plan (billing_subscriptions, 0092) and the Razorpay events that move it (0095).
 // Spec 2026-11-21-monthly-plans-design.md.
 
-export type SubscriptionStatus = "created" | "active" | "payment_due" | "cancelling" | "ended";
+/** "scheduled": a subscription at a new price the owner approves, waiting beside the live plan
+ *  until the day it starts (0104, D595). It is never the live plan. */
+export type SubscriptionStatus = "created" | "scheduled" | "active" | "payment_due" | "cancelling" | "ended";
 
 export type LiveSubscription = {
   id: string;
-  status: Exclude<SubscriptionStatus, "ended">;
+  status: Exclude<SubscriptionStatus, "ended" | "scheduled">;
   priceId: string;
   nextPriceId: string | null;
   /** The price it moves to from the next renewal, and whether that is set up (0103, D593). */
@@ -21,11 +24,13 @@ export type LiveSubscription = {
   razorpaySubscriptionId: string | null;
   /** When the payment first became due (0098); null otherwise. */
   paymentDueSince: string | null;
+  /** A new price the owner must approve, or has approved (0104, D595); null otherwise. */
+  approval: PriceApproval | null;
 };
 
 type LiveRow = {
   id: string;
-  status: LiveSubscription["status"];
+  status: LiveSubscription["status"] | "scheduled";
   price_id: string;
   next_price_id: string | null;
   next_price_scheduled_at: string | null;
@@ -33,25 +38,57 @@ type LiveRow = {
   current_period_end: string | null;
   razorpay_subscription_id: string | null;
   payment_due_since: string | null;
+  ends_unless_approved_at: string | null;
+  approved_at: string | null;
+  starts_at: string | null;
   price: PriceJoin | null;
   next_price: PriceJoin | null;
 };
 
 type PriceJoin = { amount_minor: number | string; credits: number | string; product: { name: string } | null };
 
-/** The agency's subscription that hasn't ended, with its plan's name; null when there is none. */
+const REFUSED_ASKS: readonly MoveRefusal[] = ["upi", "emandate"];
+
+/** What the owner is asked, from the live plan and the approval waiting beside it (D595). */
+function approvalOf(live: LiveRow, scheduled: LiveRow | undefined): PriceApproval | null {
+  if (scheduled?.approved_at && scheduled.price) {
+    return {
+      state: "approved",
+      priceId: scheduled.price_id,
+      planName: scheduled.price.product?.name ?? null,
+      amountMinor: Number(scheduled.price.amount_minor),
+      credits: Number(scheduled.price.credits),
+      startsAt: scheduled.starts_at ?? live.ends_unless_approved_at,
+    };
+  }
+  if (live.ends_unless_approved_at && live.next_price_id && live.next_price && live.next_price_refused && REFUSED_ASKS.includes(live.next_price_refused)) {
+    return {
+      state: "asked",
+      priceId: live.next_price_id,
+      planName: live.next_price.product?.name ?? null,
+      amountMinor: Number(live.next_price.amount_minor),
+      credits: Number(live.next_price.credits),
+      endsAt: live.ends_unless_approved_at,
+    };
+  }
+  return null;
+}
+
+/** The agency's subscription that hasn't ended, with its plan's name and any new price to approve;
+ *  null when there is none. One query: the live plan and an approval waiting beside it. */
 export async function getLiveSubscription(orgId: string): Promise<LiveSubscription | null> {
   const { data, error } = await createServerSupabase()
     .from("billing_subscriptions")
     .select(
-      "id, status, price_id, next_price_id, next_price_scheduled_at, next_price_refused, current_period_end, razorpay_subscription_id, payment_due_since, price:billing_prices!billing_subscriptions_price_id_fkey(amount_minor, credits, product:billing_products(name)), next_price:billing_prices!billing_subscriptions_next_price_id_fkey(amount_minor, credits, product:billing_products(name))",
+      "id, status, price_id, next_price_id, next_price_scheduled_at, next_price_refused, current_period_end, razorpay_subscription_id, payment_due_since, ends_unless_approved_at, approved_at, starts_at, price:billing_prices!billing_subscriptions_price_id_fkey(amount_minor, credits, product:billing_products(name)), next_price:billing_prices!billing_subscriptions_next_price_id_fkey(amount_minor, credits, product:billing_products(name))",
     )
     .eq("org_id", orgId)
     .neq("status", "ended")
-    .maybeSingle();
+    .limit(2);
   if (error) throw error;
-  const r = data as LiveRow | null;
-  if (!r) return null;
+  const rows = (data ?? []) as unknown as LiveRow[];
+  const r = rows.find((row) => row.status !== "scheduled");
+  if (!r || r.status === "scheduled") return null;
   return {
     id: r.id,
     status: r.status,
@@ -74,6 +111,7 @@ export async function getLiveSubscription(orgId: string): Promise<LiveSubscripti
     currentPeriodEnd: r.current_period_end,
     razorpaySubscriptionId: r.razorpay_subscription_id,
     paymentDueSince: r.payment_due_since,
+    approval: approvalOf(r, rows.find((row) => row.status === "scheduled")),
   };
 }
 
@@ -136,10 +174,23 @@ export async function savePriceRazorpayPlan(priceId: string, planId: string): Pr
   return (existing as { razorpay_plan_id: string }).razorpay_plan_id;
 }
 
-export async function insertSubscription(row: { orgId: string; priceId: string; razorpaySubscriptionId: string }): Promise<string> {
+/** A new subscription: a checkout ("created"), or an approval of a new price that starts later
+ *  ("scheduled", D595), which may already be marked to move to a newer price. */
+export async function insertSubscription(row: {
+  orgId: string;
+  priceId: string;
+  razorpaySubscriptionId: string;
+  scheduled?: { startsAt: string | null; nextPriceId: string | null };
+}): Promise<string> {
   const { data, error } = await createServerSupabase()
     .from("billing_subscriptions")
-    .insert({ org_id: row.orgId, price_id: row.priceId, razorpay_subscription_id: row.razorpaySubscriptionId, status: "created" })
+    .insert({
+      org_id: row.orgId,
+      price_id: row.priceId,
+      razorpay_subscription_id: row.razorpaySubscriptionId,
+      status: row.scheduled ? "scheduled" : "created",
+      ...(row.scheduled ? { starts_at: row.scheduled.startsAt, next_price_id: row.scheduled.nextPriceId } : {}),
+    })
     .select("id")
     .single();
   if (error) throw error;
@@ -150,7 +201,7 @@ export async function insertSubscription(row: { orgId: string; priceId: string; 
  *  price is saved as set up). */
 export async function updateSubscription(
   id: string,
-  change: { status?: SubscriptionStatus; cancelAtPeriodEnd?: boolean; nextPriceId?: string | null },
+  change: { status?: SubscriptionStatus; cancelAtPeriodEnd?: boolean; nextPriceId?: string | null; endsUnlessApprovedAt?: string | null },
 ): Promise<void> {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (change.status) patch.status = change.status;
@@ -161,6 +212,7 @@ export async function updateSubscription(
     patch.next_price_scheduled_at = change.nextPriceId ? new Date().toISOString() : null;
     patch.next_price_refused = null;
   }
+  if (change.endsUnlessApprovedAt !== undefined) patch.ends_unless_approved_at = change.endsUnlessApprovedAt;
   const { error } = await createServerSupabase().from("billing_subscriptions").update(patch).eq("id", id);
   if (error) throw error;
 }
@@ -225,25 +277,36 @@ export async function markRazorpayEvent(eventId: string, outcome: { error: strin
 
 // ── The check against Razorpay (D585) ─────────────────────────────────────────────────────────
 
-export type CheckableSubscription = { id: string; orgId: string; status: SubscriptionStatus; razorpaySubscriptionId: string; currentPeriodEnd: string | null; paymentDueSince: string | null };
+export type CheckableSubscription = {
+  id: string;
+  orgId: string;
+  status: SubscriptionStatus;
+  razorpaySubscriptionId: string;
+  currentPeriodEnd: string | null;
+  paymentDueSince: string | null;
+  /** An approval subscription's authorisation (0104); null otherwise. */
+  approvedAt: string | null;
+};
 
 /** Live plans to compare with Razorpay, least recently updated first, bounded per run. */
 export async function listSubscriptionsToCheck(limit: number): Promise<CheckableSubscription[]> {
   const { data, error } = await createServerSupabase()
     .from("billing_subscriptions")
-    .select("id, org_id, status, razorpay_subscription_id, current_period_end, payment_due_since")
+    .select("id, org_id, status, razorpay_subscription_id, current_period_end, payment_due_since, approved_at")
     .neq("status", "ended")
     .not("razorpay_subscription_id", "is", null)
     .order("updated_at", { ascending: true })
     .limit(limit);
   if (error) throw error;
-  return ((data ?? []) as { id: string; org_id: string; status: SubscriptionStatus; razorpay_subscription_id: string; current_period_end: string | null; payment_due_since: string | null }[]).map((r) => ({
+  type Row = { id: string; org_id: string; status: SubscriptionStatus; razorpay_subscription_id: string; current_period_end: string | null; payment_due_since: string | null; approved_at: string | null };
+  return ((data ?? []) as Row[]).map((r) => ({
     id: r.id,
     orgId: r.org_id,
     status: r.status,
     razorpaySubscriptionId: r.razorpay_subscription_id,
     currentPeriodEnd: r.current_period_end,
     paymentDueSince: r.payment_due_since,
+    approvedAt: r.approved_at,
   }));
 }
 

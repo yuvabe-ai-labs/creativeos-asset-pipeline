@@ -30,6 +30,10 @@ export type PriceMove = {
   agencies: number;
   firstRenewal: string | null;
   lastRenewal: string | null;
+  /** UPI or a bank mandate: the owners are asked to approve, and the plans end between these dates
+   *  if they don't (0104, D595). Null otherwise. */
+  firstEnd: string | null;
+  lastEnd: string | null;
   /** The agencies refused, by name (empty otherwise). */
   orgs: { id: string; name: string }[];
 };

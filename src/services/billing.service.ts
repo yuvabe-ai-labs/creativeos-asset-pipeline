@@ -4,6 +4,8 @@ export type TestOrder = { orderId: string; amountPaise: number; credits: number;
 export type CheckoutResult = { orderId: string; paymentId: string; signature: string };
 export type TopUpOrder = { orderId: string; amountPaise: number; credits: number; keyId: string; name: string };
 export type StartedSubscription = { subscriptionId: string; keyId: string };
+/** An approval of a new price (D595): starts on `startsAt`, or now when null. */
+export type StartedApproval = StartedSubscription & { startsAt: string | null };
 export type SubscriptionCheckoutResult = { subscriptionId: string; paymentId: string; signature: string };
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -36,6 +38,10 @@ class BillingService {
   async confirmSubscription(input: SubscriptionCheckoutResult): Promise<{ received: true }> {
     const res = await fetch("/api/billing/subscribe/confirm", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(input) });
     return readJson<{ received: true }>(res, "The payment couldn't be confirmed.");
+  }
+
+  async approveNewPrice(): Promise<StartedApproval> {
+    return readJson<StartedApproval>(await fetch("/api/billing/approve-price", { method: "POST" }), "Could not start the approval.");
   }
 
   async payNow(): Promise<{ url: string }> {

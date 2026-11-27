@@ -103,7 +103,7 @@ export function GenerationsTable({
       <Card className="flex flex-col items-center justify-center gap-2 border-dashed p-14 text-center">
         <p className="font-display text-lg font-medium">No generations yet</p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Generations created for this org&apos;s clients will show up here.
+          Generations made for this agency&apos;s clients will show up here.
         </p>
       </Card>
     );

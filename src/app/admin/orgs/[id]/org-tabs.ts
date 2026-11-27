@@ -34,13 +34,6 @@ export function orgTabUrl(
   return `${pathname}?${params.toString()}`;
 }
 
-// Agencies › {Agency}, then the tab when it isn't Overview (the agency crumb goes back to it).
-export function adminOrgCrumbs(org: { id: string; name: string }, tab: OrgTab): Crumb[] {
-  const agencies: Crumb = { label: "Agencies", href: "/admin" };
-  if (tab === "overview") return [agencies, { label: org.name }];
-  return [agencies, { label: org.name, href: `/admin/orgs/${org.id}?tab=overview` }, { label: ORG_TAB_LABEL[tab] }];
-}
-
 // The Clients tab with a client open: All clients › {Client}.
 export function adminClientCrumbs(orgId: string, client: { name: string }): Crumb[] {
   return [{ label: "All clients", href: `/admin/orgs/${orgId}?tab=clients` }, { label: client.name }];

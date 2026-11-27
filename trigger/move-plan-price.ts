@@ -6,7 +6,9 @@
 //
 // A retry is safe: each plan is read again before Razorpay is asked, nothing is sent when Razorpay
 // already has the plan, and each answer is saved once. What a run leaves (a payment due, Razorpay
-// unreachable) the nightly reconcile-billing-plans picks up.
+// unreachable) the nightly reconcile-billing-plans picks up. A plan refused as UPI or a bank mandate
+// is asked to approve the new price (D595); when its end date is the end of the cycle running now,
+// its old subscription is stopped at that cycle's end straight away.
 //
 // Every @/lib import is dynamic: those modules carry `import "server-only"`, which Trigger.dev's
 // separate build must not evaluate statically.
@@ -19,8 +21,12 @@ export const movePlanPriceTask = task({
   retry: { maxAttempts: 3, minTimeoutInMs: 30_000, maxTimeoutInMs: 120_000, factor: 2 },
   run: async (payload: { productId: string }) => {
     const { movePendingPlans } = await import("@/lib/billing/plan-moves");
+    const { stopFinalCycles } = await import("@/lib/billing/price-approval");
     const report = await movePendingPlans();
     logger.info("Moved plans to the new price", { ...payload, ...report });
-    return report;
+    // A plan just asked to approve whose end date is this cycle's end stops then (D595).
+    const stops = report.refused > 0 ? await stopFinalCycles() : null;
+    if (stops?.stopped) logger.info("Final cycles stopped", stops);
+    return { ...report, stops };
   },
 });

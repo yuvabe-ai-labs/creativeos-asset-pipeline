@@ -47,7 +47,7 @@ describe("Plans and prices, cards with health", () => {
   });
 
   it("says when the agencies on an older price move to today's price, and offers the price history (D593)", () => {
-    const moves = [{ priceId: "old", nextPriceId: "new", state: "scheduled" as const, refused: null, agencies: 1, firstRenewal: "2026-12-03T06:00:00Z", lastRenewal: "2026-12-03T06:00:00Z", orgs: [] }];
+    const moves = [{ priceId: "old", nextPriceId: "new", state: "scheduled" as const, refused: null, agencies: 1, firstRenewal: "2026-12-03T06:00:00Z", lastRenewal: "2026-12-03T06:00:00Z", firstEnd: null, lastEnd: null, orgs: [] }];
     const html = renderToStaticMarkup(<OffersSection kind="plan" views={[offerView(studio, health, settings, moves)]} health={health} settings={settings} agency={false} />);
     expect(html).toContain("1 agency moves from ₹10,100 + GST to the new price at its next renewal, on 3 Dec 2026.");
     expect(html).not.toContain("still pays");

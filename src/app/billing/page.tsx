@@ -9,6 +9,7 @@ import { TopUpSection } from "@/components/billing/owner/top-up-section";
 import { PaymentsList } from "@/components/billing/owner/payments-list";
 import { UsageSection } from "@/components/billing/owner/usage-section";
 import { RefreshOnBillingChange } from "@/components/billing/owner/refresh-on-billing-change";
+import { PriceApprovalBanner } from "@/components/billing/owner/price-approval-banner";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Billing · CreativeOS" };
@@ -34,6 +35,7 @@ export default async function BillingPage() {
         <p className="text-sm text-muted-foreground">Your plan, your credits and your payments. Only you can see this page.</p>
       </div>
       <div className="flex flex-col gap-10">
+        {billing.subscription?.approval && <PriceApprovalBanner approval={billing.subscription.approval} />}
         <Card className="gap-0 divide-y divide-border py-0 shadow-card">
           <PlanSummary subscription={billing.subscription} />
           <div className="flex flex-col gap-4 p-6">

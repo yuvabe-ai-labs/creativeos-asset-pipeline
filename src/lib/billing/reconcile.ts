@@ -9,6 +9,7 @@ import {
   type CheckableSubscription,
   type SubscriptionStatus,
 } from "@/lib/db/billing-subscriptions";
+import { recordPriceApproval } from "@/lib/db/billing-approvals";
 import { cancelSubscription, getSubscription, listOrderPayments, listSubscriptionInvoices } from "./razorpay";
 import { PAYMENT_DUE_END_DAYS } from "./constants";
 
@@ -38,6 +39,14 @@ export type ReconcileReport = { checked: number; charges: number; statuses: numb
 
 async function checkSubscription(sub: CheckableSubscription, now: number, report: ReconcileReport): Promise<void> {
   const rz = await getSubscription(sub.razorpaySubscriptionId);
+
+  // An approval of a new price not started yet (D595): authorised is the approval a missed webhook
+  // didn't record; created is an unfinished checkout. Checked before the invoices: the small
+  // authorisation is never a charge. Started, expired or cancelled reads as usual.
+  if (sub.status === "scheduled" && (rz.status === "created" || rz.status === "authenticated")) {
+    if (rz.status === "authenticated" && !sub.approvedAt && (await recordPriceApproval(sub.razorpaySubscriptionId))) report.statuses += 1;
+    return;
+  }
 
   // Charges first, oldest to newest, so the latest one sets the paid period last.
   const invoices = (await listSubscriptionInvoices(sub.razorpaySubscriptionId))

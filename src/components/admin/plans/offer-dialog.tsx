@@ -26,7 +26,7 @@ function NewPriceNote({ plan, name, agencies, amountMinor }: { plan: boolean; na
     ? `Agencies pay ${price} from their next top-up.`
     : agencies === 0
       ? `No agency is on ${name}, so no one pays a different amount.`
-      : `${agencies === 1 ? "The agency on it moves" : `The ${plain(agencies)} agencies on it move`} to ${price} a month at ${agencies === 1 ? "its" : "their"} next renewal, and the owners get an email. A plan paid by UPI or bank mandate can't be changed: it stays on its price until it changes plan, and shows in Needs a look.`;
+      : `${agencies === 1 ? "The agency on it moves" : `The ${plain(agencies)} agencies on it move`} to ${price} a month at ${agencies === 1 ? "its" : "their"} next renewal, and the owners get an email. A plan paid by UPI or bank mandate can't be changed: its owner is asked to approve the new price, the plan ends at a renewal at least 7 days away if they don't, and it shows in Needs a look.`;
   const Icon = plan && agencies > 0 ? Clock : Info;
   return (
     <p className="flex gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">

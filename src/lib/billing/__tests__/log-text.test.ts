@@ -38,6 +38,15 @@ describe("billing log in plain words", () => {
       .toBe("Couldn't move the plan to ₹12,000 a month. It stays at ₹10,000 until it changes plan");
   });
 
+  it("says the owner was asked to approve a new price, approved it, or the plan ended (D595)", () => {
+    expect(describeBillingChange(entry("plan_move", { amount_minor: 1_000_000 }, { amount_minor: 1_200_000, refused: "emandate", ends_at: "2026-12-03T06:00:00Z" })))
+      .toBe("Asked the owner to approve ₹12,000 a month: the plan is paid by bank mandate. It ends on 3 Dec 2026 unless they do");
+    expect(describeBillingChange(entry("price_approved", { amount_minor: 1_000_000 }, { amount_minor: 1_200_000, starts_at: "2026-12-03T06:00:00Z" })))
+      .toBe("Owner approved ₹12,000 a month, from 3 Dec 2026");
+    expect(describeBillingChange(entry("price_not_approved", null, { amount_minor: 1_200_000, ends_at: "2026-12-03T06:00:00Z" })))
+      .toBe("Plan ended on 3 Dec 2026: the owner didn't approve ₹12,000 a month");
+  });
+
   it("names anything else plainly", () => {
     expect(describeBillingChange(entry("something_new", null, null))).toBe("Billing changed");
   });
