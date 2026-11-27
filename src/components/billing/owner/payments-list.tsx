@@ -11,22 +11,23 @@ import { HistoryPager } from "../history-pager";
 const WHAT: Record<OwnerPayment["kind"], string> = { plan: "Plan", renewal: "Monthly renewal", topup: "Top-up", test: "Test payment" };
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
-// The agency's payments on Billing, newest first (D582), ten at a time (D588): what, when, the total
-// with GST. Page 1 comes with the page; older pages load on demand, so no payment is ever cut off.
-export function PaymentsList({ initial }: { initial: OwnerPaymentsPage }) {
+// The agency's payments, newest first (D582), ten at a time (D588): what, when, the total with GST.
+// Page 1 comes with the page; older pages load on demand, so no payment is ever cut off. `limit`
+// shows only the newest few, with no pager (the Usage page's side column; See all opens the rest).
+export function PaymentsList({ initial, limit }: { initial: OwnerPaymentsPage; limit?: number }) {
   const [page, setPage] = useState(1);
   const older = useOwnerPaymentsPage(page);
   const shown = page === 1 ? initial : older.data ?? initial;
+  const rows = limit ? shown.payments.slice(0, limit) : shown.payments;
 
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-eyebrow text-muted-foreground">Payments</h2>
+    <div className="flex flex-col gap-2">
       {shown.total === 0 ? (
         <p className="text-sm text-muted-foreground">No payments yet.</p>
       ) : (
         <>
           <ul className={older.isFetching ? "flex flex-col divide-y divide-border opacity-60 transition-opacity" : "flex flex-col divide-y divide-border"}>
-            {shown.payments.map((p) => (
+            {rows.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div className="flex flex-col">
                   <span className="text-sm">
@@ -47,9 +48,9 @@ export function PaymentsList({ initial }: { initial: OwnerPaymentsPage }) {
             ))}
           </ul>
           {older.isError && page > 1 && <p className="text-xs text-muted-foreground">That page couldn&apos;t be loaded. Try again.</p>}
-          <HistoryPager page={page} pages={pageCount(shown.total, OWNER_PAYMENTS_PAGE_SIZE)} busy={older.isFetching} onChange={setPage} />
+          {!limit && <HistoryPager page={page} pages={pageCount(shown.total, OWNER_PAYMENTS_PAGE_SIZE)} busy={older.isFetching} onChange={setPage} />}
         </>
       )}
-    </section>
+    </div>
   );
 }

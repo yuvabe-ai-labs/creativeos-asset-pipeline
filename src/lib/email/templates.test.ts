@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { accessReadyEmail, appLink, memberInviteEmail, ownerInviteEmail, signedUpEmail } from "./templates";
+import { accessReadyEmail, appLink, freeCreditsEndingEmail, lowCreditsEmail, memberInviteEmail, ownerInviteEmail, signedUpEmail } from "./templates";
 
 describe("emails (spec §6.3, §6.7)", () => {
   beforeEach(() => { process.env.APP_URL = "https://app.example/"; });
@@ -76,5 +76,48 @@ describe("emails (spec §6.3, §6.7)", () => {
 
   it("builds links on APP_URL", () => {
     expect(appLink("/team")).toBe("https://app.example/team");
+  });
+});
+
+describe("credit emails to the owners (D596)", () => {
+  const base = { to: ["o@x.com"], agency: "Acme", usedPercent: 82, left: 18000, total: 150000, link: "https://app.example/billing" };
+
+  it("says credits are running low, when the soonest end, and offers a top-up on a plan", () => {
+    const e = lowCreditsEmail({ ...base, soonest: { left: 12000, endsAt: "2026-12-03T18:30:00Z" }, onPlan: true });
+    expect(e.subject).toBe("Your CreativeOS credits are running low");
+    expect(e.text).toBe([
+      "Acme has used 82% of its credits. 18,000 of 1,50,000 credits are left. 12,000 of them can be used until 3 Dec 2026.",
+      "To keep making things, buy a top-up or move to a bigger plan on the Billing page. Top-ups end with your plan month.",
+      "",
+      "Open Billing: https://app.example/billing",
+    ].join("\n"));
+    expect(e.html).toContain("Your credits are running low");
+  });
+
+  it("says they all end together, and asks for a plan without one", () => {
+    const e = lowCreditsEmail({ ...base, soonest: { left: 18000, endsAt: "2026-12-03T18:30:00Z" }, onPlan: false, link: "https://app.example/billing/plans" });
+    expect(e.text).toContain("18,000 of 1,50,000 credits are left. They can be used until 3 Dec 2026.");
+    expect(e.text).toContain("To keep making things, pick a plan on the Billing page.");
+    expect(e.text).not.toContain("top-up");
+    expect(e.text).toContain("Pick a plan: https://app.example/billing/plans");
+  });
+
+  it("says when free credits end and what is left", () => {
+    const e = freeCreditsEndingEmail({ to: ["o@x.com"], agency: "Acme", left: 32500, endsAt: "2026-12-03T18:30:00Z", link: "https://app.example/billing/plans" });
+    expect(e.subject).toBe("Your free credits end on 3 Dec");
+    expect(e.text).toBe([
+      "The free credits for Acme can be used until 3 Dec 2026. You have 32,500 of them left.",
+      "Pick a plan before then to keep making things. A plan gives you new credits every month.",
+      "",
+      "Pick a plan: https://app.example/billing/plans",
+    ].join("\n"));
+  });
+
+  it("never names a vendor or uses dash phrasing", () => {
+    const all = [
+      lowCreditsEmail({ ...base, soonest: null, onPlan: true }),
+      freeCreditsEndingEmail({ to: ["o@x.com"], agency: "Acme", left: 1, endsAt: "2026-12-03T18:30:00Z", link: "https://app.example/billing/plans" }),
+    ].map((e) => e.subject + e.text).join(" ");
+    expect(all).not.toMatch(/razorpay|resend|—/i);
   });
 });

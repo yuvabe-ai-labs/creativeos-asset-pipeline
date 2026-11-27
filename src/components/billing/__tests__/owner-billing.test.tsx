@@ -92,12 +92,11 @@ describe("the owner's billing page", () => {
     expect(renderToStaticMarkup(<PlansGrid plans={next} subscription={moving("refused")} />)).not.toContain("From next payment");
   });
 
-  it("explains a due payment without naming the payment company", () => {
+  it("marks a due payment on the plan without naming the payment company (Pay now is the page's notice)", () => {
     const html = renderToStaticMarkup(<PlanSummary subscription={{ ...sub, status: "payment_due", paymentDueSince: "2026-11-21T06:00:00Z" }} />);
     expect(html).toContain("Payment due");
-    expect(html).toContain("Pay now");
-    expect(html).toContain("If it isn&#x27;t paid by 21 Dec 2026, the plan ends.");
-    expect(html).toContain("AI runs are paused");
+    expect(html).toContain("AI runs are paused until the payment goes through.");
+    expect(html).not.toContain("Pay now");
     expect(html).not.toMatch(/razorpay/i);
   });
 
@@ -113,6 +112,9 @@ describe("the owner's billing page", () => {
     const payments = renderToStaticMarkup(<PaymentsList initial={{ payments: [payment], total: 1 }} />);
     expect(payments).not.toContain("Page 1 of");
     expect(renderToStaticMarkup(<PaymentsList initial={{ payments: [payment], total: 25 }} />)).toContain("Page 1 of 3");
+    const few = renderToStaticMarkup(<PaymentsList initial={{ payments: [payment, { ...payment, id: "y" }], total: 25 }} limit={1} />);
+    expect(few).not.toContain("Page 1 of");
+    expect(few.match(/Monthly renewal/g)).toHaveLength(1);
     expect(payments).toContain("Monthly renewal · Starter");
     expect(payments).toContain("₹14,160");
     expect(payments).toContain("incl. GST");

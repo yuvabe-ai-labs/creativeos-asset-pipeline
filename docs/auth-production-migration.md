@@ -2180,6 +2180,95 @@ alter table billing_subscriptions drop column if exists ends_unless_approved_at;
 notify pgrst, 'reload schema';
 ```
 
+## Migration 0105 — owner credit emails (D596, 2026-11-27)
+
+Apply after 0104, **before** the code: the hourly task calls `billing_owner_emails_due` and the claim
+functions, which don't exist until then (each run would log a failure and send nothing).
+
+- Adds `organizations.low_credits_warned_at` (when the owners were last told credits are running low;
+  credits that arrive after it start a new credit period) and `credit_grants.ending_warned_at` (a free
+  grant told it ends in 3 days, once per grant), plus a partial index on free grants not yet told.
+- Adds `billing_owner_emails_due(numeric, interval, integer)`: everything due now for every paying
+  agency in one read, with the open grants, the live plan and the owners' login emails.
+- Adds `claim_low_credits_email(uuid, timestamptz)`, `release_low_credits_email(uuid, timestamptz,
+  timestamptz)`, `claim_free_ending_email(uuid)` and `release_free_ending_email(uuid, timestamptz)`:
+  each send is taken once before it goes and given back if it fails.
+- Safe to apply: re-runnable (`if not exists`, `create or replace`), new nullable columns only, no
+  existing row changes. Nothing is backfilled: on the first run, agencies already at 80% or more and
+  free grants already within 3 days of their end get their email once.
+
+**Then deploy the Trigger.dev tasks** (`npx trigger.dev deploy`, staging and production):
+`reconcile-billing-orders` (hourly) now sends the emails. It needs `RESEND_API_KEY`, `EMAIL_FROM` and
+`APP_URL` in each Trigger.dev environment (already required by the approval emails); without the
+email settings nothing is sent and each run tries again.
+
+**Verify after running:**
+
+```sql
+-- expect two rows
+select table_name, column_name from information_schema.columns
+ where (table_name, column_name) in (('organizations', 'low_credits_warned_at'), ('credit_grants', 'ending_warned_at'));
+-- expect the index
+select indexname from pg_indexes where indexname = 'credit_grants_free_ending_idx';
+-- expect false, false
+select has_function_privilege('anon', 'billing_owner_emails_due(numeric, interval, integer)', 'execute'),
+       has_function_privilege('authenticated', 'claim_low_credits_email(uuid, timestamptz)', 'execute');
+-- what the next hourly run would look at (read-only; the code still applies Billing's "low" rule)
+select kind, agency, owner_emails, grant_id from billing_owner_emails_due(0.8, '72 hours', 200);
+```
+
+**Rollback** (deploy the previous `reconcile-billing-orders` first):
+
+```sql
+drop function if exists release_free_ending_email(uuid, timestamptz);
+drop function if exists claim_free_ending_email(uuid);
+drop function if exists release_low_credits_email(uuid, timestamptz, timestamptz);
+drop function if exists claim_low_credits_email(uuid, timestamptz);
+drop function if exists billing_owner_emails_due(numeric, interval, integer);
+drop index if exists credit_grants_free_ending_idx;
+alter table credit_grants drop column if exists ending_warned_at;
+alter table organizations drop column if exists low_credits_warned_at;
+notify pgrst, 'reload schema';
+```
+
+## Migration 0106 — the owner's Usage page reads (D597, 2026-11-27)
+
+Apply after 0105, **before** the code: the Usage page (`/billing`) and its two routes
+(`/api/billing/usage`, `/api/billing/usage/runs`) call `org_usage_overview` and `org_usage_runs`,
+which don't exist until then (the page would show its error state).
+
+- Adds `org_usage_overview(uuid, timestamptz, timestamptz, timestamptz)`: everything the page shows
+  for a month in one read, from the ledger's `consumption` rows: credits by India day and run type,
+  by model, member, client and canvas (named), the month before in all, and the last 7 days and the
+  7 before for the pace. A charge whose run was deleted later comes back as `removed`.
+- Adds `org_usage_runs(uuid, timestamptz, timestamptz, text, text, text[], integer, integer)`: one
+  group's runs from the same rows, newest first, with who made each and on which canvas and client.
+- Both are read-only, `security definer`, service role only. No new index: they filter
+  `credit_transactions` by `(org_id, created_at)`, which 0019 indexed, and join by primary keys.
+- `org_credit_usage_by` (0097) stays but nothing in the app calls it after this release.
+- Safe to apply: `create or replace` only, nothing written.
+
+**Verify after running:**
+
+```sql
+-- expect two rows, both true
+select proname, prosecdef from pg_proc where proname in ('org_usage_overview', 'org_usage_runs');
+-- expect false, false
+select has_function_privilege('anon', 'org_usage_overview(uuid, timestamptz, timestamptz, timestamptz)', 'execute'),
+       has_function_privilege('authenticated', 'org_usage_runs(uuid, timestamptz, timestamptz, text, text, text[], integer, integer)', 'execute');
+-- one agency's month: the 'day' rows add up to the same total as the 'member' rows (read-only)
+select section, sum(credits) from org_usage_overview('<org id>', date_trunc('month', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata', now() + interval '1 day', now() - interval '2 months')
+ where section in ('day', 'member', 'model') group by section;
+```
+
+**Rollback** (deploy the previous page first):
+
+```sql
+drop function if exists org_usage_runs(uuid, timestamptz, timestamptz, text, text, text[], integer, integer);
+drop function if exists org_usage_overview(uuid, timestamptz, timestamptz, timestamptz);
+notify pgrst, 'reload schema';
+```
+
 ## Razorpay setup for each environment (D589, 2026-11-23) — no migration
 
 Razorpay keeps test mode and live mode apart: each has its own keys, webhooks and webhook secrets.

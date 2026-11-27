@@ -1,7 +1,8 @@
 // trigger/reconcile-billing.ts
 // The check against Razorpay (D585). Webhooks can be late, missing or out of order, and Razorpay
 // disables a webhook after 24 hours of failures, so two schedules bring our records in line:
-//   - hourly: top-ups whose payment went through but whose order.paid never arrived;
+//   - hourly: top-ups whose payment went through but whose order.paid never arrived; then the
+//     owners' credit emails (D596): credits running low, and free credits ending in 3 days;
 //   - nightly (02:00 India time): every live plan's status, any charge we missed, and plans unpaid
 //     for 30 days, which are ended; then any move to a new price not yet set up on Razorpay
 //     (D593: a move-plan-price run that never happened, a payment that was due, Razorpay down);
@@ -19,9 +20,13 @@ export const reconcileBillingOrdersTask = schedules.task({
   maxDuration: 300,
   run: async () => {
     const { reconcileOrders } = await import("@/lib/billing/reconcile");
+    const { sendOwnerCreditEmails } = await import("@/lib/billing/owner-credit-emails");
     const report = await reconcileOrders();
     if (report.checked > 0) logger.info("Checked unpaid top-ups", report);
-    return report;
+    // After the top-ups, so credits that just arrived count before anyone is told they're low.
+    const emails = await sendOwnerCreditEmails();
+    if (emails.lowCredits || emails.freeEnding || emails.failed) logger.info("Owner credit emails", emails);
+    return { ...report, emails };
   },
 });
 

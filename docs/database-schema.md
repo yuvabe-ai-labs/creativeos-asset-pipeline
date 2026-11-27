@@ -1,6 +1,6 @@
 # Database schema map
 
-Generated from migrations up to **0104** (`supabase/migrations/0001_init.sql` … `0104_price_approvals.sql`; the model catalog's 0076–0089 follow the copilot journey's 0067, billing's 0090–0100 follow the catalog, the admin agencies list's 0101 follows billing, and Admin's plans and payments reads 0102 follow it, then the plan price moves 0103 and the price approvals 0104). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied. 0063, 0064 and 0065 are pairs too: the permission work's `0063_close_views_and_count_resends`, `0064_lock_node_files_bucket`, `0065_client_scoped_reads`, and the copilot journey's `0063_client_market_status`, `0064_client_copilot_messages`, `0065_kb_review_writes` (then `0066_copilot_turn_traces`). A bare number below means the permission work's file; the copilot journey's are named in full.
+Generated from migrations up to **0106** (`supabase/migrations/0001_init.sql` … `0106_usage_overview.sql`; the model catalog's 0076–0089 follow the copilot journey's 0067, billing's 0090–0100 follow the catalog, the admin agencies list's 0101 follows billing, and Admin's plans and payments reads 0102 follow it, then the plan price moves 0103, the price approvals 0104, the owner credit emails 0105 and the owner's Usage page reads 0106). Two files share the number 0062 (`0062_client_review_versions.sql` from staging and `0062_permission_based_access.sql`); they touch different tables and both are applied. 0063, 0064 and 0065 are pairs too: the permission work's `0063_close_views_and_count_resends`, `0064_lock_node_files_bucket`, `0065_client_scoped_reads`, and the copilot journey's `0063_client_market_status`, `0064_client_copilot_messages`, `0065_kb_review_writes` (then `0066_copilot_turn_traces`). A bare number below means the permission work's file; the copilot journey's are named in full.
 It shows the state after every migration has run: later `alter`/`drop`/`create or replace` are folded in.
 
 - **Access.** The code reads and writes through the service-role client (`createServerSupabase`, `src/lib/supabase/server.ts`), which bypasses RLS. The browser client is used only for Realtime on the tables marked *Realtime* below; their `org isolation` select policy is what lets it receive rows, and since 0065 it lets a person read only the rows of clients they may see (credit transactions: owners only).
@@ -20,6 +20,7 @@ An agency (tenant). *0012*
 - `id` uuid PK · `name` text · `slug` text unique · `monthly_credit_limit` numeric (null = unlimited; ×1000 in 0019)
 - `invite_window_start` timestamptz, `invite_window_count` int default 0: the 50-a-day invite send counter (0063, `take_invite_send`)
 - `billing_mode` text check managed/plans (default managed) · `plan_type` text check standard/custom (default standard) (0091, D574)
+- `low_credits_warned_at` timestamptz (0105, D596): when the owners were last emailed that credits are running low; credits arriving after it start a new credit period that can be warned again
 - RLS: service role only.
 
 ### profiles
@@ -201,8 +202,8 @@ One row per Razorpay payment: the test top-up (D573), then plans, renewals and t
 
 ### credit_grants
 A paying agency’s credits: each grant ends (free credits, a plan month, a top-up, credits Yuvabe added). Used first-ending first (D574). *0091* · org_id · *Realtime* (0099)
-- `id` uuid PK · `org_id` → organizations cascade · `kind` check free/plan/topup/admin · `credits` numeric >= 0 · `used` numeric default 0 (running total of its `credit_grant_uses`) · `starts_at` default now() · `ends_at` (> starts_at) · `payment_id` → billing_payments set null · `price_id` → billing_prices set null, `subscription_id` → billing_subscriptions set null (0092) · `created_by` → auth.users set null · `reason`
-- Indexes: `(org_id, ends_at)`, `payment_id`, `price_id`, `subscription_id`
+- `id` uuid PK · `org_id` → organizations cascade · `kind` check free/plan/topup/admin · `credits` numeric >= 0 · `used` numeric default 0 (running total of its `credit_grant_uses`) · `starts_at` default now() · `ends_at` (> starts_at) · `payment_id` → billing_payments set null · `price_id` → billing_prices set null, `subscription_id` → billing_subscriptions set null (0092) · `created_by` → auth.users set null · `reason` · `ending_warned_at` (0105, D596; on a free grant: when the owners were emailed it ends in 3 days, once per grant)
+- Indexes: `(org_id, ends_at)`, `payment_id`, `price_id`, `subscription_id`, `ends_at` where free and `ending_warned_at` is null (0105)
 - RLS: select `owners read`, owners of the agency only. Written only by the server and the 0091 functions.
 
 ### credit_grant_uses
@@ -432,6 +433,7 @@ Active image/video versions with their client, canvas and approval fields. *0031
 ### org_credit_usage
 Credits used this UTC month per agency (`sum(amount)` of credit_transactions). *0019*
 - Read by `getOrgCreditUsage` (`src/lib/db/organizations.ts`).
+- Every ledger row, so it includes the holds of runs still running, by UTC month; the managed limit check in `reserve_credits_v2` sums the same way. The owner's Usage page counts settled charges by India month instead (`org_usage_overview`, D597), so the two can differ by the holds in flight and the 5½ hours either side of the 1st.
 
 ### stuck_reservations
 Reservations older than 50 minutes with no consumption or refund. *0021, redefined 0028, 0055*
@@ -483,7 +485,9 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `settle_credits` | org_id, generation_id, actual → bool (refund + consumption rows; moves the cost onto the held grants; false when already settled) | definer, service role | 0091 |
 | `refund_credits` | org_id, generation_id → bool (refund row; gives held credits back to their grants; false when already settled) | definer, service role | 0091 |
 | `credit_balance` | org_id → (grant_id, kind, credits, used, left_credits, ends_at) for open grants | definer, service role | 0091 |
-| `org_credit_usage_by` | org_id, from, to, by (member/client/canvas) → (key, credits, runs): credits charged in the period per group, runs off a canvas under a null key | definer, service role | 0097 |
+| `org_credit_usage_by` | org_id, from, to, by (member/client/canvas) → (key, credits, runs): credits charged in the period per group, runs off a canvas under a null key. Sums `generations.credits_charged`, so it misses charges whose run was deleted; the Usage page reads `org_usage_overview` instead (D597) and nothing in the app calls it now | definer, service role | 0097 |
+| `org_usage_overview` | org_id, from, to, prev_from → (section, key, name, detail, removed, credits, runs): everything the owner's Usage page shows for a period in one read, from the ledger's `consumption` rows (credit_transactions, joined to generations, nodes, profiles, clients, canvases): `day` (India day × run type), `model`, `member`, `client`, `canvas` (with its client), `previous` (prev_from to from, in all) and `pace` (`last7`/`prev7` from now). A charge whose generation was deleted (0028) comes back `removed` with a null key, so every section adds up to the same total (D597) | definer, service role | 0106 |
+| `org_usage_runs` | org_id, from, to, by (member/client/canvas/model/kind), key, types[], offset, limit → (id, type, model, credits, created_at, member_name, client_name, canvas_name, total): one group's charged runs from the same ledger rows, newest first, at most 100 a page, with the group's count on every row; `kind` filters by `types` | definer, service role | 0106 |
 | `admin_set_billing_mode` | org_id, mode, actor, reason → bool (false when missing or unchanged; logs) | definer, service role | 0091 |
 | `admin_grant_credits` | org_id, kind (free/admin), credits, ends_at, actor, reason → grant id (null when the agency is missing; logs) | definer, service role | 0091 |
 | `admin_take_back_credits` | grant_id, credits, actor, reason → text (`ok`/`not_found`/`too_many`; never more than is left; logs) | definer, service role | 0091 |
@@ -497,6 +501,9 @@ Reservations older than 50 minutes with no consumption or refund. *0021, redefin
 | `admin_agency_activity` | → (org_id, owner_email, member_count, last_run_at) for every agency: the owner's login email, its memberships, its newest generation (null: never ran). Admin › Agencies (D590) | definer, service role | 0101 |
 | `record_plan_move` | subscription, price, refused (null: scheduled) → bool: saves Razorpay's answer for a plan's move to that price once, only while it still moves there, and logs `plan_move` on the agency (D593); a UPI or mandate refusal sets `ends_unless_approved_at` (D595) | definer, service role | 0103, 0104 |
 | `record_price_approval` | razorpay subscription → bool: an approval subscription was authorised; once: sets `approved_at`, clears the live plan's `next_price_id`, logs `price_approved` (D595) | definer, service role | 0104 |
+| `billing_owner_emails_due` | low share, notice interval, limit → (kind low_credits/free_ending, org_id, agency, owner_emails, grant_id, grants, subscription_status, current_period_end, warned_at): every owner credit email due now for paying agencies in one read: low share or more of the open credits used and not told since the newest open credits arrived, or a free grant with credits left ending within the notice (given at least that long before), not told, with no live plan; with the open grants, the live plan and the owners' login emails (no owner: left out). Hourly check (D596) | definer, service role | 0105 |
+| `claim_low_credits_email` / `release_low_credits_email` | org, seen (→ timestamptz claimed or null) / org, claimed, previous → void: takes the low-credits email once (sets `low_credits_warned_at` only while it is as read); gives it back after a failed send | definer, service role | 0105 |
+| `claim_free_ending_email` / `release_free_ending_email` | grant (→ timestamptz claimed or null) / grant, claimed → void: the same for a free grant's `ending_warned_at` | definer, service role | 0105 |
 | `billing_end_replaced_subscription` | org, subscription to keep → void: ends the agency's live plan when its approved subscription starts | definer, service role | 0104 |
 | `admin_price_moves` | → (price_id, next_price_id, state scheduled/waiting/refused, refused, agencies, first_renewal, last_renewal, first_end, last_end, orgs) running plans (active, payment due, and cancelling ones still asked to approve) marked to move, grouped; orgs names the refused ones with their end date. Admin › Plans and prices (D593, D595) | definer, service role | 0103, 0104 |
 | `admin_offer_health` | since → (price_id, agencies, active, ending, due, monthly_minor, paid_count, paid_minor) per price: running plans (active, cancelling, payment due; never created or ended), what the active ones pay a month before GST, and paid payments since then with GST. Admin › Plans and prices and Payments (D592) | definer, service role | 0102 |
